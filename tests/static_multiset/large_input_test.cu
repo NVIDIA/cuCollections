@@ -46,7 +46,7 @@ void test_unique_sequence(Set& set, typename Set::value_type* res_begin, std::si
       set.retrieve(keys_begin, keys_end, thrust::make_discard_iterator(), res_begin);
     REQUIRE(static_cast<std::size_t>(std::distance(res_begin, res_end)) == num_keys);
 
-    thrust::sort(res_begin, res_end);
+    thrust::sort(thrust::device, res_begin, res_end);
 
     REQUIRE(cuco::test::equal(res_begin, res_end, keys_begin, thrust::equal_to<Key>{}));
   }

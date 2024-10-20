@@ -304,17 +304,51 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
+template <class InputProbeIt,
+          class ProbeEqual,
+          class ProbeHash,
+          class OutputProbeIt,
+          class OutputMatchIt>
 std::pair<OutputProbeIt, OutputMatchIt>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_outer(
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
   InputProbeIt first,
   InputProbeIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
   OutputProbeIt output_probe,
   OutputMatchIt output_match,
   cuda::stream_ref stream) const
 {
-  return this->impl_->retrieve_outer(
-    first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+  auto const probe_ref =
+    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
+  return this->impl_->retrieve(first, last, output_probe, output_match, probe_ref, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <class InputProbeIt,
+          class ProbeEqual,
+          class ProbeHash,
+          class OutputProbeIt,
+          class OutputMatchIt>
+std::pair<OutputProbeIt, OutputMatchIt>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_outer(
+  InputProbeIt first,
+  InputProbeIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputProbeIt output_probe,
+  OutputMatchIt output_match,
+  cuda::stream_ref stream) const
+{
+  auto const probe_ref =
+    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
+  return this->impl_->retrieve_outer(first, last, output_probe, output_match, probe_ref, stream);
 }
 
 template <class Key,

@@ -94,8 +94,12 @@ void test_outer(Container& container, std::size_t num_keys)
 
   SECTION("Non-inserted keys should output sentinels.")
   {
-    auto const [probed_end, matched_end] = container.retrieve_outer(
-      query_keys.begin(), query_keys.end(), probed_keys.begin(), matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_outer(query_keys.begin(),
+                                                                    query_keys.end(),
+                                                                    container.key_eq(),
+                                                                    container.hash_function(),
+                                                                    probed_keys.begin(),
+                                                                    matched_keys.begin());
     REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
             num_keys * 2ull);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
@@ -112,8 +116,12 @@ void test_outer(Container& container, std::size_t num_keys)
 
   SECTION("All inserted keys should be contained.")
   {
-    auto const [probed_end, matched_end] = container.retrieve_outer(
-      query_keys.begin(), query_keys.end(), probed_keys.begin(), matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_outer(query_keys.begin(),
+                                                                    query_keys.end(),
+                                                                    container.key_eq(),
+                                                                    container.hash_function(),
+                                                                    probed_keys.begin(),
+                                                                    matched_keys.begin());
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), thrust::less<key_type>());
 
