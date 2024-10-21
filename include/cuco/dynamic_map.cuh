@@ -113,6 +113,38 @@ class dynamic_map {
                         cuda::stream_ref stream             = {});
 
   /**
+   * @brief Constructs a dynamically-sized map with erase capability.
+   *
+   * The capacity of the map will automatically increase as the user adds key/value pairs using
+   * `insert`.
+   *
+   * Capacity increases by a factor of growth_factor each time the size of the map exceeds a
+   * threshold occupancy. The performance of `find` and `contains` gradually decreases each time the
+   * map's capacity grows.
+   *
+   * @param initial_capacity The initial number of slots in the map
+   * @param empty_key_sentinel The reserved key value for empty slots
+   * @param empty_value_sentinel The reserved mapped value for empty slots
+   * @param erased_key_sentinel The reserved key value for empty slots
+   * @param pred Key equality binary predicate
+   * @param probing_scheme Probing scheme
+   * @param scope The scope in which operations will be performed
+   * @param storage Kind of storage to use
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the map
+   */
+  constexpr dynamic_map(Extent initial_capacity,
+                        empty_key<Key> empty_key_sentinel,
+                        empty_value<T> empty_value_sentinel,
+                        erased_key<Key> erased_key_sentinel,
+                        KeyEqual const& pred                = {},
+                        ProbingScheme const& probing_scheme = {},
+                        cuda_thread_scope<Scope> scope      = {},
+                        Storage storage                     = {},
+                        Allocator const& alloc              = {},
+                        cuda::stream_ref stream             = {});
+
+  /**
    * @brief Grows the capacity of the map so there is enough space for `n` key/value pairs.
    *
    * If there is already enough space for `n` key/value pairs, the capacity remains the same.
@@ -156,6 +188,49 @@ class dynamic_map {
                 InputIt last,
                 OutputIt output_begin,
                 cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Erases keys in the range `[first, last)`.
+   *
+   * For each key `k` in `[first, last)`, if `contains(k) == true), removes `k` and it's
+   * associated value from the map. Else, no effect.
+   *
+   *  Side-effects:
+   *  - `contains(k) == false`
+   *  - `find(k) == end()`
+   *  - `insert({k,v}) == true`
+   *  - `get_size()` is reduced by the total number of erased keys
+   *
+   * This function synchronizes `stream`.
+   *
+   * Keep in mind that `erase` does not cause the map to shrink its memory allocation.
+   *
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the map's `value_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stream Stream used for executing the kernels
+   *
+   * @throw std::runtime_error if a unique erased key sentinel value was not
+   * provided at construction
+   */
+  template <typename InputIt>
+  void erase(InputIt first, InputIt last, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Gets the current number of elements in the map
+   *
+   * @return The current number of elements in the map
+   */
+  size_type get_size() const noexcept { return size_; }
+
+  /**
+   * @brief Gets the maximum number of elements the hash map can hold.
+   *
+   * @return The maximum number of elements the hash map can hold
+   */
+  size_type get_capacity() const noexcept { return capacity_; }
 
  private:
   size_type size_{};      ///< Number of keys in the map
