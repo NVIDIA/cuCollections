@@ -516,6 +516,49 @@ class static_multiset {
    * slot contents to `output_match`, respectively. The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type that can be constructed from
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
+  template <class InputProbeIt,
+            class ProbeEqual,
+            class ProbeHash,
+            class OutputProbeIt,
+            class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputProbeIt first,
+                                                   InputProbeIt last,
+                                                   ProbeEqual const& probe_equal,
+                                                   ProbeHash const& probe_hash,
+                                                   OutputProbeIt output_probe,
+                                                   OutputMatchIt output_match,
+                                                   cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
+   *
+   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
+   * slot contents to `output_match`, respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
    * Use `count_outer()` to determine the size of the output range.
    *
    * If a key `k` has no matches in the container, then `{key, empty_slot_sentinel}` will be added
@@ -524,6 +567,8 @@ class static_multiset {
    * This function synchronizes the given CUDA stream.
    *
    * @tparam InputProbeIt Device accessible input iterator
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type that can be constructed from
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
    * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -531,6 +576,8 @@ class static_multiset {
    *
    * @param first Beginning of the input sequence of keys
    * @param last End of the input sequence of keys
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
@@ -538,9 +585,15 @@ class static_multiset {
    *
    * @return Iterator pair indicating the the end of the output sequences
    */
-  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
+  template <class InputProbeIt,
+            class ProbeEqual,
+            class ProbeHash,
+            class OutputProbeIt,
+            class OutputMatchIt>
   std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer(InputProbeIt first,
                                                          InputProbeIt last,
+                                                         ProbeEqual const& probe_equal,
+                                                         ProbeHash const& probe_hash,
                                                          OutputProbeIt output_probe,
                                                          OutputMatchIt output_match,
                                                          cuda::stream_ref stream = {}) const;
