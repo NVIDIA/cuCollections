@@ -638,6 +638,70 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 class operator_impl<
+  op::find_tag,
+  static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type       = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Finds an element in the map with key equivalent to the probe key.
+   *
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param key The key to search for
+   *
+   * @return An iterator to the position at which the equivalent key is stored
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.find(key);
+  }
+
+  /**
+   * @brief Finds an element in the map with key equivalent to the probe key.
+   *
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   *
+   * @return An iterator to the position at which the equivalent key is stored
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.find(group, key);
+  }
+};
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
   op::count_tag,
   static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
   using base_type = static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
