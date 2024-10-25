@@ -25,44 +25,68 @@
 
 int main(void)
 {
-  // Generate 10'000 keys and insert the first 5'000 into the filter.
-  int constexpr num_keys = 10'000;
-  int constexpr num_tp   = num_keys * 0.5;
-  int constexpr num_tn   = num_keys - num_tp;
+  using key_type    = int;
+  using extent_type = size_t;
 
-  // Spawn a filter with 200 sub-filters.
-  cuco::bloom_filter<int> filter{200};
+  // Generate 10'000 keys and insert the first 5'000 into the filter containing of 200 sub-filters.
+  int constexpr num_keys    = 10'000;
+  int constexpr num_tp      = num_keys * 0.5;
+  int constexpr num_tn      = num_keys - num_tp;
+  int constexpr sub_filters = 200;
 
-  thrust::device_vector<int> keys(num_keys);
-  thrust::sequence(keys.begin(), keys.end(), 1);
+  // Lambda function to bulk insert to the provided bloom filter and evaluate FPR.
+  auto bulk_insert_and_evaluate_bloom_filter = [&](auto& filter) {
+    thrust::device_vector<key_type> keys(num_keys);
+    thrust::sequence(keys.begin(), keys.end(), 1);
 
-  auto tp_begin = keys.begin();
-  auto tp_end   = tp_begin + num_tp;
-  auto tn_begin = tp_end;
-  auto tn_end   = keys.end();
+    auto tp_begin = keys.begin();
+    auto tp_end   = tp_begin + num_tp;
+    auto tn_begin = tp_end;
+    auto tn_end   = keys.end();
 
-  // Insert the first half of the keys.
-  filter.add(tp_begin, tp_end);
+    // Insert the first half of the keys.
+    filter.add(tp_begin, tp_end);
 
-  thrust::device_vector<bool> tp_result(num_tp, false);
-  thrust::device_vector<bool> tn_result(num_keys - num_tp, false);
+    thrust::device_vector<bool> tp_result(num_tp, false);
+    thrust::device_vector<bool> tn_result(num_keys - num_tp, false);
 
-  // Query the filter for the previously inserted keys.
-  // This should result in a true-positive rate of TPR=1.
-  filter.contains(tp_begin, tp_end, tp_result.begin());
+    // Query the filter for the previously inserted keys.
+    // This should result in a true-positive rate of TPR=1.
+    filter.contains(tp_begin, tp_end, tp_result.begin());
 
-  // Query the filter for the keys that are not present in the filter.
-  // Since bloom filters are probalistic data structures, the filter
-  // exhibits a false-positive rate FPR>0 depending on the number of bits in
-  // the filter and the number of hashes used per key.
-  filter.contains(tn_begin, tn_end, tn_result.begin());
+    // Query the filter for the keys that are not present in the filter.
+    // Since bloom filters are probalistic data structures, the filter
+    // exhibits a false-positive rate FPR>0 depending on the number of bits in
+    // the filter and the number of hashes used per key.
+    filter.contains(tn_begin, tn_end, tn_result.begin());
 
-  float tp_rate =
-    float(thrust::count(thrust::device, tp_result.begin(), tp_result.end(), true)) / float(num_tp);
-  float fp_rate =
-    float(thrust::count(thrust::device, tn_result.begin(), tn_result.end(), true)) / float(num_tn);
+    float tp_rate = float(thrust::count(thrust::device, tp_result.begin(), tp_result.end(), true)) /
+                    float(num_tp);
+    float fp_rate = float(thrust::count(thrust::device, tn_result.begin(), tn_result.end(), true)) /
+                    float(num_tn);
 
-  std::cout << "TPR=" << tp_rate << " FPR=" << fp_rate << std::endl;
+    std::cout << "TPR=" << tp_rate << " FPR=" << fp_rate << std::endl;
+  };
+
+  // Spawn a bloom filter with default policy and 200 sub-filters.
+  cuco::bloom_filter<key_type> def_filter{sub_filters};
+
+  // bulk insert to the bloom filter and evaluate
+  std::cout << "Bulk insert and evaluate bloom filter with default policy: " << std::endl;
+  bulk_insert_and_evaluate_bloom_filter(def_filter);
+
+  // Arrow bloom filter policy type
+  using arrow_policy_type = cuco::arrow_bf_policy<key_type>;
+  // bloom filter with arrow policy type
+  using arrow_policy_filter_type = cuco::
+    bloom_filter<key_type, cuco::extent<extent_type>, cuda::thread_scope_device, arrow_policy_type>;
+
+  // Spawn a bloom filter with arrow policy and 200 sub-filters.
+  arrow_policy_filter_type arrow_filter{sub_filters, {}, arrow_policy_type{sub_filters}};
+
+  // bulk insert to the bloom filter and evaluate
+  std::cout << "Bulk insert and evaluate bloom filter with arrow policy: " << std::endl;
+  bulk_insert_and_evaluate_bloom_filter(arrow_filter);
 
   return 0;
 }
