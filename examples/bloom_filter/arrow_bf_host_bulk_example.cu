@@ -25,22 +25,26 @@
 
 int main(void)
 {
-  // Generate 10'000 keys and insert the first 5'000 into the filter.
-  int constexpr num_keys = 10'000;
-  int constexpr num_tp   = num_keys * 0.5;
-  int constexpr num_tn   = num_keys - num_tp;
+  using key_type    = int;
+  using extent_type = size_t;
 
-  using policy_type = cuco::arrow_bf_policy<int>;
+  // Generate 10'000 keys and insert the first 5'000 into the filter containing of 200 sub-filters.
+  int constexpr num_keys    = 10'000;
+  int constexpr num_tp      = num_keys * 0.5;
+  int constexpr num_tn      = num_keys - num_tp;
+  int constexpr sub_filters = 200;
+
+  using policy_type = cuco::arrow_bf_policy<key_type>;
   using filter_type =
-    cuco::bloom_filter<int, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
+    cuco::bloom_filter<key_type, cuco::extent<extent_type>, cuda::thread_scope_device, policy_type>;
 
-  // Create an instance of the Arrow BF policy
-  policy_type policy{200};
+  // Create an instance of the Arrow BF policy with 200 sub-filters
+  policy_type policy{sub_filters};
 
   // Spawn a filter with 200 sub-filters.
-  filter_type filter{200, {}, policy};
+  filter_type filter{sub_filters, {}, policy};
 
-  thrust::device_vector<int> keys(num_keys);
+  thrust::device_vector<key_type> keys(num_keys);
   thrust::sequence(keys.begin(), keys.end(), 1);
 
   auto tp_begin = keys.begin();
