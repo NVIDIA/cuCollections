@@ -103,3 +103,18 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence",
 
   test_unique_sequence(filter, num_keys);
 }
+
+TEMPLATE_TEST_CASE_SIG("Unique sequence Arrow BF",
+                       "",
+                       ((class Key, class Policy), Key, Policy),
+                       (int32_t, cuco::arrow_bf_policy<int32_t>),
+                       (float, cuco::arrow_bf_policy<float>))
+{
+  using filter_type =
+    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
+  constexpr size_type num_keys{400};
+
+  auto filter = filter_type{1000, {}, {1000}};
+
+  test_unique_sequence(filter, num_keys);
+}

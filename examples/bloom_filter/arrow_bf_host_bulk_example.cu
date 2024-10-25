@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <cuco/arrow_bf_policy.cuh>
 #include <cuco/bloom_filter.cuh>
 
 #include <thrust/count.h>

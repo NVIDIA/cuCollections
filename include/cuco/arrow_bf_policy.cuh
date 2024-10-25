@@ -53,18 +53,9 @@ class arrow_bf_policy {
   /**
    * @brief Constructs the `arrow_bf_policy` object.
    *
-   * @MH: Fix this doc.
-   *
-   * @throws Compile-time error if the specified number of words in a filter block is not a
-   * power-of-two or is larger than 32. If called from host: throws exception; If called from
-   * device: Traps the kernel.
-   *
-   * @throws If the `hash_result_type` is too narrow to generate the requested number of
-   * `pattern_bits`. If called from host: throws exception; If called from device: Traps the kernel.
-   *
-   * @throws If `pattern_bits` is smaller than the number of words in a filter block or larger than
-   * the total number of bits in a filter block. If called from host: throws exception; If called
-   * from device: Traps the kernel.
+   * @throws If number of filter blocks (`num_blocks`) is smaller than 1
+   * or larger than 4194304. If called from host: throws exception;
+   * If called from device: Traps the kernel.
    *
    * @param num_blocks Number of bloom filter blocks
    * @param hash Hash function used to generate a key's fingerprint

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/arrow_bf_policy.cuh>
 #include <cuco/bloom_filter_policy.cuh>
 #include <cuco/bloom_filter_ref.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
