@@ -79,7 +79,7 @@ int main(void)
   bulk_insert_and_eval_bloom_filter(filter, num_keys);
 
   // Arrow bloom filter policy type
-  using arrow_policy_type = cuco::arrow_bf_policy<key_type>;
+  using arrow_policy_type = cuco::arrow_filter_policy<key_type>;
   // bloom filter with arrow policy type
   using arrow_policy_filter_type = cuco::
     bloom_filter<key_type, cuco::extent<size_t>, cuda::thread_scope_device, arrow_policy_type>;

@@ -29,7 +29,7 @@
 namespace cuco::detail {
 
 template <class Hash, class Word, uint32_t WordsPerBlock>
-class bloom_filter_policy_impl {
+class default_filter_policy_impl {
  public:
   using hasher             = Hash;
   using word_type          = Word;
@@ -43,7 +43,8 @@ class bloom_filter_policy_impl {
   static constexpr std::uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
 
  public:
-  __host__ __device__ explicit constexpr bloom_filter_policy_impl(uint32_t pattern_bits, Hash hash)
+  __host__ __device__ explicit constexpr default_filter_policy_impl(uint32_t pattern_bits,
+                                                                    Hash hash)
     : pattern_bits_{pattern_bits},
       min_bits_per_word_{pattern_bits_ / words_per_block},
       remainder_bits_{pattern_bits_ % words_per_block},

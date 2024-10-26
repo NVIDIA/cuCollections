@@ -41,9 +41,9 @@ template <typename Key, typename Hash, typename Word, nvbench::int32_t WordsPerB
 void bloom_filter_add(nvbench::state& state,
                       nvbench::type_list<Key, Hash, Word, nvbench::enum_type<WordsPerBlock>, Dist>)
 {
-  using policy_type = cuco::bloom_filter_policy<rebind_hasher_t<Hash, Key>,
-                                                Word,
-                                                static_cast<std::uint32_t>(WordsPerBlock)>;
+  using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>,
+                                                  Word,
+                                                  static_cast<std::uint32_t>(WordsPerBlock)>;
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
 

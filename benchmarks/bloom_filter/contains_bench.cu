@@ -43,9 +43,9 @@ void bloom_filter_contains(
 {
   // cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, 32); // slightly improves peformance if
   // filter block fits into a 32B sector
-  using policy_type = cuco::bloom_filter_policy<rebind_hasher_t<Hash, Key>,
-                                                Word,
-                                                static_cast<std::uint32_t>(WordsPerBlock)>;
+  using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>,
+                                                  Word,
+                                                  static_cast<std::uint32_t>(WordsPerBlock)>;
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
 
@@ -90,14 +90,14 @@ void bloom_filter_contains(
 
 /**
  * @brief A benchmark evaluating `cuco::bloom_filter::contains_async` performance with
- * `arrow_bf_policy`
+ * `arrow_filter_policy`
  */
 template <typename Key, typename Dist>
 void arrow_bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
   // cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, 32); // slightly improves peformance if
   // filter block fits into a 32B sector
-  using policy_type = cuco::arrow_bf_policy<Key>;
+  using policy_type = cuco::arrow_filter_policy<Key>;
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
 

@@ -29,39 +29,70 @@
 
 namespace cuco::detail {
 
-template <class T>
-class arrow_bf_policy_impl {
+/**
+ * @brief A policy that defines how Arrow Block-Split Bloom Filter generates and stores a key's
+ * fingerprint.
+ *
+ * @tparam Key The type of the values to generate a fingerprint for.
+ */
+template <class Key>
+class arrow_filter_policy {
  public:
-  using hasher    = cuco::xxhash_64<T>;  ///< xxhash_64 hasher for Arrow bloom filter policy
-  using word_type = std::uint32_t;       ///< uint32_t for Arrow bloom filter policy
+  using hasher    = cuco::xxhash_64<Key>;  ///< xxhash_64 hasher for Arrow bloom filter policy
+  using word_type = std::uint32_t;         ///< uint32_t for Arrow bloom filter policy
   using hash_argument_type = typename hasher::argument_type;
   using hash_result_type   = decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));
 
-  static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded  bits set per Arrow bf block
-  static constexpr uint32_t words_per_block    = 8;  ///< hardcoded words per Arrow bf block
+  static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded  bits set per Arrow filter block
+  static constexpr uint32_t words_per_block    = 8;  ///< hardcoded words per Arrow filter block
 
-  __host__ __device__ explicit constexpr arrow_bf_policy_impl(std::uint32_t num_blocks, hasher hash)
+  __host__ __device__ constexpr arrow_filter_policy(std::uint32_t num_blocks, hasher hash = {})
     : hash_{hash}
   {
-    constexpr std::uint32_t bytes_per_filter_block = 32;  ///< Number of bytes in one Arrow bf block
-    constexpr std::uint32_t max_arrow_bf_bytes =
+    constexpr std::uint32_t bytes_per_filter_block =
+      32;  ///< Number of bytes in one Arrow filter block
+    constexpr std::uint32_t max_arrow_filter_bytes =
       128 * 1024 * 1024;  ///< Max bytes in Arrow bloom filter
 
     NV_DISPATCH_TARGET(
       NV_IS_HOST,
-      (CUCO_EXPECTS(num_blocks >= 1 and num_blocks <= (max_arrow_bf_bytes / bytes_per_filter_block),
-                    "`num_blocks` must be in the range of [1, 4194304]");),
+      (CUCO_EXPECTS(
+         num_blocks >= 1 and num_blocks <= (max_arrow_filter_bytes / bytes_per_filter_block),
+         "`num_blocks` must be in the range of [1, 4194304]");),
       NV_IS_DEVICE,
-      (if (num_blocks < 1 or num_blocks > (max_arrow_bf_bytes / bytes_per_filter_block)) {
+      (if (num_blocks < 1 or num_blocks > (max_arrow_filter_bytes / bytes_per_filter_block)) {
         __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
       }));
   }
 
+  /**
+   * @brief Generates the hash value for a given key.
+   *
+   * @note This function is meant as a customization point and is only used in the internals of the
+   * `bloom_filter(_ref)` implementation.
+   *
+   * @param key The key to hash
+   *
+   * @return The hash value of the key
+   */
   __device__ constexpr hash_result_type hash(hash_argument_type const& key) const
   {
     return hash_(key);
   }
 
+  /**
+   * @brief Determines the filter block a key is added into.
+   *
+   * @note This function is meant as a customization point and is only used in the internals of the
+   * `bloom_filter(_ref)` implementation.
+   *
+   * @tparam Extent Size type that is used to determine the number of blocks in the filter
+   *
+   * @param hash Hash value of the key
+   * @param num_blocks Number of block in the filter
+   *
+   * @return The block index for the given key's hash value
+   */
   template <class Extent>
   __device__ constexpr auto block_index(hash_result_type hash, Extent num_blocks) const
   {
@@ -69,6 +100,18 @@ class arrow_bf_policy_impl {
     return static_cast<uint32_t>(((hash >> hash_bits) * num_blocks) >> hash_bits);
   }
 
+  /**
+   * @brief Determines the fingerprint pattern for a word/segment within the filter block for a
+   * given key's hash value.
+   *
+   * @note This function is meant as a customization point and is only used in the internals of the
+   * `bloom_filter(_ref)` implementation.
+   *
+   * @param hash Hash value of the key
+   * @param word_index Target word/segment within the filter block
+   *
+   * @return The bit pattern for the word/segment in the filter block
+   */
   __device__ constexpr word_type word_pattern(hash_result_type hash, std::uint32_t word_index) const
   {
     // Arrow's block-based bloom filter algorithm needs these eight odd SALT values to calculate
