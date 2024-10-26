@@ -43,8 +43,13 @@ class arrow_filter_policy {
   using hash_argument_type = typename hasher::argument_type;
   using hash_result_type   = decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));
 
-  static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded  bits set per Arrow filter block
+  static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded bits set per Arrow filter block
   static constexpr uint32_t words_per_block    = 8;  ///< hardcoded words per Arrow filter block
+
+  static constexpr std::uint32_t bytes_per_filter_block =
+    32;  ///< Number of bytes in one Arrow filter block
+  static constexpr std::uint32_t max_arrow_filter_bytes =
+    128 * 1024 * 1024;  ///< Max bytes in Arrow bloom filter
 
   /**
    * @brief Constructs the `arrow_filter_policy` object.
@@ -59,16 +64,11 @@ class arrow_filter_policy {
   __host__ __device__ constexpr arrow_filter_policy(std::uint32_t num_blocks, hasher hash = {})
     : hash_{hash}
   {
-    constexpr std::uint32_t bytes_per_filter_block =
-      32;  ///< Number of bytes in one Arrow filter block
-    constexpr std::uint32_t max_arrow_filter_bytes =
-      128 * 1024 * 1024;  ///< Max bytes in Arrow bloom filter
-
     NV_DISPATCH_TARGET(
       NV_IS_HOST,
       (CUCO_EXPECTS(
          num_blocks >= 1 and num_blocks <= (max_arrow_filter_bytes / bytes_per_filter_block),
-         "`num_blocks` must be in the range of [1, 4194304]");),
+         "The `num_blocks` in Arrow filter policy must be in the range of [1, 4194304]");),
       NV_IS_DEVICE,
       (if (num_blocks < 1 or num_blocks > (max_arrow_filter_bytes / bytes_per_filter_block)) {
         __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
