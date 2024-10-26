@@ -85,7 +85,7 @@ int main(void)
     bloom_filter<key_type, cuco::extent<size_t>, cuda::thread_scope_device, arrow_policy_type>;
 
   // Spawn a bloom filter with arrow policy and 200 sub-filters.
-  arrow_policy_filter_type filter_arrow_policy{sub_filters, {}, arrow_policy_type{sub_filters}};
+  arrow_policy_filter_type filter_arrow_policy{sub_filters};
 
   // bulk insert to the bloom filter and evaluate
   std::cout << "Bulk insert and evaluate bloom filter with arrow policy: " << std::endl;

@@ -57,7 +57,7 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
     REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
   }
 
-  SECTION("After clearing the flter no keys should be contained.")
+  SECTION("After clearing the filter no keys should be contained.")
   {
     filter.clear();
     filter.contains(keys.begin(), keys.end(), contained.begin());
@@ -116,7 +116,7 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence with arrow policy",
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
   constexpr size_type num_keys{400};
 
-  auto filter = filter_type{1000, {}, {1000}};
+  auto filter = filter_type{1000};
 
   test_unique_sequence(filter, num_keys);
 }

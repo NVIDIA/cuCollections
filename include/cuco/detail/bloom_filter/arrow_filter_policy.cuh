@@ -19,6 +19,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/hash_functions.cuh>
 
+#include <cuda/std/__algorithm_>
 #include <cuda/std/bit>
 #include <cuda/std/limits>
 #include <cuda/std/tuple>
@@ -50,30 +51,20 @@ class arrow_filter_policy {
     32;  ///< Number of bytes in one Arrow filter block
   static constexpr std::uint32_t max_arrow_filter_bytes =
     128 * 1024 * 1024;  ///< Max bytes in Arrow bloom filter
-
+  static constexpr std::uint32_t max_filter_blocks =
+    (max_arrow_filter_bytes /
+     bytes_per_filter_block);  ///< Max sub-filter blocks allowed in Arrow bloom filter
   /**
    * @brief Constructs the `arrow_filter_policy` object.
    *
-   * @throws If number of filter blocks (`num_blocks`) is smaller than 1
-   * or larger than 4194304. If called from host: throws exception;
-   * If called from device: Traps the kernel.
+   * @note The number of filter blocks with Arrow policy must be in the
+   * range of [1, 4194304]. If the bloom filter is constructed with a larger
+   * number of blocks, only the first 4194304 (128MB) blocks will be used.
    *
    * @param num_blocks Number of bloom filter blocks
    * @param hash Hash function used to generate a key's fingerprint
    */
-  __host__ __device__ constexpr arrow_filter_policy(std::uint32_t num_blocks, hasher hash = {})
-    : hash_{hash}
-  {
-    NV_DISPATCH_TARGET(
-      NV_IS_HOST,
-      (CUCO_EXPECTS(
-         num_blocks >= 1 and num_blocks <= (max_arrow_filter_bytes / bytes_per_filter_block),
-         "The `num_blocks` in Arrow filter policy must be in the range of [1, 4194304]");),
-      NV_IS_DEVICE,
-      (if (num_blocks < 1 or num_blocks > (max_arrow_filter_bytes / bytes_per_filter_block)) {
-        __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
-      }));
-  }
+  __host__ __device__ constexpr arrow_filter_policy(hasher hash = {}) : hash_{hash} {}
 
   /**
    * @brief Generates the hash value for a given key.
@@ -90,6 +81,10 @@ class arrow_filter_policy {
   /**
    * @brief Determines the filter block a key is added into.
    *
+   * @note The number of filter blocks with Arrow policy must be in the
+   * range of [1, 4194304]. Passing a larger `num_blocks` will still
+   * upperbound the number of blocks used to the mentioned range.
+   *
    * @tparam Extent Size type that is used to determine the number of blocks in the filter
    *
    * @param hash Hash value of the key
@@ -101,7 +96,10 @@ class arrow_filter_policy {
   __device__ constexpr auto block_index(hash_result_type hash, Extent num_blocks) const
   {
     constexpr auto hash_bits = cuda::std::numeric_limits<word_type>::digits;
-    return static_cast<word_type>(((hash >> hash_bits) * num_blocks) >> hash_bits);
+    // TODO: assert if num_blocks > max_filter_blocks
+    auto const max_blocks = cuda::std::min<Extent>(num_blocks, max_filter_blocks);
+    // Make sure we are only contained withing the `max_filter_blocks` blocks
+    return static_cast<word_type>(((hash >> hash_bits) * max_blocks) >> hash_bits) % max_blocks;
   }
 
   /**
