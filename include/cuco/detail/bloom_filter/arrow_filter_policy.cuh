@@ -46,6 +46,16 @@ class arrow_filter_policy {
   static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded  bits set per Arrow filter block
   static constexpr uint32_t words_per_block    = 8;  ///< hardcoded words per Arrow filter block
 
+  /**
+   * @brief Constructs the `arrow_filter_policy` object.
+   *
+   * @throws If number of filter blocks (`num_blocks`) is smaller than 1
+   * or larger than 4194304. If called from host: throws exception;
+   * If called from device: Traps the kernel.
+   *
+   * @param num_blocks Number of bloom filter blocks
+   * @param hash Hash function used to generate a key's fingerprint
+   */
   __host__ __device__ constexpr arrow_filter_policy(std::uint32_t num_blocks, hasher hash = {})
     : hash_{hash}
   {
@@ -68,9 +78,6 @@ class arrow_filter_policy {
   /**
    * @brief Generates the hash value for a given key.
    *
-   * @note This function is meant as a customization point and is only used in the internals of the
-   * `bloom_filter(_ref)` implementation.
-   *
    * @param key The key to hash
    *
    * @return The hash value of the key
@@ -82,9 +89,6 @@ class arrow_filter_policy {
 
   /**
    * @brief Determines the filter block a key is added into.
-   *
-   * @note This function is meant as a customization point and is only used in the internals of the
-   * `bloom_filter(_ref)` implementation.
    *
    * @tparam Extent Size type that is used to determine the number of blocks in the filter
    *
@@ -103,9 +107,6 @@ class arrow_filter_policy {
   /**
    * @brief Determines the fingerprint pattern for a word/segment within the filter block for a
    * given key's hash value.
-   *
-   * @note This function is meant as a customization point and is only used in the internals of the
-   * `bloom_filter(_ref)` implementation.
    *
    * @param hash Hash value of the key
    * @param word_index Target word/segment within the filter block
