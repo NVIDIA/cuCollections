@@ -100,8 +100,8 @@ class arrow_filter_policy {
   template <class Extent>
   __device__ constexpr auto block_index(hash_result_type hash, Extent num_blocks) const
   {
-    constexpr auto hash_bits = cuda::std::numeric_limits<uint32_t>::digits;
-    return static_cast<uint32_t>(((hash >> hash_bits) * num_blocks) >> hash_bits);
+    constexpr auto hash_bits = cuda::std::numeric_limits<word_type>::digits;
+    return static_cast<word_type>(((hash >> hash_bits) * num_blocks) >> hash_bits);
   }
 
   /**
