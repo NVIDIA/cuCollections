@@ -539,14 +539,14 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
       return false;
     }
 
-    auto const window_contains_available = g.ballot(slot_is_available);
+    auto const bucket_contains_available = g.ballot(slot_is_available);
 
     // we found an empty slot, but not the key we are inserting, so this must
     // be an empty slot into which we can insert the key
-    if (window_contains_available) {
+    if (bucket_contains_available) {
       // the first lane in the group with an empty slot will attempt the insert
       insert_result status{insert_result::CONTINUE};
-      uint32_t src_lane = __ffs(window_contains_available) - 1;
+      uint32_t src_lane = __ffs(bucket_contains_available) - 1;
 
       if (g.thread_rank() == src_lane) {
         // One single CAS operation if `value_type` is packable
@@ -572,10 +572,10 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::i
       if (status == insert_result::DUPLICATE) { return false; }
       // if we've gotten this far, a different key took our spot
       // before we could insert. We need to retry the insert on the
-      // same window
+      // same bucket
     }
-    // if there are no empty slots in the current window,
-    // we move onto the next window
+    // if there are no empty slots in the current bucket,
+    // we move onto the next bucket
     else {
       current_slot = next_slot(g, current_slot);
     }
@@ -766,8 +766,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
     // we found an empty slot, meaning that the key we're searching for isn't present
     if (g.ballot(slot_is_empty)) { return this->end(); }
 
-    // otherwise, all slots in the current window are full with other keys, so we move onto the
-    // next window
+    // otherwise, all slots in the current bucket are full with other keys, so we move onto the
+    // next bucket
     current_slot = next_slot(g, current_slot);
   }
 }
@@ -805,8 +805,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
     // for isn't in this submap, so we should move onto the next one
     if (g.ballot(slot_is_empty)) { return this->end(); }
 
-    // otherwise, all slots in the current window are full with other keys,
-    // so we move onto the next window in the current submap
+    // otherwise, all slots in the current bucket are full with other keys,
+    // so we move onto the next bucket in the current submap
 
     current_slot = next_slot(g, current_slot);
   }
@@ -855,8 +855,8 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
     // we found an empty slot, meaning that the key we're searching for isn't present
     if (g.ballot(slot_is_empty)) { return false; }
 
-    // otherwise, all slots in the current window are full with other keys, so we move onto the
-    // next window
+    // otherwise, all slots in the current bucket are full with other keys, so we move onto the
+    // next bucket
     current_slot = next_slot(g, current_slot);
   }
 }

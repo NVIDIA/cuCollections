@@ -82,14 +82,14 @@ __device__ void group_retrieve(InputIt first,
   using Key       = typename Ref::key_type;
 
   auto constexpr tile_size   = Ref::cg_size;
-  auto constexpr window_size = Ref::window_size;
+  auto constexpr bucket_size = Ref::bucket_size;
 
   auto idx          = cuco::detail::global_thread_id() / tile_size;
   auto const stride = cuco::detail::grid_stride() / tile_size;
   auto const block  = cg::this_thread_block();
   auto const tile   = cg::tiled_partition<tile_size>(block);
 
-  auto constexpr flushing_tile_size = cuco::detail::warp_size() / window_size;
+  auto constexpr flushing_tile_size = cuco::detail::warp_size() / bucket_size;
   // random choice to tune
   auto constexpr flushing_buffer_size = 2 * flushing_tile_size;
   auto constexpr num_flushing_tiles   = BlockSize / flushing_tile_size;

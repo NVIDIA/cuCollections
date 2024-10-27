@@ -31,68 +31,68 @@
 
 namespace cuco {
 
-template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
-constexpr aow_storage<T, WindowSize, Extent, Allocator>::aow_storage(Extent size,
-                                                                     Allocator const& allocator)
-  : detail::aow_storage_base<T, WindowSize, Extent>{size},
+template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+constexpr bucket_storage<T, BucketSize, Extent, Allocator>::bucket_storage(
+  Extent size, Allocator const& allocator)
+  : detail::bucket_storage_base<T, BucketSize, Extent>{size},
     allocator_{allocator},
-    window_deleter_{capacity(), allocator_},
-    windows_{allocator_.allocate(capacity()), window_deleter_}
+    bucket_deleter_{capacity(), allocator_},
+    buckets_{allocator_.allocate(capacity()), bucket_deleter_}
 {
 }
 
-template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
-constexpr aow_storage<T, WindowSize, Extent, Allocator>::window_type*
-aow_storage<T, WindowSize, Extent, Allocator>::data() const noexcept
+template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+constexpr bucket_storage<T, BucketSize, Extent, Allocator>::bucket_type*
+bucket_storage<T, BucketSize, Extent, Allocator>::data() const noexcept
 {
-  return windows_.get();
+  return buckets_.get();
 }
 
-template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
-constexpr aow_storage<T, WindowSize, Extent, Allocator>::allocator_type
-aow_storage<T, WindowSize, Extent, Allocator>::allocator() const noexcept
+template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+constexpr bucket_storage<T, BucketSize, Extent, Allocator>::allocator_type
+bucket_storage<T, BucketSize, Extent, Allocator>::allocator() const noexcept
 {
   return allocator_;
 }
 
-template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
-constexpr aow_storage<T, WindowSize, Extent, Allocator>::ref_type
-aow_storage<T, WindowSize, Extent, Allocator>::ref() const noexcept
+template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+constexpr bucket_storage<T, BucketSize, Extent, Allocator>::ref_type
+bucket_storage<T, BucketSize, Extent, Allocator>::ref() const noexcept
 {
-  return ref_type{this->window_extent(), this->data()};
+  return ref_type{this->bucket_extent(), this->data()};
 }
 
-template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
-void aow_storage<T, WindowSize, Extent, Allocator>::initialize(value_type key,
-                                                               cuda::stream_ref stream)
+template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+void bucket_storage<T, BucketSize, Extent, Allocator>::initialize(value_type key,
+                                                                  cuda::stream_ref stream)
 {
   this->initialize_async(key, stream);
   stream.wait();
 }
 
-template <typename T, int32_t WindowSize, typename Extent, typename Allocator>
-void aow_storage<T, WindowSize, Extent, Allocator>::initialize_async(
+template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+void bucket_storage<T, BucketSize, Extent, Allocator>::initialize_async(
   value_type key, cuda::stream_ref stream) noexcept
 {
-  if (this->num_windows() == 0) { return; }
+  if (this->num_buckets() == 0) { return; }
 
   auto constexpr cg_size = 1;
   auto constexpr stride  = 4;
-  auto const grid_size   = cuco::detail::grid_size(this->num_windows(), cg_size, stride);
+  auto const grid_size   = cuco::detail::grid_size(this->num_buckets(), cg_size, stride);
 
   detail::initialize<<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-    this->data(), this->num_windows(), key);
+    this->data(), this->num_buckets(), key);
 }
 
-template <typename T, int32_t WindowSize, typename Extent>
-__host__ __device__ constexpr aow_storage_ref<T, WindowSize, Extent>::aow_storage_ref(
-  Extent size, window_type* windows) noexcept
-  : detail::aow_storage_base<T, WindowSize, Extent>{size}, windows_{windows}
+template <typename T, int32_t BucketSize, typename Extent>
+__host__ __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_storage_ref(
+  Extent size, bucket_type* buckets) noexcept
+  : detail::bucket_storage_base<T, BucketSize, Extent>{size}, buckets_{buckets}
 {
 }
 
-template <typename T, int32_t WindowSize, typename Extent>
-struct aow_storage_ref<T, WindowSize, Extent>::iterator {
+template <typename T, int32_t BucketSize, typename Extent>
+struct bucket_storage_ref<T, BucketSize, Extent>::iterator {
  public:
   using iterator_category = std::input_iterator_tag;  ///< iterator category
   using reference         = value_type&;              ///< iterator reference type
@@ -166,40 +166,40 @@ struct aow_storage_ref<T, WindowSize, Extent>::iterator {
   value_type* current_{};  ///< Pointer to the current slot
 };
 
-template <typename T, int32_t WindowSize, typename Extent>
-__device__ constexpr aow_storage_ref<T, WindowSize, Extent>::iterator
-aow_storage_ref<T, WindowSize, Extent>::end() noexcept
+template <typename T, int32_t BucketSize, typename Extent>
+__device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::iterator
+bucket_storage_ref<T, BucketSize, Extent>::end() noexcept
 {
   return iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
 }
 
-template <typename T, int32_t WindowSize, typename Extent>
-__device__ constexpr aow_storage_ref<T, WindowSize, Extent>::const_iterator
-aow_storage_ref<T, WindowSize, Extent>::end() const noexcept
+template <typename T, int32_t BucketSize, typename Extent>
+__device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::const_iterator
+bucket_storage_ref<T, BucketSize, Extent>::end() const noexcept
 {
   return const_iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
 }
 
-template <typename T, int32_t WindowSize, typename Extent>
-__device__ constexpr aow_storage_ref<T, WindowSize, Extent>::window_type*
-aow_storage_ref<T, WindowSize, Extent>::data() noexcept
+template <typename T, int32_t BucketSize, typename Extent>
+__device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_type*
+bucket_storage_ref<T, BucketSize, Extent>::data() noexcept
 {
-  return windows_;
+  return buckets_;
 }
 
-template <typename T, int32_t WindowSize, typename Extent>
-__device__ constexpr aow_storage_ref<T, WindowSize, Extent>::window_type*
-aow_storage_ref<T, WindowSize, Extent>::data() const noexcept
+template <typename T, int32_t BucketSize, typename Extent>
+__device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_type*
+bucket_storage_ref<T, BucketSize, Extent>::data() const noexcept
 {
-  return windows_;
+  return buckets_;
 }
 
-template <typename T, int32_t WindowSize, typename Extent>
-__device__ constexpr aow_storage_ref<T, WindowSize, Extent>::window_type
-aow_storage_ref<T, WindowSize, Extent>::operator[](size_type index) const noexcept
+template <typename T, int32_t BucketSize, typename Extent>
+__device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_type
+bucket_storage_ref<T, BucketSize, Extent>::operator[](size_type index) const noexcept
 {
-  return *reinterpret_cast<window_type*>(
-    __builtin_assume_aligned(this->data() + index, sizeof(value_type) * window_size));
+  return *reinterpret_cast<bucket_type*>(
+    __builtin_assume_aligned(this->data() + index, sizeof(value_type) * bucket_size));
 }
 
 }  // namespace cuco

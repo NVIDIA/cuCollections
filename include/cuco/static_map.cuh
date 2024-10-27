@@ -83,7 +83,7 @@ namespace cuco {
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for choices)
  * @tparam Allocator Type of allocator used for device storage
- * @tparam Storage Slot window storage type
+ * @tparam Storage Slot bucket storage type
  */
 template <class Key,
           class T,
@@ -115,7 +115,7 @@ class static_map {
 
  public:
   static constexpr auto cg_size      = impl_type::cg_size;       ///< CG size used for probing
-  static constexpr auto window_size  = impl_type::window_size;   ///< Window size used for probing
+  static constexpr auto bucket_size  = impl_type::bucket_size;   ///< Bucket size used for probing
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   using key_type       = typename impl_type::key_type;        ///< Key type
@@ -124,7 +124,7 @@ class static_map {
   using size_type      = typename impl_type::size_type;       ///< Size type
   using key_equal      = typename impl_type::key_equal;       ///< Key equality comparator type
   using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
-  /// Non-owning window storage ref type
+  /// Non-owning bucket storage ref type
   using storage_ref_type    = typename impl_type::storage_ref_type;
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
   using hasher              = typename probing_scheme_type::hasher;     ///< Hash function type
@@ -157,7 +157,7 @@ class static_map {
    * and CUDA stream
    *
    * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
    * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *
@@ -193,7 +193,7 @@ class static_map {
    * the desired load factor without manually computing the desired capacity. The actual map
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the window size and is computed via the `make_window_extent` factory.
+   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -234,7 +234,7 @@ class static_map {
    * and CUDA stream.
    *
    * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
    * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *

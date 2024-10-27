@@ -76,7 +76,8 @@ class static_multiset_ref
   using probing_scheme_type = ProbingScheme;                           ///< Type of probing scheme
   using hasher              = typename probing_scheme_type::hasher;    ///< Hash function type
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
-  using window_type         = typename storage_ref_type::window_type;  ///< Window type
+  using bucket_type         = typename storage_ref_type::bucket_type;  ///< Bucket type
+  using window_type         = bucket_type;                             ///< Bucket type
   using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
   using extent_type         = typename storage_ref_type::extent_type;  ///< Extent type
   using size_type           = typename storage_ref_type::size_type;    ///< Probing scheme size type
@@ -85,8 +86,8 @@ class static_multiset_ref
   using const_iterator = typename storage_ref_type::const_iterator;  ///< Const slot iterator type
 
   static constexpr auto cg_size = probing_scheme_type::cg_size;  ///< Cooperative group size
-  static constexpr auto window_size =
-    storage_ref_type::window_size;  ///< Number of elements handled per window
+  static constexpr auto bucket_size =
+    storage_ref_type::bucket_size;  ///< Number of elements handled per bucket
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   /**
@@ -143,11 +144,11 @@ class static_multiset_ref
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
 
   /**
-   * @brief Gets the window extent of the current storage.
+   * @brief Gets the bucket extent of the current storage.
    *
-   * @return The window extent.
+   * @return The bucket extent.
    */
-  [[nodiscard]] __host__ __device__ constexpr extent_type window_extent() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr extent_type bucket_extent() const noexcept;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.

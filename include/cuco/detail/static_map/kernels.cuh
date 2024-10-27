@@ -158,7 +158,7 @@ __global__ void insert_or_apply(
  * @param init The init value of the op
  * @param op Callable object to perform apply operation.
  * @param ref Non-owning container device ref used to access the slot storage
- * @param window_extent Window Extent used for shared memory map slot storage
+ * @param bucket_extent Bucket Extent used for shared memory map slot storage
  */
 template <bool HasInit,
           int32_t CGSize,
@@ -174,7 +174,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   [[maybe_unused]] Init init,
   Op op,
   Ref ref,
-  typename SharedMapRefType::extent_type window_extent)
+  typename SharedMapRefType::extent_type bucket_extent)
 {
   static_assert(CGSize == 1, "use shared_memory kernel only if cg_size == 1");
   namespace cg     = cooperative_groups;
@@ -191,9 +191,9 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   auto const warp_thread_idx = warp.thread_rank();
 
   // Shared map initialization
-  __shared__ typename SharedMapRefType::window_type windows[window_extent.value()];
-  auto storage           = SharedMapRefType::storage_ref_type(window_extent, windows);
-  auto const num_windows = storage.num_windows();
+  __shared__ typename SharedMapRefType::bucket_type buckets[bucket_extent.value()];
+  auto storage           = SharedMapRefType::storage_ref_type(bucket_extent, buckets);
+  auto const num_buckets = storage.num_buckets();
 
   using atomic_type = cuda::atomic<int32_t, cuda::thread_scope_block>;
   __shared__ atomic_type block_cardinality;
@@ -234,9 +234,9 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   }
 
   // insert-or-apply from shared map to global map
-  auto window_idx = thread_idx;
-  while (window_idx < num_windows) {
-    auto const slot = storage[window_idx][0];
+  auto bucket_idx = thread_idx;
+  while (bucket_idx < num_buckets) {
+    auto const slot = storage[bucket_idx][0];
     if (not cuco::detail::bitwise_compare(slot.first, ref.empty_key_sentinel())) {
       if constexpr (HasInit) {
         ref.insert_or_apply(slot, init, op);
@@ -244,7 +244,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
         ref.insert_or_apply(slot, op);
       }
     }
-    window_idx += BlockSize;
+    bucket_idx += BlockSize;
   }
 
   // insert-or-apply into global map for the remaining elements whose block_cardinality

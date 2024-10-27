@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/aow_storage.cuh>
+#include <cuco/bucket_storage.cuh>
 
 namespace cuco {
 namespace detail {
@@ -25,7 +25,7 @@ namespace detail {
  *
  * @tparam StorageImpl Storage implementation class
  * @tparam T Storage element type
- * @tparam Extent Type of extent denoting number of windows
+ * @tparam Extent Type of extent denoting number of buckets
  * @tparam Allocator Type of allocator used for device storage
  */
 template <class StorageImpl, class T, class Extent, class Allocator>
@@ -37,17 +37,17 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   using value_type     = typename impl_type::value_type;      ///< Storage value type
   using allocator_type = typename impl_type::allocator_type;  ///< Storage value type
 
-  /// Number of elements per window
-  static constexpr int window_size = impl_type::window_size;
+  /// Number of elements per bucket
+  static constexpr int bucket_size = impl_type::bucket_size;
 
   using impl_type::allocator;
+  using impl_type::bucket_extent;
   using impl_type::capacity;
   using impl_type::data;
   using impl_type::initialize;
   using impl_type::initialize_async;
-  using impl_type::num_windows;
+  using impl_type::num_buckets;
   using impl_type::ref;
-  using impl_type::window_extent;
 
   /**
    * @brief Constructs storage.

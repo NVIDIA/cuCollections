@@ -60,7 +60,7 @@ TEST_CASE("Static set capacity", "")
 
   constexpr std::size_t num_keys{400};
 
-  SECTION("Static window extent can be evaluated at build time.")
+  SECTION("Static bucket extent can be evaluated at build time.")
   {
     std::size_t constexpr gold_extent = 211;
 
@@ -70,8 +70,8 @@ TEST_CASE("Static set capacity", "")
         set{extent_type{}, cuco::empty_key<Key>{-1}};
 
     auto ref               = set.ref(cuco::insert);
-    auto const num_windows = ref.window_extent();
-    STATIC_REQUIRE(static_cast<std::size_t>(num_windows) == gold_extent);
+    auto const num_buckets = ref.bucket_extent();
+    STATIC_REQUIRE(static_cast<std::size_t>(num_buckets) == gold_extent);
   }
 
   SECTION("Dynamic extent is evaluated at run time.")
