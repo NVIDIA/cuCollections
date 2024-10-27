@@ -224,7 +224,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
 
  private:
   /**
-   * @brief Enumeration of the possible results of attempting to insert into a hash bucket.
+   * @brief Enumeration of the possible results of attempting to insert into a hash slot.
    */
   enum class insert_result {
     CONTINUE,  ///< Insert did not succeed, continue trying to insert

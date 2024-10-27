@@ -1755,7 +1755,7 @@ class static_map {
 
    private:
     /**
-     * @brief Enumeration of the possible results of attempting to insert into a hash bucket.
+     * @brief Enumeration of the possible results of attempting to insert into a hash slot.
      */
     enum class insert_result {
       CONTINUE,  ///< Insert did not succeed, continue trying to insert
