@@ -18,7 +18,6 @@
 
 #include <cuco/hash_functions.cuh>
 
-#include <cuda/std/__algorithm_>
 #include <cuda/std/bit>
 #include <cuda/std/functional>
 #include <cuda/std/limits>
@@ -31,6 +30,8 @@ namespace cuco::detail {
 /**
  * @brief A policy that defines how Arrow Block-Split Bloom Filter generates and stores a key's
  * fingerprint.
+ *
+ * Reference: https://github.com/apache/arrow/blob/be1dcdb96b030639c0b56955c4c62f9d6b03f473/cpp/src/parquet/bloom_filter.cc#L219-L230
  *
  * @tparam Key The type of the values to generate a fingerprint for.
  */

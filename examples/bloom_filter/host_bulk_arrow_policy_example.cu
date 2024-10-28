@@ -23,6 +23,20 @@
 
 #include <iostream>
 
+/**
+ * @file arrow_policy_example.cu
+ * @brief Demonstrates usage of an arrow-compatible bloom filter
+ *
+ * In addition to the default policy aimed at achieving the speed of light 
+ * performance on the device, `cuCollections` offers an `arrow_filter_policy`
+ * that allows users to easily create a bloom filter that mimics the behavior
+ * of the bloom filter defined in Apache Arrow:
+ * https://github.com/apache/arrow/blob/be1dcdb96b030639c0b56955c4c62f9d6b03f473/cpp/src/parquet/bloom_filter.cc#L219-L230.
+ *
+ * @note This example is for demonstration purposes only. It is not intended to show the most
+ * performant way to do the example algorithm.
+ */
+ 
 int main(void)
 {
   int constexpr num_keys    = 10'000;          ///< Generate 10'000 keys
