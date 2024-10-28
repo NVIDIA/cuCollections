@@ -60,7 +60,7 @@ class bloom_filter_ref {
    * @param data Pointer to the storage span of the filter
    * @param num_blocks Number of sub-filters or blocks
    * @param scope The scope in which operations will be performed
-   * @param policy Fingerprint generation policy (see `cuco/default_filter_policy.cuh`)
+   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
    */
   __host__ __device__ explicit constexpr bloom_filter_ref(word_type* data,
                                                           Extent num_blocks,
