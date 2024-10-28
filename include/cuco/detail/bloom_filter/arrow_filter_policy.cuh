@@ -18,8 +18,8 @@
 
 #include <cuco/hash_functions.cuh>
 
+#include <cuda/functional>
 #include <cuda/std/bit>
-#include <cuda/std/functional>
 #include <cuda/std/limits>
 
 #include <cstdint>
@@ -54,6 +54,23 @@ class arrow_filter_policy {
   static constexpr std::uint32_t max_filter_blocks =
     (max_arrow_filter_bytes /
      bytes_per_filter_block);  ///< Max sub-filter blocks allowed in Arrow bloom filter
+
+ private:
+  // Arrow's block-based bloom filter algorithm needs these eight odd SALT values to calculate
+  // eight indexes of bit to set, one bit in each 32-bit (uint32_t) word.
+  __device__ static constexpr cuda::std::array<std::uint32_t, 8> SALT()
+  {
+    return {0x47b6137bU,
+            0x44974d91U,
+            0x8824ad5bU,
+            0xa2b7289dU,
+            0x705495c7U,
+            0x2df1424bU,
+            0x9efc4947U,
+            0x5c6bfb31U};
+  }
+
+ public:
   /**
    * @brief Constructs the `arrow_filter_policy` object.
    *
@@ -112,19 +129,10 @@ class arrow_filter_policy {
    */
   __device__ constexpr word_type word_pattern(hash_result_type hash, std::uint32_t word_index) const
   {
-    // Arrow's block-based bloom filter algorithm needs these eight odd SALT values to calculate
-    // eight indexes of bit to set, one bit in each 32-bit (uint32_t) word.
-    constexpr std::uint32_t SALT[bits_set_per_block] = {0x47b6137bU,
-                                                        0x44974d91U,
-                                                        0x8824ad5bU,
-                                                        0xa2b7289dU,
-                                                        0x705495c7U,
-                                                        0x2df1424bU,
-                                                        0x9efc4947U,
-                                                        0x5c6bfb31U};
-
+    // SALT array to calculate bit indexes for the current word
+    auto constexpr salt = SALT();
     word_type const key = static_cast<word_type>(hash);
-    return word_type{1} << ((key * SALT[word_index]) >> 27);
+    return word_type{1} << ((key * salt[word_index]) >> 27);
   }
 
  private:
