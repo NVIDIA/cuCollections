@@ -16,14 +16,11 @@
 
 #pragma once
 
-#include <cuco/detail/error.hpp>
 #include <cuco/hash_functions.cuh>
 
-#include <cuda/std/__algorithm_>
 #include <cuda/std/bit>
+#include <cuda/std/functional>
 #include <cuda/std/limits>
-#include <cuda/std/tuple>
-#include <cuda/std/type_traits>
 
 #include <cstdint>
 #include <nv/target>
