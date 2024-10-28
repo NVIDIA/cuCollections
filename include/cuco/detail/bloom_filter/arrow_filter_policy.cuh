@@ -18,6 +18,7 @@
 
 #include <cuco/hash_functions.cuh>
 
+#include <cuda/std/__algorithm_>
 #include <cuda/std/bit>
 #include <cuda/std/functional>
 #include <cuda/std/limits>
@@ -58,7 +59,6 @@ class arrow_filter_policy {
    * range of [1, 4194304]. If the bloom filter is constructed with a larger
    * number of blocks, only the first 4194304 (128MB) blocks will be used.
    *
-   * @param num_blocks Number of bloom filter blocks
    * @param hash Hash function used to generate a key's fingerprint
    */
   __host__ __device__ constexpr arrow_filter_policy(hasher hash = {}) : hash_{hash} {}
