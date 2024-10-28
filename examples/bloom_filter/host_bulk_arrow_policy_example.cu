@@ -33,10 +33,16 @@ int main(void)
   // key type for bloom filter
   using key_type = int;
 
-  // Spawn a bloom filter with default policy and 200 sub-filters.
-  cuco::bloom_filter<key_type> filter{sub_filters};
+  // We will use the Arrow filter policy for bloom filter fingerprint generation
+  using policy_type = cuco::arrow_filter_policy<key_type>;
+  // Bloom filter type with Arrow filter policy
+  using filter_type =
+    cuco::bloom_filter<key_type, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
 
-  std::cout << "Bulk insert into bloom filter with default fingerprint generation policy: "
+  // Spawn a bloom filter with arrow policy and 200 sub-filters.
+  filter_type filter{sub_filters};
+
+  std::cout << "Bulk insert into bloom filter with Arrow fingerprint generation policy: "
             << std::endl;
 
   thrust::device_vector<key_type> keys(num_keys);
