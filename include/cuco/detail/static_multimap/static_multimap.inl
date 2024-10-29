@@ -296,7 +296,7 @@ template <typename InputIt, typename OutputIt>
 void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  find_async(first, last, output_begin, stream);
+  this->find_async(first, last, output_begin, stream);
   stream.wait();
 }
 
