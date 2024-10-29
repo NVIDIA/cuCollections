@@ -47,4 +47,3 @@ ConfigureExample(STATIC_MULTIMAP_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/
 ConfigureExample(HYPERLOGLOG_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/hyperloglog/host_bulk_example.cu")
 ConfigureExample(HYPERLOGLOG_DEVICE_REF_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/hyperloglog/device_ref_example.cu")
 ConfigureExample(BLOOM_FILTER_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/host_bulk_example.cu")
-ConfigureExample(BLOOM_FILTER_ARROW_POLICY_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/arrow_policy_example.cu")

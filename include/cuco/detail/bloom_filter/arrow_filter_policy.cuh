@@ -34,6 +34,47 @@ namespace cuco::detail {
  * Reference:
  * https://github.com/apache/arrow/blob/be1dcdb96b030639c0b56955c4c62f9d6b03f473/cpp/src/parquet/bloom_filter.cc#L219-L230
  *
+ * Example:
+ * @code{.cpp}
+ * template <typename KeyType, int NUM_FILTER_BLOCKS>
+ * void bulk_insert_and_eval_arrow_policy_bloom_filter(device_vector<KeyType> const& positive_keys,
+ *                                                 device_vector<KeyType> const& negative_keys)
+ * {
+ *     // Arrow filter policy type
+ *     using policy_type = cuco::arrow_filter_policy<key_type>;
+ *
+ *     // Create a bloom filter with arrow_filter_policy
+ *     cuco::bloom_filter<key_type, cuco::extent<size_t>,
+ *         cuda::thread_scope_device, policy_type> filter{NUM_FILTER_BLOCKS};
+ *
+ *     // Add positive keys to the bloom filter
+ *     filter.add(positive_keys.begin(), positive_keys.end());
+ *
+ *     // Number of true positives and true negatives
+ *     auto const num_tp = positive_keys.size();
+ *     auto const num_tn = negative_keys.size();
+ *
+ *     // Vectors to store true positive and true negative filter query results.
+ *     thrust::device_vector<bool> true_positive_result(num_tp, false);
+ *     thrust::device_vector<bool> true_negative_result(num_tn, false);
+ *
+ *     // Query the bloom filter for the inserted positive keys.
+ *     filter.contains(positive_keys.begin(), positive_keys.end(), true_positive_result.begin());
+ *
+ *     // Query the bloom filter for the non-inserted true negative_keys.
+ *     filter.contains(negative_keys.begin(), negative_keys.end(), true_negative_result.begin());
+ *
+ *     // We should see a true-positive rate of 1.
+ *     float true_positive_rate = float(thrust::count(thrust::device,
+ *          true_positive_result.begin(), true_positive_result.end(), true)) / float(num_tp);
+ *
+ *     // Since bloom filters are probalistic data structures, we may see a false-positive rate > 0
+ *     // depending on the number of bits in the filter and the number of hashes used per key.
+ *     float false_positive_rate = float(thrust::count(thrust::device,
+ *          true_negative_result.begin(), true_negative_result.end(), true)) / float(num_tn);
+ * }
+ * @endcode
+ *
  * @tparam Key The type of the values to generate a fingerprint for.
  */
 template <class Key>
