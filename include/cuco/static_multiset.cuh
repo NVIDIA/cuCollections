@@ -437,12 +437,15 @@ class static_multiset {
                          cuda::stream_ref stream = {}) const noexcept;
 
   /**
-   * @brief For all keys in the range `[first, last)`, finds an element with key equivalent to the
-   * query key.
+   * @brief For all keys in the range `[first, last)`, finds an element with its key equivalent to
+   * the query key.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use `find_async`.
    * @note If the key `*(first + i)` has a matched `element` in the multiset, copies `element` to
    * `(output_begin + i)`. Else, copies the empty key sentinel.
+   * @note For a given key `*(first + i)`, if there are multiple matching elements in the multiset,
+   * it copies the payload of one match (unspecified which) to `(output_begin + i)`. If no match is
+   * found, it copies the empty key sentinel instead.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
@@ -456,11 +459,14 @@ class static_multiset {
   void find(InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief For all keys in the range `[first, last)`, asynchronously finds an element with key
+   * @brief For all keys in the range `[first, last)`, asynchronously finds an element with its key
    * equivalent to the query key.
    *
    * @note If the key `*(first + i)` has a matched `element` in the multiset, copies `element` to
    * `(output_begin + i)`. Else, copies the empty key sentinel.
+   * @note For a given key `*(first + i)`, if there are multiple matching elements in the multiset,
+   * it copies the payload of one match (unspecified which) to `(output_begin + i)`. If no match is
+   * found, it copies the empty key sentinel instead.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
