@@ -648,7 +648,7 @@ class operator_impl<op::count_tag,
 
  public:
   /**
-   * @brief Counts the occurrence of a given key contained in multiset
+   * @brief Counts the occurrence of a given key contained in set
    *
    * @tparam ProbeKey Probe key type
    *
@@ -664,7 +664,7 @@ class operator_impl<op::count_tag,
   }
 
   /**
-   * @brief Counts the occurrence of a given key contained in multiset
+   * @brief Counts the occurrence of a given key contained in set
    *
    * @tparam ProbeKey Probe key type
    *
