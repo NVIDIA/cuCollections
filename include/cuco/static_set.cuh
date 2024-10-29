@@ -28,7 +28,6 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/atomic>
-#include <cuda/std/utility>
 #include <cuda/stream_ref>
 #include <thrust/functional.h>
 
@@ -38,6 +37,7 @@
 
 #include <cstddef>
 #include <type_traits>
+#include <utility>
 
 namespace cuco {
 /**
@@ -617,11 +617,11 @@ class static_set {
    * @return The iterator indicating the last valid pair in the output
    */
   template <typename InputIt, typename OutputIt1, typename OutputIt2>
-  cuda::std::pair<OutputIt1, OutputIt2> retrieve(InputIt first,
-                                                 InputIt last,
-                                                 OutputIt1 output_probe,
-                                                 OutputIt2 output_match,
-                                                 cuda::stream_ref stream = {}) const;
+  std::pair<OutputIt1, OutputIt2> retrieve(InputIt first,
+                                           InputIt last,
+                                           OutputIt1 output_probe,
+                                           OutputIt2 output_match,
+                                           cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
