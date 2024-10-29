@@ -836,6 +836,22 @@ class static_map {
                       cuda::stream_ref stream = {}) const noexcept;
 
   /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the map
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @tparam Input Device accessible input iterator
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt>
+  size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Retrieves all of the keys and their associated values.
    *
    * @note This API synchronizes the given stream.

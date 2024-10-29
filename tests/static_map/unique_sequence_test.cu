@@ -60,6 +60,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
   {
     REQUIRE(map.size() == 0);
 
+    REQUIRE(map.count(keys_begin, keys_begin + num_keys) == 0);
+
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
     REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
@@ -97,6 +99,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
 
   SECTION("All inserted keys should be contained.")
   {
+    REQUIRE(map.count(keys_begin, keys_begin + num_keys) == num_keys);
+
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
     REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }

@@ -591,6 +591,22 @@ class static_set {
                   cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the set
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @tparam Input Device accessible input iterator
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt>
+  size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Retrieves the matched key in the set corresponding to all probe keys in the range
    * `[first, last)`
    *
