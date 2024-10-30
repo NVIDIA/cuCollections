@@ -473,6 +473,52 @@ class static_multimap {
                          cuda::stream_ref stream = {}) const noexcept;
 
   /**
+   * @brief For all keys in the range `[first, last)`, finds a payload with its key equivalent to
+   * the query key.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use `find_async`.
+   * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
+   * `element` to `(output_begin + i)`. Else, copies the empty value sentinel.
+   * @note For a given key `*(first + i)`, if there are multiple matching elements in the multimap,
+   * it copies the payload of one match (unspecified which) to `(output_begin + i)`. If no match is
+   * found, it copies the empty value sentinel instead.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of payloads retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find(InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds a payload with its key
+   * equivalent to the query key.
+   *
+   * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
+   * `element` to `(output_begin + i)`. Else, copies the empty value sentinel.
+   * @note For a given key `*(first + i)`, if there are multiple matching elements in the multimap,
+   * it copies the payload of one match (unspecified which) to `(output_begin + i)`. If no match is
+   * found, it copies the empty value sentinel instead.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of payloads retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename OutputIt>
+  void find_async(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multimap
    *
    * @note This function synchronizes the given stream.
