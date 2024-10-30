@@ -21,6 +21,7 @@
 #include <cuco/detail/open_addressing/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utils.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/probing_scheme.cuh>
@@ -88,19 +89,20 @@ class open_addressing_impl {
   static constexpr auto bucket_size  = Storage::bucket_size;    ///< Bucket size used for probing
   static constexpr auto thread_scope = Scope;                   ///< CUDA thread scope
 
-  using key_type   = Key;    ///< Key type
-  using value_type = Value;  ///< The storage value type, NOT payload type
+  using key_type            = Key;            ///< Key type
+  using value_type          = Value;          ///< The storage value type, NOT payload type
+  using probing_scheme_type = ProbingScheme;  ///< Probe scheme type
+  using hasher              = typename probing_scheme_type::hasher;  ///< Hash function type
   /// Extent type
-  using extent_type = decltype(make_bucket_extent<open_addressing_impl>(std::declval<Extent>()));
-  using size_type   = typename extent_type::value_type;  ///< Size type
-  using key_equal   = KeyEqual;                          ///< Key equality comparator type
+  using extent_type =
+    decltype(make_bucket_extent<probing_scheme_type, Storage>(std::declval<Extent>()));
+  using size_type = typename extent_type::value_type;  ///< Size type
+  using key_equal = KeyEqual;                          ///< Key equality comparator type
   using storage_type =
     detail::storage<Storage, value_type, extent_type, Allocator>;  ///< Storage type
   using allocator_type = typename storage_type::allocator_type;    ///< Allocator type
 
   using storage_ref_type = typename storage_type::ref_type;  ///< Non-owning bucket storage ref type
-  using probing_scheme_type = ProbingScheme;                 ///< Probe scheme type
-  using hasher              = typename probing_scheme_type::hasher;  ///< Hash function type
 
   /**
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
@@ -132,7 +134,7 @@ class open_addressing_impl {
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<open_addressing_impl>(capacity), alloc}
+      storage_{make_bucket_extent<probing_scheme_type, Storage>(capacity), alloc}
   {
     this->clear_async(stream);
   }
@@ -178,7 +180,7 @@ class open_addressing_impl {
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<open_addressing_impl>(
+      storage_{make_bucket_extent<probing_scheme_type, Storage>(
                  static_cast<size_type>(std::ceil(static_cast<double>(n) / desired_load_factor))),
                alloc}
   {
@@ -220,7 +222,7 @@ class open_addressing_impl {
       erased_key_sentinel_{erased_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<open_addressing_impl>(capacity), alloc}
+      storage_{make_bucket_extent<probing_scheme_type, Storage>(capacity), alloc}
   {
     CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",

@@ -20,9 +20,11 @@
 #include <cuco/detail/prime.hpp>  // TODO move to detail/extent/
 #include <cuco/detail/utility/math.cuh>
 #include <cuco/detail/utils.hpp>
+#include <cuco/probing_scheme.cuh>
+#include <cuco/storage.cuh>
 #include <cuco/utility/fast_int.cuh>
 
-#include <type_traits>
+#include <cuda/std/type_traits>
 
 namespace cuco {
 
@@ -38,6 +40,9 @@ struct bucket_extent {
   __host__ __device__ explicit constexpr bucket_extent(SizeType) noexcept {}
 
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
+  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+
+  template <typename ProbingScheme, typename Storage, typename SizeType_, std::size_t N_>
   friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
 
   template <typename Rhs>
@@ -73,31 +78,10 @@ struct bucket_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeTyp
 
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
   friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+
+  template <typename ProbingScheme, typename Storage, typename SizeType_, std::size_t N_>
+  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
 };
-
-template <typename Container, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
-{
-  return make_bucket_extent<Container::cg_size, Container::bucket_size>(ext);
-}
-
-template <typename Container, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext)
-{
-  return make_bucket_extent<Container, SizeType, N>(ext);
-}
-
-template <typename Container, typename SizeType>
-[[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
-{
-  return make_bucket_extent<Container::cg_size, Container::bucket_size>(extent<SizeType>{size});
-}
-
-template <typename Container, typename SizeType>
-[[nodiscard]] auto constexpr make_window_extent(SizeType size)
-{
-  return make_bucket_extent<Container, SizeType>(size);
-}
 
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
@@ -136,22 +120,83 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
 {
-  return make_bucket_extent<CGSize, BucketSize>(extent<SizeType>{size});
+  return make_bucket_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size});
 }
 
 template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 [[nodiscard]] auto constexpr make_window_extent(SizeType size)
 {
-  return make_bucket_extent<CGSize, BucketSize, SizeType>(size);
+  return make_bucket_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size});
+}
+
+template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
+{
+  return make_bucket_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
+  /*
+   // TODO
+if constexpr (cuco::is_double_hashing<ProbingScheme>::value) {
+} else {
+  auto const size = cuco::detail::int_div_ceil(
+    cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)),
+    ProbingScheme::cg_size * Storage::bucket_size) + cuda::std::min(static_cast<SizeType>(ext),
+static_cast<SizeType>(1)); if constexpr (N == dynamic_extent) { return bucket_extent<SizeType>{size
+* ProbingScheme::cg_size}; } else { return bucket_extent<SizeType, size * ProbingScheme::cg_size>{};
+  }
+}
+*/
+}
+
+template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_bucket_extent(SizeType ext)
+{
+  return make_bucket_extent<ProbingScheme, Storage, SizeType, dynamic_extent>(
+    cuco::extent<SizeType>(ext));
+}
+
+template <typename Container, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
+{
+  return make_bucket_extent<typename Container::probing_scheme_type,
+                            typename Container::storage_ref_type,
+                            SizeType,
+                            N>(ext);
+}
+
+template <typename Container, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext)
+{
+  return make_bucket_extent<typename Container::probing_scheme_type,
+                            typename Container::storage_ref_type,
+                            SizeType,
+                            N>(ext);
+}
+
+template <typename Container, typename SizeType>
+[[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
+{
+  return make_bucket_extent<typename Container::probing_scheme_type,
+                            typename Container::storage_ref_type,
+                            SizeType,
+                            dynamic_extent>(extent<SizeType>{size});
+}
+
+template <typename Container, typename SizeType>
+[[nodiscard]] auto constexpr make_window_extent(SizeType size)
+{
+  return make_bucket_extent<typename Container::probing_scheme_type,
+                            typename Container::storage_ref_type,
+                            SizeType,
+                            dynamic_extent>(extent<SizeType, dynamic_extent>{size});
 }
 
 namespace detail {
 
 template <typename...>
-struct is_bucket_extent : std::false_type {};
+struct is_bucket_extent : cuda::std::false_type {};
 
 template <typename SizeType, std::size_t N>
-struct is_bucket_extent<bucket_extent<SizeType, N>> : std::true_type {};
+struct is_bucket_extent<bucket_extent<SizeType, N>> : cuda::std::true_type {};
 
 template <typename T>
 inline constexpr bool is_bucket_extent_v = is_bucket_extent<T>::value;
