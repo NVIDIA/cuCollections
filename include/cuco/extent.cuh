@@ -117,6 +117,13 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
  *
  * @deprecated Use the equivalent `make_bucket_extent` instead.
  *
+ * @tparam CGSize Number of elements handled per CG
+ * @tparam BucketSize Number of elements handled per Bucket
+ * @tparam SizeType Size type
+ * @tparam N Extent
+ *
+ * @param ext The input extent
+ *
  * @throw If the input extent is invalid
  *
  * @return Resulting valid extent
@@ -150,6 +157,12 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType>
  * @brief Computes valid bucket extent/capacity based on given parameters.
  *
  * @deprecated Use the equivalent `make_bucket_extent` instead.
+ *
+ * @tparam CGSize Number of elements handled per CG
+ * @tparam BucketSize Number of elements handled per Bucket
+ * @tparam SizeType Size type
+ *
+ * @param size The input size
  *
  * @throw If the input size is invalid
  *
@@ -191,6 +204,12 @@ template <typename Container, typename SizeType, std::size_t N>
  *
  * @deprecated Use the equivalent `make_bucket_extent` instead.
  *
+ * @tparam Container Container type to compute the extent for
+ * @tparam SizeType Size type
+ * @tparam N Extent
+ *
+ * @param ext The input extent
+ *
  * @throw If the input extent is invalid
  *
  * @return Resulting valid `bucket extent`
@@ -223,6 +242,11 @@ template <typename Container, typename SizeType>
  * @brief Computes a valid capacity for a given container type.
  *
  * @deprecated Use the equivalent `make_bucket_extent` instead.
+ *
+ * @tparam Container Container type to compute the extent for
+ * @tparam SizeType Size type
+ *
+ * @param size The input size
  *
  * @throw If the input size is invalid
  *
