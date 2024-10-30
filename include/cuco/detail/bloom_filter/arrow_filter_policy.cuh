@@ -36,40 +36,42 @@ namespace cuco::detail {
  *
  * Example:
  * @code{.cpp}
- * template <typename KeyType, int NUM_FILTER_BLOCKS>
+ * template <typename KeyType, std::uint32_t NUM_FILTER_BLOCKS>
  * void bulk_insert_and_eval_arrow_policy_bloom_filter(device_vector<KeyType> const& positive_keys,
  *                                                 device_vector<KeyType> const& negative_keys)
  * {
- *     // Arrow filter policy type
  *     using policy_type = cuco::arrow_filter_policy<key_type>;
  *
- *     // Create a bloom filter with arrow_filter_policy
+ *     // Warn or throw if the number of filter blocks is greater than maximum used by Arrow policy.
+ *     static_assert(NUM_FILTER_BLOCKS <= policy_type::max_filter_blocks, "NUM_FILTER_BLOCKS must be
+ *                                                                         in range: [1, 4194304]");
+ *
+ *     // Create a bloom filter with Arrow policy
  *     cuco::bloom_filter<key_type, cuco::extent<size_t>,
  *         cuda::thread_scope_device, policy_type> filter{NUM_FILTER_BLOCKS};
  *
  *     // Add positive keys to the bloom filter
  *     filter.add(positive_keys.begin(), positive_keys.end());
  *
- *     // Number of true positives and true negatives
  *     auto const num_tp = positive_keys.size();
  *     auto const num_tn = negative_keys.size();
  *
- *     // Vectors to store true positive and true negative filter query results.
+ *     // Vectors to store query results.
  *     thrust::device_vector<bool> true_positive_result(num_tp, false);
  *     thrust::device_vector<bool> true_negative_result(num_tn, false);
  *
- *     // Query the bloom filter for the inserted positive keys.
+ *     // Query the bloom filter for the inserted keys.
  *     filter.contains(positive_keys.begin(), positive_keys.end(), true_positive_result.begin());
- *
- *     // Query the bloom filter for the non-inserted true negative_keys.
- *     filter.contains(negative_keys.begin(), negative_keys.end(), true_negative_result.begin());
  *
  *     // We should see a true-positive rate of 1.
  *     float true_positive_rate = float(thrust::count(thrust::device,
  *          true_positive_result.begin(), true_positive_result.end(), true)) / float(num_tp);
  *
- *     // Since bloom filters are probalistic data structures, we may see a false-positive rate > 0
- *     // depending on the number of bits in the filter and the number of hashes used per key.
+ *     // Query the bloom filter for the non-inserted keys.
+ *     filter.contains(negative_keys.begin(), negative_keys.end(), true_negative_result.begin());
+ *
+ *     // We may see a false-positive rate > 0 depending on the number of bits in the
+ *     // filter and the number of hashes used per key.
  *     float false_positive_rate = float(thrust::count(thrust::device,
  *          true_negative_result.begin(), true_negative_result.end(), true)) / float(num_tn);
  * }
