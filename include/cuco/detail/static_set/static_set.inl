@@ -346,7 +346,7 @@ template <class Key,
           class Allocator,
           class Storage>
 template <typename InputIt, typename OutputIt1, typename OutputIt2>
-cuda::std::pair<OutputIt1, OutputIt2>
+std::pair<OutputIt1, OutputIt2>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
   InputIt first,
   InputIt last,
