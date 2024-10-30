@@ -148,10 +148,10 @@ static_cast<SizeType>(1)); if constexpr (N == dynamic_extent) { return bucket_ex
 }
 
 template <typename ProbingScheme, typename Storage, typename SizeType>
-[[nodiscard]] auto constexpr make_bucket_extent(SizeType ext)
+[[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
 {
   return make_bucket_extent<ProbingScheme, Storage, SizeType, dynamic_extent>(
-    cuco::extent<SizeType>(ext));
+    cuco::extent<SizeType>{size});
 }
 
 template <typename Container, typename SizeType, std::size_t N>
