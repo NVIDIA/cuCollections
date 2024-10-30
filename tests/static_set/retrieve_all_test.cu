@@ -58,7 +58,7 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Retrieve all",
+  "static_set retrieve_all tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -72,13 +72,20 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_keys{400};
   constexpr double desired_load_factor = 1.;
-  auto constexpr gold_capacity         = CGSize == 1 ? 409  // 409 x 1 x 1
-                                                     : 422  // 211 x 2 x 1
-    ;
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+
+  auto constexpr gold_capacity = [&]() {
+    if constexpr (cuco::is_double_hashing<probe>::value) {
+      return CGSize == 1 ? 409   // 409 x 1 x 1
+                         : 422;  // 211 x 2 x 1
+    } else {
+      return CGSize == 1 ? 401   // 401 x 1 x 1
+                         : 402;  // 201 x 2 x 1
+    }
+  }();
 
   auto set = cuco::static_set{num_keys, desired_load_factor, cuco::empty_key<Key>{-1}, {}, probe{}};
 

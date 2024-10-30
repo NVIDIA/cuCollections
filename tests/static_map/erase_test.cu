@@ -119,8 +119,10 @@ TEMPLATE_TEST_CASE_SIG(
                               thrust::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
-                              cuco::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
+                              cuco::storage<2>>{num_keys * 2,
+                                                cuco::empty_key<Key>{-1},
+                                                cuco::empty_value<Value>{-1},
+                                                cuco::erased_key<Key>{-2}};
 
   test_erase(map, num_keys);
 }

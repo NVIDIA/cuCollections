@@ -166,24 +166,32 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr size_type num_keys{400};
-  constexpr size_type gold_capacity = CGSize == 1 ? 422   // 211 x 1 x 2
-                                                  : 412;  // 103 x 2 x 2
+
+  using probe = std::conditional_t<
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+
+  auto constexpr gold_capacity = [&]() {
+    if constexpr (cuco::is_double_hashing<probe>::value) {
+      return CGSize == 1 ? 422   // 211 x 1 x 2
+                         : 412;  // 103 x 2 x 2
+    } else {
+      return CGSize == 1 ? 402   // 201 x 1 x 2
+                         : 404;  // 101 x 2 x 2
+    }
+  }();
 
   // XXX: testing static extent is intended, DO NOT CHANGE
   using extent_type = cuco::extent<size_type, num_keys>;
-  using probe       = std::conditional_t<
-          Probe == cuco::test::probe_sequence::linear_probing,
-          cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-          cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
-
-  auto map = cuco::static_map<Key,
-                              Value,
-                              extent_type,
-                              cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
-                              probe,
-                              cuco::cuda_allocator<cuda::std::byte>,
-                              cuco::storage<2>>{
+  auto map          = cuco::static_map<Key,
+                                       Value,
+                                       extent_type,
+                                       cuda::thread_scope_device,
+                                       thrust::equal_to<Key>,
+                                       probe,
+                                       cuco::cuda_allocator<cuda::std::byte>,
+                                       cuco::storage<2>>{
     extent_type{}, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   REQUIRE(map.capacity() == gold_capacity);

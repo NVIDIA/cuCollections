@@ -89,12 +89,20 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr size_type num_keys{400};
-  constexpr size_type gold_capacity = CGSize == 1 ? 422   // 211 x 1 x 2
-                                                  : 412;  // 103 x 2 x 2
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+
+  auto constexpr gold_capacity = [&]() {
+    if constexpr (cuco::is_double_hashing<probe>::value) {
+      return CGSize == 1 ? 422   // 211 x 1 x 2
+                         : 412;  // 103 x 2 x 2
+    } else {
+      return CGSize == 1 ? 402   // 201 x 1 x 2
+                         : 404;  // 101 x 2 x 2
+    }
+  }();
 
   auto set =
     cuco::static_multiset{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
