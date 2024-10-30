@@ -106,7 +106,7 @@ struct generate_uniform_fn {
   /**
    * @brief Generates a random number of type `T` based on the given `seed`
    *
-   * @param seed Random number generator seed
+   * @param idx Index of the output element
    *
    * @return A resulting random number
    */
