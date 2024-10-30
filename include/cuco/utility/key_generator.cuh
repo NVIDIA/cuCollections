@@ -124,9 +124,9 @@ struct generate_uniform_fn {
     return uniform_dist(rng);
   }
 
-  std::size_t num_;
-  Dist dist_;
-  std::size_t seed_;
+  std::size_t num_;   ///< Number of elements to generate
+  Dist dist_;         ///< Random number distribution
+  std::size_t seed_;  ///< Random seed
 };
 
 /**
