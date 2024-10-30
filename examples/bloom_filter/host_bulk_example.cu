@@ -25,15 +25,21 @@
 
 int main(void)
 {
-  // Generate 10'000 keys and insert the first 5'000 into the filter.
-  int constexpr num_keys = 10'000;
-  int constexpr num_tp   = num_keys * 0.5;
-  int constexpr num_tn   = num_keys - num_tp;
+  int constexpr num_keys    = 10'000;          ///< Generate 10'000 keys
+  int constexpr num_tp      = num_keys * 0.5;  ///< Insert the first half keys into the filter.
+  int constexpr num_tn      = num_keys - num_tp;
+  int constexpr sub_filters = 200;  ///< 200 sub-filters per bloom filter
 
-  // Spawn a filter with 200 sub-filters.
-  cuco::bloom_filter<int> filter{200};
+  // key type for bloom filter
+  using key_type = int;
 
-  thrust::device_vector<int> keys(num_keys);
+  // Spawn a bloom filter with default policy and 200 sub-filters.
+  cuco::bloom_filter<key_type> filter{sub_filters};
+
+  std::cout << "Bulk insert into bloom filter with default fingerprint generation policy: "
+            << std::endl;
+
+  thrust::device_vector<key_type> keys(num_keys);
   thrust::sequence(keys.begin(), keys.end(), 1);
 
   auto tp_begin = keys.begin();
