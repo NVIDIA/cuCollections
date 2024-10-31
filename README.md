@@ -15,6 +15,8 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 ### Major Updates
 
+__11/01/2024__ Refined the term `window` as `bucket`
+
 __01/08/2024__ Deprecated the `experimental` namespace
 
 __01/02/2024__ Moved the legacy `static_map` to `cuco::legacy` namespace
