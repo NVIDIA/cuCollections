@@ -563,6 +563,22 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt>
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
+  InputIt first, InputIt last, cuda::stream_ref stream) const
+{
+  return impl_->count(first, last, ref(op::count), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename KeyOut, typename ValueOut>
 std::pair<KeyOut, ValueOut>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(

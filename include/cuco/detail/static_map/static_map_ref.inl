@@ -1367,5 +1367,59 @@ class operator_impl<
   }
 };
 
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::count_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+  using size_type  = typename base_type::size_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief Counts the occurrence of a given key contained in map
+   *
+   * @tparam ProbeKey Input type
+   *
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  __device__ size_type count(ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.count(key);
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in map
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
+                             ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.count(group, key);
+  }
+};
 }  // namespace detail
 }  // namespace cuco

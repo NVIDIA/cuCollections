@@ -33,7 +33,7 @@ namespace cuco {
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Policy Type that defines how to generate and store key fingerprints (see
- * `cuco/bloom_filter_policy.cuh`)
+ * `cuco/bloom_filter_policies.cuh`)
  */
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 class bloom_filter_ref {
@@ -60,7 +60,7 @@ class bloom_filter_ref {
    * @param data Pointer to the storage span of the filter
    * @param num_blocks Number of sub-filters or blocks
    * @param scope The scope in which operations will be performed
-   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policy.cuh`)
+   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
    */
   __host__ __device__ explicit constexpr bloom_filter_ref(word_type* data,
                                                           Extent num_blocks,
