@@ -284,6 +284,130 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename CallbackOp>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename CallbackOp>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  for_each_async(InputIt first,
+                 InputIt last,
+                 CallbackOp&& callback_op,
+                 cuda::stream_ref stream) const noexcept
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
+  InputIt first, InputIt last, cuda::stream_ref stream) const
+{
+  return impl_->count(first, last, ref(op::count), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
+  InputIt first,
+  InputIt last,
+  ProbeKeyEqual const& probe_key_equal,
+  ProbeHash const& probe_hash,
+  cuda::stream_ref stream) const
+{
+  return impl_->count(
+    first,
+    last,
+    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
+    stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_outer(
+  InputIt first,
+  InputIt last,
+  ProbeKeyEqual const& probe_key_equal,
+  ProbeHash const& probe_hash,
+  cuda::stream_ref stream) const
+{
+  return impl_->count_outer(
+    first,
+    last,
+    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
+    stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
 std::pair<OutputProbeIt, OutputMatchIt>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
@@ -349,67 +473,6 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   auto const probe_ref =
     this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
   return this->impl_->retrieve_outer(first, last, output_probe, output_match, probe_ref, stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename InputIt>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
-  InputIt first, InputIt last, cuda::stream_ref stream) const
-{
-  return impl_->count(first, last, ref(op::count), stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
-  InputIt first,
-  InputIt last,
-  ProbeKeyEqual const& probe_key_equal,
-  ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const
-{
-  return impl_->count(
-    first,
-    last,
-    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
-    stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_outer(
-  InputIt first,
-  InputIt last,
-  ProbeKeyEqual const& probe_key_equal,
-  ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const
-{
-  return impl_->count_outer(
-    first,
-    last,
-    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
-    stream);
 }
 
 template <class Key,
