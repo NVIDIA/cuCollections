@@ -644,7 +644,7 @@ class operator_impl<op::count_tag,
   using size_type  = typename base_type::size_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**

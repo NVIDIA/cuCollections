@@ -18,7 +18,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("static_set capacity tests", "")
+TEST_CASE("Static set capacity", "")
 {
   using Key        = int32_t;
   using ProbeT     = cuco::double_hashing<1, cuco::default_hash_function<Key>>;
@@ -120,9 +120,9 @@ TEST_CASE("static_set capacity tests", "")
     REQUIRE(ref_capacity == gold_capacity);
   }
 
-  SECTION("Dynamic extent for linear porbing.")
+  SECTION("Dynamic extent is evaluated at run time.")
   {
-    auto constexpr gold_capacity = 404;  // 101 x 2 x 2
+    auto constexpr gold_capacity = 412;  // 103 x 2 x 2
 
     using probe = cuco::linear_probing<2, cuco::default_hash_function<Key>>;
     auto set    = cuco::static_set<Key,

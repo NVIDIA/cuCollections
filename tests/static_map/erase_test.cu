@@ -105,7 +105,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  constexpr size_type num_keys{10'000};
+  constexpr size_type num_keys{1'000'000};
 
   using probe = std::conditional_t<
     Probe == cuco::test::probe_sequence::linear_probing,
@@ -119,10 +119,8 @@ TEMPLATE_TEST_CASE_SIG(
                               thrust::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
-                              cuco::storage<2>>{num_keys * 2,
-                                                cuco::empty_key<Key>{-1},
-                                                cuco::empty_value<Value>{-1},
-                                                cuco::erased_key<Key>{-2}};
+                              cuco::storage<2>>{
+    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
 
   test_erase(map, num_keys);
 }
