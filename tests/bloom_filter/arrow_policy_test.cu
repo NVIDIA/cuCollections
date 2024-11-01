@@ -22,9 +22,6 @@
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 
-#include <catch2/catch_template_test_macros.hpp>
-#include <catch2/generators/catch_generators.hpp>
-
 #include <random>
 #include <type_traits>
 
@@ -49,13 +46,12 @@ thrust::device_vector<uint32_t> get_arrow_filter_reference_bitset()
      1039007726,
      4286569403,
      2675948542,
-     3688689479},  ///< type = int32, filter_blocks = 2, num_keys = 100
+     3688689479},  // type = int32, blocks = 2, num_keys = 100
     {2290897413, 3368027184, 2432735301, 2013315170, 610406792,  35787348,   43061541,
      1145143906, 238486532,  2840527950, 241188878,  624061504,  759830680,  184694210,
      2282459916, 3232258264, 285316692,  3284142851, 2760958614, 2974341265, 38749317,
      2655160577, 2193666087, 261196816,  411328595,  5391621,    2308014147, 2550892738,
-     1224755395, 1396835974, 3227911200, 307324929},  ///< type = int64, filter_blocks = 4, num_keys
-                                                      ///< = 50
+     1224755395, 1396835974, 3227911200, 307324929},  // type = int64, blocks = 4, num_keys = 50
     {3037098621, 1001208422, 3070541682, 3611620780, 372254302,  2869772027, 2629135999,
      3332804862, 2832966981, 1225184253, 1315442262, 211922492,  1020510327, 2725704195,
      2909038118, 2783622989, 4214109798, 535934391,  2385459605, 4109595381, 3219664733,
@@ -65,7 +61,7 @@ thrust::device_vector<uint32_t> get_arrow_filter_reference_bitset()
      2893522276, 1103034386, 738173080,  4098968587, 1271241025, 499361504,  4174530401,
      3259956170, 3823469907, 578271374,  3168397042, 3890816473, 431898609,  1583427570,
      1835797371, 2078281027, 2741410265, 2639785266, 3422606831, 1589476610, 3972396492,
-     3611525326}  ///< type = float, filter_blocks = 8, num_keys = 200
+     3611525326}  // type = float, blocks = 8, num_keys = 200
   };
 
   if constexpr (std::is_same_v<Key, int32_t>) {
@@ -83,9 +79,9 @@ template <typename Key>
 std::pair<size_t, size_t> get_arrow_filter_test_settings()
 {
   static std::vector<std::pair<size_t, size_t>> const test_settings = {
-    {2, 100},  ///< type = int32, filter_blocks = 2, num_keys = 100
-    {4, 50},   ///< type = int64, filter_blocks = 4, num_keys = 50
-    {8, 200}   ///< type = float, filter_blocks = 8, num_keys = 200
+    {2, 100},  // type = int32, blocks = 2, num_keys = 100
+    {4, 50},   // type = int64, blocks = 4, num_keys = 50
+    {8, 200}   // type = float, blocks = 8, num_keys = 200
   };
 
   if constexpr (std::is_same_v<Key, int32_t>) {
@@ -153,7 +149,7 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Filter bitset validation with arrow policy", "", (class Key), (int32_t), (int64_t), (float))
+  "Arrow filter policy bitset validation", "", (class Key), (int32_t), (int64_t), (float))
 {
   // Get test settings
   auto const [sub_filters, num_keys] = get_arrow_filter_test_settings<Key>();
