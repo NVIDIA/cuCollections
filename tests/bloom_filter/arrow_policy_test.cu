@@ -22,6 +22,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 
+#include <catch2/catch_template_test_macros.hpp>
+
 #include <random>
 #include <type_traits>
 
