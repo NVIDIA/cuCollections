@@ -139,7 +139,6 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
 
   // Number of words in the filter
   auto const num_words = filter.block_extent() * filter.words_per_block;
-  ;
 
   // Get the bitset
   thrust::device_vector<word_type> filter_words(filter.data(), filter.data() + num_words);
