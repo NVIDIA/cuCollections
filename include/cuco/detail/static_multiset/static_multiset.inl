@@ -417,8 +417,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   OutputMatchIt output_match,
   cuda::stream_ref stream) const
 {
-  return impl_->retrieve(
-    first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
 }
 
 template <class Key,
