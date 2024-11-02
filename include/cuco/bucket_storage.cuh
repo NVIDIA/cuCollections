@@ -104,7 +104,7 @@ class bucket_storage_ref : public detail::bucket_storage_base<T, BucketSize, Ext
   [[nodiscard]] __device__ constexpr bucket_type* data() noexcept;
 
   /**
-   * @brief Gets buckets array.
+   * @brief Gets bucket array.
    *
    * @return Pointer to the first bucket
    */
