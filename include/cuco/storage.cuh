@@ -26,11 +26,11 @@ namespace cuco {
  * @note This is a public interface used to control storage bucket size. A bucket consists of one
  * or multiple contiguous slots. The bucket size defines the workload granularity for each CUDA
  * thread, i.e., how many slots a thread would concurrently operate on when performing modify or
- * lookup operations. cuCollections uses the AoW storage to supersede the raw flat slot storage due
- * to its superior granularity control: When bucket size equals one, AoW performs the same as the
- * flat storage. If the underlying operation is more memory bandwidth bound, e.g., high occupancy
- * multimap operations, a larger bucket size can reduce the length of probing sequences thus improve
- * runtime performance.
+ * lookup operations. cuCollections uses the array of bucket storage to supersede the raw flat slot
+ * storage due to its superior granularity control: When bucket size equals one, array of buckets
+ * performs the same as the flat storage. If the underlying operation is more memory bandwidth
+ * bound, e.g., high occupancy multimap operations, a larger bucket size can reduce the length of
+ * probing sequences thus improve runtime performance.
  *
  * @tparam BucketSize Number of elements per bucket storage
  */

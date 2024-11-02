@@ -61,7 +61,7 @@ class bucket_storage_base : public storage_base<Extent> {
   using bucket_type = bucket<value_type, bucket_size>;  ///< Slot bucket type
 
   /**
-   * @brief Constructor of AoW base storage.
+   * @brief Constructor of array of bucket base storage.
    *
    * @param size Number of buckets to store
    */

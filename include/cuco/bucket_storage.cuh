@@ -38,7 +38,7 @@ template <typename T, int32_t BucketSize>
 using window = bucket<T, BucketSize>;
 
 /**
- * @brief Non-owning AoW storage reference type.
+ * @brief Non-owning array of buckets storage reference type.
  *
  * @tparam T Storage element type
  * @tparam BucketSize Number of slots in each bucket
@@ -47,7 +47,8 @@ using window = bucket<T, BucketSize>;
 template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::size_t>>
 class bucket_storage_ref : public detail::bucket_storage_base<T, BucketSize, Extent> {
  public:
-  using base_type = detail::bucket_storage_base<T, BucketSize, Extent>;  ///< AoW base class type
+  /// Array of buckets base class type
+  using base_type = detail::bucket_storage_base<T, BucketSize, Extent>;
 
   using base_type::bucket_size;  ///< Number of elements processed per bucket
 
@@ -123,7 +124,7 @@ class bucket_storage_ref : public detail::bucket_storage_base<T, BucketSize, Ext
 };
 
 /**
- * @brief Array of Bucket open addressing storage class.
+ * @brief Array of buckets open addressing storage class.
  *
  * @tparam T Slot type
  * @tparam BucketSize Number of slots in each bucket
@@ -136,7 +137,8 @@ template <typename T,
           typename Allocator = cuco::cuda_allocator<cuco::bucket<T, BucketSize>>>
 class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent> {
  public:
-  using base_type = detail::bucket_storage_base<T, BucketSize, Extent>;  ///< AoW base class type
+  /// Array of buckets base class type
+  using base_type = detail::bucket_storage_base<T, BucketSize, Extent>;
 
   using base_type::bucket_size;  ///< Number of elements processed per bucket
 
@@ -156,7 +158,7 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
   using ref_type = bucket_storage_ref<value_type, bucket_size, extent_type>;  ///< Storage ref type
 
   /**
-   * @brief Constructor of AoW storage.
+   * @brief Constructor of bucket storage.
    *
    * @note The input `size` should be exclusively determined by the return value of
    * `make_bucket_extent` since it depends on the requested low-bound value, the probing scheme, and
@@ -201,7 +203,7 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
   [[nodiscard]] constexpr ref_type ref() const noexcept;
 
   /**
-   * @brief Initializes each slot in the AoW storage to contain `key`.
+   * @brief Initializes each slot in the bucket storage to contain `key`.
    *
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
@@ -209,7 +211,7 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
   void initialize(value_type key, cuda::stream_ref stream = {});
 
   /**
-   * @brief Asynchronously initializes each slot in the AoW storage to contain `key`.
+   * @brief Asynchronously initializes each slot in the bucket storage to contain `key`.
    *
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
@@ -219,7 +221,8 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
  private:
   allocator_type allocator_;            ///< Allocator used to (de)allocate buckets
   bucket_deleter_type bucket_deleter_;  ///< Custom buckets deleter
-  std::unique_ptr<bucket_type, bucket_deleter_type> buckets_;  ///< Pointer to AoW storage
+  /// Pointer to the bucket storage
+  std::unique_ptr<bucket_type, bucket_deleter_type> buckets_;
 };
 
 /// Alias for bucket_storage_ref
