@@ -20,6 +20,7 @@
 
 #include <cuda/atomic>
 #include <cuda/std/type_traits>
+#include <cuda/std/utility>
 
 #include <cooperative_groups.h>
 
@@ -626,6 +627,74 @@ class operator_impl<op::find_tag,
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.find(group, key);
+  }
+};
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<op::for_each_tag,
+                    static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type  = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type   = static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type   = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+  using iterator   = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto window_size = base_type::window_size;
+
+ public:
+  /**
+   * @brief For a given key, applies the function object `callback_op` to its match found in the
+   * container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param key The key to search for
+   * @param callback_op Function to apply to the copy of the matched slot
+   */
+  template <class ProbeKey, class CallbackOp>
+  __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.for_each(key, cuda::std::forward<CallbackOp>(callback_op));
+  }
+
+  /**
+   * @brief For a given key, applies the function object `callback_op` to its match found in the
+   * container.
+   *
+   * @note This function uses cooperative group semantics, meaning that any thread may call the
+   * callback if it finds a matching slot.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @note Synchronizing `group` within `callback_op` is undefined behavior.
+   *
+   * @tparam ProbeKey Probe key type
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   * @param callback_op Function to apply to the copy of the matched slot
+   */
+  template <class ProbeKey, class CallbackOp>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+                           ProbeKey const& key,
+                           CallbackOp&& callback_op) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.for_each(group, key, cuda::std::forward<CallbackOp>(callback_op));
   }
 };
 

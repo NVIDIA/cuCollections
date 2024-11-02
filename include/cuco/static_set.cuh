@@ -351,7 +351,7 @@ class static_set {
    *
    * @tparam InputIt Device accessible random access input iterator
    * @tparam FoundIt Device accessible random access output iterator whose `value_type`
-   * is constructible from `map::iterator` type
+   * is constructible from `set::iterator` type
    * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
    * is constructible from `bool`
    *
@@ -379,7 +379,7 @@ class static_set {
    *
    * @tparam InputIt Device accessible random access input iterator
    * @tparam FoundIt Device accessible random access output iterator whose `value_type`
-   * is constructible from `map::iterator` type
+   * is constructible from `set::iterator` type
    * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
    * is constructible from `bool`
    *
@@ -589,6 +589,74 @@ class static_set {
                   InputIt last,
                   OutputIt output_begin,
                   cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Applies the given function object `callback_op` to the copy of every filled slot in the
+   * container
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param callback_op Function to apply to the copy of the filled slot
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously applies the given function object `callback_op` to the copy of every
+   * filled slot in the container
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param callback_op Function to apply to the copy of the filled slot
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For each key in the range [first, last), applies the function object `callback_op` to
+   * the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to apply to the copy of the matched slot
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp>
+  void for_each(InputIt first,
+                InputIt last,
+                CallbackOp&& callback_op,
+                cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For each key in the range [first, last), asynchronously applies the function object
+   * `callback_op` to the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to apply to the copy of the matched slot
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp>
+  void for_each_async(InputIt first,
+                      InputIt last,
+                      CallbackOp&& callback_op,
+                      cuda::stream_ref stream = {}) const noexcept;
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the set

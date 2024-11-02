@@ -284,17 +284,12 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
-std::pair<OutputProbeIt, OutputMatchIt>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
-  InputProbeIt first,
-  InputProbeIt last,
-  OutputProbeIt output_probe,
-  OutputMatchIt output_match,
-  cuda::stream_ref stream) const
+template <typename CallbackOp>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  CallbackOp&& callback_op, cuda::stream_ref stream) const
 {
-  return this->impl_->retrieve(
-    first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+  stream.wait();
 }
 
 template <class Key,
@@ -304,24 +299,11 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <class InputProbeIt,
-          class ProbeEqual,
-          class ProbeHash,
-          class OutputProbeIt,
-          class OutputMatchIt>
-std::pair<OutputProbeIt, OutputMatchIt>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
-  InputProbeIt first,
-  InputProbeIt last,
-  ProbeEqual const& probe_equal,
-  ProbeHash const& probe_hash,
-  OutputProbeIt output_probe,
-  OutputMatchIt output_match,
-  cuda::stream_ref stream) const
+template <typename CallbackOp>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream) const
 {
-  auto const probe_ref =
-    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
-  return this->impl_->retrieve(first, last, output_probe, output_match, probe_ref, stream);
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
 }
 
 template <class Key,
@@ -331,24 +313,31 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <class InputProbeIt,
-          class ProbeEqual,
-          class ProbeHash,
-          class OutputProbeIt,
-          class OutputMatchIt>
-std::pair<OutputProbeIt, OutputMatchIt>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_outer(
-  InputProbeIt first,
-  InputProbeIt last,
-  ProbeEqual const& probe_equal,
-  ProbeHash const& probe_hash,
-  OutputProbeIt output_probe,
-  OutputMatchIt output_match,
-  cuda::stream_ref stream) const
+template <typename InputIt, typename CallbackOp>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream) const
 {
-  auto const probe_ref =
-    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
-  return this->impl_->retrieve_outer(first, last, output_probe, output_match, probe_ref, stream);
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  for_each_async(InputIt first,
+                 InputIt last,
+                 CallbackOp&& callback_op,
+                 cuda::stream_ref stream) const noexcept
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
 }
 
 template <class Key,
@@ -410,6 +399,79 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     last,
     ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
     stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
+std::pair<OutputProbeIt, OutputMatchIt>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
+  InputProbeIt first,
+  InputProbeIt last,
+  OutputProbeIt output_probe,
+  OutputMatchIt output_match,
+  cuda::stream_ref stream) const
+{
+  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <class InputProbeIt,
+          class ProbeEqual,
+          class ProbeHash,
+          class OutputProbeIt,
+          class OutputMatchIt>
+std::pair<OutputProbeIt, OutputMatchIt>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
+  InputProbeIt first,
+  InputProbeIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputProbeIt output_probe,
+  OutputMatchIt output_match,
+  cuda::stream_ref stream) const
+{
+  auto const probe_ref =
+    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
+  return impl_->retrieve(first, last, output_probe, output_match, probe_ref, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <class InputProbeIt,
+          class ProbeEqual,
+          class ProbeHash,
+          class OutputProbeIt,
+          class OutputMatchIt>
+std::pair<OutputProbeIt, OutputMatchIt>
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_outer(
+  InputProbeIt first,
+  InputProbeIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputProbeIt output_probe,
+  OutputMatchIt output_match,
+  cuda::stream_ref stream) const
+{
+  auto const probe_ref =
+    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
+  return impl_->retrieve_outer(first, last, output_probe, output_match, probe_ref, stream);
 }
 
 template <class Key,

@@ -775,7 +775,7 @@ class static_map {
    *
    * @tparam CallbackOp Type of unary callback function object
    *
-   * @param callback_op Function to apply to the copy of the matched key-value pair
+   * @param callback_op Function to apply to the copy of the filled slot
    * @param stream CUDA stream used for this operation
    */
   template <typename CallbackOp>
@@ -789,7 +789,7 @@ class static_map {
    *
    * @tparam CallbackOp Type of unary callback function object
    *
-   * @param callback_op Function to apply to the copy of the matched key-value pair
+   * @param callback_op Function to apply to the copy of the filled slot
    * @param stream CUDA stream used for this operation
    */
   template <typename CallbackOp>
@@ -806,7 +806,7 @@ class static_map {
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param callback_op Function to apply to the copy of the matched key-value pair
+   * @param callback_op Function to apply to the copy of the matched slot
    * @param stream CUDA stream used for this operation
    */
   template <typename InputIt, typename CallbackOp>
@@ -826,7 +826,7 @@ class static_map {
    *
    * @param first Beginning of the sequence of keys
    * @param last End of the sequence of keys
-   * @param callback_op Function to apply to the copy of the matched key-value pair
+   * @param callback_op Function to apply to the copy of the matched slot
    * @param stream CUDA stream used for this operation
    */
   template <typename InputIt, typename CallbackOp>
