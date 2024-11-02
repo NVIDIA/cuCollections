@@ -417,7 +417,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   OutputMatchIt output_match,
   cuda::stream_ref stream) const
 {
-  return this->impl_->retrieve(
+  return impl_->retrieve(
     first, last, output_probe, output_match, this->ref(op::retrieve), stream);
 }
 
@@ -445,7 +445,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 {
   auto const probe_ref =
     this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
-  return this->impl_->retrieve(first, last, output_probe, output_match, probe_ref, stream);
+  return impl_->retrieve(first, last, output_probe, output_match, probe_ref, stream);
 }
 
 template <class Key,
@@ -472,7 +472,7 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 {
   auto const probe_ref =
     this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
-  return this->impl_->retrieve_outer(first, last, output_probe, output_match, probe_ref, stream);
+  return impl_->retrieve_outer(first, last, output_probe, output_match, probe_ref, stream);
 }
 
 template <class Key,
