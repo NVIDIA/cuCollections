@@ -142,4 +142,6 @@ ConfigureTest(HYPERLOGLOG_TEST
 ###################################################################################################
 # - bloom_filter ----------------------------------------------------------------------------------
 ConfigureTest(BLOOM_FILTER_TEST
-    bloom_filter/unique_sequence_test.cu)
+    bloom_filter/unique_sequence_test.cu
+    bloom_filter/arrow_policy_test.cu
+    )
