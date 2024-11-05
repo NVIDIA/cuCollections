@@ -345,6 +345,81 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename CallbackOp>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename CallbackOp>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
+  CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
+  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream) const
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+  stream.wait();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename CallbackOp>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
+  InputIt first, InputIt last, CallbackOp&& callback_op, cuda::stream_ref stream) const noexcept
+{
+  impl_->for_each_async(
+    first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt>
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
+  InputIt first, InputIt last, cuda::stream_ref stream) const
+{
+  return impl_->count(first, last, ref(op::count), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename OutputIt1, typename OutputIt2>
 std::pair<OutputIt1, OutputIt2>
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
@@ -414,7 +489,7 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_window_extent<static_set>(capacity);
+  auto const extent = make_bucket_extent<static_set>(capacity);
   this->impl_->rehash(extent, *this, stream);
 }
 
@@ -441,7 +516,7 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_window_extent<static_set>(capacity);
+  auto const extent = make_bucket_extent<static_set>(capacity);
   this->impl_->rehash_async(extent, *this, stream);
 }
 

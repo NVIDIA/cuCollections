@@ -60,6 +60,7 @@ ConfigureTest(UTILITY_TEST
 # - static_set tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_SET_TEST
     static_set/capacity_test.cu
+    static_set/for_each_test.cu
     static_set/heterogeneous_lookup_test.cu
     static_set/insert_and_find_test.cu
     static_set/large_input_test.cu
@@ -114,6 +115,7 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/count_test.cu
     static_multimap/custom_pair_retrieve_test.cu
     static_multimap/custom_type_test.cu
+    static_multimap/find_test.cu
     static_multimap/heterogeneous_lookup_test.cu
     static_multimap/insert_contains_test.cu
     static_multimap/insert_if_test.cu
@@ -141,4 +143,6 @@ ConfigureTest(HYPERLOGLOG_TEST
 ###################################################################################################
 # - bloom_filter ----------------------------------------------------------------------------------
 ConfigureTest(BLOOM_FILTER_TEST
-    bloom_filter/unique_sequence_test.cu)
+    bloom_filter/unique_sequence_test.cu
+    bloom_filter/arrow_policy_test.cu
+    )

@@ -16,7 +16,7 @@
 
 #include <test_utils.hpp>
 
-#include <cuco/aow_storage.cuh>
+#include <cuco/bucket_storage.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 #include <cuco/utility/allocator.hpp>
@@ -31,7 +31,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
                        (int64_t, int64_t))
 {
   constexpr std::size_t size{1'000};
-  constexpr int window_size{2};
+  constexpr int bucket_size{2};
   constexpr std::size_t gold_capacity{2'000};
 
   using allocator_type = cuco::cuda_allocator<char>;
@@ -40,7 +40,7 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
   SECTION("Initialize empty storage is allowed.")
   {
     auto s = cuco::
-      aow_storage<cuco::pair<Key, Value>, window_size, cuco::extent<std::size_t>, allocator_type>{
+      aow_storage<cuco::pair<Key, Value>, bucket_size, cuco::extent<std::size_t>, allocator_type>{
         cuco::extent<std::size_t>{0}, allocator};
 
     s.initialize(cuco::pair<Key, Value>{1, 1});
@@ -49,35 +49,35 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
   SECTION("Allocate array of pairs with AoS storage.")
   {
     auto s = cuco::
-      aow_storage<cuco::pair<Key, Value>, window_size, cuco::extent<std::size_t>, allocator_type>(
+      aow_storage<cuco::pair<Key, Value>, bucket_size, cuco::extent<std::size_t>, allocator_type>(
         cuco::extent{size}, allocator);
-    auto const num_windows = s.num_windows();
+    auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
-    REQUIRE(num_windows == size);
+    REQUIRE(num_buckets == size);
     REQUIRE(capacity == gold_capacity);
   }
 
   SECTION("Allocate array of pairs with AoS storage with static extent.")
   {
     using extent_type = cuco::extent<std::size_t, size>;
-    auto s = cuco::aow_storage<cuco::pair<Key, Value>, window_size, extent_type, allocator_type>(
+    auto s = cuco::aow_storage<cuco::pair<Key, Value>, bucket_size, extent_type, allocator_type>(
       extent_type{}, allocator);
-    auto const num_windows = s.num_windows();
+    auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
-    STATIC_REQUIRE(num_windows == size);
+    STATIC_REQUIRE(num_buckets == size);
     STATIC_REQUIRE(capacity == gold_capacity);
   }
 
   SECTION("Allocate array of keys with AoS storage.")
   {
-    auto s = cuco::aow_storage<Key, window_size, cuco::extent<std::size_t>, allocator_type>(
+    auto s = cuco::aow_storage<Key, bucket_size, cuco::extent<std::size_t>, allocator_type>(
       cuco::extent{size}, allocator);
-    auto const num_windows = s.num_windows();
+    auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
-    REQUIRE(num_windows == size);
+    REQUIRE(num_buckets == size);
     REQUIRE(capacity == gold_capacity);
   }
 
@@ -85,11 +85,11 @@ TEMPLATE_TEST_CASE_SIG("Storage tests",
   {
     using extent_type = cuco::extent<std::size_t, size>;
     auto s =
-      cuco::aow_storage<Key, window_size, extent_type, allocator_type>(extent_type{}, allocator);
-    auto const num_windows = s.num_windows();
+      cuco::aow_storage<Key, bucket_size, extent_type, allocator_type>(extent_type{}, allocator);
+    auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
-    STATIC_REQUIRE(num_windows == size);
+    STATIC_REQUIRE(num_buckets == size);
     STATIC_REQUIRE(capacity == gold_capacity);
   }
 }

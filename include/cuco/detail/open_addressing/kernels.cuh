@@ -627,7 +627,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
 }
 
 /**
- * @brief Calculates the number of filled slots for the given window storage.
+ * @brief Calculates the number of filled slots for the given bucket storage.
  *
  * @tparam BlockSize Number of threads in each block
  * @tparam StorageRef Type of non-owning ref allowing access to storage
@@ -649,12 +649,12 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void size(StorageRef storage,
   auto idx               = cuco::detail::global_thread_id();
 
   size_type thread_count = 0;
-  auto const n           = storage.num_windows();
+  auto const n           = storage.num_buckets();
 
   while (idx < n) {
-    auto const window = storage[idx];
+    auto const bucket = storage[idx];
 #pragma unroll
-    for (auto const& it : window) {
+    for (auto const& it : bucket) {
       thread_count += static_cast<size_type>(is_filled(it));
     }
     idx += loop_stride;
@@ -686,7 +686,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
   auto const tile_rank           = tile.meta_group_rank();
   auto const loop_stride         = cuco::detail::grid_stride();
   auto idx                       = cuco::detail::global_thread_id();
-  auto const n                   = storage_ref.num_windows();
+  auto const n                   = storage_ref.num_buckets();
 
   while (idx - thread_rank < n) {
     if (thread_rank == 0) { buffer_size = 0; }
@@ -694,9 +694,9 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
 
     // gather values in shmem buffer
     if (idx < n) {
-      auto const window = storage_ref[idx];
+      auto const bucket = storage_ref[idx];
 
-      for (auto const& slot : window) {
+      for (auto const& slot : bucket) {
         if (is_filled(slot)) { buffer[atomicAdd_block(&buffer_size, 1)] = slot; }
       }
     }

@@ -177,10 +177,10 @@ __host__ __device__ constexpr static_multiset_ref<Key,
                                                   ProbingScheme,
                                                   StorageRef,
                                                   Operators...>::extent_type
-static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::window_extent()
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::bucket_extent()
   const noexcept
 {
-  return impl_.window_extent();
+  return impl_.bucket_extent();
 }
 
 template <typename Key,
@@ -324,7 +324,7 @@ class operator_impl<
   using value_type = typename base_type::value_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -378,7 +378,7 @@ class operator_impl<
   using value_type = typename base_type::value_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -434,7 +434,7 @@ class operator_impl<
   using const_iterator = typename base_type::const_iterator;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -497,7 +497,7 @@ class operator_impl<
   using const_iterator = typename base_type::const_iterator;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -679,8 +679,8 @@ class operator_impl<
    *
    * @note The `sync_op` function can be used to perform work that requires synchronizing threads in
    * `group` inbetween probing steps, where the number of probing steps performed between
-   * synchronization points is capped by `window_size * cg_size`. The functor will be called right
-   * after the current probing window has been traversed.
+   * synchronization points is capped by `bucket_size * cg_size`. The functor will be called right
+   * after the current probing bucket has been traversed.
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
@@ -689,7 +689,7 @@ class operator_impl<
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to call on every element found
-   * @param sync_op Function that is allowed to synchronize `group` inbetween probing windows
+   * @param sync_op Function that is allowed to synchronize `group` inbetween probing buckets
    */
   template <class ProbeKey, class CallbackOp, class SyncOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
@@ -721,7 +721,7 @@ class operator_impl<
   using size_type  = typename base_type::size_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**

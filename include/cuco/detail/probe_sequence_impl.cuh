@@ -242,7 +242,7 @@ class linear_probing_impl
       if constexpr (not uses_vector_load()) { return g.thread_rank(); }
     }();
 
-    // Each CG accesses to a window of (`cg_size` * `vector_width`)
+    // Each CG accesses to a bucket of (`cg_size` * `vector_width`)
     // slots if vector-load is used or `cg_size` slots otherwise
     return &slots_[(hash_value + offset) % capacity_];
   }

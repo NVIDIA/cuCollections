@@ -224,7 +224,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
 
  private:
   /**
-   * @brief Enumeration of the possible results of attempting to insert into a hash bucket.
+   * @brief Enumeration of the possible results of attempting to insert into a hash slot.
    */
   enum class insert_result {
     CONTINUE,  ///< Insert did not succeed, continue trying to insert
@@ -363,12 +363,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
         (detail::bitwise_compare(arr[0].first, this->get_empty_key_sentinel()));
       auto const second_slot_is_empty =
         (detail::bitwise_compare(arr[1].first, this->get_empty_key_sentinel()));
-      auto const window_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
+      auto const bucket_contains_empty = g.ballot(first_slot_is_empty or second_slot_is_empty);
 
-      if (window_contains_empty) {
+      if (bucket_contains_empty) {
         // the first lane in the group with an empty slot will attempt the insert
         insert_result status{insert_result::CONTINUE};
-        uint32_t src_lane = __ffs(window_contains_empty) - 1;
+        uint32_t src_lane = __ffs(bucket_contains_empty) - 1;
         if (g.thread_rank() == src_lane) {
           auto insert_location = first_slot_is_empty ? current_slot : current_slot + 1;
           // One single CAS operation since vector loads are dedicated to packable pairs
@@ -379,10 +379,10 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
         if (g.any(status == insert_result::SUCCESS)) { return; }
         // if we've gotten this far, a different key took our spot
         // before we could insert. We need to retry the insert on the
-        // same window
+        // same bucket
       }
-      // if there are no empty slots in the current window,
-      // we move onto the next window
+      // if there are no empty slots in the current bucket,
+      // we move onto the next bucket
       else {
         current_slot = next_slot(current_slot);
       }
@@ -413,12 +413,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
       // the sentinel is not a valid key value. Therefore, first check for the sentinel
       auto const slot_is_empty =
         detail::bitwise_compare(existing_key, this->get_empty_key_sentinel());
-      auto const window_contains_empty = g.ballot(slot_is_empty);
+      auto const bucket_contains_empty = g.ballot(slot_is_empty);
 
-      if (window_contains_empty) {
+      if (bucket_contains_empty) {
         // the first lane in the group with an empty slot will attempt the insert
         insert_result status{insert_result::CONTINUE};
-        uint32_t src_lane = __ffs(window_contains_empty) - 1;
+        uint32_t src_lane = __ffs(bucket_contains_empty) - 1;
 
         if (g.thread_rank() == src_lane) {
 #if (__CUDA_ARCH__ < 700)
@@ -432,10 +432,10 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
         if (g.any(status == insert_result::SUCCESS)) { return; }
         // if we've gotten this far, a different key took our spot
         // before we could insert. We need to retry the insert on the
-        // same window
+        // same bucket
       }
-      // if there are no empty slots in the current window,
-      // we move onto the next window
+      // if there are no empty slots in the current bucket,
+      // we move onto the next bucket
       else {
         current_slot = next_slot(current_slot);
       }
@@ -627,8 +627,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       // we found an empty slot, meaning that the key we're searching for isn't present
       if (g.any(first_slot_is_empty or second_slot_is_empty)) { return false; }
 
-      // otherwise, all slots in the current window are full with other keys, so we move onto the
-      // next window
+      // otherwise, all slots in the current bucket are full with other keys, so we move onto the
+      // next bucket
       current_slot = next_slot(current_slot);
     }
   }
@@ -686,8 +686,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
       // we found an empty slot, meaning that the key we're searching for isn't present
       if (g.any(slot_is_empty)) { return false; }
 
-      // otherwise, all slots in the current window are full with other keys, so we move onto the
-      // next window
+      // otherwise, all slots in the current bucket are full with other keys, so we move onto the
+      // next bucket
       current_slot = next_slot(current_slot);
     }
   }
@@ -1203,7 +1203,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             *(contained_val_begin) = this->get_empty_value_sentinel();
           }
         }
-        return;  // exit if any slot in the current window is empty
+        return;  // exit if any slot in the current bucket is empty
       }
 
       current_slot = next_slot(current_slot);
@@ -1302,7 +1302,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             *(contained_val_begin) = this->get_empty_value_sentinel();
           }
         }
-        return;  // exit if any slot in the current window is empty
+        return;  // exit if any slot in the current bucket is empty
       }
 
       current_slot = next_slot(current_slot);

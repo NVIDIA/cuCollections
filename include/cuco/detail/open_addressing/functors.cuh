@@ -45,13 +45,13 @@ struct get_slot {
    */
   __device__ constexpr auto operator()(typename StorageRef::size_type idx) const noexcept
   {
-    auto const window_idx = idx / StorageRef::window_size;
-    auto const intra_idx  = idx % StorageRef::window_size;
+    auto const bucket_idx = idx / StorageRef::bucket_size;
+    auto const intra_idx  = idx % StorageRef::bucket_size;
     if constexpr (HasPayload) {
-      auto const [first, second] = storage_[window_idx][intra_idx];
+      auto const [first, second] = storage_[bucket_idx][intra_idx];
       return thrust::make_tuple(first, second);
     } else {
-      return storage_[window_idx][intra_idx];
+      return storage_[bucket_idx][intra_idx];
     }
   }
 };

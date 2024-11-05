@@ -41,9 +41,9 @@ template <typename Key, typename Hash, typename Word, nvbench::int32_t WordsPerB
 void bloom_filter_add(nvbench::state& state,
                       nvbench::type_list<Key, Hash, Word, nvbench::enum_type<WordsPerBlock>, Dist>)
 {
-  using policy_type = cuco::bloom_filter_policy<rebind_hasher_t<Hash, Key>,
-                                                Word,
-                                                static_cast<std::uint32_t>(WordsPerBlock)>;
+  using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>,
+                                                  Word,
+                                                  static_cast<std::uint32_t>(WordsPerBlock)>;
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
 
@@ -69,6 +69,51 @@ void bloom_filter_add(nvbench::state& state,
   state.add_element_count(num_keys);
 
   filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
+
+  state.collect_dram_throughput();
+  state.collect_l1_hit_rates();
+  state.collect_l2_hit_rates();
+  state.collect_loads_efficiency();
+  state.collect_stores_efficiency();
+
+  add_fpr_summary(state, filter);
+
+  state.exec([&](nvbench::launch& launch) {
+    filter.add_async(keys.begin(), keys.end(), {launch.get_stream()});
+  });
+}
+
+/**
+ * @brief A benchmark evaluating `cuco::bloom_filter::add_async` performance with
+ * `arrow_filter_policy`
+ */
+template <typename Key, typename Dist>
+void arrow_bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Dist>)
+{
+  using policy_type = cuco::arrow_filter_policy<Key>;
+  using filter_type =
+    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
+
+  auto const num_keys       = state.get_int64("NumInputs");
+  auto const filter_size_mb = state.get_int64("FilterSizeMB");
+
+  std::size_t const num_sub_filters =
+    (filter_size_mb * 1024 * 1024) /
+    (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
+
+  if (num_sub_filters > policy_type::max_filter_blocks) {
+    state.skip("bloom filter with arrow policy should have <= 4194304 blocks");  // skip invalid
+                                                                                 // configurations
+  }
+
+  thrust::device_vector<Key> keys(num_keys);
+
+  key_generator gen;
+  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
+
+  state.add_element_count(num_keys);
+
+  filter_type filter{num_sub_filters};
 
   state.collect_dram_throughput();
   state.collect_l1_hit_rates();
@@ -118,3 +163,12 @@ NVBENCH_BENCH_TYPES(bloom_filter_add,
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
+
+NVBENCH_BENCH_TYPES(arrow_bloom_filter_add,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+                                      nvbench::type_list<distribution::unique>))
+  .set_name("arrow_bloom_filter_add_unique_size")
+  .set_type_axes_names({"Key", "Distribution"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);

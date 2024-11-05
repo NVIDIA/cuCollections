@@ -23,26 +23,26 @@ namespace cuco {
 /**
  * @brief Public storage class.
  *
- * @note This is a public interface used to control storage window size. A window consists of a
- * number of contiguous slots. The window size defines the workload granularity for each CUDA
+ * @note This is a public interface used to control storage bucket size. A bucket consists of one
+ * or multiple contiguous slots. The bucket size defines the workload granularity for each CUDA
  * thread, i.e., how many slots a thread would concurrently operate on when performing modify or
- * lookup operations. cuCollections uses the AoW storage to supersede the raw flat slot storage due
- * to its superior granularity control: When window size equals one, AoW performs the same as the
- * flat storage. If the underlying operation is more memory bandwidth bound, e.g., high occupancy
- * multimap operations, a larger window size can reduce the length of probing sequences thus improve
- * runtime performance.
+ * lookup operations. cuCollections uses the array of bucket storage to supersede the raw flat slot
+ * storage due to its superior granularity control: When bucket size equals one, array of buckets
+ * performs the same as the flat storage. If the underlying operation is more memory bandwidth
+ * bound, e.g., high occupancy multimap operations, a larger bucket size can reduce the length of
+ * probing sequences thus improve runtime performance.
  *
- * @tparam WindowSize Number of elements per window storage
+ * @tparam BucketSize Number of elements per bucket storage
  */
-template <int32_t WindowSize>
+template <int32_t BucketSize>
 class storage {
  public:
-  /// Number of slots per window storage
-  static constexpr int32_t window_size = WindowSize;
+  /// Number of slots per bucket storage
+  static constexpr int32_t bucket_size = BucketSize;
 
   /// Type of implementation details
   template <class T, class Extent, class Allocator>
-  using impl = aow_storage<T, window_size, Extent, Allocator>;
+  using impl = bucket_storage<T, bucket_size, Extent, Allocator>;
 };
 
 }  // namespace cuco

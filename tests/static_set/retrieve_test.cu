@@ -45,6 +45,8 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
   {
     REQUIRE(set.size() == 0);
 
+    REQUIRE(set.count(iter, iter + num_keys) == 0);
+
     auto const [probe_end, matched_end] =
       set.retrieve(iter, iter + num_keys, keys.begin(), matched_keys.begin());
     REQUIRE(std::distance(keys.begin(), probe_end) == 0);
@@ -55,6 +57,8 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
 
   SECTION("All inserted key/value pairs should be contained.")
   {
+    REQUIRE(set.count(iter, iter + num_keys) == num_keys);
+
     auto const [probe_end, matched_end] =
       set.retrieve(iter, iter + num_keys, keys.begin(), matched_keys.begin());
     thrust::sort(keys.begin(), probe_end);

@@ -26,55 +26,56 @@
 namespace cuco {
 namespace detail {
 /**
-￼ * @brief Window data structure type
+￼ * @brief Bucket data structure type
 ￼ *
-￼ * @tparam T Window slot type
-￼ * @tparam WindowSize Number of elements per window
+￼ * @tparam T Bucket slot type
+￼ * @tparam BucketSize Number of elements per bucket
 ￼ */
-template <typename T, int32_t WindowSize>
-struct window : public cuda::std::array<T, WindowSize> {
+template <typename T, int32_t BucketSize>
+struct bucket : public cuda::std::array<T, BucketSize> {
  public:
-  static int32_t constexpr window_size = WindowSize;  ///< Number of slots per window
+  static int32_t constexpr bucket_size = BucketSize;  ///< Number of slots per bucket
 };
 
 /**
- * @brief Base class of array of slot windows open addressing storage.
+ * @brief Base class of array of slot buckets open addressing storage.
  *
  * @note This should NOT be used directly.
  *
  * @tparam T Slot type
- * @tparam WindowSize Number of slots in each window
- * @tparam Extent Type of extent denoting the number of windows
+ * @tparam BucketSize Number of slots in each bucket
+ * @tparam Extent Type of extent denoting the number of buckets
  */
-template <typename T, int32_t WindowSize, typename Extent>
-class aow_storage_base : public storage_base<Extent> {
+template <typename T, int32_t BucketSize, typename Extent>
+class bucket_storage_base : public storage_base<Extent> {
  public:
   /**
-   * @brief The number of elements (slots) processed per window.
+   * @brief The number of elements (slots) processed per bucket.
    */
-  static constexpr int32_t window_size = WindowSize;
+  static constexpr int32_t bucket_size = BucketSize;
 
   using extent_type = typename storage_base<Extent>::extent_type;  ///< Storage extent type
   using size_type   = typename storage_base<Extent>::size_type;    ///< Storage size type
 
   using value_type  = T;                                ///< Slot type
-  using window_type = window<value_type, window_size>;  ///< Slot window type
+  using bucket_type = bucket<value_type, bucket_size>;  ///< Slot bucket type
 
   /**
-   * @brief Constructor of AoW base storage.
+   * @brief Constructor of array of bucket base storage.
    *
-   * @param size Number of windows to store
+   * @param size Number of buckets to store
    */
-  __host__ __device__ explicit constexpr aow_storage_base(Extent size) : storage_base<Extent>{size}
+  __host__ __device__ explicit constexpr bucket_storage_base(Extent size)
+    : storage_base<Extent>{size}
   {
   }
 
   /**
-   * @brief Gets the total number of slot windows in the current storage.
+   * @brief Gets the total number of slot buckets in the current storage.
    *
-   * @return The total number of slot windows
+   * @return The total number of slot buckets
    */
-  [[nodiscard]] __host__ __device__ constexpr size_type num_windows() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr size_type num_buckets() const noexcept
   {
     return storage_base<Extent>::capacity();
   }
@@ -86,15 +87,15 @@ class aow_storage_base : public storage_base<Extent> {
    */
   [[nodiscard]] __host__ __device__ constexpr size_type capacity() const noexcept
   {
-    return storage_base<Extent>::capacity() * window_size;
+    return storage_base<Extent>::capacity() * bucket_size;
   }
 
   /**
-   * @brief Gets the window extent of the current storage.
+   * @brief Gets the bucket extent of the current storage.
    *
-   * @return The window extent.
+   * @return The bucket extent.
    */
-  [[nodiscard]] __host__ __device__ constexpr extent_type window_extent() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr extent_type bucket_extent() const noexcept
   {
     return storage_base<Extent>::extent();
   }

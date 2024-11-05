@@ -76,7 +76,7 @@ void dispatch_insert_or_apply(
                                              cuco::storage<1>>;
 
     using shared_map_ref_type    = typename shared_map_type::ref_type<>;
-    auto constexpr window_extent = cuco::make_window_extent<shared_map_ref_type>(extent_type{});
+    auto constexpr bucket_extent = cuco::make_bucket_extent<shared_map_ref_type>(extent_type{});
 
     auto insert_or_apply_shmem_fn_ptr = insert_or_apply_shmem<HasInit,
                                                               CGSize,
@@ -100,7 +100,7 @@ void dispatch_insert_or_apply(
     if (num_elements_per_thread > 2) {
       insert_or_apply_shmem<HasInit, CGSize, shmem_block_size, shared_map_ref_type>
         <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(
-          first, num, init, op, ref, window_extent);
+          first, num, init, op, ref, bucket_extent);
     } else {
       insert_or_apply<HasInit, CGSize, cuco::detail::default_block_size()>
         <<<default_grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(

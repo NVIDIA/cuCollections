@@ -240,9 +240,9 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   StorageRef,
                                                   Operators...>::extent_type
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
-  window_extent() const noexcept
+  bucket_extent() const noexcept
 {
-  return impl_.window_extent();
+  return impl_.bucket_extent();
 }
 
 template <typename Key,
@@ -372,7 +372,7 @@ template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
   CG const& tile,
-  window_type* const memory_to_use,
+  bucket_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
   impl_.make_copy(tile, memory_to_use);
@@ -383,7 +383,7 @@ static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operator
     this->key_eq(),
     impl_.probing_scheme(),
     scope,
-    storage_ref_type{this->window_extent(), memory_to_use}};
+    storage_ref_type{this->bucket_extent(), memory_to_use}};
 }
 
 template <typename Key,
@@ -421,7 +421,7 @@ class operator_impl<
   using mapped_type = T;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -476,7 +476,7 @@ class operator_impl<
   using value_type = typename base_type::value_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -605,8 +605,8 @@ class operator_impl<
    *
    * @note The `sync_op` function can be used to perform work that requires synchronizing threads in
    * `group` inbetween probing steps, where the number of probing steps performed between
-   * synchronization points is capped by `window_size * cg_size`. The functor will be called right
-   * after the current probing window has been traversed.
+   * synchronization points is capped by `bucket_size * cg_size`. The functor will be called right
+   * after the current probing bucket has been traversed.
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
@@ -615,7 +615,7 @@ class operator_impl<
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to call on every element found
-   * @param sync_op Function that is allowed to synchronize `group` inbetween probing windows
+   * @param sync_op Function that is allowed to synchronize `group` inbetween probing buckets
    */
   template <class ProbeKey, class CallbackOp, class SyncOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
@@ -638,6 +638,70 @@ template <typename Key,
           typename StorageRef,
           typename... Operators>
 class operator_impl<
+  op::find_tag,
+  static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type =
+    static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type       = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
+
+ public:
+  /**
+   * @brief Finds an element in the map with key equivalent to the probe key.
+   *
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param key The key to search for
+   *
+   * @return An iterator to the position at which the equivalent key is stored
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
+  {
+    // CRTP: cast `this` to the actual ref type
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.find(key);
+  }
+
+  /**
+   * @brief Finds an element in the map with key equivalent to the probe key.
+   *
+   * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
+   * `key`. If no such element exists, returns `end()`.
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param group The Cooperative Group used to perform this operation
+   * @param key The key to search for
+   *
+   * @return An iterator to the position at which the equivalent key is stored
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ const_iterator find(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.find(group, key);
+  }
+};
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
   op::count_tag,
   static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
   using base_type = static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
@@ -648,7 +712,7 @@ class operator_impl<
   using size_type  = typename base_type::size_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**

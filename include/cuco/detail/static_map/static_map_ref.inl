@@ -21,9 +21,8 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
-#include <cuda/std/functional>
 #include <cuda/std/type_traits>
-#include <thrust/tuple.h>
+#include <cuda/std/utility>
 
 #include <cooperative_groups.h>
 
@@ -240,10 +239,10 @@ __host__ __device__ constexpr static_map_ref<Key,
                                              ProbingScheme,
                                              StorageRef,
                                              Operators...>::extent_type
-static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::window_extent()
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::bucket_extent()
   const noexcept
 {
-  return impl_.window_extent();
+  return impl_.bucket_extent();
 }
 
 template <typename Key,
@@ -368,7 +367,7 @@ template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
   CG const& tile,
-  window_type* const memory_to_use,
+  bucket_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
   this->impl_.make_copy(tile, memory_to_use);
@@ -379,7 +378,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
     this->key_eq(),
     this->probing_scheme(),
     scope,
-    storage_ref_type{this->window_extent(), memory_to_use}};
+    storage_ref_type{this->bucket_extent(), memory_to_use}};
 }
 
 template <typename Key,
@@ -416,7 +415,7 @@ class operator_impl<
   using mapped_type = T;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -471,7 +470,7 @@ class operator_impl<
   using mapped_type = T;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -493,16 +492,16 @@ class operator_impl<
     auto const key       = ref_.impl_.extract_key(val);
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(key, storage_ref.window_extent());
+    auto probing_iter    = probing_scheme(key, storage_ref.bucket_extent());
 
     while (true) {
-      auto const window_slots = storage_ref[*probing_iter];
+      auto const bucket_slots = storage_ref[*probing_iter];
 
-      for (auto& slot_content : window_slots) {
+      for (auto& slot_content : bucket_slots) {
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
+        auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
@@ -539,24 +538,24 @@ class operator_impl<
     auto const key       = ref_.impl_.extract_key(val);
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(group, key, storage_ref.window_extent());
+    auto probing_iter    = probing_scheme(group, key, storage_ref.bucket_extent());
 
     while (true) {
-      auto const window_slots = storage_ref[*probing_iter];
+      auto const bucket_slots = storage_ref[*probing_iter];
 
-      auto const [state, intra_window_index] = [&]() {
+      auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < window_size; ++i) {
-          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, window_slots[i].first);
+        for (auto i = 0; i < bucket_size; ++i) {
+          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, bucket_slots[i].first);
           if (res != detail::equal_result::UNEQUAL) {
-            return detail::window_probing_results{res, i};
+            return detail::bucket_probing_results{res, i};
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return detail::window_probing_results{res, -1};
+        return detail::bucket_probing_results{res, -1};
       }();
 
-      auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
+      auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
@@ -637,7 +636,7 @@ class operator_impl<
   using value_type = typename base_type::value_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -855,20 +854,20 @@ class operator_impl<
     auto const key         = ref_.impl_.extract_key(val);
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(key, storage_ref.window_extent());
+    auto probing_iter      = probing_scheme(key, storage_ref.bucket_extent());
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
-      auto const window_slots = storage_ref[*probing_iter];
+      auto const bucket_slots = storage_ref[*probing_iter];
 
-      for (auto& slot_content : window_slots) {
+      for (auto& slot_content : bucket_slots) {
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_window_index = thrust::distance(window_slots.begin(), &slot_content);
-        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
+        auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
@@ -929,28 +928,28 @@ class operator_impl<
     auto const key         = ref_.impl_.extract_key(val);
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(group, key, storage_ref.window_extent());
+    auto probing_iter      = probing_scheme(group, key, storage_ref.bucket_extent());
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
-      auto const window_slots = storage_ref[*probing_iter];
+      auto const bucket_slots = storage_ref[*probing_iter];
 
-      auto const [state, intra_window_index] = [&]() {
+      auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < window_size; ++i) {
-          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, window_slots[i].first);
+        for (auto i = 0; i < bucket_size; ++i) {
+          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, bucket_slots[i].first);
           if (res != detail::equal_result::UNEQUAL) {
-            return detail::window_probing_results{res, i};
+            return detail::bucket_probing_results{res, i};
           }
         }
         // returns dummy index `-1` for UNEQUAL
-        return detail::window_probing_results{res, -1};
+        return detail::bucket_probing_results{res, -1};
       }();
 
-      auto* slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_window_index;
+      auto* slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
@@ -967,10 +966,10 @@ class operator_impl<
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
-        auto const status   = [&, target_idx = intra_window_index]() {
+        auto const status   = [&, target_idx = intra_bucket_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
           return ref_.attempt_insert_or_apply<UseDirectApply>(
-            slot_ptr, window_slots[target_idx], val, op);
+            slot_ptr, bucket_slots[target_idx], val, op);
         }();
 
         switch (group.shfl(status, src_lane)) {
@@ -1071,7 +1070,7 @@ class operator_impl<
   using const_iterator = typename base_type::const_iterator;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -1135,7 +1134,7 @@ class operator_impl<
   using value_type = typename base_type::value_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -1189,7 +1188,7 @@ class operator_impl<
   using value_type = typename base_type::value_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -1252,7 +1251,7 @@ class operator_impl<
   using const_iterator = typename base_type::const_iterator;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -1315,7 +1314,7 @@ class operator_impl<
   using const_iterator = typename base_type::const_iterator;
 
   static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto window_size = base_type::window_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
 
  public:
   /**
@@ -1335,7 +1334,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(key, std::forward<CallbackOp>(callback_op));
+    ref_.impl_.for_each(key, cuda::std::forward<CallbackOp>(callback_op));
   }
 
   /**
@@ -1363,9 +1362,63 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(group, key, std::forward<CallbackOp>(callback_op));
+    ref_.impl_.for_each(group, key, cuda::std::forward<CallbackOp>(callback_op));
   }
 };
 
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::count_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type = typename base_type::value_type;
+  using size_type  = typename base_type::size_type;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
+
+ public:
+  /**
+   * @brief Counts the occurrence of a given key contained in map
+   *
+   * @tparam ProbeKey Input type
+   *
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  __device__ size_type count(ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.count(key);
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in map
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
+                             ProbeKey const& key) const noexcept
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    return ref_.impl_.count(group, key);
+  }
+};
 }  // namespace detail
 }  // namespace cuco

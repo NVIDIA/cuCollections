@@ -77,7 +77,7 @@ namespace cuco {
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for choices)
  * @tparam Allocator Type of allocator used for device storage
- * @tparam Storage Slot window storage type
+ * @tparam Storage Slot bucket storage type
  */
 template <class Key,
           class Extent             = cuco::extent<std::size_t>,
@@ -93,7 +93,7 @@ class static_set {
 
  public:
   static constexpr auto cg_size      = impl_type::cg_size;       ///< CG size used for probing
-  static constexpr auto window_size  = impl_type::window_size;   ///< Window size used for probing
+  static constexpr auto bucket_size  = impl_type::bucket_size;   ///< Bucket size used for probing
   static constexpr auto thread_scope = impl_type::thread_scope;  ///< CUDA thread scope
 
   using key_type       = typename impl_type::key_type;        ///< Key type
@@ -102,7 +102,7 @@ class static_set {
   using size_type      = typename impl_type::size_type;       ///< Size type
   using key_equal      = typename impl_type::key_equal;       ///< Key equality comparator type
   using allocator_type = typename impl_type::allocator_type;  ///< Allocator type
-  /// Non-owning window storage ref type
+  /// Non-owning bucket storage ref type
   using storage_ref_type    = typename impl_type::storage_ref_type;
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
   using hasher              = typename probing_scheme_type::hasher;     ///< Hash function type
@@ -133,7 +133,7 @@ class static_set {
    * and CUDA stream
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the set
    * results in undefined behavior.
    *
@@ -167,7 +167,7 @@ class static_set {
    * the desired load factor without manually computing the desired capacity. The actual set
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the window size and is computed via the `make_window_extent` factory.
+   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -206,7 +206,7 @@ class static_set {
    * and CUDA stream.
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * window size and it is computed via the `make_window_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the set
    * results in undefined behavior.
    *
@@ -351,7 +351,7 @@ class static_set {
    *
    * @tparam InputIt Device accessible random access input iterator
    * @tparam FoundIt Device accessible random access output iterator whose `value_type`
-   * is constructible from `map::iterator` type
+   * is constructible from `set::iterator` type
    * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
    * is constructible from `bool`
    *
@@ -379,7 +379,7 @@ class static_set {
    *
    * @tparam InputIt Device accessible random access input iterator
    * @tparam FoundIt Device accessible random access output iterator whose `value_type`
-   * is constructible from `map::iterator` type
+   * is constructible from `set::iterator` type
    * @tparam InsertedIt Device accessible random access output iterator whose `value_type`
    * is constructible from `bool`
    *
@@ -589,6 +589,90 @@ class static_set {
                   InputIt last,
                   OutputIt output_begin,
                   cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Applies the given function object `callback_op` to the copy of every filled slot in the
+   * container
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param callback_op Function to apply to the copy of the filled slot
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Asynchronously applies the given function object `callback_op` to the copy of every
+   * filled slot in the container
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param callback_op Function to apply to the copy of the filled slot
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename CallbackOp>
+  void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For each key in the range [first, last), applies the function object `callback_op` to
+   * the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to apply to the copy of the matched slot
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp>
+  void for_each(InputIt first,
+                InputIt last,
+                CallbackOp&& callback_op,
+                cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For each key in the range [first, last), asynchronously applies the function object
+   * `callback_op` to the copy of all corresponding matches found in the container.
+   *
+   * @note The return value of `callback_op`, if any, is ignored.
+   *
+   * @tparam InputIt Device accessible random access input iterator
+   * @tparam CallbackOp Type of unary callback function object
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param callback_op Function to apply to the copy of the matched slot
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename CallbackOp>
+  void for_each_async(InputIt first,
+                      InputIt last,
+                      CallbackOp&& callback_op,
+                      cuda::stream_ref stream = {}) const noexcept;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the set
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @tparam Input Device accessible input iterator
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt>
+  size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Retrieves the matched key in the set corresponding to all probe keys in the range

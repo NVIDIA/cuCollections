@@ -81,7 +81,7 @@ struct equal_wrapper {
    *
    * @note This function always compares the right-hand side element against sentinel values first
    * then performs a equality check with the given `equal_` callable, i.e., `equal_(lhs, rhs)`.
-   * @note Container (like set or map) buckets MUST be always on the right-hand side.
+   * @note Container (like set or map) slots MUST be always on the right-hand side.
    *
    * @tparam IsInsert Flag indicating whether it's an insert equality check or not. Insert probing
    * stops when it's an empty or erased slot while query probing stops only when it's empty.
