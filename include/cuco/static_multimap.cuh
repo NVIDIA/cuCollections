@@ -658,6 +658,16 @@ class static_multimap {
   void rehash_async(size_type capacity, cuda::stream_ref stream = {});
 
   /**
+   * @brief Gets the number of elements in the container.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param stream CUDA stream used to get the number of inserted elements
+   * @return The number of elements in the container
+   */
+  [[nodiscard]] size_type size(cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Gets the maximum number of elements the hash map can hold.
    *
    * @return The maximum number of elements the hash map can hold
