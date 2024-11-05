@@ -406,6 +406,64 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
+  cuda::stream_ref stream)
+{
+  this->impl_->rehash(*this, stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
+  size_type capacity, cuda::stream_ref stream)
+{
+  auto const extent = make_bucket_extent<static_multimap>(capacity);
+  this->impl_->rehash(extent, *this, stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  rehash_async(cuda::stream_ref stream)
+{
+  this->impl_->rehash_async(*this, stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  rehash_async(size_type capacity, cuda::stream_ref stream)
+{
+  auto const extent = make_bucket_extent<static_multimap>(capacity);
+  this->impl_->rehash_async(extent, *this, stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 constexpr auto
 static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
   const noexcept
