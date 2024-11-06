@@ -739,6 +739,26 @@ class static_multiset {
                                                          cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Retrieves all keys contained in the multiset
+   *
+   * @note This API synchronizes the given stream.
+   * @note The order in which keys are returned is implementation defined and not guaranteed to be
+   * consistent between subsequent calls to `retrieve_all`.
+   * @note Behavior is undefined if the range beginning at `output_begin` is smaller than the return
+   * value of `size()`.
+   *
+   * @tparam OutputIt Device accessible random access output iterator whose `value_type` is
+   * convertible from the container's `key_type`.
+   *
+   * @param output_begin Beginning output iterator for keys
+   * @param stream CUDA stream used for this operation
+   *
+   * @return Iterator indicating the end of the output
+   */
+  template <typename OutputIt>
+  OutputIt retrieve_all(OutputIt output_begin, cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Regenerates the container.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use

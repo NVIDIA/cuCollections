@@ -852,7 +852,7 @@ class static_map {
   size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Retrieves all of the keys and their associated values.
+   * @brief Retrieves all of the keys and their associated values contained in the map
    *
    * @note This API synchronizes the given stream.
    * @note The order in which keys are returned is implementation defined and not guaranteed to be

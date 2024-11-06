@@ -481,6 +481,21 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename OutputIt>
+OutputIt
+static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
+  OutputIt output_begin, cuda::stream_ref stream) const
+{
+  return impl_->retrieve_all(output_begin, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   cuda::stream_ref stream)
 {
