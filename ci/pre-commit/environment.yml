@@ -1,0 +1,4 @@
+name: my_env
+
+dependencies:
+  - doxygen=1.9.1
