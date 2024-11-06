@@ -638,16 +638,6 @@ class static_multimap {
   void rehash(cuda::stream_ref stream = {});
 
   /**
-   * @brief Regenerates the container.
-   *
-   * @note This function synchronizes the given stream. For asynchronous execution use
-   * `rehash_async`.
-   *
-   * @param stream CUDA stream used for this operation
-   */
-  void rehash(cuda::stream_ref stream = {});
-
-  /**
    * @brief Reserves at least the specified number of slots and regenerates the container
    *
    * @note Changes the number of slots to a value that is not less than `capacity`, then
