@@ -1181,7 +1181,7 @@ class open_addressing_ref_impl {
         auto const& probe = *(input_probe + idx);
         auto probing_iter =
           this->probing_scheme_(probing_tile, probe, this->storage_ref_.bucket_extent());
-        bool empty_found                      = false;
+        bool running                          = true;
         bool match_found                      = false;
         [[maybe_unused]] bool found_any_match = false;  // only needed if `IsOuter == true`
 
@@ -1190,15 +1190,16 @@ class open_addressing_ref_impl {
           auto const bucket_slots = this->storage_ref_[*probing_iter];
 
           for (int32_t i = 0; i < bucket_size; ++i) {
-            if (not empty_found) {
+            if (running) {
               // inspect slot content
               switch (this->predicate_.operator()<is_insert::NO>(
                 probe, this->extract_key(bucket_slots[i]))) {
                 case detail::equal_result::EMPTY: {
-                  empty_found = true;
+                  running = false;
                   break;
                 }
                 case detail::equal_result::EQUAL: {
+                  if constexpr (!AllowsDuplicates) { running = false; }
                   match_found = true;
                   break;
                 }
@@ -1231,10 +1232,10 @@ class open_addressing_ref_impl {
             // reset flag for next iteration
             match_found = false;
           }
-          empty_found = probing_tile.any(empty_found);
+          running = probing_tile.all(running);
 
           // check if all probing tiles have finished their work
-          bool const finished = active_flushing_tile.all(empty_found);
+          bool const finished = !active_flushing_tile.any(running);
 
           if constexpr (IsOuter) {
             if (finished) {
