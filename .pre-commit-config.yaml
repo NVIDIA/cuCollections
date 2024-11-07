@@ -22,7 +22,7 @@ repos:
                 entry: ./ci/pre-commit/doxygen.sh
                 files: ^include/
                 types_or: [file]
-                language: conda
+                language: system
                 pass_filenames: false
                 verbose: true
               - id: check-example-links
