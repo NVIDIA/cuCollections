@@ -1140,8 +1140,8 @@ class open_addressing_ref_impl {
     auto const probing_tile  = cg::tiled_partition<probing_tile_size>(block);
 
     auto const flushing_tile_id = flushing_tile.meta_group_rank();
-    auto idx                    = probing_tile.meta_group_rank();
     auto const stride           = probing_tile.meta_group_size();
+    auto idx                    = probing_tile.meta_group_rank();
 
     // TODO align to 16B?
     __shared__ probe_type probe_buffers[num_flushing_tiles][buffer_size];
@@ -1178,9 +1178,9 @@ class open_addressing_ref_impl {
       if (active_flag) {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
-        auto const& probe = *(input_probe + idx);
+        auto const& probe_key = *(input_probe + idx);
         auto probing_iter =
-          this->probing_scheme_(probing_tile, probe, this->storage_ref_.bucket_extent());
+          this->probing_scheme_(probing_tile, probe_key, this->storage_ref_.bucket_extent());
         bool running                          = true;
         bool match_found                      = false;
         [[maybe_unused]] bool found_any_match = false;  // only needed if `IsOuter == true`
@@ -1193,7 +1193,7 @@ class open_addressing_ref_impl {
             if (running) {
               // inspect slot content
               switch (this->predicate_.operator()<is_insert::NO>(
-                probe, this->extract_key(bucket_slots[i]))) {
+                probe_key, this->extract_key(bucket_slots[i]))) {
                 case detail::equal_result::EMPTY: {
                   running = false;
                   break;
@@ -1213,7 +1213,8 @@ class open_addressing_ref_impl {
               auto const matching_tile = cg::binary_partition(active_flushing_tile, match_found);
               // stage matches in shmem buffer
               if (match_found) {
-                probe_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] = probe;
+                probe_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] =
+                  probe_key;
                 match_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] =
                   bucket_slots[i];
               }
@@ -1246,7 +1247,7 @@ class open_addressing_ref_impl {
                 cg::binary_partition(active_flushing_tile, writes_sentinel);
               if (writes_sentinel) {
                 auto const rank = sentinel_writers.thread_rank();
-                probe_buffers[flushing_tile_id][num_matches + rank] = probe;
+                probe_buffers[flushing_tile_id][num_matches + rank] = probe_key;
                 match_buffers[flushing_tile_id][num_matches + rank] = this->empty_slot_sentinel();
               }
               // add number of new matches to the buffer counter
