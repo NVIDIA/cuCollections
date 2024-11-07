@@ -36,7 +36,13 @@ fi
 # Run doxygen, ignore missing tag files error
 TAG_ERROR1="error: Tag file '.*.tag' does not exist or is not a file. Skipping it..."
 TAG_ERROR2="error: cannot open tag file .*.tag for writing"
-DOXYGEN_STDERR=`cd doxygen && { cat Doxyfile ; echo QUIET = YES; echo GENERATE_HTML = NO; }  | doxygen - 2>&1 | sed "/\($TAG_ERROR1\|$TAG_ERROR2\)/d"`
+
+cd doxygen
+echo "--- Doxyfile ---"
+cat Doxyfile
+echo "----------------"
+doxygen
+
 RETVAL=$?
 
 #if [ "$RETVAL" != "0" ] || [ ! -z "$DOXYGEN_STDERR" ]; then
