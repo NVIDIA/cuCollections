@@ -481,6 +481,60 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
+  cuda::stream_ref stream)
+{
+  impl_->rehash(*this, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
+  size_type capacity, cuda::stream_ref stream)
+{
+  auto const extent = make_bucket_extent<static_multiset>(capacity);
+  impl_->rehash(extent, *this, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
+  cuda::stream_ref stream)
+{
+  impl_->rehash_async(*this, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
+  size_type capacity, cuda::stream_ref stream)
+{
+  auto const extent = make_bucket_extent<static_multiset>(capacity);
+  impl_->rehash_async(extent, *this, stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda::stream_ref stream) const

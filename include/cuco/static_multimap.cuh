@@ -603,6 +603,71 @@ class static_multimap {
   size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Regenerates the container.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `rehash_async`.
+   *
+   * @param stream CUDA stream used for this operation
+   */
+  void rehash(cuda::stream_ref stream = {});
+
+  /**
+   * @brief Reserves at least the specified number of slots and regenerates the container
+   *
+   * @note Changes the number of slots to a value that is not less than `capacity`, then
+   * rehashes the container, i.e. puts the elements into appropriate slots considering
+   * that the total number of slots has changed.
+   *
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `rehash_async`.
+   *
+   * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
+   * contained elements.
+   *
+   * @note This function is not available if the conatiner's `extent_type` is static.
+   *
+   * @param capacity New capacity of the container
+   * @param stream CUDA stream used for this operation
+   */
+  void rehash(size_type capacity, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Asynchronously regenerates the container.
+   *
+   * @param stream CUDA stream used for this operation
+   */
+  void rehash_async(cuda::stream_ref stream = {});
+
+  /**
+   * @brief Asynchronously reserves at least the specified number of slots and regenerates the
+   * container
+   *
+   * @note Changes the number of slots to a value that is not less than `capacity`, then
+   * rehashes the container, i.e. puts the elements into appropriate slots considering
+   * that the total number of slots has changed.
+   *
+   * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
+   * contained elements.
+   *
+   * @note This function is not available if the conatiner's `extent_type` is static.
+   *
+   * @param capacity New capacity of the container
+   * @param stream CUDA stream used for this operation
+   */
+  void rehash_async(size_type capacity, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Gets the number of elements in the container.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param stream CUDA stream used to get the number of inserted elements
+   * @return The number of elements in the container
+   */
+  [[nodiscard]] size_type size(cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Gets the maximum number of elements the hash map can hold.
    *
    * @return The maximum number of elements the hash map can hold
