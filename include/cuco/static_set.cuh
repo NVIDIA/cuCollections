@@ -621,7 +621,7 @@ class static_set {
                StencilIt stencil,
                Predicate pred,
                OutputIt output_begin,
-               cuda::stream_ref stream) const;
+               cuda::stream_ref stream = {}) const;
 
   /**
    * @brief For all keys in the range `[first, last)`, asynchronously finds
@@ -652,7 +652,7 @@ class static_set {
                      StencilIt stencil,
                      Predicate pred,
                      OutputIt output_begin,
-                     cuda::stream_ref stream) const;
+                     cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Applies the given function object `callback_op` to the copy of every filled slot in the
