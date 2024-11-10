@@ -284,6 +284,45 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_if(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  this->find_if_async(first, last, stencil, pred, output_begin, stream);
+  stream.wait();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  find_if_async(InputIt first,
+                InputIt last,
+                StencilIt stencil,
+                Predicate pred,
+                OutputIt output_begin,
+                cuda::stream_ref stream) const
+{
+  impl_->find_if_async(first, last, stencil, pred, output_begin, ref(op::find), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename CallbackOp>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
   CallbackOp&& callback_op, cuda::stream_ref stream) const
