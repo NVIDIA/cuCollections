@@ -26,7 +26,6 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
-#include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/tuple.h>
 
@@ -34,17 +33,15 @@
 
 using size_type = int32_t;
 
+int32_t constexpr SENTINEL = -1;
+
 template <typename Map>
 void test_unique_sequence(Map& map, size_type num_keys)
 {
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
-  thrust::device_vector<Key> d_keys(num_keys);
-
-  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
-
-  auto keys_begin  = d_keys.begin();
+  auto keys_begin  = thrust::counting_iterator<Key>{0};
   auto pairs_begin = thrust::make_transform_iterator(
     thrust::make_counting_iterator<size_type>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
@@ -128,6 +125,27 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 
+  SECTION("Conditional find should return valid values on even inputs.")
+  {
+    auto found_results = thrust::device_vector<Key>(num_keys);
+    auto gold_fn       = cuda::proclaim_return_type<Value>([] __device__(auto const& i) {
+      return i % 2 == 0 ? static_cast<Value>(i) : Value{SENTINEL};
+    });
+
+    map.find_if(keys_begin,
+                keys_begin + num_keys,
+                thrust::counting_iterator<std::size_t>{0},
+                is_even,
+                found_results.begin());
+
+    REQUIRE(cuco::test::equal(
+      found_results.begin(),
+      found_results.end(),
+      thrust::make_transform_iterator(thrust::counting_iterator<Key>{0}, gold_fn),
+      cuda::proclaim_return_type<bool>(
+        [] __device__(auto const& found, auto const& gold) { return found == gold; })));
+  }
+
   SECTION("All inserted key-values should be properly retrieved")
   {
     thrust::device_vector<Value> d_values(num_keys);
@@ -188,7 +206,7 @@ TEMPLATE_TEST_CASE_SIG(
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{
-    extent_type{}, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+    extent_type{}, cuco::empty_key<Key>{SENTINEL}, cuco::empty_value<Value>{SENTINEL}};
 
   REQUIRE(map.capacity() == gold_capacity);
 
