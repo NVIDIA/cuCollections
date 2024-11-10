@@ -445,11 +445,11 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void retrieve(InputProbeIt input_probe,
 
   auto const block              = cg::this_thread_block();
   auto constexpr tiles_in_block = BlockSize / Ref::cg_size;
-  // make sure all but the last block are always occupied
-  auto const items_per_block = detail::int_div_ceil(n, tiles_in_block * gridDim.x) * tiles_in_block;
+  auto const items_per_block    = tiles_in_block;
 
   auto const block_begin_offset = block.group_index().x * items_per_block;
-  auto const block_end_offset   = min(n, block_begin_offset + items_per_block);
+  auto const block_end_offset =
+    min(n, static_cast<cuco::detail::index_type>(block_begin_offset + items_per_block));
 
   if (block_begin_offset < block_end_offset) {
     if constexpr (IsOuter) {
