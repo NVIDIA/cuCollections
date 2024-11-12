@@ -667,6 +667,31 @@ class static_multimap {
   size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Retrieves all of the keys and their associated values contained in the multimap
+   *
+   * @note This API synchronizes the given stream.
+   * @note The order in which keys are returned is implementation defined and not guaranteed to be
+   * consistent between subsequent calls to `retrieve_all`.
+   * @note Behavior is undefined if the range beginning at `keys_out` or `values_out` is smaller
+   * than the return value of `size()`.
+   *
+   * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
+   * convertible from `key_type`.
+   * @tparam ValueOut Device accesible random access output iterator whose `value_type` is
+   * convertible from `mapped_type`.
+   *
+   * @param keys_out Beginning output iterator for keys
+   * @param values_out Beginning output iterator for associated values
+   * @param stream CUDA stream used for this operation
+   *
+   * @return Pair of iterators indicating the last elements in the output
+   */
+  template <typename KeyOut, typename ValueOut>
+  std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
+                                           ValueOut values_out,
+                                           cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Regenerates the container.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
