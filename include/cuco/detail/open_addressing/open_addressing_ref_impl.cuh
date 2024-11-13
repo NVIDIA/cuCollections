@@ -1148,25 +1148,21 @@ class open_addressing_ref_impl {
     size_type num_matches = 0;
 
     auto flush_buffers = [&](auto const& tile) {
-      auto const rank = tile.thread_rank();
-
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-      auto const offset = cg::invoke_one_broadcast(tile, [&]() {
-        return atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
-      });
-#else
-      size_type offset;
-      if (rank == 0) {
+      size_type offset = 0;
+      /*
+      if (tile.thread_rank() == 0) {
         offset = atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
       }
+      */
       offset = tile.shfl(offset, 0);
-#endif
 
+      /*
       // flush_buffers
       for (size_type i = rank; i < num_matches; i += tile.size()) {
         *(output_probe + offset + i) = buffers[flushing_tile_id][i].first;
         *(output_match + offset + i) = buffers[flushing_tile_id][i].second;
       }
+      */
     };
 
     while (flushing_tile.any(idx < n)) {
