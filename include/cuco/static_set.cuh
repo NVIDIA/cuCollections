@@ -591,6 +591,70 @@ class static_set {
                   cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief For all keys in the range `[first, last)`, finds a match with its key equivalent to the
+   * query key.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores the payload of the
+   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * `find_if_async`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
+   * Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of matches retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void find_if(InputIt first,
+               InputIt last,
+               StencilIt stencil,
+               Predicate pred,
+               OutputIt output_begin,
+               cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds
+   * a match with its key equivalent to the query key.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores the payload of the
+   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
+   * Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of matches retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+  void find_if_async(InputIt first,
+                     InputIt last,
+                     StencilIt stencil,
+                     Predicate pred,
+                     OutputIt output_begin,
+                     cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Applies the given function object `callback_op` to the copy of every filled slot in the
    * container
    *
