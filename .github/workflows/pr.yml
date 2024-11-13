@@ -39,8 +39,9 @@ jobs:
         uses: actions/checkout@v3
       - name: Install Doxygen
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y doxygen
+          conda create -n doxygen_env doxygen=1.9.1
+          conda init
+          conda activate doxygen_env
       - name: Check Doxygen docs
         run: |
           ./ci/pre-commit/doxygen.sh
