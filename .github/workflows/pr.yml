@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Install Doxygen
         run: |
-          conda create -n doxygen_env doxygen=1.9.1
+          conda create -n doxygen_env -c conda-forge doxygen=1.9.1
           conda init
           conda activate doxygen_env
       - name: Check Doxygen docs
