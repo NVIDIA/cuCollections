@@ -37,15 +37,13 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-      - name: Install Doxygen
+      - name: Install and Check Doxygen
         run: |
           conda init bash
           source /usr/share/miniconda/etc/profile.d/conda.sh
           conda create -n doxygen_env -c conda-forge doxygen=1.9.1 -y
           conda activate doxygen_env
           doxygen --version
-      - name: Check Doxygen docs
-        run: |
           ./ci/pre-commit/doxygen.sh
           if [ $? -ne 0 ]; then
             echo "Doxygen check failed"
