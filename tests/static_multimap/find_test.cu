@@ -28,6 +28,9 @@
 
 using size_type = int32_t;
 
+int32_t constexpr KEY_SENTINEL = -1;
+int32_t constexpr VAL_SENTINEL = -2;
+
 template <typename Map>
 void test_multimap_find(Map& map, size_type num_keys)
 {
@@ -70,6 +73,29 @@ void test_multimap_find(Map& map, size_type num_keys)
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
+
+  SECTION("Conditional find should return valid values on even inputs.")
+  {
+    auto found_results = thrust::device_vector<Key>(num_keys);
+    auto is_even =
+      cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
+    auto gold_fn = cuda::proclaim_return_type<Value>([] __device__(auto const& i) {
+      return i % 2 == 0 ? static_cast<Value>(i) * 2 : Value{VAL_SENTINEL};
+    });
+
+    map.find_if(keys_begin,
+                keys_begin + num_keys,
+                thrust::counting_iterator<std::size_t>{0},
+                is_even,
+                found_results.begin());
+
+    REQUIRE(cuco::test::equal(
+      found_results.begin(),
+      found_results.end(),
+      thrust::make_transform_iterator(thrust::counting_iterator<Key>{0}, gold_fn),
+      cuda::proclaim_return_type<bool>(
+        [] __device__(auto const& found, auto const& gold) { return found == gold; })));
+  }
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -100,7 +126,7 @@ TEMPLATE_TEST_CASE_SIG(
                                                  probe,
                                                  cuco::cuda_allocator<cuda::std::byte>,
                                                  cuco::storage<2>>{
-    num_keys, cuco::empty_key<T>{-1}, cuco::empty_value<T>{-2}};
+    num_keys, cuco::empty_key<T>{KEY_SENTINEL}, cuco::empty_value<T>{VAL_SENTINEL}};
 
   test_multimap_find(map, num_keys);
 }

@@ -329,19 +329,33 @@ struct find_buffer<Container, cuda::std::void_t<typename Container::mapped_type>
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize The size of the thread block
  * @tparam InputIt Device accessible input iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
  * @tparam OutputIt Device accessible output iterator
  * @tparam Ref Type of non-owning device ref allowing access to storage
  *
  * @param first Beginning of the sequence of keys
  * @param n Number of keys to query
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
  * @param output_begin Beginning of the sequence of matched payloads retrieved for each key
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename OutputIt, typename Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
-                                                   cuco::detail::index_type n,
-                                                   OutputIt output_begin,
-                                                   Ref ref)
+template <int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename OutputIt,
+          typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void find_if_n(InputIt first,
+                                                        cuco::detail::index_type n,
+                                                        StencilIt stencil,
+                                                        Predicate pred,
+                                                        OutputIt output_begin,
+                                                        Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -382,7 +396,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
          * synchronizing before writing back to global, we no longer rely on L1, preventing the
          * increase in sector stores from L2 to global and improving performance.
          */
-        output_buffer[thread_idx] = output(found);
+        output_buffer[thread_idx] = pred(*(stencil + idx)) ? output(found) : sentinel;
       }
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
@@ -392,7 +406,9 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find(InputIt first,
         typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
         auto const found                                              = ref.find(tile, key);
 
-        if (tile.thread_rank() == 0) { *(output_begin + idx) = output(found); }
+        if (tile.thread_rank() == 0) {
+          *(output_begin + idx) = pred(*(stencil + idx)) ? output(found) : sentinel;
+        }
       }
     }
     idx += loop_stride;

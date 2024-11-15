@@ -323,6 +323,47 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_if(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  this->find_if_async(first, last, stencil, pred, output_begin, stream);
+  stream.wait();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
+void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  find_if_async(InputIt first,
+                InputIt last,
+                StencilIt stencil,
+                Predicate pred,
+                OutputIt output_begin,
+                cuda::stream_ref stream) const
+{
+  impl_->find_if_async(first, last, stencil, pred, output_begin, ref(op::find), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename CallbackOp>
 void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each(
   CallbackOp&& callback_op, cuda::stream_ref stream) const
@@ -396,6 +437,26 @@ static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   InputIt first, InputIt last, cuda::stream_ref stream) const
 {
   return impl_->count(first, last, ref(op::count), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename KeyOut, typename ValueOut>
+std::pair<KeyOut, ValueOut>
+static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
+  KeyOut keys_out, ValueOut values_out, cuda::stream_ref stream) const
+{
+  auto const zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
+  auto const zipped_out_end   = impl_->retrieve_all(zipped_out_begin, stream);
+  auto const num              = std::distance(zipped_out_begin, zipped_out_end);
+
+  return std::make_pair(keys_out + num, values_out + num);
 }
 
 template <class Key,
