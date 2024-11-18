@@ -1219,6 +1219,7 @@ class open_addressing_ref_impl {
               exists[i] = probing_tile.ballot(equals[i]);
             }
 
+            // Fill the buffer if any matching keys are found
             if (thrust::any_of(thrust::seq, exists, exists + bucket_size, thrust::identity{})) {
               if constexpr (IsOuter) { found_match = true; }
 
@@ -1251,7 +1252,7 @@ class open_addressing_ref_impl {
                 matche_offset += num_matches[i];
               }
             }
-
+            // Special handling for outer cases where no match is found
             if constexpr (IsOuter) {
               if (!running) {
                 if (!found_match and probing_tile.thread_rank() == 0) {
