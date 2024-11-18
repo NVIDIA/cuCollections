@@ -1220,6 +1220,7 @@ class open_addressing_ref_impl {
             }
 
             // Fill the buffer if any matching keys are found
+            auto const lane_id = probing_tile.thread_rank();
             if (thrust::any_of(thrust::seq, exists, exists + bucket_size, thrust::identity{})) {
               if constexpr (IsOuter) { found_match = true; }
 
@@ -1233,7 +1234,7 @@ class open_addressing_ref_impl {
                 thrust::reduce(thrust::seq, num_matches, num_matches + bucket_size);
 
               int32_t output_idx;
-              if (probing_tile.thread_rank() == 0) {
+              if (lane_id == 0) {
                 auto ref =
                   cuda::atomic_ref<int32_t, cuda::thread_scope_block>{counters[flushing_tile_id]};
                 output_idx = ref.fetch_add(total_matches, cuda::memory_order_relaxed);
@@ -1244,8 +1245,7 @@ class open_addressing_ref_impl {
 #pragma unroll buffer_size
               for (int32_t i = 0; i < bucket_size; ++i) {
                 if (equals[i]) {
-                  auto const lane_offset =
-                    detail::count_least_significant_bits(exists[i], probing_tile.thread_rank());
+                  auto const lane_offset = detail::count_least_significant_bits(exists[i], lane_id);
                   buffers[flushing_tile_id][output_idx + matche_offset + lane_offset] = {
                     probe_key, bucket_slots[i]};
                 }
@@ -1255,7 +1255,7 @@ class open_addressing_ref_impl {
             // Special handling for outer cases where no match is found
             if constexpr (IsOuter) {
               if (!running) {
-                if (!found_match and probing_tile.thread_rank() == 0) {
+                if (!found_match and lane_id == 0) {
                   auto ref =
                     cuda::atomic_ref<int32_t, cuda::thread_scope_block>{counters[flushing_tile_id]};
                   auto const output_idx = ref.fetch_add(1, cuda::memory_order_relaxed);
