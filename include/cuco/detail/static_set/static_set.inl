@@ -467,7 +467,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ret
   OutputIt2 output_match,
   cuda::stream_ref stream) const
 {
-  return this->impl_->retrieve(
+  return impl_->retrieve(
     first, last, output_probe, output_match, this->ref(op::retrieve), stream);
 }
 
