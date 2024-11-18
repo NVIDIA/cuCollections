@@ -51,7 +51,7 @@ void bloom_filter_contains(
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
-  auto const pattern_bits   = state.get_int64_or_default("PatternBits", WordsPerBlock);
+  auto const pattern_bits   = WordsPerBlock;
 
   try {
     auto const policy = policy_type{static_cast<uint32_t>(pattern_bits)};

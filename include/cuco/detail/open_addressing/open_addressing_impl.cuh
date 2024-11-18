@@ -566,14 +566,58 @@ class open_addressing_impl {
                   Ref container_ref,
                   cuda::stream_ref stream) const noexcept
   {
+    auto const always_true = thrust::constant_iterator<bool>{true};
+
+    this->find_if_async(
+      first, last, always_true, thrust::identity{}, output_begin, container_ref, stream);
+  }
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds
+   * a match with its key equivalent to the query key.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores the payload of the
+   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, stores `empty_value_sentienl` to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_begin Beginning of the sequence of matches retrieved for each key
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename OutputIt,
+            typename Ref>
+  void find_if_async(InputIt first,
+                     InputIt last,
+                     StencilIt stencil,
+                     Predicate pred,
+                     OutputIt output_begin,
+                     Ref container_ref,
+                     cuda::stream_ref stream) const noexcept
+  {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::find<cg_size, cuco::detail::default_block_size()>
+    detail::find_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-        first, num_keys, output_begin, container_ref);
+        first, num_keys, stencil, pred, output_begin, container_ref);
   }
 
   /**

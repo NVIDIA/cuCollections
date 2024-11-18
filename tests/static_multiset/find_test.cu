@@ -29,16 +29,14 @@
 
 using size_type = int32_t;
 
+int32_t constexpr SENTINEL = -1;
+
 template <typename Set>
 void test_unique_sequence(Set& set, size_type num_keys)
 {
   using Key = typename Set::key_type;
 
-  thrust::device_vector<Key> d_keys(num_keys);
-
-  thrust::sequence(d_keys.begin(), d_keys.end());
-
-  auto keys_begin = d_keys.begin();
+  auto keys_begin = thrust::counting_iterator<Key>{0};
   thrust::device_vector<bool> d_contained(num_keys);
 
   auto zip_equal = cuda::proclaim_return_type<bool>(
@@ -66,6 +64,28 @@ void test_unique_sequence(Set& set, size_type num_keys)
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
+
+  SECTION("Conditional find should return valid values on even inputs.")
+  {
+    auto found_results = thrust::device_vector<Key>(num_keys);
+    auto is_even =
+      cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
+    auto gold_fn = cuda::proclaim_return_type<Key>(
+      [] __device__(auto const& i) { return i % 2 == 0 ? static_cast<Key>(i) : Key{SENTINEL}; });
+
+    set.find_if(keys_begin,
+                keys_begin + num_keys,
+                thrust::counting_iterator<std::size_t>{0},
+                is_even,
+                found_results.begin());
+
+    REQUIRE(cuco::test::equal(
+      found_results.begin(),
+      found_results.end(),
+      thrust::make_transform_iterator(thrust::counting_iterator<Key>{0}, gold_fn),
+      cuda::proclaim_return_type<bool>(
+        [] __device__(auto const& found, auto const& gold) { return found == gold; })));
+  }
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -87,8 +107,8 @@ TEMPLATE_TEST_CASE_SIG(
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set =
-    cuco::static_multiset{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
+  auto set = cuco::static_multiset{
+    num_keys, cuco::empty_key<Key>{SENTINEL}, {}, probe{}, {}, cuco::storage<2>{}};
 
   test_unique_sequence(set, num_keys);
 }
