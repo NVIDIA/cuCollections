@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,10 +29,10 @@ auto dist_from_state(nvbench::state const& state)
   if constexpr (std::is_same_v<Dist, cuco::utility::distribution::unique>) {
     return Dist{};
   } else if constexpr (std::is_same_v<Dist, cuco::utility::distribution::uniform>) {
-    auto const multiplicity = state.get_int64_or_default("Multiplicity", defaults::MULTIPLICITY);
+    auto const multiplicity = state.get_int64("Multiplicity");
     return Dist{multiplicity};
   } else if constexpr (std::is_same_v<Dist, cuco::utility::distribution::gaussian>) {
-    auto const skew = state.get_float64_or_default("Skew", defaults::SKEW);
+    auto const skew = state.get_float64("Skew");
     return Dist{skew};
   } else {
     CUCO_FAIL("Unexpected distribution type");
