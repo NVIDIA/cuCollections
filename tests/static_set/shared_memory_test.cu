@@ -64,7 +64,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("static_set shared memory tests", "", ((typename Key), Key), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG(
+  "static_set shared memory tests", "", ((typename Key), Key), (int32_t), (int64_t))
 {
   constexpr std::size_t number_of_sets  = 1000;
   constexpr std::size_t elements_in_set = 500;
