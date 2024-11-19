@@ -77,7 +77,7 @@ __global__ void generate_cg_probing_sequence(Key key,
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "probing_scheme scalar vs CGSize 1 test",
+  "utility probing_scheme tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int32_t WindowSize), Key, Probe, WindowSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),

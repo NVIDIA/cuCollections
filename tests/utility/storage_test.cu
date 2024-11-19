@@ -23,7 +23,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-TEMPLATE_TEST_CASE_SIG("Storage tests",
+TEMPLATE_TEST_CASE_SIG("utility storage tests",
                        "",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t),

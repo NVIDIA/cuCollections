@@ -21,7 +21,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 TEMPLATE_TEST_CASE_SIG(
-  "Extent tests", "", ((typename SizeType), SizeType), (int32_t), (int64_t), (std::size_t))
+  "utility extent tests", "", ((typename SizeType), SizeType), (int32_t), (int64_t), (std::size_t))
 {
   SizeType constexpr num            = 1234;
   SizeType constexpr gold_reference = 314;  // 157 x 2
