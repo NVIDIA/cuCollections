@@ -17,8 +17,10 @@
 #include <test_utils.hpp>
 
 #include <cuco/bloom_filter.cuh>
+#include <cuco/utility/key_generator.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/span>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
@@ -30,15 +32,11 @@
 
 using size_type = int32_t;
 
-template <typename Filter>
-void test_unique_sequence(Filter& filter, size_type num_keys)
+template <typename Filter, typename Key>
+void test_unique_sequence(Filter& filter,
+                          thrust::device_vector<Key> const& keys,
+                          size_type num_keys)
 {
-  using Key = typename Filter::key_type;
-
-  thrust::device_vector<Key> keys(num_keys);
-
-  thrust::sequence(thrust::device, keys.begin(), keys.end());
-
   thrust::device_vector<bool> contained(num_keys, false);
 
   auto is_even =
@@ -102,7 +100,11 @@ TEMPLATE_TEST_CASE_SIG(
 
   auto filter = filter_type{1000, {}, {pattern_bits}};
 
-  test_unique_sequence(filter, num_keys);
+  // Generate keys
+  thrust::device_vector<Key> keys(num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+
+  test_unique_sequence(filter, keys, num_keys);
 }
 
 TEMPLATE_TEST_CASE_SIG("Unique sequence with arrow policy",
@@ -118,5 +120,27 @@ TEMPLATE_TEST_CASE_SIG("Unique sequence with arrow policy",
 
   auto filter = filter_type{1000};
 
-  test_unique_sequence(filter, num_keys);
+  // Generate keys
+  thrust::device_vector<Key> keys(num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+
+  test_unique_sequence(filter, keys, num_keys);
+}
+
+TEMPLATE_TEST_CASE_SIG("Unique string sequence with arrow policy",
+                       "",
+                       ((class Key, class Policy), Key, Policy),
+                       (cuda::std::span<cuda::std::byte>,
+                        cuco::arrow_filter_policy<cuda::std::span<cuda::std::byte>>))
+{
+  using filter_type =
+    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
+  constexpr size_type num_keys{400};
+
+  auto filter = filter_type{1000};
+
+  // Generate keys (string spans) and the actual string data
+  auto [keys, data] = cuco::utility::generate_random_byte_sequences(num_keys, 20, 50);
+
+  test_unique_sequence(filter, keys, num_keys);
 }
