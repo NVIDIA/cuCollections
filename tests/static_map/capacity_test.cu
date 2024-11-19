@@ -18,7 +18,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("static_map capacity", "")
+TEST_CASE("static_map capacity test", "")
 {
   using Key        = int32_t;
   using T          = int32_t;

@@ -108,7 +108,7 @@ void test_pair_functions(Map& map, PairIt pair_begin, std::size_t num_pairs)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "static_multimap pair functions",
+  "static_multimap pair functions tests",
   "",
   ((typename Key, typename Value, cuco::test::probe_sequence Probe), Key, Value, Probe),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing),

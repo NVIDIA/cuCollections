@@ -82,7 +82,7 @@ struct custom_key_equal {
   }
 };
 
-TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup",
+TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup tests",
                        "",
                        ((typename T, int CGSize), T, CGSize),
                        (int32_t, 1),

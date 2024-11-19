@@ -188,7 +188,7 @@ void test_non_shmem_pair_retrieve(Map& map, std::size_t const num_pairs)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "static_multimap non-shared-memory pair_retrieve",
+  "static_multimap non-shared-memory pair_retrieve tests",
   "",
   ((typename Key, typename Value, cuco::test::probe_sequence Probe), Key, Value, Probe),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing),
