@@ -809,7 +809,7 @@ class operator_impl<op::retrieve_tag,
                            InputProbeIt input_probe_end,
                            OutputProbeIt output_probe,
                            OutputMatchIt output_match,
-                           AtomicCounter& atomic_counter) const
+                           AtomicCounter* atomic_counter) const
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     ref_.impl_.retrieve<BlockSize>(
