@@ -620,6 +620,26 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename OutputIt1, typename OutputIt2>
+std::pair<OutputIt1, OutputIt2>
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
+  InputIt first,
+  InputIt last,
+  OutputIt1 output_probe,
+  OutputIt2 output_match,
+  cuda::stream_ref stream) const
+{
+  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename KeyOut, typename ValueOut>
 std::pair<KeyOut, ValueOut>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
