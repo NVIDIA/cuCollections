@@ -89,7 +89,8 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/key_sentinel_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
-    static_map/rehash_test.cu)
+    static_map/rehash_test.cu
+    static_map/retrieve_test.cu)
 
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------

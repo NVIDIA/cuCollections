@@ -24,9 +24,7 @@
 #include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
-#include <thrust/sequence.h>
 #include <thrust/sort.h>
-#include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
