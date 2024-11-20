@@ -477,25 +477,6 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename InputIt, typename OutputIt, typename ProbeEqual, typename ProbeHash>
-OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
-  InputIt first,
-  InputIt last,
-  OutputIt output_begin,
-  ProbeEqual const& probe_equal,
-  ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const
-{
-  CUCO_FAIL("Unsupported code path: retrieve with custom hash/equal");
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
 template <typename OutputIt>
 OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   OutputIt output_begin, cuda::stream_ref stream) const

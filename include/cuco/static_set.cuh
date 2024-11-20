@@ -772,44 +772,6 @@ class static_set {
                                            cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
-   * the range `[first, last)`
-   *
-   * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
-   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
-   *
-   * @note Behavior is undefined if the size of the output range exceeds
-   * `std::distance(output_begin, output_end)`.
-   * @note Behavior is undefined if the given key has multiple matches in the set.
-   *
-   * @throw This API will always throw since it's not implemented.
-   *
-   * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator whose `value_type` can be constructed from
-   * `cuco::pair<ProbeKey, Key>`
-   * @tparam ProbeEqual Binary callable equal type
-   * @tparam ProbeHash Unary callable hasher type that can be constructed from
-   * an integer value
-   *
-   * @param first Beginning of the sequence of probe keys
-   * @param last End of the sequence of probe keys
-   * @param output_begin Beginning of the sequence of probe key and set key pairs retrieved for each
-   * probe key
-   * @param probe_equal The binary function to compare set keys and probe keys for equality
-   * @param probe_hash The unary function to hash probe keys
-   * @param stream CUDA stream used for retrieve
-   *
-   * @return The iterator indicating the last valid pair in the output
-   */
-  template <typename InputIt, typename OutputIt, typename ProbeEqual, typename ProbeHash>
-  OutputIt retrieve(InputIt first,
-                    InputIt last,
-                    OutputIt output_begin,
-                    ProbeEqual const& probe_equal = ProbeEqual{},
-                    ProbeHash const& probe_hash   = ProbeHash{},
-                    cuda::stream_ref stream       = {}) const;
-
-  /**
    * @brief Retrieves all keys contained in the set.
    *
    * @note This API synchronizes the given stream.
