@@ -27,7 +27,7 @@
 
 // Helper trait to check if a type is `span` like.
 template <typename T, typename = void>
-struct is_span_like : std::false_type {};
+struct is_span_like : cuda::std::false_type {};
 
 // Specialization for `cuda::std::span<T, Extent>` itself
 template <typename T, std::size_t Extent>
@@ -37,8 +37,8 @@ struct is_span_like<cuda::std::span<T, Extent>> : std::true_type {};
 template <typename T>
 struct is_span_like<
   T,
-  std::void_t<decltype(std::declval<T>().data()), decltype(std::declval<T>().size())>>
-  : std::true_type {};
+  cuda::std::void_t<decltype(cuda::std::declval<T>().data()), decltype(cuda::std::declval<T>().size())>>
+  : cuda::std::true_type {};
 
 // Convenience variable template
 template <typename T>
