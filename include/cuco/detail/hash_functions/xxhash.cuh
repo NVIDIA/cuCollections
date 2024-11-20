@@ -26,16 +26,23 @@
 #include <type_traits>
 
 // Helper trait to check if a type is `span` like.
-// i.e., if it has `data()` and `size()` functions
 template <typename T, typename = void>
 struct is_span_like : std::false_type {};
 
-// Specialization for `span` like type.
+// Specialization for `cuda::std::span<T, Extent>` itself
+template <typename T, std::size_t Extent>
+struct is_span_like<cuda::std::span<T, Extent>> : std::true_type {};
+
+// Specialization for `span` like type. Check if it has `data()` and `size()` functions
 template <typename T>
 struct is_span_like<
   T,
   std::void_t<decltype(std::declval<T>().data()), decltype(std::declval<T>().size())>>
   : std::true_type {};
+
+// Convenience variable template
+template <typename T>
+constexpr bool is_span_like_v = is_span_like<T>::value;
 
 namespace cuco::detail {
 
@@ -303,7 +310,7 @@ struct XXHash_64 {
    * @param key The input argument to hash
    * @return The resulting hash value for `span` like `key`
    */
-  template <typename T = Key, typename = std::enable_if_t<is_span_like<T>::value>>
+  template <typename T = Key, typename = std::enable_if_t<is_span_like_v<T>>>
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
     return compute_hash(key.data(), key.size());
