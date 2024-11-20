@@ -21,7 +21,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("Rehash", "")
+TEST_CASE("static_set rehash test", "")
 {
   using key_type = int;
 

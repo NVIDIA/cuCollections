@@ -18,7 +18,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("Static set capacity", "")
+TEST_CASE("static_set capacity test", "")
 {
   using Key        = int32_t;
   using ProbeT     = cuco::double_hashing<1, cuco::default_hash_function<Key>>;

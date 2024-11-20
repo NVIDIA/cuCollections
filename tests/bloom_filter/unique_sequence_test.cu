@@ -85,7 +85,7 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Unique sequence with default policy",
+  "bloom_filter default policy tests",
   "",
   ((class Key, class Policy), Key, Policy),
   (int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1>),
@@ -105,7 +105,7 @@ TEMPLATE_TEST_CASE_SIG(
   test_unique_sequence(filter, num_keys);
 }
 
-TEMPLATE_TEST_CASE_SIG("Unique sequence with arrow policy",
+TEMPLATE_TEST_CASE_SIG("bloom_filter arrow policy tests",
                        "",
                        ((class Key, class Policy), Key, Policy),
                        (int32_t, cuco::arrow_filter_policy<int32_t>),

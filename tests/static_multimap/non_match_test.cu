@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ void test_non_matches(Map& map, PairIt pair_begin, KeyIt key_begin, std::size_t 
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Tests of non-matches",
+  "static_multimap non-match tests",
   "",
   ((typename Key, typename Value, cuco::test::probe_sequence Probe), Key, Value, Probe),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing),

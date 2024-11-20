@@ -150,8 +150,12 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
     })));
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "Arrow filter policy bitset validation", "", (class Key), (int32_t), (int64_t), (float))
+TEMPLATE_TEST_CASE_SIG("bloom_filter arrow filter policy bitset validation",
+                       "",
+                       (class Key),
+                       (int32_t),
+                       (int64_t),
+                       (float))
 {
   // Get test settings
   auto const [sub_filters, num_keys] = get_arrow_filter_test_settings<Key>();

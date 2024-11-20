@@ -22,7 +22,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("Size computation", "")
+TEST_CASE("static_set size test", "")
 {
   constexpr std::size_t num_keys{400};
 

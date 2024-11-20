@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ __global__ void test_kernel(BitsetRef ref, size_type num_elements, OutputIt outp
 
 bool modulo_bitgen(uint64_t i) { return i % 7 == 0; }
 
-TEST_CASE("Get test", "")
+TEST_CASE("dynamic_bitset get test", "")
 {
   cuco::experimental::detail::dynamic_bitset bv;
 

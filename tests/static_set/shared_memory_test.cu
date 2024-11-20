@@ -64,7 +64,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG(
+  "static_set shared memory tests", "", ((typename Key), Key), (int32_t), (int64_t))
 {
   constexpr std::size_t number_of_sets  = 1000;
   constexpr std::size_t elements_in_set = 500;
@@ -187,7 +188,7 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   if (retrieved_it != find_ref.end() && *retrieved_it == rank) { key_found[index] = true; }
 }
 
-TEST_CASE("static set shared memory slots.", "")
+TEST_CASE("static_set shared memory slots test", "")
 {
   constexpr std::size_t N = 256;
   [[maybe_unused]] auto constexpr num_windows =

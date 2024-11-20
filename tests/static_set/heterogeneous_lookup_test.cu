@@ -82,8 +82,11 @@ struct custom_key_equal {
   }
 };
 
-TEMPLATE_TEST_CASE_SIG(
-  "Heterogeneous lookup", "", ((typename T, int CGSize), T, CGSize), (int32_t, 1), (int32_t, 2))
+TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup tests",
+                       "",
+                       ((typename T, int CGSize), T, CGSize),
+                       (int32_t, 1),
+                       (int32_t, 2))
 {
   using Key        = T;
   using InsertKey  = key_pair<T>;

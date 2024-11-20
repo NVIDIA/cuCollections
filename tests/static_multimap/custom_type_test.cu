@@ -208,7 +208,7 @@ void test_custom_key_value_type(Map& map, std::size_t num_pairs)
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("User defined key and value type",
+TEMPLATE_TEST_CASE_SIG("static_multimap user defined key and value type tests",
                        "",
                        ((cuco::test::probe_sequence Probe), Probe),
                        (cuco::test::probe_sequence::linear_probing),

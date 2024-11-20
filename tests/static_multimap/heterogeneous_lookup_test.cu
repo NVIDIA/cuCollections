@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,7 +80,7 @@ struct custom_key_equal {
   }
 };
 
-TEMPLATE_TEST_CASE("Heterogeneous lookup",
+TEMPLATE_TEST_CASE("static_multimap heterogeneous lookup tests",
                    "",
 #if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and
                                            // up

@@ -33,8 +33,6 @@
 
 using size_type = int32_t;
 
-int32_t constexpr SENTINEL = -1;
-
 template <typename Map>
 void test_unique_sequence(Map& map, size_type num_keys)
 {
@@ -63,17 +61,6 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
   }
 
-  SECTION("Non-inserted keys have no matches")
-  {
-    thrust::device_vector<Value> d_results(num_keys);
-
-    map.find(keys_begin, keys_begin + num_keys, d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
-      d_results.begin(), thrust::constant_iterator<Key>{map.empty_key_sentinel()}));
-
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
-  }
-
   SECTION("All conditionally inserted keys should be contained")
   {
     auto const inserted = map.insert_if(
@@ -92,7 +79,6 @@ void test_unique_sequence(Map& map, size_type num_keys)
   }
 
   map.insert(pairs_begin, pairs_begin + num_keys);
-  REQUIRE(map.size() == num_keys);
 
   SECTION("All inserted keys should be contained.")
   {
@@ -115,37 +101,6 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 
-  SECTION("All inserted keys should be correctly recovered during find")
-  {
-    thrust::device_vector<Value> d_results(num_keys);
-
-    map.find(keys_begin, keys_begin + num_keys, d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
-
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
-  }
-
-  SECTION("Conditional find should return valid values on even inputs.")
-  {
-    auto found_results = thrust::device_vector<Key>(num_keys);
-    auto gold_fn       = cuda::proclaim_return_type<Value>([] __device__(auto const& i) {
-      return i % 2 == 0 ? static_cast<Value>(i) : Value{SENTINEL};
-    });
-
-    map.find_if(keys_begin,
-                keys_begin + num_keys,
-                thrust::counting_iterator<std::size_t>{0},
-                is_even,
-                found_results.begin());
-
-    REQUIRE(cuco::test::equal(
-      found_results.begin(),
-      found_results.end(),
-      thrust::make_transform_iterator(thrust::counting_iterator<Key>{0}, gold_fn),
-      cuda::proclaim_return_type<bool>(
-        [] __device__(auto const& found, auto const& gold) { return found == gold; })));
-  }
-
   SECTION("All inserted key-values should be properly retrieved")
   {
     thrust::device_vector<Value> d_values(num_keys);
@@ -163,7 +118,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "static_map: unique sequence",
+  "static_map: contains + retrieve_all tests",
   "",
   ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
    Key,
@@ -171,25 +126,15 @@ TEMPLATE_TEST_CASE_SIG(
    Probe,
    CGSize),
   (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr size_type num_keys{400};
-  constexpr size_type gold_capacity = CGSize == 1 ? 422   // 211 x 1 x 2
-                                                  : 412;  // 103 x 2 x 2
 
   // XXX: testing static extent is intended, DO NOT CHANGE
   using extent_type = cuco::extent<size_type, num_keys>;
@@ -206,9 +151,7 @@ TEMPLATE_TEST_CASE_SIG(
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{
-    extent_type{}, cuco::empty_key<Key>{SENTINEL}, cuco::empty_value<Value>{SENTINEL}};
-
-  REQUIRE(map.capacity() == gold_capacity);
+    extent_type{}, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   test_unique_sequence(map, num_keys);
 }

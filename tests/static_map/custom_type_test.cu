@@ -98,7 +98,7 @@ struct custom_key_equals {
   }
 };
 
-TEMPLATE_TEST_CASE_SIG("User defined key and value type",
+TEMPLATE_TEST_CASE_SIG("static_map custom key and value type tests",
                        "",
                        ((typename Key, typename Value), Key, Value),
 #if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and
