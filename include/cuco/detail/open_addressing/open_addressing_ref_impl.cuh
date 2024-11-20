@@ -1241,15 +1241,15 @@ class open_addressing_ref_impl {
               }
               output_idx = probing_tile.shfl(output_idx, 0);
 
-              int32_t matche_offset = 0;
+              int32_t matches_offset = 0;
 #pragma unroll buffer_size
               for (int32_t i = 0; i < bucket_size; ++i) {
                 if (equals[i]) {
                   auto const lane_offset = detail::count_least_significant_bits(exists[i], lane_id);
-                  buffers[flushing_tile_id][output_idx + matche_offset + lane_offset] = {
+                  buffers[flushing_tile_id][output_idx + matches_offset + lane_offset] = {
                     probe_key, bucket_slots[i]};
                 }
-                matche_offset += num_matches[i];
+                matches_offset += num_matches[i];
               }
             }
             // Special handling for outer cases where no match is found
