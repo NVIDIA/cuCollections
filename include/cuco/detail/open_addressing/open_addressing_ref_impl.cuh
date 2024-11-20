@@ -1230,11 +1230,10 @@ class open_addressing_ref_impl {
                 num_matches[i] = __popc(exists[i]);
               }
 
-              auto const total_matches =
-                thrust::reduce(thrust::seq, num_matches, num_matches + bucket_size);
-
               int32_t output_idx;
               if (lane_id == 0) {
+                auto const total_matches =
+                  thrust::reduce(thrust::seq, num_matches, num_matches + bucket_size);
                 auto ref =
                   cuda::atomic_ref<int32_t, cuda::thread_scope_block>{counters[flushing_tile_id]};
                 output_idx = ref.fetch_add(total_matches, cuda::memory_order_relaxed);
