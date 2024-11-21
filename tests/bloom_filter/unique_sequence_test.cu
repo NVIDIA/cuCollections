@@ -17,10 +17,8 @@
 #include <test_utils.hpp>
 
 #include <cuco/bloom_filter.cuh>
-#include <cuco/utility/key_generator.cuh>
 
 #include <cuda/functional>
-#include <cuda/std/span>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
