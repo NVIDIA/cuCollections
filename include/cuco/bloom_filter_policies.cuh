@@ -29,12 +29,12 @@ namespace cuco {
  * fingerprint.
  *
  * @tparam Key The type of the values to generate a fingerprint for.
- * @tparam Hash Hash function used to generate a key's fingerprint. By default, cuco::xxhash_64 will
- * be used.
+ * @tparam XXHash64 Custom (64 bit) XXHash hasher to generate a key's fingerprint.
+ * By default, cuco::xxhash_64 hasher will be used.
  *
  */
-template <class Key, class Hash = cuco::xxhash_64<Key>>
-using arrow_filter_policy = detail::arrow_filter_policy<Key, Hash>;
+template <class Key, class XXHash64 = cuco::xxhash_64<Key>>
+using arrow_filter_policy = detail::arrow_filter_policy<Key, XXHash64>;
 
 /**
  * @brief The default policy that defines how a Blocked Bloom Filter generates and stores a key's

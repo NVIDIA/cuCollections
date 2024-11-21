@@ -101,17 +101,6 @@ struct XXHash_32 {
   }
 
   /**
-   * @brief Returns a hash value for its `span` like argument, as a value of type `result_type`.
-   *
-   * @param key The input argument to hash
-   * @return The resulting hash value for `span` like `key`
-   */
-  template <typename T = Key, typename = std::enable_if_t<is_span_like_v<T>>>
-  constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
-  {
-    return compute_hash(key.data(), key.size());
-  }
-  /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
    *
    * @tparam Extent The extent type
