@@ -52,6 +52,7 @@ ConfigureBench(STATIC_SET_BENCH
   static_set/contains_bench.cu
   static_set/find_bench.cu
   static_set/insert_bench.cu
+  static_set/retrieve_bench.cu
   static_set/retrieve_all_bench.cu
   static_set/size_bench.cu
   static_set/rehash_bench.cu)

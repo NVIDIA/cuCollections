@@ -15,7 +15,6 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
-#include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
@@ -468,21 +467,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ret
   OutputIt2 output_match,
   cuda::stream_ref stream) const
 {
-  auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return {output_probe, output_match}; }
-
-  auto counter =
-    detail::counter_storage<size_type, thread_scope, allocator_type>{this->impl_->allocator()};
-  counter.reset(stream);
-
-  auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
-  static_set_ns::detail::retrieve<cuco::detail::default_block_size()>
-    <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-      first, num_keys, output_probe, output_match, counter.data(), ref(op::find));
-
-  auto const count = counter.load_to_host(stream);
-  return {output_probe + count, output_match + count};
+  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
 }
 
 template <class Key,

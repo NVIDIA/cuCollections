@@ -24,11 +24,8 @@
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
-#include <thrust/random.h>
-#include <thrust/sequence.h>
-#include <thrust/shuffle.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sort.h>
-#include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -47,32 +44,28 @@ void test_multiplicity(Container& container, std::size_t num_keys, std::size_t m
   auto const num_actual_keys = num_unique_keys * multiplicity;
   REQUIRE(num_actual_keys <= num_keys);
 
-  thrust::device_vector<key_type> input_keys(num_actual_keys);
   thrust::device_vector<key_type> probed_keys(num_actual_keys);
   thrust::device_vector<key_type> matched_keys(num_actual_keys);
 
-  thrust::transform(thrust::counting_iterator<key_type>(0),
-                    thrust::counting_iterator<key_type>(num_actual_keys),
-                    input_keys.begin(),
-                    cuda::proclaim_return_type<key_type>([multiplicity] __device__(auto const& i) {
-                      return static_cast<key_type>(i / multiplicity);
-                    }));
-  thrust::shuffle(input_keys.begin(), input_keys.end(), thrust::default_random_engine{});
+  auto const keys_begin = thrust::make_transform_iterator(
+    thrust::counting_iterator<key_type>(0),
+    cuda::proclaim_return_type<key_type>([multiplicity] __device__(auto const& i) {
+      return static_cast<key_type>(i / multiplicity);
+    }));
 
-  container.insert(input_keys.begin(), input_keys.end());
+  container.insert(keys_begin, keys_begin + num_actual_keys);
   REQUIRE(container.size() == num_actual_keys);
 
   SECTION("All inserted keys should be contained.")
   {
     auto const [probed_end, matched_end] = container.retrieve(
-      input_keys.begin(), input_keys.end(), probed_keys.begin(), matched_keys.begin());
-    thrust::sort(input_keys.begin(), input_keys.end());
+      keys_begin, keys_begin + num_actual_keys, probed_keys.begin(), matched_keys.begin());
     thrust::sort(probed_keys.begin(), probed_end);
     thrust::sort(matched_keys.begin(), matched_end);
     REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_keys.end(), input_keys.begin(), thrust::equal_to<key_type>{}));
+      probed_keys.begin(), probed_keys.end(), keys_begin, thrust::equal_to<key_type>{}));
     REQUIRE(cuco::test::equal(
-      matched_keys.begin(), matched_keys.end(), input_keys.begin(), thrust::equal_to<key_type>{}));
+      matched_keys.begin(), matched_keys.end(), keys_begin, thrust::equal_to<key_type>{}));
   }
 }
 
@@ -84,18 +77,16 @@ void test_outer(Container& container, std::size_t num_keys)
 
   container.clear();
 
-  thrust::device_vector<key_type> insert_keys(num_keys);
-  thrust::sequence(insert_keys.begin(), insert_keys.end(), 0);
-  thrust::device_vector<key_type> query_keys(num_keys * 2ull);
-  thrust::sequence(query_keys.begin(), query_keys.end(), 0);
+  auto const keys_begin = thrust::counting_iterator<key_type>{0};
+  auto const query_size = num_keys * 2ull;
 
   thrust::device_vector<key_type> probed_keys(num_keys * 2ull);
   thrust::device_vector<key_type> matched_keys(num_keys * 2ull);
 
   SECTION("Non-inserted keys should output sentinels.")
   {
-    auto const [probed_end, matched_end] = container.retrieve_outer(query_keys.begin(),
-                                                                    query_keys.end(),
+    auto const [probed_end, matched_end] = container.retrieve_outer(keys_begin,
+                                                                    keys_begin + query_size,
                                                                     container.key_eq(),
                                                                     container.hash_function(),
                                                                     probed_keys.begin(),
@@ -112,12 +103,12 @@ void test_outer(Container& container, std::size_t num_keys)
       })));
   }
 
-  container.insert(insert_keys.begin(), insert_keys.end());
+  container.insert(keys_begin, keys_begin + num_keys);
 
   SECTION("All inserted keys should be contained.")
   {
-    auto const [probed_end, matched_end] = container.retrieve_outer(query_keys.begin(),
-                                                                    query_keys.end(),
+    auto const [probed_end, matched_end] = container.retrieve_outer(keys_begin,
+                                                                    keys_begin + query_size,
                                                                     container.key_eq(),
                                                                     container.hash_function(),
                                                                     probed_keys.begin(),
@@ -126,10 +117,10 @@ void test_outer(Container& container, std::size_t num_keys)
       probed_keys.begin(), probed_end, matched_keys.begin(), thrust::less<key_type>());
 
     REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_keys.end(), query_keys.begin(), thrust::equal_to<key_type>{}));
+      probed_keys.begin(), probed_keys.end(), keys_begin, thrust::equal_to<key_type>{}));
     REQUIRE(cuco::test::equal(matched_keys.begin(),
                               matched_keys.begin() + num_keys,
-                              insert_keys.begin(),
+                              keys_begin,
                               thrust::equal_to<key_type>{}));
     REQUIRE(cuco::test::all_of(
       matched_keys.begin() + num_keys,

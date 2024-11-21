@@ -26,6 +26,9 @@
 #include <cuda/atomic>
 #include <cuda/std/type_traits>
 #include <thrust/distance.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
+#include <thrust/reduce.h>
 #include <thrust/tuple.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -822,76 +825,6 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Counts the occurrence of a given key contained in the container
-   *
-   * @tparam ProbeKey Probe key type
-   *
-   * @param key The key to count for
-   *
-   * @return Number of occurrences found by the current thread
-   */
-  template <typename ProbeKey>
-  [[nodiscard]] __device__ size_type count(ProbeKey const& key) const noexcept
-  {
-    if constexpr (not allows_duplicates) {
-      return static_cast<size_type>(this->contains(key));
-    } else {
-      auto probing_iter = probing_scheme_(key, storage_ref_.bucket_extent());
-      size_type count   = 0;
-
-      while (true) {
-        // TODO atomic_ref::load if insert operator is present
-        auto const bucket_slots = storage_ref_[*probing_iter];
-
-        for (auto& slot_content : bucket_slots) {
-          switch (
-            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
-            case detail::equal_result::EMPTY: return count;
-            case detail::equal_result::EQUAL: ++count; break;
-            default: continue;
-          }
-        }
-        ++probing_iter;
-      }
-    }
-  }
-
-  /**
-   * @brief Counts the occurrence of a given key contained in the container
-   *
-   * @tparam ProbeKey Probe key type
-   *
-   * @param group The Cooperative Group used to perform group count
-   * @param key The key to count for
-   *
-   * @return Number of occurrences found by the current thread
-   */
-  template <typename ProbeKey>
-  [[nodiscard]] __device__ size_type count(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
-  {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
-    size_type count   = 0;
-
-    while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
-
-      auto const state = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto& slot : bucket_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
-          if (res == detail::equal_result::EMPTY) { return res; }
-          count += static_cast<size_type>(res);
-        }
-        return res;
-      }();
-
-      if (group.any(state == detail::equal_result::EMPTY)) { return count; }
-      ++probing_iter;
-    }
-  }
-
-  /**
    * @brief Finds an element in the container with key equivalent to the probe key.
    *
    * @note Returns a un-incrementable input iterator to the element whose key is equivalent to
@@ -979,6 +912,76 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ size_type count(ProbeKey const& key) const noexcept
+  {
+    if constexpr (not allows_duplicates) {
+      return static_cast<size_type>(this->contains(key));
+    } else {
+      auto probing_iter = probing_scheme_(key, storage_ref_.bucket_extent());
+      size_type count   = 0;
+
+      while (true) {
+        // TODO atomic_ref::load if insert operator is present
+        auto const bucket_slots = storage_ref_[*probing_iter];
+
+        for (auto& slot_content : bucket_slots) {
+          switch (
+            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
+            case detail::equal_result::EMPTY: return count;
+            case detail::equal_result::EQUAL: ++count; break;
+            default: continue;
+          }
+        }
+        ++probing_iter;
+      }
+    }
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ size_type count(
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  {
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
+    size_type count   = 0;
+
+    while (true) {
+      auto const bucket_slots = storage_ref_[*probing_iter];
+
+      auto const state = [&]() {
+        auto res = detail::equal_result::UNEQUAL;
+        for (auto& slot : bucket_slots) {
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
+          if (res == detail::equal_result::EMPTY) { return res; }
+          count += static_cast<size_type>(res);
+        }
+        return res;
+      }();
+
+      if (group.any(state == detail::equal_result::EMPTY)) { return count; }
+      ++probing_iter;
+    }
+  }
+
+  /**
    * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
    * input_probe_end)`.
    *
@@ -1016,7 +1019,7 @@ class open_addressing_ref_impl {
                            InputProbeIt input_probe_end,
                            OutputProbeIt output_probe,
                            OutputMatchIt output_match,
-                           AtomicCounter& atomic_counter) const
+                           AtomicCounter* atomic_counter) const
   {
     auto constexpr is_outer = false;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
@@ -1065,7 +1068,7 @@ class open_addressing_ref_impl {
                                  InputProbeIt input_probe_end,
                                  OutputProbeIt output_probe,
                                  OutputMatchIt output_match,
-                                 AtomicCounter& atomic_counter) const
+                                 AtomicCounter* atomic_counter) const
   {
     auto constexpr is_outer = true;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
@@ -1116,7 +1119,7 @@ class open_addressing_ref_impl {
                                 cuco::detail::index_type n,
                                 OutputProbeIt output_probe,
                                 OutputMatchIt output_match,
-                                AtomicCounter& atomic_counter) const
+                                AtomicCounter* atomic_counter) const
   {
     namespace cg = cooperative_groups;
 
@@ -1134,39 +1137,32 @@ class open_addressing_ref_impl {
 
     auto constexpr num_flushing_tiles   = BlockSize / flushing_tile_size;
     auto constexpr max_matches_per_step = flushing_tile_size * bucket_size;
-    auto constexpr buffer_size          = buffer_multiplier * max_matches_per_step;
+    auto constexpr buffer_size = buffer_multiplier * max_matches_per_step + flushing_tile_size;
 
     auto const flushing_tile = cg::tiled_partition<flushing_tile_size>(block);
     auto const probing_tile  = cg::tiled_partition<probing_tile_size>(block);
 
     auto const flushing_tile_id = flushing_tile.meta_group_rank();
-    auto idx                    = probing_tile.meta_group_rank();
     auto const stride           = probing_tile.meta_group_size();
+    auto idx                    = probing_tile.meta_group_rank();
 
-    // TODO align to 16B?
-    __shared__ probe_type probe_buffers[num_flushing_tiles][buffer_size];
-    __shared__ value_type match_buffers[num_flushing_tiles][buffer_size];
-    size_type num_matches = 0;
+    __shared__ cuco::pair<probe_type, value_type> buffers[num_flushing_tiles][buffer_size];
+    __shared__ int32_t counters[num_flushing_tiles];
 
-    auto flush_buffers = [&](cg::coalesced_group const& tile) {
-      auto const rank = tile.thread_rank();
+    if (flushing_tile.thread_rank() == 0) { counters[flushing_tile_id] = 0; }
+    flushing_tile.sync();
 
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-      auto const offset = cg::invoke_one_broadcast(tile, [&]() {
-        return atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
-      });
-#else
-      size_type offset;
-      if (rank == 0) {
-        offset = atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
-      }
+    auto flush_buffers = [&](auto const& tile) {
+      size_type offset = 0;
+      auto const count = counters[flushing_tile_id];
+      auto const rank  = tile.thread_rank();
+      if (rank == 0) { offset = atomic_counter->fetch_add(count, cuda::memory_order_relaxed); }
       offset = tile.shfl(offset, 0);
-#endif
 
       // flush_buffers
-      for (size_type i = rank; i < num_matches; i += tile.size()) {
-        *(output_probe + offset + i) = probe_buffers[flushing_tile_id][i];
-        *(output_match + offset + i) = match_buffers[flushing_tile_id][i];
+      for (auto i = rank; i < count; i += tile.size()) {
+        *(output_probe + offset + i) = buffers[flushing_tile_id][i].first;
+        *(output_match + offset + i) = buffers[flushing_tile_id][i].second;
       }
     };
 
@@ -1178,107 +1174,119 @@ class open_addressing_ref_impl {
       if (active_flag) {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
-        auto const& probe = *(input_probe + idx);
+        auto const& probe_key = *(input_probe + idx);
         auto probing_iter =
-          this->probing_scheme_(probing_tile, probe, this->storage_ref_.bucket_extent());
-        bool empty_found                      = false;
-        bool match_found                      = false;
-        [[maybe_unused]] bool found_any_match = false;  // only needed if `IsOuter == true`
+          this->probing_scheme_(probing_tile, probe_key, this->storage_ref_.bucket_extent());
 
-        while (true) {
-          // TODO atomic_ref::load if insert operator is present
-          auto const bucket_slots = this->storage_ref_[*probing_iter];
+        bool running                      = true;
+        [[maybe_unused]] bool found_match = false;
 
-          for (int32_t i = 0; i < bucket_size; ++i) {
-            if (not empty_found) {
-              // inspect slot content
-              switch (this->predicate_.operator()<is_insert::NO>(
-                probe, this->extract_key(bucket_slots[i]))) {
-                case detail::equal_result::EMPTY: {
-                  empty_found = true;
-                  break;
-                }
-                case detail::equal_result::EQUAL: {
-                  match_found = true;
-                  break;
-                }
-                default: {
-                  break;
+        bool equals[buffer_size];
+        uint32_t exists[buffer_size];
+
+        while (active_flushing_tile.any(running)) {
+          if (running) {
+            // TODO atomic_ref::load if insert operator is present
+            auto const bucket_slots = this->storage_ref_[*probing_iter];
+
+#pragma unroll buffer_size
+            for (int32_t i = 0; i < bucket_size; ++i) {
+              equals[i] = false;
+              if (running) {
+                // inspect slot content
+                switch (this->predicate_.operator()<is_insert::NO>(
+                  probe_key, this->extract_key(bucket_slots[i]))) {
+                  case detail::equal_result::EMPTY: {
+                    running = false;
+                    break;
+                  }
+                  case detail::equal_result::EQUAL: {
+                    if constexpr (!AllowsDuplicates) { running = false; }
+                    equals[i] = true;
+                    break;
+                  }
+                  default: {
+                    break;
+                  }
                 }
               }
             }
 
-            if (active_flushing_tile.any(match_found)) {
-              auto const matching_tile = cg::binary_partition(active_flushing_tile, match_found);
-              // stage matches in shmem buffer
-              if (match_found) {
-                probe_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] = probe;
-                match_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] =
-                  bucket_slots[i];
-              }
-
-              // add number of new matches to the buffer counter
-              num_matches += (match_found) ? matching_tile.size()
-                                           : active_flushing_tile.size() - matching_tile.size();
+            probing_tile.sync();
+            running = probing_tile.all(running);
+#pragma unroll buffer_size
+            for (int32_t i = 0; i < bucket_size; ++i) {
+              exists[i] = probing_tile.ballot(equals[i]);
             }
 
+            // Fill the buffer if any matching keys are found
+            auto const lane_id = probing_tile.thread_rank();
+            if (thrust::any_of(thrust::seq, exists, exists + bucket_size, thrust::identity{})) {
+              if constexpr (IsOuter) { found_match = true; }
+
+              int32_t num_matches[bucket_size];
+
+              for (int32_t i = 0; i < bucket_size; ++i) {
+                num_matches[i] = __popc(exists[i]);
+              }
+
+              int32_t output_idx;
+              if (lane_id == 0) {
+                auto const total_matches =
+                  thrust::reduce(thrust::seq, num_matches, num_matches + bucket_size);
+                auto ref =
+                  cuda::atomic_ref<int32_t, cuda::thread_scope_block>{counters[flushing_tile_id]};
+                output_idx = ref.fetch_add(total_matches, cuda::memory_order_relaxed);
+              }
+              output_idx = probing_tile.shfl(output_idx, 0);
+
+              int32_t matches_offset = 0;
+#pragma unroll buffer_size
+              for (int32_t i = 0; i < bucket_size; ++i) {
+                if (equals[i]) {
+                  auto const lane_offset = detail::count_least_significant_bits(exists[i], lane_id);
+                  buffers[flushing_tile_id][output_idx + matches_offset + lane_offset] = {
+                    probe_key, bucket_slots[i]};
+                }
+                matches_offset += num_matches[i];
+              }
+            }
+            // Special handling for outer cases where no match is found
             if constexpr (IsOuter) {
-              if (not found_any_match /*yet*/ and probing_tile.any(match_found) /*now*/) {
-                found_any_match = true;
+              if (!running) {
+                if (!found_match and lane_id == 0) {
+                  auto ref =
+                    cuda::atomic_ref<int32_t, cuda::thread_scope_block>{counters[flushing_tile_id]};
+                  auto const output_idx = ref.fetch_add(1, cuda::memory_order_relaxed);
+                  buffers[flushing_tile_id][output_idx] = {probe_key, this->empty_slot_sentinel()};
+                }
               }
             }
+          }  // if running
 
-            // reset flag for next iteration
-            match_found = false;
-          }
-          empty_found = probing_tile.any(empty_found);
-
-          // check if all probing tiles have finished their work
-          bool const finished = active_flushing_tile.all(empty_found);
-
-          if constexpr (IsOuter) {
-            if (finished) {
-              bool const writes_sentinel =
-                ((probing_tile.thread_rank() == 0) and not found_any_match);
-
-              auto const sentinel_writers =
-                cg::binary_partition(active_flushing_tile, writes_sentinel);
-              if (writes_sentinel) {
-                auto const rank = sentinel_writers.thread_rank();
-                probe_buffers[flushing_tile_id][num_matches + rank] = probe;
-                match_buffers[flushing_tile_id][num_matches + rank] = this->empty_slot_sentinel();
-              }
-              // add number of new matches to the buffer counter
-              num_matches += (writes_sentinel)
-                               ? sentinel_writers.size()
-                               : active_flushing_tile.size() - sentinel_writers.size();
-            }
-          }
-
+          active_flushing_tile.sync();
           // if the buffer has not enough empty slots for the next iteration
-          if (num_matches > (buffer_size - max_matches_per_step)) {
+          if (counters[flushing_tile_id] > (buffer_size - max_matches_per_step)) {
             flush_buffers(active_flushing_tile);
+            active_flushing_tile.sync();
 
             // reset buffer counter
-            num_matches = 0;
+            if (active_flushing_tile.thread_rank() == 0) { counters[flushing_tile_id] = 0; }
+            active_flushing_tile.sync();
           }
-
-          // the entire flushing tile has finished its work
-          if (finished) { break; }
 
           // onto the next probing bucket
           ++probing_iter;
-        }
-
-        // entire flusing_tile has finished; flush remaining elements
-        if (num_matches != 0 and active_flushing_tile.all((idx + stride) >= n)) {
-          flush_buffers(active_flushing_tile);
-        }
-      }
+        }  // while running
+      }  // if active_flag
 
       // onto the next key
       idx += stride;
     }
+
+    flushing_tile.sync();
+    // entire flusing_tile has finished; flush remaining elements
+    if (counters[flushing_tile_id] > 0) { flush_buffers(flushing_tile); }
   }
 
   /**
