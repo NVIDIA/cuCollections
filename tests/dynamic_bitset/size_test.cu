@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-TEST_CASE("Size computation", "")
+TEST_CASE("dynamic_bitset size computation test", "")
 {
   cuco::experimental::detail::dynamic_bitset bv;
   using size_type = std::size_t;

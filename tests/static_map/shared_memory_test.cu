@@ -66,7 +66,7 @@ __global__ void shared_memory_test_kernel(Ref* maps,
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Shared memory static map",
+TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
                        "",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t),

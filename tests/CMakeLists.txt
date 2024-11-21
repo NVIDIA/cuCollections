@@ -75,9 +75,11 @@ ConfigureTest(STATIC_SET_TEST
 # - static_map tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_MAP_TEST
     static_map/capacity_test.cu
+    static_map/contains_test.cu
     static_map/custom_type_test.cu
     static_map/duplicate_keys_test.cu
     static_map/erase_test.cu
+    static_map/find_test.cu
     static_map/for_each_test.cu
     static_map/hash_test.cu
     static_map/heterogeneous_lookup_test.cu
@@ -87,7 +89,6 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/key_sentinel_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
-    static_map/unique_sequence_test.cu
     static_map/rehash_test.cu)
 
 ###################################################################################################

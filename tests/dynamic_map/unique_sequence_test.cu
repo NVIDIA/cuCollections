@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
-TEMPLATE_TEST_CASE_SIG("Unique sequence of keys",
+TEMPLATE_TEST_CASE_SIG("dynamic_map unique sequence tests",
                        "",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t),

@@ -71,7 +71,7 @@ void test_insert_or_assign(Map& map, size_type num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Insert or assign",
+  "static_map insert_or_assign tests",
   "",
   ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
    Key,

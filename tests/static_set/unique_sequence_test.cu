@@ -136,7 +136,7 @@ void test_unique_sequence(Set& set, size_type num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Unique sequence",
+  "static_set unique sequence tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),

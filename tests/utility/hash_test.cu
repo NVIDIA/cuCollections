@@ -67,7 +67,7 @@ __global__ void check_identity_hash_result_kernel(OutputIter result)
     cuda::std::numeric_limits<int64_t>::max(), cuda::std::numeric_limits<int64_t>::max());
 }
 
-TEST_CASE("Test cuco::identity_hash", "")
+TEST_CASE("utility cuco::identity_hash test", "")
 {
   SECTION("Check if host-generated hash values match the identity function.")
   {
@@ -121,7 +121,7 @@ __global__ void check_hash_result_kernel_64(OutputIter result)
     check_hash_result<cuco::xxhash_64<large_key<32>>>(123456789, 2031761887105658523, 0);
 }
 
-TEST_CASE("Test cuco::xxhash_64", "")
+TEST_CASE("utility cuco::xxhash_64 test", "")
 {
   // Reference hash values were computed using https://github.com/Cyan4973/xxHash
   SECTION("Check if host-generated hash values match the reference implementation.")
@@ -184,7 +184,7 @@ __global__ void check_hash_result_kernel_32(OutputIter result)
   result[i++] = check_hash_result<cuco::xxhash_32<large_key<32>>>(123456789, 3715432378, 0);
 }
 
-TEST_CASE("Test cuco::xxhash_32", "")
+TEST_CASE("utility cuco::xxhash_32 test", "")
 {
   // Reference hash values were computed using https://github.com/Cyan4973/xxHash
   SECTION("Check if host-generated hash values match the reference implementation.")
@@ -221,7 +221,7 @@ TEST_CASE("Test cuco::xxhash_32", "")
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Static vs. dynamic key hash test",
+TEMPLATE_TEST_CASE_SIG("utility hasher compute_hash tests",
                        "",
                        ((typename Hash), Hash),
                        (cuco::murmurhash3_32<char>),
@@ -323,7 +323,7 @@ __global__ void check_murmurhash3_128_result_kernel(OutputIter result)
       1024);
 }
 
-TEST_CASE("Test cuco::murmurhash3_x64_128", "")
+TEST_CASE("utility cuco::murmurhash3_x64_128 test", "")
 {
   // Reference hash values were computed using
   // https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp

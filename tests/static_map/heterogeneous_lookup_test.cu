@@ -82,7 +82,7 @@ struct custom_key_equal {
   }
 };
 
-TEMPLATE_TEST_CASE_SIG("Heterogeneous lookup",
+TEMPLATE_TEST_CASE_SIG("static_map heterogeneous lookup tests",
                        "",
                        ((typename T, int CGSize), T, CGSize),
 #if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and

@@ -58,7 +58,7 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Retrieve all",
+  "static_set::retrieve_all tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
