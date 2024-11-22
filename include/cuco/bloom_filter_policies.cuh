@@ -18,6 +18,7 @@
 
 #include <cuco/detail/bloom_filter/arrow_filter_policy.cuh>
 #include <cuco/detail/bloom_filter/default_filter_policy_impl.cuh>
+#include <cuco/hash_functions.cuh>
 
 #include <cstdint>
 
@@ -28,9 +29,12 @@ namespace cuco {
  * fingerprint.
  *
  * @tparam Key The type of the values to generate a fingerprint for.
+ * @tparam XXHash64 Custom (64 bit) XXHash hasher to generate a key's fingerprint.
+ * By default, cuco::xxhash_64 hasher will be used.
+ *
  */
-template <class Key>
-using arrow_filter_policy = detail::arrow_filter_policy<Key>;
+template <class Key, class XXHash64 = cuco::xxhash_64<Key>>
+using arrow_filter_policy = detail::arrow_filter_policy<Key, XXHash64>;
 
 /**
  * @brief The default policy that defines how a Blocked Bloom Filter generates and stores a key's
