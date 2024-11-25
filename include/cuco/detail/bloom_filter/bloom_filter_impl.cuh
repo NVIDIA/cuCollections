@@ -198,7 +198,7 @@ class bloom_filter_impl {
     auto const grid_size =
       cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
 
-    detail::add_if_n<cg_size, block_size>
+    bloom_filter_ns::detail::add_if_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
   }
 
@@ -303,8 +303,9 @@ class bloom_filter_impl {
     auto const grid_size =
       cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
 
-    detail::contains_if_n<cg_size, block_size><<<grid_size, block_size, 0, stream.get()>>>(
-      first, num_keys, stencil, pred, output_begin, *this);
+    bloom_filter_ns::detail::contains_if_n<cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(
+        first, num_keys, stencil, pred, output_begin, *this);
   }
 
   [[nodiscard]] __host__ __device__ constexpr word_type* data() noexcept { return words_; }
