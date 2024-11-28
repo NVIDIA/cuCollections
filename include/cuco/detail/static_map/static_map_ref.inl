@@ -493,6 +493,7 @@ class operator_impl<
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(key, storage_ref.bucket_extent());
+    auto const init_idx  = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -514,6 +515,7 @@ class operator_impl<
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return; }
     }
   }
 
@@ -539,6 +541,7 @@ class operator_impl<
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const init_idx  = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -578,6 +581,7 @@ class operator_impl<
         if (group.shfl(status, src_lane)) { return; }
       } else {
         ++probing_iter;
+        if (*probing_iter == init_idx) { return; }
       }
     }
   }
@@ -855,6 +859,7 @@ class operator_impl<
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
     auto probing_iter      = probing_scheme(key, storage_ref.bucket_extent());
+    auto const init_idx    = *probing_iter;
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
@@ -894,6 +899,7 @@ class operator_impl<
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return false; }
     }
   }
 
@@ -929,6 +935,7 @@ class operator_impl<
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
     auto probing_iter      = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const init_idx    = *probing_iter;
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
@@ -987,6 +994,7 @@ class operator_impl<
         }
       } else {
         ++probing_iter;
+        if (*probing_iter == init_idx) { return false; }
       }
     }
   }
