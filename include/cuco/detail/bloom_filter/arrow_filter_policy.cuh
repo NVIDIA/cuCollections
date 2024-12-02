@@ -40,14 +40,15 @@ namespace cuco::detail {
  * void bulk_insert_and_eval_arrow_policy_bloom_filter(device_vector<KeyType> const& positive_keys,
  *                                                 device_vector<KeyType> const& negative_keys)
  * {
- *     using policy_type = cuco::arrow_filter_policy<key_type>;
+ *     using xxhash_64 = cuco::xxhash_64<KeyType>;
+ *     using policy_type = cuco::arrow_filter_policy<KeyType, xxhash_64>;
  *
  *     // Warn or throw if the number of filter blocks is greater than maximum used by Arrow policy.
  *     static_assert(NUM_FILTER_BLOCKS <= policy_type::max_filter_blocks, "NUM_FILTER_BLOCKS must be
  *                                                                         in range: [1, 4194304]");
  *
  *     // Create a bloom filter with Arrow policy
- *     cuco::bloom_filter<key_type, cuco::extent<size_t>,
+ *     cuco::bloom_filter<KeyType, cuco::extent<size_t>,
  *         cuda::thread_scope_device, policy_type> filter{NUM_FILTER_BLOCKS};
  *
  *     // Add positive keys to the bloom filter
