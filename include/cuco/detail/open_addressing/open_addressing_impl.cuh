@@ -342,7 +342,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    open_addressing_ns::detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, counter.data(), container_ref);
 
@@ -384,7 +384,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    open_addressing_ns::detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, container_ref);
   }
@@ -426,7 +426,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    open_addressing_ns::detail::insert_and_find<cg_size, cuco::detail::default_block_size()>
+    detail::insert_and_find<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, found_begin, inserted_begin, container_ref);
   }
@@ -466,7 +466,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    open_addressing_ns::detail::erase<cg_size, cuco::detail::default_block_size()>
+    detail::erase<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, container_ref);
   }
@@ -540,7 +540,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    open_addressing_ns::detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
+    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, output_begin, container_ref);
   }
@@ -615,7 +615,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    open_addressing_ns::detail::find_if_n<cg_size, cuco::detail::default_block_size()>
+    detail::find_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, output_begin, container_ref);
   }
@@ -886,7 +886,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    open_addressing_ns::detail::for_each_n<cg_size, cuco::detail::default_block_size()>
+    detail::for_each_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, std::forward<CallbackOp>(callback_op), container_ref);
   }
@@ -912,7 +912,7 @@ class open_addressing_impl {
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
-    open_addressing_ns::detail::size<cuco::detail::default_block_size()>
+    detail::size<cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         storage_.ref(), is_filled, counter.data());
 
@@ -1017,7 +1017,7 @@ class open_addressing_impl {
     auto const is_filled      = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
-    open_addressing_ns::detail::rehash<block_size><<<grid_size, block_size, 0, stream.get()>>>(
+    detail::rehash<block_size><<<grid_size, block_size, 0, stream.get()>>>(
       old_storage.ref(), container.ref(op::insert), is_filled);
   }
 
@@ -1120,7 +1120,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    open_addressing_ns::detail::count<IsOuter, cg_size, cuco::detail::default_block_size()>
+    detail::count<IsOuter, cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, counter.data(), container_ref);
 
@@ -1180,9 +1180,8 @@ class open_addressing_impl {
     auto constexpr grid_stride = 1;
     auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
 
-    open_addressing_ns::detail::retrieve<IsOuter, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(
-        first, n, output_probe, output_match, counter.data(), container_ref);
+    detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream.get()>>>(
+      first, n, output_probe, output_match, counter.data(), container_ref);
 
     auto const num_retrieved = counter.load_to_host(stream.get());
 

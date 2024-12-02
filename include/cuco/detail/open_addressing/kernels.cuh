@@ -25,7 +25,7 @@
 
 #include <iterator>
 
-namespace cuco::open_addressing_ns::detail {
+namespace cuco::detail {
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
 /**
@@ -729,4 +729,4 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
   }
 }
 
-}  // namespace cuco::open_addressing_ns::detail
+}  // namespace cuco::detail

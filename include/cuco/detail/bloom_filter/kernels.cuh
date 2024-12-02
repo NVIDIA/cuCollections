@@ -22,7 +22,7 @@
 #include <cstdint>
 #include <iterator>
 
-namespace cuco::bloom_filter_ns::detail {
+namespace cuco::detail {
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
@@ -89,4 +89,4 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   }
 }
 
-}  // namespace cuco::bloom_filter_ns::detail
+}  // namespace cuco::detail
