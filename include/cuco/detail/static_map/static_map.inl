@@ -284,7 +284,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 
   auto const grid_size = cuco::detail::grid_size(num, cg_size);
 
-  static_map_ns::detail::insert_or_assign<cg_size, cuco::detail::default_block_size()>
+  detail::static_map_ns::insert_or_assign<cg_size, cuco::detail::default_block_size()>
     <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
       first, num, ref(op::insert_or_assign));
 }
@@ -335,7 +335,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 {
   auto constexpr has_init = false;
   auto const init = this->empty_value_sentinel();  // use empty_sentinel as unused init value
-  static_map_ns::detail::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
+  detail::static_map_ns::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
     first, last, init, op, ref(op::insert_or_apply), stream);
 }
 
@@ -353,7 +353,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
     InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream) noexcept
 {
   auto constexpr has_init = true;
-  static_map_ns::detail::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
+  detail::static_map_ns::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
     first, last, init, op, ref(op::insert_or_apply), stream);
 }
 
