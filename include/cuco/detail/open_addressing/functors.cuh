@@ -18,7 +18,7 @@
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/pair/traits.hpp>
 
-namespace cuco::open_addressing_ns::detail {
+namespace cuco::detail::open_addressing_ns {
 
 /**
  * @brief Device functor returning the content of the slot indexed by `idx`
@@ -107,4 +107,4 @@ struct slot_is_filled {
   }
 };
 
-}  // namespace cuco::open_addressing_ns::detail
+}  // namespace cuco::detail::open_addressing_ns

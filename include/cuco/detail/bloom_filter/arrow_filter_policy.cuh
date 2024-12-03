@@ -40,14 +40,15 @@ namespace cuco::detail {
  * void bulk_insert_and_eval_arrow_policy_bloom_filter(device_vector<KeyType> const& positive_keys,
  *                                                 device_vector<KeyType> const& negative_keys)
  * {
- *     using policy_type = cuco::arrow_filter_policy<key_type>;
+ *     using xxhash_64 = cuco::xxhash_64<KeyType>;
+ *     using policy_type = cuco::arrow_filter_policy<KeyType, xxhash_64>;
  *
  *     // Warn or throw if the number of filter blocks is greater than maximum used by Arrow policy.
  *     static_assert(NUM_FILTER_BLOCKS <= policy_type::max_filter_blocks, "NUM_FILTER_BLOCKS must be
  *                                                                         in range: [1, 4194304]");
  *
  *     // Create a bloom filter with Arrow policy
- *     cuco::bloom_filter<key_type, cuco::extent<size_t>,
+ *     cuco::bloom_filter<KeyType, cuco::extent<size_t>,
  *         cuda::thread_scope_device, policy_type> filter{NUM_FILTER_BLOCKS};
  *
  *     // Add positive keys to the bloom filter
@@ -78,12 +79,13 @@ namespace cuco::detail {
  * @endcode
  *
  * @tparam Key The type of the values to generate a fingerprint for.
+ * @tparam XXHash64 64-bit XXHash hasher implementation for fingerprint generation.
  */
-template <class Key>
+template <class Key, class XXHash64>
 class arrow_filter_policy {
  public:
-  using hasher    = cuco::xxhash_64<Key>;  ///< xxhash_64 hasher for Arrow bloom filter policy
-  using word_type = std::uint32_t;         ///< uint32_t for Arrow bloom filter policy
+  using hasher             = XXHash64;       ///< 64-bit XXHash hasher for Arrow bloom filter policy
+  using word_type          = std::uint32_t;  ///< uint32_t for Arrow bloom filter policy
   using hash_argument_type = typename hasher::argument_type;  ///< Hash function input type
   using hash_result_type   = decltype(std::declval<hasher>()(
     std::declval<hash_argument_type>()));  ///< hash function output type

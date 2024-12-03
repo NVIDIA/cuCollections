@@ -115,7 +115,7 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
   cuda::stream_ref stream{};
 
   // launch the shmem kernel
-  cuco::static_map_ns::detail::
+  cuco::detail::static_map_ns::
     insert_or_apply_shmem<HasInit, cg_size, shmem_block_size, shared_map_ref_type>
     <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(pairs_begin,
                                                              num_keys,

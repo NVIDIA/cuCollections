@@ -35,8 +35,8 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
 {
   using Key = typename Filter::key_type;
 
+  // Generate keys
   thrust::device_vector<Key> keys(num_keys);
-
   thrust::sequence(thrust::device, keys.begin(), keys.end());
 
   thrust::device_vector<bool> contained(num_keys, false);
