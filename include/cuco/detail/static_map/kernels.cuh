@@ -26,7 +26,7 @@
 
 #include <iterator>
 
-namespace cuco::static_map_ns::detail {
+namespace cuco::detail::static_map_ns {
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
 // TODO user insert_or_assign internally
@@ -262,4 +262,4 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
     }
   }
 }
-}  // namespace cuco::static_map_ns::detail
+}  // namespace cuco::detail::static_map_ns

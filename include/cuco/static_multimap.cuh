@@ -667,6 +667,40 @@ class static_multimap {
   size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Retrieves the matched key-value pair in the multimap corresponding to all probe keys in
+   * the range
+   * `[first, last)`
+   *
+   * If key `k = *(first + i)` has a match `m` in the multimap, copies a `cuco::pair{k, m}` to
+   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
+   *
+   * @note This function synchronizes the given stream.
+   * @note Behavior is undefined if the size of the output range exceeds
+   * `std::distance(output_begin, output_end)`.
+   * @note Behavior is undefined if the given key has multiple matches in the set.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputProbeIt Device accessible output iterator whose `value_type` can be constructed
+   * from `ProbeKey`
+   * @tparam OutputMatchIt Device accessible output iterator whose `value_type` can be constructed
+   * from multimap's `value_type`
+   *
+   * @param first Beginning of the sequence of probe keys
+   * @param last End of the sequence of probe keys
+   * @param output_probe Beginning of the sequence of the probe keys that have a match
+   * @param output_match Beginning of the sequence of the matched key-value pairs
+   * @param stream CUDA stream used for retrieve
+   *
+   * @return The iterator indicating the last valid pair in the output
+   */
+  template <typename InputIt, typename OutputProbeIt, typename OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputIt first,
+                                                   InputIt last,
+                                                   OutputProbeIt output_probe,
+                                                   OutputMatchIt output_match,
+                                                   cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Retrieves all of the keys and their associated values contained in the multimap
    *
    * @note This API synchronizes the given stream.

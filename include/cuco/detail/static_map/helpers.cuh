@@ -18,7 +18,7 @@
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 
-namespace cuco::static_map_ns::detail {
+namespace cuco::detail::static_map_ns {
 
 /**
  * @brief Dispatches to shared memory map kernel if `num_elements_per_thread > 2`, else
@@ -112,4 +112,4 @@ void dispatch_insert_or_apply(
         first, num, init, op, ref);
   }
 }
-}  // namespace cuco::static_map_ns::detail
+}  // namespace cuco::detail::static_map_ns
