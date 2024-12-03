@@ -680,10 +680,10 @@ class static_multimap {
    * @note Behavior is undefined if the given key has multiple matches in the set.
    *
    * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt1 Device accessible output iterator whose `value_type` can be constructed from
-   * `ProbeKey`
-   * @tparam OutputIt2 Device accessible output iterator whose `value_type` can be constructed from
-   * multimap's `value_type`
+   * @tparam OutputProbeIt Device accessible output iterator whose `value_type` can be constructed
+   * from `ProbeKey`
+   * @tparam OutputMatchIt Device accessible output iterator whose `value_type` can be constructed
+   * from multimap's `value_type`
    *
    * @param first Beginning of the sequence of probe keys
    * @param last End of the sequence of probe keys
@@ -693,12 +693,12 @@ class static_multimap {
    *
    * @return The iterator indicating the last valid pair in the output
    */
-  template <typename InputIt, typename OutputIt1, typename OutputIt2>
-  std::pair<OutputIt1, OutputIt2> retrieve(InputIt first,
-                                           InputIt last,
-                                           OutputIt1 output_probe,
-                                           OutputIt2 output_match,
-                                           cuda::stream_ref stream = {}) const;
+  template <typename InputIt, typename OutputProbeIt, typename OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputIt first,
+                                                   InputIt last,
+                                                   OutputProbeIt output_probe,
+                                                   OutputMatchIt output_match,
+                                                   cuda::stream_ref stream = {}) const;
 
   /**
    * @brief Retrieves all of the keys and their associated values contained in the multimap
