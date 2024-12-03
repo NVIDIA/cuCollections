@@ -56,6 +56,7 @@ class bucket_storage_ref : public detail::bucket_storage_base<T, BucketSize, Ext
   using size_type   = typename base_type::size_type;    ///< Storage size type
   using value_type  = typename base_type::value_type;   ///< Slot type
   using bucket_type = typename base_type::bucket_type;  ///< Slot bucket type
+  using window_type = bucket_type;                      ///< Slot bucket type
 
   using base_type::capacity;
   using base_type::num_buckets;
@@ -146,6 +147,7 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
   using size_type   = typename base_type::size_type;    ///< Storage size type
   using value_type  = typename base_type::value_type;   ///< Slot type
   using bucket_type = typename base_type::bucket_type;  ///< Slot bucket type
+  using window_type = bucket_type;                      ///< Slot bucket type
 
   using base_type::capacity;
   using base_type::num_buckets;
