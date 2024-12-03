@@ -493,6 +493,7 @@ class operator_impl<
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(key, storage_ref.bucket_extent());
+    auto const init_idx  = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -514,6 +515,7 @@ class operator_impl<
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return; }
     }
   }
 
@@ -539,6 +541,7 @@ class operator_impl<
     auto& probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref     = ref_.impl_.storage_ref();
     auto probing_iter    = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const init_idx  = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -578,6 +581,7 @@ class operator_impl<
         if (group.shfl(status, src_lane)) { return; }
       } else {
         ++probing_iter;
+        if (*probing_iter == init_idx) { return; }
       }
     }
   }
@@ -855,6 +859,7 @@ class operator_impl<
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
     auto probing_iter      = probing_scheme(key, storage_ref.bucket_extent());
+    auto const init_idx    = *probing_iter;
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
@@ -894,6 +899,7 @@ class operator_impl<
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return false; }
     }
   }
 
@@ -929,6 +935,7 @@ class operator_impl<
     auto& probing_scheme   = ref_.impl_.probing_scheme();
     auto storage_ref       = ref_.impl_.storage_ref();
     auto probing_iter      = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const init_idx    = *probing_iter;
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
@@ -987,6 +994,7 @@ class operator_impl<
         }
       } else {
         ++probing_iter;
+        if (*probing_iter == init_idx) { return false; }
       }
     }
   }
@@ -1418,6 +1426,74 @@ class operator_impl<
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.count(group, key);
+  }
+};
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::retrieve_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
+
+ public:
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
+   * input_probe_end)`.
+   *
+   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
+   * slot content to `output_match`, respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * @tparam BlockSize Size of the thread block this operation is executed in
+   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam AtomicCounter Atomic counter type that follows the same semantics as
+   * `cuda::atomic(_ref)`
+   *
+   * @param block Thread block this operation is executed in
+   * @param input_probe_begin Beginning of the input sequence of keys
+   * @param input_probe_end End of the input sequence of keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param atomic_counter Counter that is used to determine the next free position in the output
+   * sequences
+   */
+  template <int32_t BlockSize,
+            class InputProbeIt,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve(cooperative_groups::thread_block const& block,
+                           InputProbeIt input_probe_begin,
+                           InputProbeIt input_probe_end,
+                           OutputProbeIt output_probe,
+                           OutputMatchIt output_match,
+                           AtomicCounter* atomic_counter) const
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.retrieve<BlockSize>(
+      block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
 };
 }  // namespace detail

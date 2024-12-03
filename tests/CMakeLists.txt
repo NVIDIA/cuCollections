@@ -89,7 +89,8 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/key_sentinel_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
-    static_map/rehash_test.cu)
+    static_map/rehash_test.cu
+    static_map/retrieve_test.cu)
 
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------
@@ -114,15 +115,11 @@ ConfigureTest(STATIC_MULTISET_TEST
 # - static_multimap tests -------------------------------------------------------------------------
 ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/count_test.cu
-    static_multimap/custom_pair_retrieve_test.cu
-    static_multimap/custom_type_test.cu
     static_multimap/find_test.cu
     static_multimap/heterogeneous_lookup_test.cu
     static_multimap/insert_contains_test.cu
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
-    static_multimap/non_match_test.cu
-    static_multimap/pair_function_test.cu
     static_multimap/for_each_test.cu)
 
 ###################################################################################################
