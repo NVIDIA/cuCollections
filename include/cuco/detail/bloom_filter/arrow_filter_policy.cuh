@@ -40,8 +40,7 @@ namespace cuco::detail {
  * void bulk_insert_and_eval_arrow_policy_bloom_filter(device_vector<KeyType> const& positive_keys,
  *                                                 device_vector<KeyType> const& negative_keys)
  * {
- *     using xxhash_64 = cuco::xxhash_64<KeyType>;
- *     using policy_type = cuco::arrow_filter_policy<KeyType, xxhash_64>;
+ *     using policy_type = cuco::arrow_filter_policy<KeyType, cuco::xxhash_64>;
  *
  *     // Warn or throw if the number of filter blocks is greater than maximum used by Arrow policy.
  *     static_assert(NUM_FILTER_BLOCKS <= policy_type::max_filter_blocks, "NUM_FILTER_BLOCKS must be
@@ -84,10 +83,10 @@ namespace cuco::detail {
 template <class Key, template <typename> class XXHash64>
 class arrow_filter_policy {
  public:
-  using hasher          = XXHash64<Key>;  ///< 64-bit XXHash hasher for Arrow bloom filter policy
-  using word_type       = std::uint32_t;  ///< uint32_t for Arrow bloom filter policy
-  using key_type        = Key;            ///< Hash function input type
-  using hash_value_type = std::uint64_t;  ///< hash function output type
+  using hasher             = XXHash64<Key>;  ///< 64-bit XXHash hasher for Arrow bloom filter policy
+  using word_type          = std::uint32_t;  ///< uint32_t for Arrow bloom filter policy
+  using hash_argument_type = Key;            ///< Hash function input type
+  using hash_result_type   = std::uint64_t;  ///< hash function output type
 
   static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded bits set per Arrow filter block
   static constexpr uint32_t words_per_block    = 8;  ///< hardcoded words per Arrow filter block
