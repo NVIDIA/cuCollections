@@ -86,8 +86,8 @@ class arrow_filter_policy {
  public:
   using hasher             = XXHash64<Key>;  ///< 64-bit XXHash hasher for Arrow bloom filter policy
   using word_type          = std::uint32_t;  ///< uint32_t for Arrow bloom filter policy
-  using hash_argument_type = typename hasher::argument_type;  ///< Hash function input type
-  using hash_result_type   = decltype(std::declval<hasher>()(
+  using key_type = Key;  ///< Hash function input type
+  using hash_value_type   = uint64_t;
     std::declval<hash_argument_type>()));  ///< hash function output type
 
   static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded bits set per Arrow filter block
