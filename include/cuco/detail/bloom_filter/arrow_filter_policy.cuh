@@ -81,10 +81,10 @@ namespace cuco::detail {
  * @tparam Key The type of the values to generate a fingerprint for.
  * @tparam XXHash64 64-bit XXHash hasher implementation for fingerprint generation.
  */
-template <class Key, class XXHash64>
+template <class Key, template <typename> class XXHash64>
 class arrow_filter_policy {
  public:
-  using hasher             = XXHash64;       ///< 64-bit XXHash hasher for Arrow bloom filter policy
+  using hasher             = XXHash64<Key>;  ///< 64-bit XXHash hasher for Arrow bloom filter policy
   using word_type          = std::uint32_t;  ///< uint32_t for Arrow bloom filter policy
   using hash_argument_type = typename hasher::argument_type;  ///< Hash function input type
   using hash_result_type   = decltype(std::declval<hasher>()(
