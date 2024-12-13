@@ -79,7 +79,7 @@ __global__ void generate_cg_probing_sequence(Key key,
 TEMPLATE_TEST_CASE_SIG(
   "utility probing_scheme tests",
   "",
-  ((typename Key, cuco::test::probe_sequence Probe, int32_t WindowSize), Key, Probe, WindowSize),
+  ((typename Key, cuco::test::probe_sequence Probe, int32_t BucketSize), Key, Probe, BucketSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -89,7 +89,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  auto const upper_bound = cuco::make_window_extent<1, WindowSize>(cuco::extent<std::size_t>{10});
+  auto const upper_bound = cuco::make_bucket_extent<1, BucketSize>(cuco::extent<std::size_t>{10});
   constexpr size_t seq_length{8};
   constexpr Key key{42};
 

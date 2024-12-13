@@ -85,10 +85,6 @@ struct extent<SizeType, dynamic_extent> {
 template <typename SizeType, std::size_t N = dynamic_extent>
 struct bucket_extent;
 
-/// Alias for bucket_extent
-template <typename SizeType, std::size_t N = dynamic_extent>
-using window_extent = bucket_extent<SizeType, N>;
-
 /**
  * @brief Computes valid bucket extent based on given parameters.
  *
@@ -113,25 +109,6 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext);
 
 /**
- * @brief Computes valid bucket extent based on given parameters.
- *
- * @deprecated Use the equivalent `make_bucket_extent` instead.
- *
- * @tparam CGSize Number of elements handled per CG
- * @tparam BucketSize Number of elements handled per Bucket
- * @tparam SizeType Size type
- * @tparam N Extent
- *
- * @param ext The input extent
- *
- * @throw If the input extent is invalid
- *
- * @return Resulting valid extent
- */
-template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext);
-
-/**
  * @brief Computes valid bucket extent/capacity based on given parameters.
  *
  * @note The actual capacity of a container (map/set) should be exclusively determined by the return
@@ -152,24 +129,6 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
  */
 template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType size);
-
-/**
- * @brief Computes valid bucket extent/capacity based on given parameters.
- *
- * @deprecated Use the equivalent `make_bucket_extent` instead.
- *
- * @tparam CGSize Number of elements handled per CG
- * @tparam BucketSize Number of elements handled per Bucket
- * @tparam SizeType Size type
- *
- * @param size The input size
- *
- * @throw If the input size is invalid
- *
- * @return Resulting valid extent
- */
-template <int32_t CGSize, int32_t BucketSize, typename SizeType>
-[[nodiscard]] auto constexpr make_window_extent(SizeType size);
 
 template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(cuco::extent<SizeType, N> ext);
@@ -200,24 +159,6 @@ template <typename Container, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext);
 
 /**
- * @brief Computes a valid bucket extent/capacity for a given container type.
- *
- * @deprecated Use the equivalent `make_bucket_extent` instead.
- *
- * @tparam Container Container type to compute the extent for
- * @tparam SizeType Size type
- * @tparam N Extent
- *
- * @param ext The input extent
- *
- * @throw If the input extent is invalid
- *
- * @return Resulting valid `bucket extent`
- */
-template <typename Container, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_window_extent(extent<SizeType, N> ext);
-
-/**
  * @brief Computes a valid capacity for a given container type.
  *
  * @note The actual capacity of a container (map/set) should be exclusively determined by the return
@@ -237,23 +178,6 @@ template <typename Container, typename SizeType, std::size_t N>
  */
 template <typename Container, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType size);
-
-/**
- * @brief Computes a valid capacity for a given container type.
- *
- * @deprecated Use the equivalent `make_bucket_extent` instead.
- *
- * @tparam Container Container type to compute the extent for
- * @tparam SizeType Size type
- *
- * @param size The input size
- *
- * @throw If the input size is invalid
- *
- * @return Resulting valid extent
- */
-template <typename Container, typename SizeType>
-[[nodiscard]] auto constexpr make_window_extent(SizeType size);
 
 }  // namespace cuco
 

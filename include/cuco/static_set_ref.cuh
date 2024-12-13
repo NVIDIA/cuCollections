@@ -77,7 +77,6 @@ class static_set_ref
   using hasher              = typename probing_scheme_type::hasher;    ///< Hash function type
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using bucket_type         = typename storage_ref_type::bucket_type;  ///< Bucket type
-  using window_type         = bucket_type;                             ///< Bucket type
   using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
   using extent_type         = typename storage_ref_type::extent_type;  ///< Extent type
   using size_type           = typename storage_ref_type::size_type;    ///< Probing scheme size type
