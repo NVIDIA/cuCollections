@@ -44,7 +44,7 @@
  */
 
 auto constexpr cg_size     = 8;   ///< A CUDA Cooperative Group of 8 threads to handle each subset
-auto constexpr window_size = 1;   ///< Number of concurrent slots handled by each thread
+auto constexpr bucket_size = 1;   ///< Number of concurrent slots handled by each thread
 auto constexpr N           = 10;  ///< Number of elements to insert and query
 
 using key_type = int;  ///< Key type
@@ -54,7 +54,7 @@ using probing_scheme_type =
                                                                 ///< and probing scheme (linear
                                                                 ///< probing v.s. double hashing)
 /// Type of bulk allocation storage
-using storage_type = cuco::aow_storage<key_type, window_size>;
+using storage_type = cuco::aow_storage<key_type, bucket_size>;
 /// Lightweight non-owning storage ref type
 using storage_ref_type = typename storage_type::ref_type;
 using ref_type         = cuco::static_set_ref<key_type,
@@ -143,23 +143,23 @@ int main()
 
   for (size_t i = 0; i < num; ++i) {
     valid_sizes.emplace_back(
-      static_cast<std::size_t>(cuco::make_window_extent<ref_type>(subset_sizes[i])));
+      static_cast<std::size_t>(cuco::make_bucket_extent<ref_type>(subset_sizes[i])));
   }
 
   std::vector<std::size_t> offsets(num + 1, 0);
 
-  // prefix sum to compute offsets and total number of windows
+  // prefix sum to compute offsets and total number of buckets
   std::size_t current_sum = 0;
   for (std::size_t i = 0; i < valid_sizes.size(); ++i) {
     current_sum += valid_sizes[i];
     offsets[i + 1] = current_sum;
   }
 
-  // total number of windows is located at the back of the offsets array
-  auto const total_num_windows = offsets.back();
+  // total number of buckets is located at the back of the offsets array
+  auto const total_num_buckets = offsets.back();
 
   // Create a single bulk storage used by all subsets
-  auto set_storage = storage_type{total_num_windows};
+  auto set_storage = storage_type{total_num_buckets};
   // Initializes the storage with the given sentinel
   set_storage.initialize(empty_key_sentinel);
 

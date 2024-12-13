@@ -24,16 +24,16 @@
  */
 
 template <class SetRef>
-__global__ void shmem_set_kernel(typename SetRef::extent_type window_extent,
+__global__ void shmem_set_kernel(typename SetRef::extent_type bucket_extent,
                                  cuco::empty_key<typename SetRef::key_type> empty_key_sentinel)
 {
   // We first allocate the shared memory storage for the `set`.
-  // The storage is comprised of contiguous windows of slots,
+  // The storage is comprised of contiguous buckets of slots,
   // which allow for vectorized loads.
-  __shared__ typename SetRef::window_type windows[window_extent.value()];
+  __shared__ typename SetRef::bucket_type buckets[bucket_extent.value()];
 
   // Next, we construct the actual storage object from the raw array.
-  auto storage = SetRef::storage_ref_type(window_extent, windows);
+  auto storage = SetRef::storage_ref_type(bucket_extent, buckets);
   // Now we can instantiate the set from the storage.
   auto set = SetRef(empty_key_sentinel, {}, {}, {}, storage);
 
@@ -75,7 +75,7 @@ int main(void)
   // Inserting or retrieving this value is UB.
   cuco::empty_key<Key> constexpr empty_key_sentinel{-1};
   // Width of vectorized loads during probing.
-  auto constexpr window_size = 1;
+  auto constexpr bucket_size = 1;
   // Cooperative group size
   auto constexpr cg_size = 1;
 
@@ -93,7 +93,7 @@ int main(void)
                                     thrust::equal_to<Key>,
                                     probing_scheme_type,
                                     cuco::cuda_allocator<Key>,
-                                    cuco::storage<window_size>>;
+                                    cuco::storage<bucket_size>>;
   // Next, we can derive the non-owning reference type from the set type.
   // This is the type we use in the kernel to wrap a raw shared memory array as a `static_set`.
   using set_ref_type = typename set_type::ref_type<>;
@@ -101,9 +101,9 @@ int main(void)
   // Cuco imposes a number of non-trivial contraints on the capacity value.
   // This function will take the requested capacity (1000) and return the next larger
   // valid extent.
-  auto constexpr window_extent = cuco::make_window_extent<set_ref_type>(extent_type{});
+  auto constexpr bucket_extent = cuco::make_bucket_extent<set_ref_type>(extent_type{});
 
   // Launch the kernel with a single thread block.
-  shmem_set_kernel<set_ref_type><<<1, 128>>>(window_extent, empty_key_sentinel);
+  shmem_set_kernel<set_ref_type><<<1, 128>>>(bucket_extent, empty_key_sentinel);
   cudaDeviceSynchronize();
 }
