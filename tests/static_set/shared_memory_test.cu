@@ -30,7 +30,7 @@
 
 #include <limits>
 
-template <std::size_t NumWindows, typename Ref>
+template <std::size_t NumBuckets, typename Ref>
 __global__ void shared_memory_test_kernel(Ref* sets,
                                           typename Ref::key_type const* const insterted_keys,
                                           size_t number_of_elements,
@@ -41,7 +41,7 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   const size_t set_id = blockIdx.x;
   const size_t offset = set_id * number_of_elements;
 
-  __shared__ typename Ref::window_type sm_buffer[NumWindows];
+  __shared__ typename Ref::bucket_type sm_buffer[NumBuckets];
 
   auto g          = cuco::test::cg::this_thread_block();
   auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
@@ -108,9 +108,9 @@ TEMPLATE_TEST_CASE_SIG(
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
+    auto constexpr num_buckets = cuco::make_bucket_extent<ref_type>(extent_type{});
 
-    shared_memory_test_kernel<num_windows.value(), ref_type>
+    shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                elements_in_set,
@@ -136,9 +136,9 @@ TEMPLATE_TEST_CASE_SIG(
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
+    auto constexpr num_buckets = cuco::make_bucket_extent<ref_type>(extent_type{});
 
-    shared_memory_test_kernel<num_windows.value(), ref_type>
+    shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                elements_in_set,
@@ -150,18 +150,18 @@ TEMPLATE_TEST_CASE_SIG(
 }
 
 auto constexpr cg_size     = 1;
-auto constexpr window_size = 1;
+auto constexpr bucket_size = 1;
 
-template <std::size_t NumWindows>
+template <std::size_t NumBuckets>
 __global__ void shared_memory_hash_set_kernel(bool* key_found)
 {
   using Key       = int32_t;
   using slot_type = Key;
 
-  __shared__ cuco::window<slot_type, window_size> set[NumWindows];
+  __shared__ cuco::bucket<slot_type, bucket_size> set[NumBuckets];
 
-  using extent_type      = cuco::extent<std::size_t, NumWindows>;
-  using storage_ref_type = cuco::aow_storage_ref<slot_type, window_size, extent_type>;
+  using extent_type      = cuco::extent<std::size_t, NumBuckets>;
+  using storage_ref_type = cuco::aow_storage_ref<slot_type, bucket_size, extent_type>;
 
   auto raw_ref =
     cuco::static_set_ref{cuco::empty_key<Key>{-1},
@@ -191,11 +191,11 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
 TEST_CASE("static_set shared memory slots test", "")
 {
   constexpr std::size_t N = 256;
-  [[maybe_unused]] auto constexpr num_windows =
-    cuco::make_window_extent<cg_size, window_size>(cuco::extent<std::size_t, N>{});
+  [[maybe_unused]] auto constexpr num_buckets =
+    cuco::make_bucket_extent<cg_size, bucket_size>(cuco::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
-  shared_memory_hash_set_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());
+  shared_memory_hash_set_kernel<num_buckets.value()><<<8, 32>>>(key_found.data().get());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));

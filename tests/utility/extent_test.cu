@@ -26,7 +26,7 @@ TEMPLATE_TEST_CASE_SIG(
   SizeType constexpr num            = 1234;
   SizeType constexpr gold_reference = 314;  // 157 x 2
   auto constexpr cg_size            = 2;
-  auto constexpr window_size        = 4;
+  auto constexpr bucket_size        = 4;
 
   SECTION("Static extent must be evaluated at compile time.")
   {
@@ -43,14 +43,14 @@ TEMPLATE_TEST_CASE_SIG(
   SECTION("Compute static valid extent at compile time.")
   {
     auto constexpr size = cuco::extent<SizeType, num>{};
-    auto constexpr res  = cuco::make_window_extent<cg_size, window_size>(size);
+    auto constexpr res  = cuco::make_bucket_extent<cg_size, bucket_size>(size);
     STATIC_REQUIRE(gold_reference == res.value());
   }
 
   SECTION("Compute dynamic valid extent at run time.")
   {
     auto const size = cuco::extent<SizeType>{num};
-    auto const res  = cuco::make_window_extent<cg_size, window_size>(size);
+    auto const res  = cuco::make_bucket_extent<cg_size, bucket_size>(size);
     REQUIRE(gold_reference == res.value());
   }
 }

@@ -33,7 +33,7 @@ namespace cuco {
  * By default, cuco::xxhash_64 hasher will be used.
  *
  */
-template <class Key, class XXHash64 = cuco::xxhash_64<Key>>
+template <typename Key, template <typename> class XXHash64 = cuco::xxhash_64>
 using arrow_filter_policy = detail::arrow_filter_policy<Key, XXHash64>;
 
 /**
