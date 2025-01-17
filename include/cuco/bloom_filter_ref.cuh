@@ -69,6 +69,21 @@ class bloom_filter_ref {
                                                           Policy const& policy);
 
   /**
+   * @brief Constructs the ref object from existing storage.
+   *
+   * @note This overload is deprecated and will be removed in the near future.
+   *
+   * @param data Pointer to the storage span of the filter
+   * @param num_blocks Number of sub-filters or blocks
+   * @param scope The scope in which operations will be performed
+   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
+   */
+  __host__ __device__ explicit constexpr bloom_filter_ref(word_type* data,
+                                                          Extent num_blocks,
+                                                          cuda_thread_scope<Scope> scope,
+                                                          Policy const& policy);
+
+  /**
    * @brief Device function that cooperatively erases all information from the filter.
    *
    * @tparam CG Cooperative Group type

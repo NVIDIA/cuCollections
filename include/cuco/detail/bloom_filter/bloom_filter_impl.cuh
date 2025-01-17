@@ -86,6 +86,14 @@ class bloom_filter_impl {
   {
   }
 
+  __host__ __device__ explicit constexpr bloom_filter_impl(word_type* filter,
+                                                           Extent num_blocks,
+                                                           cuda_thread_scope<Scope>,
+                                                           Policy policy) noexcept
+    : words_{filter}, num_blocks_{num_blocks}, policy_{policy}
+  {
+  }
+
   template <class CG>
   __device__ constexpr void clear(CG const& group)
   {
