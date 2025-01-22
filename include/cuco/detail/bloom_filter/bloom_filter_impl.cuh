@@ -36,7 +36,6 @@
 #include <thrust/iterator/constant_iterator.h>
 
 #include <cstdint>
-#include <nv/target>
 
 namespace cuco::detail {
 
@@ -52,6 +51,21 @@ class bloom_filter_impl {
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
 
+ private:
+  __host__ __device__ static constexpr size_t max_vec_bytes() noexcept
+  {
+    constexpr auto word_bytes  = sizeof(word_type);
+    constexpr auto block_bytes = word_bytes * words_per_block;
+    return cuda::std::min(cuda::std::max(word_bytes, 32ul),
+                          block_bytes);  // aiming for 2xLDG128 -> 1 sector per thread
+  }
+
+ public:
+  struct alignas(max_vec_bytes()) filter_block_type {
+   private:
+    word_type data_[words_per_block];
+  };
+
   static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
                 "Number of words per block must be a power-of-two and less than or equal to 32");
 
@@ -64,23 +78,20 @@ class bloom_filter_impl {
                                   cuda::std::memory_order>,
     "Invalid word type");
 
+  __host__ __device__ explicit constexpr bloom_filter_impl(filter_block_type* filter,
+                                                           Extent num_blocks,
+                                                           cuda_thread_scope<Scope>,
+                                                           Policy policy) noexcept
+    : words_{reinterpret_cast<word_type*>(filter)}, num_blocks_{num_blocks}, policy_{policy}
+  {
+  }
+
   __host__ __device__ explicit constexpr bloom_filter_impl(word_type* filter,
                                                            Extent num_blocks,
                                                            cuda_thread_scope<Scope>,
-                                                           Policy policy)
+                                                           Policy policy) noexcept
     : words_{filter}, num_blocks_{num_blocks}, policy_{policy}
   {
-    auto const alignment =
-      1ull << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(filter));
-
-    NV_DISPATCH_TARGET(
-      NV_IS_HOST,
-      (CUCO_EXPECTS(alignment >= required_alignment(), "Invalid memory alignment");
-       CUCO_EXPECTS(num_blocks_ > 0, "Number of blocks cannot be zero");),
-      NV_IS_DEVICE,
-      (if (alignment < required_alignment() or num_blocks_ == 0) {
-        __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
-      }))
   }
 
   template <class CG>
@@ -333,15 +344,7 @@ class bloom_filter_impl {
   __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {
     return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(__builtin_assume_aligned(
-      words_ + index, cuda::std::min(sizeof(word_type) * NumWords, required_alignment())));
-  }
-
-  __host__ __device__ static constexpr size_t max_vec_bytes() noexcept
-  {
-    constexpr auto word_bytes  = sizeof(word_type);
-    constexpr auto block_bytes = word_bytes * words_per_block;
-    return cuda::std::min(cuda::std::max(word_bytes, 32ul),
-                          block_bytes);  // aiming for 2xLDG128 -> 1 sector per thread
+      words_ + index, cuda::std::min(sizeof(word_type) * NumWords, max_vec_bytes())));
   }
 
   [[nodiscard]] __host__ __device__ static constexpr int32_t add_optimal_cg_size()
@@ -354,11 +357,6 @@ class bloom_filter_impl {
     constexpr auto word_bytes  = sizeof(word_type);
     constexpr auto block_bytes = word_bytes * words_per_block;
     return block_bytes / max_vec_bytes();  // one vector load per thread
-  }
-
-  __host__ __device__ static constexpr size_t required_alignment() noexcept
-  {
-    return cuda::std::min(sizeof(word_type) * words_per_block, max_vec_bytes());
   }
 
   word_type* words_;

@@ -25,6 +25,13 @@ namespace cuco {
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 __host__ __device__ constexpr bloom_filter_ref<Key, Extent, Scope, Policy>::bloom_filter_ref(
+  filter_block_type* data, Extent num_blocks, cuda_thread_scope<Scope>, Policy const& policy)
+  : impl_{data, num_blocks, {}, policy}
+{
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+__host__ __device__ constexpr bloom_filter_ref<Key, Extent, Scope, Policy>::bloom_filter_ref(
   word_type* data, Extent num_blocks, cuda_thread_scope<Scope>, Policy const& policy)
   : impl_{data, num_blocks, {}, policy}
 {
