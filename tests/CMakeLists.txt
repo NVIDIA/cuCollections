@@ -120,7 +120,8 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/insert_contains_test.cu
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
-    static_multimap/for_each_test.cu)
+    static_multimap/for_each_test.cu
+    static_multimap/retrieve_test.cu)
 
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------

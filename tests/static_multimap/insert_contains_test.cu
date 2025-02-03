@@ -33,12 +33,8 @@ void test_insert(Map& map, std::size_t num_keys)
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
-  thrust::device_vector<Key> d_keys(num_keys);
-
-  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
-
-  auto keys_begin  = d_keys.begin();
-  auto pairs_begin = thrust::make_transform_iterator(
+  auto const keys_begin = thrust::counting_iterator<Key>{0};
+  auto pairs_begin      = thrust::make_transform_iterator(
     thrust::make_counting_iterator(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));

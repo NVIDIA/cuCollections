@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,22 +28,30 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+struct custom_key_eq {
+  template <typename T>
+  __device__ bool operator()(T const& lhs, T const& rhs) const
+  {
+    return lhs % 2 == 0 ? lhs == rhs : false;
+  }
+};
+
 template <typename Map>
-void test_multiplicity_two(Map& map, std::size_t num_items)
+void test_retrieve(Map& map, std::size_t num_items)
 {
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
-  auto const num_keys = num_items / 2;
+  auto const num_gold = num_items / 2;
 
   auto const keys_begin = thrust::counting_iterator<Key>{0};
-  // multiplicity = 2
+  // multiplicity = 1
   auto const pairs_begin = thrust::make_transform_iterator(
     keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
-      return cuco::pair<Key, Value>{i / 2, i};
+      return cuco::pair<Key, Value>{i, i};
     }));
 
-  thrust::device_vector<cuco::pair<Key, Value>> d_results(num_items);
+  thrust::device_vector<cuco::pair<Key, Value>> d_results(num_gold);
   auto output_begin = d_results.begin();
 
   map.insert(pairs_begin, pairs_begin + num_items);
@@ -51,15 +59,20 @@ void test_multiplicity_two(Map& map, std::size_t num_items)
   SECTION("Total count should be equal to the number of inserted pairs.")
   {
     // Count matching keys
-    auto const num = map.count(keys_begin, keys_begin + num_keys);
+    auto const num =
+      map.count(keys_begin, keys_begin + num_items, custom_key_eq{}, map.hash_function());
 
-    REQUIRE(num == num_items);
+    REQUIRE(num == num_gold);
 
-    auto [_, output_end] =
-      map.retrieve(keys_begin, keys_begin + num_keys, thrust::discard_iterator{}, output_begin);
+    auto [_, output_end]   = map.retrieve(keys_begin,
+                                        keys_begin + num_items,
+                                        custom_key_eq{},
+                                        map.hash_function(),
+                                        thrust::discard_iterator{},
+                                        output_begin);
     std::size_t const size = thrust::distance(output_begin, output_end);
 
-    REQUIRE(size == num_items);
+    REQUIRE(size == num_gold);
 
     // sort before compare
     thrust::sort(
@@ -71,9 +84,13 @@ void test_multiplicity_two(Map& map, std::size_t num_items)
         return lhs.second < rhs.second;
       });
 
+    auto const gold_begin = thrust::make_transform_iterator(
+      keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
+        return cuco::pair<Key, Value>{i * 2, i * 2};
+      }));
     REQUIRE(
-      cuco::test::equal(pairs_begin,
-                        pairs_begin + num_items,
+      cuco::test::equal(gold_begin,
+                        gold_begin + num_gold,
                         output_begin,
                         [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
                           return lhs.first == rhs.first and lhs.second == rhs.second;
@@ -82,17 +99,17 @@ void test_multiplicity_two(Map& map, std::size_t num_items)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "static_multimap multiplicity tests",
+  "static_multimap retrieve tests",
   "",
   ((typename T, cuco::test::probe_sequence Probe, int CGSize), T, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, cuco::test::probe_sequence::double_hashing, 8),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 4),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, cuco::test::probe_sequence::double_hashing, 8),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 4),
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, cuco::test::probe_sequence::linear_probing, 8),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 4),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 8))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 4))
 {
   constexpr std::size_t num_items{400};
 
@@ -111,5 +128,5 @@ TEMPLATE_TEST_CASE_SIG(
                                                  cuco::storage<2>>{
     num_items * 2, cuco::empty_key<T>{-1}, cuco::empty_value<T>{-1}};
 
-  test_multiplicity_two(map, num_items);
+  test_retrieve(map, num_items);
 }
