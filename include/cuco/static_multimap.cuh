@@ -667,9 +667,33 @@ class static_multimap {
   size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the
+   * multimap with custom hash and key comparator
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam ProbeEqual Binary callable
+   * @tparam ProbeHash Unary hash callable
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param probe_equal Binary callable to compare two keys for equality
+   * @param probe_hash Unary callable to hash a given key
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt, typename ProbeEqual, typename ProbeHash>
+  size_type count(InputIt first,
+                  InputIt last,
+                  ProbeEqual const& probe_equal,
+                  ProbeHash const& probe_hash,
+                  cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Retrieves the matched key-value pair in the multimap corresponding to all probe keys in
-   * the range
-   * `[first, last)`
+   * the range `[first, last)`
    *
    * If key `k = *(first + i)` has a match `m` in the multimap, copies a `cuco::pair{k, m}` to
    * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
@@ -696,6 +720,49 @@ class static_multimap {
   template <typename InputIt, typename OutputProbeIt, typename OutputMatchIt>
   std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputIt first,
                                                    InputIt last,
+                                                   OutputProbeIt output_probe,
+                                                   OutputMatchIt output_match,
+                                                   cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
+   *
+   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
+   * slot contents to `output_match`, respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type that can be constructed from
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
+  template <class InputProbeIt,
+            class ProbeEqual,
+            class ProbeHash,
+            class OutputProbeIt,
+            class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputProbeIt first,
+                                                   InputProbeIt last,
+                                                   ProbeEqual const& probe_equal,
+                                                   ProbeHash const& probe_hash,
                                                    OutputProbeIt output_probe,
                                                    OutputMatchIt output_match,
                                                    cuda::stream_ref stream = {}) const;
