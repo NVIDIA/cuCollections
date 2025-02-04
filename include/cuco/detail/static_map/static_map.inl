@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -499,6 +499,30 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename ProbeEqual, typename ProbeHash, typename OutputIt>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
+  InputIt first,
+  InputIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  impl_->find_async(first,
+                    last,
+                    output_begin,
+                    ref(op::find).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
+                    stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_if(
   InputIt first,
@@ -530,6 +554,39 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   cuda::stream_ref stream) const
 {
   impl_->find_if_async(first, last, stencil, pred, output_begin, ref(op::find), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename ProbeEqual,
+          typename ProbeHash,
+          typename OutputIt>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_if_async(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  impl_->find_if_async(first,
+                       last,
+                       stencil,
+                       pred,
+                       output_begin,
+                       ref(op::find).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
+                       stream);
 }
 
 template <class Key,
