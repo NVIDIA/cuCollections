@@ -35,6 +35,14 @@ using size_type = int32_t;
 
 int32_t constexpr SENTINEL = -1;
 
+struct always_false {
+  template <typename T>
+  __device__ bool operator()(T const&, T const&) const
+  {
+    return false;
+  }
+};
+
 template <typename Map>
 void test_unique_sequence(Map& map, size_type num_keys)
 {
@@ -52,10 +60,10 @@ void test_unique_sequence(Map& map, size_type num_keys)
   auto is_even =
     cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
+  thrust::device_vector<Value> d_results(num_keys);
+
   SECTION("Non-inserted keys have no matches")
   {
-    thrust::device_vector<Value> d_results(num_keys);
-
     map.find(keys_begin, keys_begin + num_keys, d_results.begin());
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(
       d_results.begin(), thrust::constant_iterator<Key>{map.empty_key_sentinel()}));
@@ -67,18 +75,26 @@ void test_unique_sequence(Map& map, size_type num_keys)
 
   SECTION("All inserted keys should be correctly recovered during find")
   {
-    thrust::device_vector<Value> d_results(num_keys);
-
     map.find(keys_begin, keys_begin + num_keys, d_results.begin());
     auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 
+  SECTION("No keys should be found with custom always_false equal")
+  {
+    map.find_async(
+      keys_begin, keys_begin + num_keys, always_false{}, map.hash_function(), d_results.begin());
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
+    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
+      d_results.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}));
+
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+  }
+
   SECTION("Conditional find should return valid values on even inputs.")
   {
-    auto found_results = thrust::device_vector<Key>(num_keys);
-    auto gold_fn       = cuda::proclaim_return_type<Value>([] __device__(auto const& i) {
+    auto gold_fn = cuda::proclaim_return_type<Value>([] __device__(auto const& i) {
       return i % 2 == 0 ? static_cast<Value>(i) : Value{SENTINEL};
     });
 
@@ -86,14 +102,31 @@ void test_unique_sequence(Map& map, size_type num_keys)
                 keys_begin + num_keys,
                 thrust::counting_iterator<std::size_t>{0},
                 is_even,
-                found_results.begin());
+                d_results.begin());
 
     REQUIRE(cuco::test::equal(
-      found_results.begin(),
-      found_results.end(),
+      d_results.begin(),
+      d_results.end(),
       thrust::make_transform_iterator(thrust::counting_iterator<Key>{0}, gold_fn),
       cuda::proclaim_return_type<bool>(
         [] __device__(auto const& found, auto const& gold) { return found == gold; })));
+  }
+
+  SECTION("Conditional find with always_false should always get sentinel.")
+  {
+    map.find_if_async(keys_begin,
+                      keys_begin + num_keys,
+                      thrust::counting_iterator<std::size_t>{0},
+                      is_even,
+                      always_false{},
+                      map.hash_function(),
+                      d_results.begin());
+
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
+    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
+      d_results.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}));
+
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 }
 
