@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <benchmark_utils.hpp>
 
 #include <cuco/bloom_filter.cuh>
-#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
@@ -68,10 +67,7 @@ void bloom_filter_add(nvbench::state& state,
   filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
 
   state.collect_dram_throughput();
-  state.collect_l1_hit_rates();
   state.collect_l2_hit_rates();
-  state.collect_loads_efficiency();
-  state.collect_stores_efficiency();
 
   add_fpr_summary(state, filter);
 
@@ -110,10 +106,7 @@ void arrow_bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Dist>
   filter_type filter{num_sub_filters};
 
   state.collect_dram_throughput();
-  state.collect_l1_hit_rates();
   state.collect_l2_hit_rates();
-  state.collect_loads_efficiency();
-  state.collect_stores_efficiency();
 
   add_fpr_summary(state, filter);
 
