@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
@@ -87,7 +86,8 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
     map.insert(pairs_begin, pairs_begin + num_keys, stream);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), stream);
 
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}, stream));
+    REQUIRE(
+      cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}, stream));
   }
 
   CUCO_CUDA_TRY(cudaStreamDestroy(stream));

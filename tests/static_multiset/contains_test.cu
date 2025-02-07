@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
@@ -52,7 +51,7 @@ void test_unique_sequence(Set& set, size_type num_keys)
   SECTION("Non-inserted keys should not be contained.")
   {
     set.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   set.insert(keys_begin, keys_begin + num_keys);
@@ -60,7 +59,7 @@ void test_unique_sequence(Set& set, size_type num_keys)
   SECTION("All inserted keys should be contained.")
   {
     set.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Conditional contains should return true on even inputs.")
