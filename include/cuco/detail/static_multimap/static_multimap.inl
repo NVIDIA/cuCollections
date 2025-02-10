@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -447,6 +447,29 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename ProbeEqual, typename ProbeHash>
+static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
+static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
+  InputIt first,
+  InputIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  cuda::stream_ref stream) const
+{
+  return impl_->count(first,
+                      last,
+                      ref(op::count).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
+                      stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename OutputProbeIt, typename OutputMatchIt>
 std::pair<OutputProbeIt, OutputMatchIt>
 static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
@@ -457,6 +480,34 @@ static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   cuda::stream_ref stream) const
 {
   return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputProbeIt,
+          class ProbeEqual,
+          class ProbeHash,
+          typename OutputProbeIt,
+          typename OutputMatchIt>
+std::pair<OutputProbeIt, OutputMatchIt>
+static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
+  InputProbeIt first,
+  InputProbeIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputProbeIt output_probe,
+  OutputMatchIt output_match,
+  cuda::stream_ref stream) const
+{
+  auto const probe_ref =
+    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
+  return impl_->retrieve(first, last, output_probe, output_match, probe_ref, stream);
 }
 
 template <class Key,
