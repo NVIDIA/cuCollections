@@ -45,10 +45,10 @@ void test_retrieve(Map& map, std::size_t num_items)
   auto const num_gold = num_items / 2;
 
   auto const keys_begin = thrust::counting_iterator<Key>{0};
-  // multiplicity = 1
+  // multiplicity = 2
   auto const pairs_begin = thrust::make_transform_iterator(
     keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
-      return cuco::pair<Key, Value>{i, i};
+      return cuco::pair<Key, Value>{i / 2, i / 2};
     }));
 
   thrust::device_vector<cuco::pair<Key, Value>> d_results(num_gold);
@@ -86,7 +86,7 @@ void test_retrieve(Map& map, std::size_t num_items)
 
     auto const gold_begin = thrust::make_transform_iterator(
       keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
-        return cuco::pair<Key, Value>{i * 2, i * 2};
+        return cuco::pair<Key, Value>{(i / 2) * 2, (i / 2) * 2};
       }));
     REQUIRE(
       cuco::test::equal(gold_begin,
@@ -111,7 +111,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, cuco::test::probe_sequence::linear_probing, 4))
 {
-  constexpr std::size_t num_items{400};
+  constexpr std::size_t num_items{1'000};
 
   using probe = std::conditional_t<
     Probe == cuco::test::probe_sequence::linear_probing,
