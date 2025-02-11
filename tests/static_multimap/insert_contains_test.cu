@@ -20,7 +20,6 @@
 
 #include <cuda/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/sequence.h>
@@ -43,7 +42,7 @@ void test_insert(Map& map, std::size_t num_keys)
   SECTION("Non-inserted keys should not be contained.")
   {
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   map.insert(pairs_begin, pairs_begin + num_keys);
@@ -51,7 +50,7 @@ void test_insert(Map& map, std::size_t num_keys)
   SECTION("All inserted keys should be contained.")
   {
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Conditional contains should return true on even inputs.")

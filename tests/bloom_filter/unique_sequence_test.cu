@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 
@@ -47,21 +46,21 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
   SECTION("Non-inserted keys should not be contained.")
   {
     filter.contains(keys.begin(), keys.end(), contained.begin());
-    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("All inserted keys should be contained.")
   {
     filter.add(keys.begin(), keys.end());
     filter.contains(keys.begin(), keys.end(), contained.begin());
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("After clearing the filter no keys should be contained.")
   {
     filter.clear();
     filter.contains(keys.begin(), keys.end(), contained.begin());
-    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("All conditionally inserted keys should be contained")
