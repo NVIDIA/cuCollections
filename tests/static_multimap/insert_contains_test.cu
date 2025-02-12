@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 
 #include <cuda/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/sequence.h>
@@ -33,12 +32,8 @@ void test_insert(Map& map, std::size_t num_keys)
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
-  thrust::device_vector<Key> d_keys(num_keys);
-
-  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
-
-  auto keys_begin  = d_keys.begin();
-  auto pairs_begin = thrust::make_transform_iterator(
+  auto const keys_begin = thrust::counting_iterator<Key>{0};
+  auto pairs_begin      = thrust::make_transform_iterator(
     thrust::make_counting_iterator(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
@@ -47,7 +42,7 @@ void test_insert(Map& map, std::size_t num_keys)
   SECTION("Non-inserted keys should not be contained.")
   {
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   map.insert(pairs_begin, pairs_begin + num_keys);
@@ -55,7 +50,7 @@ void test_insert(Map& map, std::size_t num_keys)
   SECTION("All inserted keys should be contained.")
   {
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Conditional contains should return true on even inputs.")

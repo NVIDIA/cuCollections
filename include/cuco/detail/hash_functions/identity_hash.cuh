@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 #pragma once
 
+#include <cuda/std/functional>
 #include <cuda/std/type_traits>
-#include <thrust/functional.h>
 
 namespace cuco::detail {
 
@@ -33,7 +33,7 @@ namespace cuco::detail {
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
-struct identity_hash : private thrust::identity<Key> {
+struct identity_hash : private cuda::std::identity {
   using argument_type = Key;  ///< The type of the values taken as argument
   /// The type of the hash values produced
   using result_type = cuda::std::conditional_t<sizeof(Key) <= 4, uint32_t, uint64_t>;
@@ -49,7 +49,7 @@ struct identity_hash : private thrust::identity<Key> {
    */
   __host__ __device__ result_type operator()(Key const& x) const
   {
-    return static_cast<result_type>(thrust::identity<Key>::operator()(x));
+    return static_cast<result_type>(cuda::std::identity::operator()(x));
   }
 };  // identity_hash
 

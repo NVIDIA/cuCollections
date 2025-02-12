@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@
 
 #include <cuco/dynamic_map.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -63,7 +63,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
     // keys were actaully deleted
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     // ensures that map is reusing deleted slots
     map.insert(pairs_begin, pairs_begin + num_keys);
@@ -72,17 +72,17 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     // erase can act selectively
     map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
     REQUIRE(cuco::test::none_of(
-      d_keys_exist.begin(), d_keys_exist.begin() + num_keys / 2, thrust::identity{}));
+      d_keys_exist.begin(), d_keys_exist.begin() + num_keys / 2, cuda::std::identity{}));
 
     REQUIRE(cuco::test::all_of(
-      d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), thrust::identity{}));
+      d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), cuda::std::identity{}));
 
     // clear map
     map.erase(d_keys.begin() + num_keys / 2, d_keys.end());
@@ -111,10 +111,10 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
     REQUIRE(cuco::test::none_of(
-      d_keys_exist.begin(), d_keys_exist.begin() + 2 * num_keys, thrust::identity{}));
+      d_keys_exist.begin(), d_keys_exist.begin() + 2 * num_keys, cuda::std::identity{}));
 
     REQUIRE(cuco::test::all_of(
-      d_keys_exist.begin() + 2 * num_keys, d_keys_exist.end(), thrust::identity{}));
+      d_keys_exist.begin() + 2 * num_keys, d_keys_exist.end(), cuda::std::identity{}));
 
     REQUIRE(map.get_size() == 2 * num_keys);
     // check that keys can be successfully deleted from all submaps (some will be unsuccessful
@@ -123,7 +123,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     REQUIRE(map.get_size() == 0);
   }

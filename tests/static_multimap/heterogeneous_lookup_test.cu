@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
@@ -117,13 +116,13 @@ TEMPLATE_TEST_CASE("static_multimap heterogeneous lookup tests",
     thrust::device_vector<bool> contained(num);
     map.insert(insert_pairs, insert_pairs + num);
     map.contains(probe_keys, probe_keys + num, contained.begin(), custom_key_equal{});
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     thrust::device_vector<bool> contained(num);
     map.contains(probe_keys, probe_keys + num, contained.begin(), custom_key_equal{});
-    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 }
