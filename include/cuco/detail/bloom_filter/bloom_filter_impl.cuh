@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,6 +34,8 @@
 #include <cuda/stream_ref>
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
+
+#include <cooperative_groups.h>
 
 #include <cstdint>
 
@@ -121,14 +123,28 @@ class bloom_filter_impl {
   __device__ void add(ProbeKey const& key)
   {
     auto const hash_value = policy_.hash(key);
-    auto const idx        = policy_.block_index(hash_value, num_blocks_);
+    this->add_impl(hash_value, policy_.block_index(hash_value, num_blocks_));
+  }
 
+  template <class InputIt>
+  __device__ void add(InputIt first, InputIt last)
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    for (decltype(num_keys) i = 0; i < num_keys; ++i) {
+      auto const hash_value = policy_.hash(*(first + i));
+      this->add_impl(hash_value, policy_.block_index(hash_value, num_blocks_));
+    }
+  }
+
+  template <class HashValue, class BlockIndex>
+  __device__ void add_impl(HashValue const& hash_value, BlockIndex block_index)
+  {
 #pragma unroll words_per_block
     for (uint32_t i = 0; i < words_per_block; ++i) {
       auto const word = policy_.word_pattern(hash_value, i);
       if (word != 0) {
-        auto atom_word =
-          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + i))};
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+          *(words_ + (block_index * words_per_block + i))};
         atom_word.fetch_or(word, cuda::memory_order_relaxed);
       }
     }
@@ -139,24 +155,97 @@ class bloom_filter_impl {
   {
     constexpr auto num_threads         = tile_size_v<CG>;
     constexpr auto optimal_num_threads = add_optimal_cg_size();
-    constexpr auto words_per_thread    = words_per_block / optimal_num_threads;
+    constexpr auto worker_num_threads =
+      (num_threads < optimal_num_threads) ? num_threads : optimal_num_threads;
 
     // If single thread is optimal, use scalar add
-    if constexpr (num_threads == 1 or optimal_num_threads == 1) {
+    if constexpr (worker_num_threads == 1) {
       this->add(key);
     } else {
-      auto const rank = group.thread_rank();
-
       auto const hash_value = policy_.hash(key);
-      auto const idx        = policy_.block_index(hash_value, num_blocks_);
+      this->add_impl(hash_value, policy_.block_index(hash_value, num_blocks_));
+    }
+  }
 
+  template <class CG, class InputIt>
+  __device__ void add(CG const& group, InputIt first, InputIt last)
+  {
+    namespace cg = cooperative_groups;
+
+    constexpr auto num_threads         = tile_size_v<CG>;
+    constexpr auto optimal_num_threads = add_optimal_cg_size();
+    constexpr auto worker_num_threads =
+      (num_threads < optimal_num_threads) ? num_threads : optimal_num_threads;
+
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const rank = group.thread_rank();
+
+    // If single thread is optimal, use scalar add
+    if constexpr (worker_num_threads == 1) {
+      for (auto i = rank; i < num_keys; i += num_threads) {
+        typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + i)};
+        this->add(insert_element);
+      }
+    } else if constexpr (num_threads == worker_num_threads) {  // given CG is optimal CG
+      typename policy_type::hash_result_type hash_value;
+      size_type block_index;
+
+      auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+      for (size_type i = 0; (i / num_threads) < group_iters; i += num_threads) {
+        if (i + rank < num_keys) {
+          typename std::iterator_traits<InputIt>::value_type const& insert_element{
+            *(first + i + rank)};
+          hash_value  = policy_.hash(insert_element);
+          block_index = policy_.block_index(hash_value, num_blocks_);
+        }
+
+        for (uint32_t j = 0; (j < num_threads) and (i + j < num_keys); ++j) {
+          this->add_impl(group, group.shfl(hash_value, j), group.shfl(block_index, j));
+        }
+      }
+    } else {  // subdivide given CG into multiple optimal CGs
+      typename policy_type::hash_result_type hash_value;
+      size_type block_index;
+
+      auto const worker_group  = cg::tiled_partition<worker_num_threads>(group);
+      auto const worker_offset = worker_num_threads * worker_group.meta_group_rank();
+
+      auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+
+      for (size_type i = 0; (i / num_threads) < group_iters; i += num_threads) {
+        if (i + rank < num_keys) {
+          typename std::iterator_traits<InputIt>::value_type const& key{*(first + i + rank)};
+          hash_value  = policy_.hash(key);
+          block_index = policy_.block_index(hash_value, num_blocks_);
+        }
+
+        for (uint32_t j = 0; (j < worker_num_threads) and (i + worker_offset + j < num_keys); ++j) {
+          this->add_impl(
+            worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
+        }
+      }
+    }
+  }
+
+  template <class CG, class HashValue, class BlockIndex>
+  __device__ void add_impl(CG const& group, HashValue const& hash_value, BlockIndex block_index)
+  {
+    constexpr auto num_threads = tile_size_v<CG>;
+
+    auto const rank = group.thread_rank();
+
+    if constexpr (num_threads == words_per_block) {
+      auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+        *(words_ + (block_index * words_per_block + rank))};
+      atom_word.fetch_or(policy_.word_pattern(hash_value, rank), cuda::memory_order_relaxed);
+    } else {
 #pragma unroll
-      for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
-        auto const word = policy_.word_pattern(hash_value, rank);
-
-        auto atom_word =
-          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + rank))};
-        atom_word.fetch_or(word, cuda::memory_order_relaxed);
+      for (auto i = rank; i < words_per_block; i += num_threads) {
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+          *(words_ + (block_index * words_per_block + i))};
+        atom_word.fetch_or(policy_.word_pattern(hash_value, i), cuda::memory_order_relaxed);
       }
     }
   }
@@ -181,8 +270,21 @@ class bloom_filter_impl {
         [*this] __device__(key_type const key) mutable { this->add(key); },
         stream.get()));
     } else {
-      auto const always_true = thrust::constant_iterator<bool>{true};
-      this->add_if_async(first, last, always_true, thrust::identity{}, stream);
+      auto const num_keys = cuco::detail::distance(first, last);
+      if (num_keys == 0) { return; }
+
+      auto constexpr cg_size    = add_optimal_cg_size();
+      auto constexpr block_size = cuco::detail::default_block_size();
+      void const* kernel        = reinterpret_cast<void const*>(
+        detail::bloom_filter_ns::add<cg_size, block_size, InputIt, bloom_filter_impl>);
+      auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel) * 1.5;
+
+      detail::bloom_filter_ns::add<cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+
+      // fallback method
+      // auto const always_true = thrust::constant_iterator<bool>{true};
+      // this->add_if_async(first, last, always_true, thrust::identity{}, stream);
     }
   }
 

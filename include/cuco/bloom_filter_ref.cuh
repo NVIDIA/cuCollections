@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -133,6 +133,22 @@ class bloom_filter_ref {
    */
   template <class CG, class ProbeKey>
   __device__ void add(CG const& group, ProbeKey const& key);
+
+  /**
+   * @brief Device function that adds all keys in the range `[first, last)` to the filter.
+   *
+   * @note Best performance is achieved if the size of the CG is larger than or equal to
+   * `words_per_block`.
+   *
+   * @tparam CG Cooperative Group type
+   * @tparam InputIt Device-accessible random access input key iterator
+   *
+   * @param group The Cooperative Group this operation is executed with
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   */
+  template <class CG, class InputIt>
+  __device__ void add(CG const& group, InputIt first, InputIt last);
 
   /**
    * @brief Adds all keys in the range `[first, last)` to the filter.
