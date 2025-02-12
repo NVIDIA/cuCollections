@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2024, NVIDIA CORPORATION.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -120,7 +120,8 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/insert_contains_test.cu
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
-    static_multimap/for_each_test.cu)
+    static_multimap/for_each_test.cu
+    static_multimap/retrieve_test.cu)
 
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------

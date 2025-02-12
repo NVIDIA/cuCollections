@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <thrust/logical.h>
 #include <thrust/sequence.h>
 
@@ -64,7 +64,7 @@ int main(void)
   set.contains(keys.begin(), keys.end(), found.begin());
 
   // Verify that all keys have been found
-  bool const all_keys_found = thrust::all_of(found.begin(), found.end(), thrust::identity<bool>());
+  bool const all_keys_found = thrust::all_of(found.begin(), found.end(), cuda::std::identity{});
 
   if (all_keys_found) { std::cout << "Success! Found all keys.\n"; }
 
