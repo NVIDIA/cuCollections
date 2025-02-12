@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,32 +50,32 @@ class default_filter_policy_impl {
       remainder_bits_{pattern_bits_ % words_per_block},
       hash_{hash}
   {
-    // This ensures each word in the block has at least one bit set; otherwise we would never use
-    // some of the words
-    constexpr uint32_t min_pattern_bits = words_per_block;
-
-    // The maximum number of bits to be set for a key is capped by the total number of bits in the
-    // filter block
-    constexpr uint32_t max_pattern_bits = word_bits * words_per_block;
-
-    constexpr uint32_t hash_bits = cuda::std::numeric_limits<hash_result_type>::digits;
-    constexpr uint32_t max_pattern_bits_from_hash = hash_bits / bit_index_width;
-
     NV_DISPATCH_TARGET(
       NV_IS_HOST,
-      (CUCO_EXPECTS(
-         pattern_bits <= max_pattern_bits_from_hash,
-         "`hash_result_type` too narrow to generate the requested number of `pattern_bits`");
-       CUCO_EXPECTS(pattern_bits_ >= min_pattern_bits,
-                    "`pattern_bits` must be at least `words_per_block`");
-       CUCO_EXPECTS(
-         pattern_bits_ <= max_pattern_bits,
-         "`pattern_bits` must be less than the total number of bits in a filter block");),
-      NV_IS_DEVICE,
-      (if (pattern_bits_ > max_pattern_bits_from_hash or pattern_bits_ < min_pattern_bits or
-           pattern_bits_ > max_pattern_bits) {
+      (  // This ensures each word in the block has at least one bit set; otherwise we would never
+         // use some of the words
+        constexpr uint32_t min_pattern_bits = words_per_block;
+
+        // The maximum number of bits to be set for a key is capped by the total number of bits in
+        // the filter block
+        constexpr uint32_t max_pattern_bits = word_bits * words_per_block;
+
+        constexpr uint32_t hash_bits = cuda::std::numeric_limits<hash_result_type>::digits;
+        constexpr uint32_t max_pattern_bits_from_hash = hash_bits / bit_index_width;
+        CUCO_EXPECTS(
+          pattern_bits <= max_pattern_bits_from_hash,
+          "`hash_result_type` too narrow to generate the requested number of `pattern_bits`");
+        CUCO_EXPECTS(pattern_bits_ >= min_pattern_bits,
+                     "`pattern_bits` must be at least `words_per_block`");
+        CUCO_EXPECTS(pattern_bits_ <= max_pattern_bits,
+                     "`pattern_bits` must be less than the total number of bits in a filter "
+                     "block");)
+        /*,
+        NV_IS_DEVICE,
+        (if (pattern_bits_ > max_pattern_bits_from_hash or pattern_bits_ < min_pattern_bits or
+        pattern_bits_ > max_pattern_bits) {
         __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
-      }))
+        })*/)
   }
 
   __device__ constexpr hash_result_type hash(hash_argument_type const& key) const
@@ -98,8 +98,8 @@ class default_filter_policy_impl {
 
     hash >>= bits_so_far * bit_index_width;
 
-    word_type word        = 0;
-    int32_t bits_per_word = min_bits_per_word_ + (word_index < remainder_bits_ ? 1 : 0);
+    word_type word              = 0;
+    int32_t const bits_per_word = min_bits_per_word_ + (word_index < remainder_bits_ ? 1 : 0);
 
     for (int32_t bit = 0; bit < bits_per_word; ++bit) {
       word |= word_type{1} << (hash & bit_index_mask);
