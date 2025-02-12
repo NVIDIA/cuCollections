@@ -29,10 +29,10 @@
 #include <cuda/std/__algorithm/min.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/array>
 #include <cuda/std/bit>
+#include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 #include <cuda/stream_ref>
-#include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
 
 #include <cooperative_groups.h>
@@ -284,7 +284,7 @@ class bloom_filter_impl {
 
       // fallback method
       // auto const always_true = thrust::constant_iterator<bool>{true};
-      // this->add_if_async(first, last, always_true, thrust::identity{}, stream);
+      // this->add_if_async(first, last, always_true, cuda::std::identity{}, stream);
     }
   }
 
@@ -481,7 +481,7 @@ class bloom_filter_impl {
 
     // fallback method
     auto const always_true = thrust::constant_iterator<bool>{true};
-    this->contains_if_async(first, last, always_true, thrust::identity{}, output_begin, stream);
+    this->contains_if_async(first, last, always_true, cuda::std::identity{}, output_begin, stream);
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>

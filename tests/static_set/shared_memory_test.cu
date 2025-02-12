@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/tuple.h>
@@ -145,7 +144,7 @@ TEMPLATE_TEST_CASE_SIG(
                                d_keys_exist.data().get(),
                                d_keys_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
   }
 }
 
@@ -198,5 +197,5 @@ TEST_CASE("static_set shared memory slots test", "")
   shared_memory_hash_set_kernel<num_buckets.value()><<<8, 32>>>(key_found.data().get());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
+  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), cuda::std::identity{}));
 }
