@@ -30,7 +30,7 @@ using BF_KEY  = nvbench::int64_t;
 using BF_HASH = cuco::xxhash_64<char>;
 using BF_WORD = nvbench::uint32_t;
 
-static constexpr auto BF_N               = 400'000'000;
+static constexpr auto BF_N               = 1'000'000'000;
 static constexpr auto BF_SIZE_MB         = 2'000;
 static constexpr auto BF_WORDS_PER_BLOCK = 8;
 
