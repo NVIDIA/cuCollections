@@ -131,6 +131,16 @@ template <class CG, class ProbeKey>
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class CG, class InputIt, class OutputIt>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(CG const& group,
+                                                                       InputIt first,
+                                                                       InputIt last,
+                                                                       OutputIt output_begin) const
+{
+  impl_.contains(group, first, last, output_begin);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class InputIt, class OutputIt>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const

@@ -257,10 +257,26 @@ class bloom_filter_ref {
   template <class CG, class ProbeKey>
   [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const;
 
-  // TODO
-  // template <class CG, class InputIt, class OutputIt>
-  // __device__ void contains(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
-  // const;
+  /**
+   * @brief Device function that tests keys in the range `[first, last)` are present in filter.
+   *
+   * @note Best performance is achieved if the size of the CG is larger than or equal to
+   * `(words_per_block * sizeof(word_type)) / 32`.
+   *
+   * @tparam CG Cooperative Group type
+   * @tparam InputIt Device-accessible random access input key iterator
+   * @tparam OutputIt Device-accessible output iterator assignable from `bool`
+   *
+   * @param group The Cooperative Group this operation is executed with
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   */
+  template <class CG, class InputIt, class OutputIt>
+  __device__ void contains(CG const& group,
+                           InputIt first,
+                           InputIt last,
+                           OutputIt output_begin) const;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the

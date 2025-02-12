@@ -343,30 +343,112 @@ class bloom_filter_impl {
     if constexpr (num_threads == 1 or optimal_num_threads == 1) {
       return this->contains(key);
     } else {
-      auto const rank       = group.thread_rank();
-      auto const hash_value = policy_.hash(key);
-      bool success          = true;
+      auto const hash_value  = policy_.hash(key);
+      auto const block_index = policy_.block_index(hash_value, num_blocks_);
 
-#pragma unroll
-      for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
-        auto const thread_offset  = i * words_per_thread;
-        auto const stored_pattern = this->vec_load_words<words_per_thread>(
-          policy_.block_index(hash_value, num_blocks_) * words_per_block + thread_offset);
-#pragma unroll words_per_thread
-        for (uint32_t j = 0; j < words_per_thread; ++j) {
-          auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
-          if ((stored_pattern[j] & expected_pattern) != expected_pattern) { success = false; }
-        }
-      }
-
-      return group.all(success);
+      return this->contains_impl(group, hash_value, block_index);
     }
   }
 
-  // TODO
-  // template <class CG, class InputIt, class OutputIt>
-  // __device__ void contains(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
-  // const;
+  template <class CG, class InputIt, class OutputIt>
+  __device__ void contains(CG const& group,
+                           InputIt first,
+                           InputIt last,
+                           OutputIt output_begin) const
+  {
+    namespace cg = cooperative_groups;
+
+    constexpr auto num_threads         = tile_size_v<CG>;
+    constexpr auto optimal_num_threads = contains_optimal_cg_size();
+    constexpr auto worker_num_threads =
+      (num_threads < optimal_num_threads) ? num_threads : optimal_num_threads;
+    constexpr auto words_per_thread = words_per_block / worker_num_threads;
+
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const rank = group.thread_rank();
+
+    // If single thread is optimal, use scalar contains
+    if constexpr (worker_num_threads == 1) {
+      for (auto i = rank; i < num_keys; i += num_threads) {
+        typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + i)};
+        *(output_begin + i) = this->contains(insert_element);
+      }
+    } else if constexpr (num_threads == worker_num_threads) {  // given CG is optimal CG
+      typename policy_type::hash_result_type hash_value;
+      size_type block_index;
+
+      auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+      for (size_type i = 0; (i / num_threads) < group_iters; i += num_threads) {
+        if (i + rank < num_keys) {
+          typename std::iterator_traits<InputIt>::value_type const& insert_element{
+            *(first + i + rank)};
+          hash_value  = policy_.hash(insert_element);
+          block_index = policy_.block_index(hash_value, num_blocks_);
+        }
+
+        for (uint32_t j = 0; (j < num_threads) and (i + j < num_keys); ++j) {
+          bool const success =
+            this->contains_impl(group, group.shfl(hash_value, j), group.shfl(block_index, j));
+          if (group.thread_rank() == 0) { *(output_begin + i + j) = success; }
+        }
+      }
+    } else {  // subdivide given CG into multiple optimal CGs
+      typename policy_type::hash_result_type hash_value;
+      size_type block_index;
+
+      auto const worker_group  = cg::tiled_partition<worker_num_threads>(group);
+      auto const worker_offset = worker_num_threads * worker_group.meta_group_rank();
+
+      auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+
+      for (size_type i = 0; (i / num_threads) < group_iters; i += num_threads) {
+        if (i + rank < num_keys) {
+          typename std::iterator_traits<InputIt>::value_type const& key{*(first + i + rank)};
+          hash_value  = policy_.hash(key);
+          block_index = policy_.block_index(hash_value, num_blocks_);
+        }
+
+        for (uint32_t j = 0; (j < worker_num_threads) and (i + worker_offset + j < num_keys); ++j) {
+          bool const success = this->contains_impl(
+            worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
+          if (group.thread_rank() == 0) { *(output_begin + i + j) = success; }
+        }
+      }
+    }
+  }
+
+  template <class CG, class HashValue, class BlockIndex>
+  __device__ bool contains_impl(CG const& group,
+                                HashValue const& hash_value,
+                                BlockIndex block_index) const
+  {
+    constexpr auto num_threads         = tile_size_v<CG>;
+    constexpr auto optimal_num_threads = contains_optimal_cg_size();
+    constexpr auto words_per_thread    = words_per_block / optimal_num_threads;
+
+    auto const rank = group.thread_rank();
+    bool success    = true;
+
+#pragma unroll
+    for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
+      auto const thread_offset = i * words_per_thread;
+      auto const stored_pattern =
+        this->vec_load_words<words_per_thread>(block_index * words_per_block + thread_offset);
+#pragma unroll words_per_thread
+      for (uint32_t j = 0; j < words_per_thread; ++j) {
+        auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
+        if ((stored_pattern[j] & expected_pattern) != expected_pattern) {
+          success = false;
+          break;
+        }
+      }
+      if (not success) { break; }
+    }
+
+    return group.all(success);
+  }
 
   template <class InputIt, class OutputIt>
   __host__ constexpr void contains(InputIt first,
@@ -384,6 +466,20 @@ class bloom_filter_impl {
                                          OutputIt output_begin,
                                          cuda::stream_ref stream) const noexcept
   {
+    // TODO perfoms worse than fallback
+    // auto const num_keys = cuco::detail::distance(first, last);
+    // if (num_keys == 0) { return; }
+
+    // auto constexpr cg_size    = contains_optimal_cg_size();
+    // auto constexpr block_size = cuco::detail::default_block_size();
+    // void const* kernel = reinterpret_cast<void const*>(detail::bloom_filter_ns::contains<cg_size,
+    // block_size, InputIt, OutputIt, bloom_filter_impl>); auto const grid_size =
+    // cuco::detail::max_occupancy_grid_size(block_size, kernel) * 2.5;
+
+    // detail::bloom_filter_ns::contains<cg_size, block_size>
+    //   <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+
+    // fallback method
     auto const always_true = thrust::constant_iterator<bool>{true};
     this->contains_if_async(first, last, always_true, thrust::identity{}, output_begin, stream);
   }
@@ -413,8 +509,9 @@ class bloom_filter_impl {
 
     auto constexpr cg_size    = contains_optimal_cg_size();
     auto constexpr block_size = cuco::detail::default_block_size();
-    auto const grid_size =
-      cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
+    // TODO stride = 1 is optimal for arrow policy while stride = 16-32 is optimal for default
+    // policy
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size, 2, block_size);
 
     detail::bloom_filter_ns::contains_if_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(

@@ -73,6 +73,31 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   }
 }
 
+template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains(InputIt first,
+                                                       cuco::detail::index_type n,
+                                                       OutputIt out,
+                                                       Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  // TODO use shmem + async copies for output
+
+  constexpr auto tile_size = cuco::detail::warp_size();
+
+  auto const tile_idx       = cuco::detail::global_thread_id() / tile_size;
+  auto const n_tiles        = gridDim.x * BlockSize / tile_size;
+  auto const items_per_tile = cuco::detail::int_div_ceil(n, n_tiles);
+
+  auto const tile_start = tile_idx * items_per_tile;
+  if (tile_start >= n) { return; }
+  auto const tile_stop = (tile_start + items_per_tile < n) ? tile_start + items_per_tile : n;
+
+  auto const tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+
+  ref.contains(tile, first + tile_start, first + tile_stop, out + tile_start);
+}
+
 template <int32_t CGSize,
           int32_t BlockSize,
           class InputIt,
