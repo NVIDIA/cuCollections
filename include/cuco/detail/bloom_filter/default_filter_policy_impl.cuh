@@ -69,13 +69,9 @@ class default_filter_policy_impl {
                      "`pattern_bits` must be at least `words_per_block`");
         CUCO_EXPECTS(pattern_bits_ <= max_pattern_bits,
                      "`pattern_bits` must be less than the total number of bits in a filter "
-                     "block");)
-        /*,
-        NV_IS_DEVICE,
-        (if (pattern_bits_ > max_pattern_bits_from_hash or pattern_bits_ < min_pattern_bits or
-        pattern_bits_ > max_pattern_bits) {
-        __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
-        })*/)
+                     "block");))
+    // TODO find a proper way to perform input checks/assertions on device without destroying the
+    // context (e.g. __trap())
   }
 
   __device__ constexpr hash_result_type hash(hash_argument_type const& key) const
