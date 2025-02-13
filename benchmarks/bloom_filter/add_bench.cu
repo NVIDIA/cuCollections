@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,12 +21,11 @@
 #include <benchmark_utils.hpp>
 
 #include <cuco/bloom_filter.cuh>
-#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
 #include <cuda/std/limits>
-#include <thrust/device_vector.h>
+#include <thrust/iterator/counting_iterator.h>
 
 #include <cstdint>
 #include <exception>
@@ -61,25 +60,19 @@ void bloom_filter_add(nvbench::state& state,
     (filter_size_mb * 1024 * 1024) /
     (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
 
-  thrust::device_vector<Key> keys(num_keys);
-
-  key_generator gen;
-  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
+  thrust::counting_iterator<Key> keys(0);
 
   state.add_element_count(num_keys);
 
   filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
 
   state.collect_dram_throughput();
-  state.collect_l1_hit_rates();
   state.collect_l2_hit_rates();
-  state.collect_loads_efficiency();
-  state.collect_stores_efficiency();
 
   add_fpr_summary(state, filter);
 
   state.exec([&](nvbench::launch& launch) {
-    filter.add_async(keys.begin(), keys.end(), {launch.get_stream()});
+    filter.add_async(keys, keys + num_keys, {launch.get_stream()});
   });
 }
 
@@ -106,25 +99,19 @@ void arrow_bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Dist>
                                                                                  // configurations
   }
 
-  thrust::device_vector<Key> keys(num_keys);
-
-  key_generator gen;
-  gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
+  thrust::counting_iterator<Key> keys(0);
 
   state.add_element_count(num_keys);
 
   filter_type filter{num_sub_filters};
 
   state.collect_dram_throughput();
-  state.collect_l1_hit_rates();
   state.collect_l2_hit_rates();
-  state.collect_loads_efficiency();
-  state.collect_stores_efficiency();
 
   add_fpr_summary(state, filter);
 
   state.exec([&](nvbench::launch& launch) {
-    filter.add_async(keys.begin(), keys.end(), {launch.get_stream()});
+    filter.add_async(keys, keys + num_keys, {launch.get_stream()});
   });
 }
 
