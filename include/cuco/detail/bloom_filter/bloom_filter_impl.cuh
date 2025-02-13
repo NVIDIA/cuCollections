@@ -277,7 +277,7 @@ class bloom_filter_impl {
       auto constexpr block_size = cuco::detail::default_block_size();
       void const* kernel        = reinterpret_cast<void const*>(
         detail::bloom_filter_ns::add<cg_size, block_size, InputIt, bloom_filter_impl>);
-      auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel) * 1.5;
+      auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel);
 
       detail::bloom_filter_ns::add<cg_size, block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
