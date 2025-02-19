@@ -97,7 +97,7 @@ class bloom_filter_impl {
   template <class CG>
   __device__ constexpr void clear(CG const& group)
   {
-    for (int i = group.thread_rank(); num_blocks_ * words_per_block; i += group.size()) {
+    for (int i = group.thread_rank(); i < num_blocks_ * words_per_block; i += group.size()) {
       words_[i] = 0;
     }
   }
@@ -152,10 +152,10 @@ class bloom_filter_impl {
 
 #pragma unroll
       for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
-        auto const word = policy_.word_pattern(hash_value, rank);
+        auto const word = policy_.word_pattern(hash_value, i);
 
         auto atom_word =
-          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + rank))};
+          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + i))};
         atom_word.fetch_or(word, cuda::memory_order_relaxed);
       }
     }
