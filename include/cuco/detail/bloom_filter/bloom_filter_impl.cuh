@@ -281,10 +281,6 @@ class bloom_filter_impl {
 
       detail::bloom_filter_ns::add<cg_size, block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
-
-      // fallback method
-      // auto const always_true = thrust::constant_iterator<bool>{true};
-      // this->add_if_async(first, last, always_true, thrust::identity{}, stream);
     }
   }
 
