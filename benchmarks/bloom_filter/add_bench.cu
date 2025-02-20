@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <exception>
+#include <limits>
 
 using namespace cuco::benchmark;  // defaults, dist_from_state, rebind_hasher_t, add_fpr_summary
 using namespace cuco::utility;    // key_generator, distribution
@@ -40,31 +41,38 @@ template <typename Key, typename Hash, typename Word, nvbench::int32_t WordsPerB
 void bloom_filter_add(nvbench::state& state,
                       nvbench::type_list<Key, Hash, Word, nvbench::enum_type<WordsPerBlock>, Dist>)
 {
+  using size_type   = std::uint32_t;
   using policy_type = cuco::default_filter_policy<rebind_hasher_t<Hash, Key>,
                                                   Word,
                                                   static_cast<std::uint32_t>(WordsPerBlock)>;
   using filter_type =
-    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
+    cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
+
+  constexpr auto filter_block_size =
+    sizeof(typename filter_type::word_type) * filter_type::words_per_block;
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
   auto const pattern_bits   = WordsPerBlock;
 
   try {
-    auto const policy = policy_type{static_cast<uint32_t>(pattern_bits)};
+    auto const policy = policy_type{static_cast<std::uint32_t>(pattern_bits)};
   } catch (std::exception const& e) {
     state.skip(e.what());  // skip invalid configurations
   }
 
-  std::size_t const num_sub_filters =
-    (filter_size_mb * 1024 * 1024) /
-    (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
+  std::size_t const num_sub_filters = (filter_size_mb * 1024 * 1024) / filter_block_size;
+
+  if (num_sub_filters > std::numeric_limits<size_type>::max()) {
+    state.skip("num_sub_filters too large for size_type");  // skip invalid configurations
+  }
 
   thrust::counting_iterator<Key> keys(0);
 
   state.add_element_count(num_keys);
 
-  filter_type filter{num_sub_filters, {}, {static_cast<uint32_t>(pattern_bits)}};
+  filter_type filter{
+    static_cast<size_type>(num_sub_filters), {}, {static_cast<std::uint32_t>(pattern_bits)}};
 
   state.collect_dram_throughput();
   state.collect_l2_hit_rates();
@@ -83,9 +91,10 @@ void bloom_filter_add(nvbench::state& state,
 template <typename Key, typename Dist>
 void arrow_bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
+  using size_type   = std::uint32_t;
   using policy_type = cuco::arrow_filter_policy<Key>;
   using filter_type =
-    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type>;
+    cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
 
   auto const num_keys       = state.get_int64("NumInputs");
   auto const filter_size_mb = state.get_int64("FilterSizeMB");
@@ -103,7 +112,7 @@ void arrow_bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Dist>
 
   state.add_element_count(num_keys);
 
-  filter_type filter{num_sub_filters};
+  filter_type filter{static_cast<size_type>(num_sub_filters)};
 
   state.collect_dram_throughput();
   state.collect_l2_hit_rates();
