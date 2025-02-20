@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,28 @@
 namespace cuco::detail::bloom_filter_ns {
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
+
+template <int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void add(InputIt first,
+                                                  cuco::detail::index_type n,
+                                                  Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  constexpr auto tile_size = cuco::detail::warp_size();
+
+  auto const tile_idx       = cuco::detail::global_thread_id() / tile_size;
+  auto const n_tiles        = gridDim.x * BlockSize / tile_size;
+  auto const items_per_tile = cuco::detail::int_div_ceil(n, n_tiles);
+
+  auto const tile_start = tile_idx * items_per_tile;
+  if (tile_start >= n) { return; }
+  auto const tile_stop = (tile_start + items_per_tile < n) ? tile_start + items_per_tile : n;
+
+  auto const tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+
+  ref.add(tile, first + tile_start, first + tile_stop);
+}
 
 template <int32_t CGSize,
           int32_t BlockSize,

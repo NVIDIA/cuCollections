@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,6 +70,15 @@ __device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(CG const& grou
                                                                   ProbeKey const& key)
 {
   impl_.add(group, key);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class CG, class InputIt>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(CG const& group,
+                                                                  InputIt first,
+                                                                  InputIt last)
+{
+  impl_.add(group, first, last);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
