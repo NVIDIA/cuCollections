@@ -99,7 +99,7 @@ class bloom_filter_impl {
   template <class CG>
   __device__ constexpr void clear(CG const& group)
   {
-    for (int i = group.thread_rank(); num_blocks_ * words_per_block; i += group.size()) {
+    for (int i = group.thread_rank(); i < num_blocks_ * words_per_block; i += group.size()) {
       words_[i] = 0;
     }
   }
