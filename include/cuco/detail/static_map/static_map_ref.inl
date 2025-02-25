@@ -488,12 +488,12 @@ class operator_impl<
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val       = ref_.impl_.heterogeneous_value(value);
-    auto const key       = ref_.impl_.extract_key(val);
-    auto& probing_scheme = ref_.impl_.probing_scheme();
-    auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(key, storage_ref.bucket_extent());
-    auto const init_idx  = *probing_iter;
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter         = probing_scheme(key, storage_ref.bucket_extent());
+    auto const init_idx       = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -536,12 +536,12 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val       = ref_.impl_.heterogeneous_value(value);
-    auto const key       = ref_.impl_.extract_key(val);
-    auto& probing_scheme = ref_.impl_.probing_scheme();
-    auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(group, key, storage_ref.bucket_extent());
-    auto const init_idx  = *probing_iter;
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter         = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const init_idx       = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -854,13 +854,13 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(key, storage_ref.bucket_extent());
-    auto const init_idx    = *probing_iter;
-    auto const empty_value = ref_.empty_value_sentinel();
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter         = probing_scheme(key, storage_ref.bucket_extent());
+    auto const init_idx       = *probing_iter;
+    auto const empty_value    = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
@@ -930,13 +930,13 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(group, key, storage_ref.bucket_extent());
-    auto const init_idx    = *probing_iter;
-    auto const empty_value = ref_.empty_value_sentinel();
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter         = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const init_idx       = *probing_iter;
+    auto const empty_value    = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);

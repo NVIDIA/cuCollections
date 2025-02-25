@@ -177,7 +177,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  [[nodiscard]] __host__ __device__ constexpr key_type const& empty_key_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept
   {
     return this->predicate_.empty_sentinel_;
   }
@@ -188,7 +188,7 @@ class open_addressing_ref_impl {
    * @return The sentinel value used to represent an empty payload slot
    */
   template <bool Dummy = true, typename Enable = std::enable_if_t<has_payload and Dummy>>
-  [[nodiscard]] __host__ __device__ constexpr auto const& empty_value_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto empty_value_sentinel() const noexcept
   {
     return this->extract_payload(this->empty_slot_sentinel());
   }
@@ -198,7 +198,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an erased key slot
    */
-  [[nodiscard]] __host__ __device__ constexpr key_type const& erased_key_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr key_type erased_key_sentinel() const noexcept
   {
     return this->predicate_.erased_sentinel_;
   }
@@ -208,7 +208,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty slot
    */
-  [[nodiscard]] __host__ __device__ constexpr value_type const& empty_slot_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr value_type empty_slot_sentinel() const noexcept
   {
     return empty_slot_sentinel_;
   }
@@ -218,8 +218,8 @@ class open_addressing_ref_impl {
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> const&
-  predicate() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> predicate()
+    const noexcept
   {
     return this->predicate_;
   }
@@ -239,8 +239,7 @@ class open_addressing_ref_impl {
    *
    * @return The probing scheme used for the container
    */
-  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type const& probing_scheme()
-    const noexcept
+  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type probing_scheme() const noexcept
   {
     return probing_scheme_;
   }
@@ -260,7 +259,7 @@ class open_addressing_ref_impl {
    *
    * @return The non-owning storage ref of the container
    */
-  [[nodiscard]] __host__ __device__ constexpr storage_ref_type const& storage_ref() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr storage_ref_type storage_ref() const noexcept
   {
     return storage_ref_;
   }
@@ -1199,7 +1198,7 @@ class open_addressing_ref_impl {
       if (active_flag) {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
-        auto const& probe_key = *(input_probe + idx);
+        auto const probe_key = *(input_probe + idx);
         auto probing_iter =
           this->probing_scheme_(probing_tile, probe_key, this->storage_ref_.bucket_extent());
         auto const init_idx = *probing_iter;
@@ -1487,8 +1486,7 @@ class open_addressing_ref_impl {
    * @return The key
    */
   template <typename Value>
-  [[nodiscard]] __host__ __device__ constexpr auto const& extract_key(
-    Value const& value) const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto extract_key(Value const& value) const noexcept
   {
     if constexpr (this->has_payload) {
       return thrust::raw_reference_cast(value).first;
@@ -1509,7 +1507,7 @@ class open_addressing_ref_impl {
    * @return The payload
    */
   template <typename Value, typename Enable = std::enable_if_t<has_payload and sizeof(Value)>>
-  [[nodiscard]] __device__ constexpr auto const& extract_payload(Value const& value) const noexcept
+  [[nodiscard]] __device__ constexpr auto extract_payload(Value const& value) const noexcept
   {
     return thrust::raw_reference_cast(value).second;
   }
