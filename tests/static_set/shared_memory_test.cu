@@ -160,7 +160,7 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   __shared__ cuco::bucket<slot_type, bucket_size> set[NumBuckets];
 
   using extent_type      = cuco::extent<std::size_t, NumBuckets>;
-  using storage_ref_type = cuco::aow_storage_ref<slot_type, bucket_size, extent_type>;
+  using storage_ref_type = cuco::bucket_storage_ref<slot_type, bucket_size, extent_type>;
 
   auto raw_ref =
     cuco::static_set_ref{cuco::empty_key<Key>{-1},
