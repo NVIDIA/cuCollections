@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -39,18 +39,20 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
 
   SECTION("Initialize empty storage is allowed.")
   {
-    auto s = cuco::
-      aow_storage<cuco::pair<Key, Value>, bucket_size, cuco::extent<std::size_t>, allocator_type>{
-        cuco::extent<std::size_t>{0}, allocator};
+    auto s = cuco::bucket_storage<cuco::pair<Key, Value>,
+                                  bucket_size,
+                                  cuco::extent<std::size_t>,
+                                  allocator_type>{cuco::extent<std::size_t>{0}, allocator};
 
     s.initialize(cuco::pair<Key, Value>{1, 1});
   }
 
   SECTION("Allocate array of pairs with AoS storage.")
   {
-    auto s = cuco::
-      aow_storage<cuco::pair<Key, Value>, bucket_size, cuco::extent<std::size_t>, allocator_type>(
-        cuco::extent{size}, allocator);
+    auto s                 = cuco::bucket_storage<cuco::pair<Key, Value>,
+                                                  bucket_size,
+                                                  cuco::extent<std::size_t>,
+                                                  allocator_type>(cuco::extent{size}, allocator);
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
@@ -61,7 +63,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
   SECTION("Allocate array of pairs with AoS storage with static extent.")
   {
     using extent_type = cuco::extent<std::size_t, size>;
-    auto s = cuco::aow_storage<cuco::pair<Key, Value>, bucket_size, extent_type, allocator_type>(
+    auto s = cuco::bucket_storage<cuco::pair<Key, Value>, bucket_size, extent_type, allocator_type>(
       extent_type{}, allocator);
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
@@ -72,7 +74,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
 
   SECTION("Allocate array of keys with AoS storage.")
   {
-    auto s = cuco::aow_storage<Key, bucket_size, cuco::extent<std::size_t>, allocator_type>(
+    auto s = cuco::bucket_storage<Key, bucket_size, cuco::extent<std::size_t>, allocator_type>(
       cuco::extent{size}, allocator);
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
@@ -85,7 +87,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
   {
     using extent_type = cuco::extent<std::size_t, size>;
     auto s =
-      cuco::aow_storage<Key, bucket_size, extent_type, allocator_type>(extent_type{}, allocator);
+      cuco::bucket_storage<Key, bucket_size, extent_type, allocator_type>(extent_type{}, allocator);
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
