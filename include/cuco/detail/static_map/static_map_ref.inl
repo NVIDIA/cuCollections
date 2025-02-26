@@ -449,7 +449,8 @@ class operator_impl<
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(group, value);
+    return ref_.impl_.insert<cuco::detail::has_operator<cuco::erase_tag, Operators...>()>(group,
+                                                                                          value);
   }
 };
 
