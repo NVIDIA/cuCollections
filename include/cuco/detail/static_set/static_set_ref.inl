@@ -391,8 +391,11 @@ class operator_impl<op::insert_tag,
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert<cuco::detail::has_operator<cuco::erase_tag, Operators...>()>(group,
-                                                                                          value);
+    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+      return ref_.impl_.insert<true>(group, value);
+    } else {
+      return ref_.impl_.insert<false>(group, value);
+    }
   }
 };
 
