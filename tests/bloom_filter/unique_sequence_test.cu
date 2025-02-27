@@ -27,6 +27,8 @@
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <exception>
+
 using size_type = int32_t;
 
 template <typename Filter>
@@ -96,8 +98,14 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
   constexpr size_type num_keys{400};
 
-  uint32_t pattern_bits =
-    GENERATE(Policy::words_per_block, Policy::words_per_block + 1, Policy::words_per_block + 2);
+  uint32_t pattern_bits = Policy::words_per_block + GENERATE(0, 1, 2, 3, 4);
+
+  // some parameter combinations might be invalid so we skip them
+  try {
+    [[maybe_unused]] auto policy = Policy{pattern_bits};
+  } catch (std::exception const& e) {
+    SKIP(e.what());
+  }
 
   auto filter = filter_type{1000, {}, {pattern_bits}};
 
