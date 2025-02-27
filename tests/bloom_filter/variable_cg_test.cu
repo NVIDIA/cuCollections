@@ -101,7 +101,6 @@ TEMPLATE_TEST_CASE_SIG(
   uint32_t pattern_bits = GENERATE(Policy::words_per_block,
                                    Policy::words_per_block + 1,
                                    Policy::words_per_block + 2,
-                                   ,
                                    Policy::words_per_block + 3);
 
   auto filter = filter_type{1000, {}, {pattern_bits}};
