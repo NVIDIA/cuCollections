@@ -1214,15 +1214,15 @@ class open_addressing_ref_impl {
         bool running                      = true;
         [[maybe_unused]] bool found_match = false;
 
-        bool equals[buffer_size];
-        uint32_t exists[buffer_size];
+        bool equals[bucket_size];
+        uint32_t exists[bucket_size];
 
         while (active_flushing_tile.any(running)) {
           if (running) {
             // TODO atomic_ref::load if insert operator is present
             auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-#pragma unroll buffer_size
+#pragma unroll bucket_size
             for (int32_t i = 0; i < bucket_size; ++i) {
               equals[i] = false;
               if (running) {
@@ -1247,7 +1247,7 @@ class open_addressing_ref_impl {
 
             probing_tile.sync();
             running = probing_tile.all(running);
-#pragma unroll buffer_size
+#pragma unroll bucket_size
             for (int32_t i = 0; i < bucket_size; ++i) {
               exists[i] = probing_tile.ballot(equals[i]);
             }
@@ -1274,7 +1274,7 @@ class open_addressing_ref_impl {
               output_idx = probing_tile.shfl(output_idx, 0);
 
               int32_t matches_offset = 0;
-#pragma unroll buffer_size
+#pragma unroll bucket_size
               for (int32_t i = 0; i < bucket_size; ++i) {
                 if (equals[i]) {
                   auto const lane_offset = detail::count_least_significant_bits(exists[i], lane_id);
