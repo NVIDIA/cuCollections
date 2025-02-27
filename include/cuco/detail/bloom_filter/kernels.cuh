@@ -26,7 +26,7 @@ namespace cuco::detail::bloom_filter_ns {
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
-template <int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+template <int32_t BlockSize, class InputIt, class Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void add(InputIt first,
                                                   cuco::detail::index_type n,
                                                   Ref ref)
