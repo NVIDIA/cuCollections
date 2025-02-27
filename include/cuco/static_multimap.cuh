@@ -93,10 +93,10 @@ template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme      = cuco::linear_probing<4,  // CG size
+          class ProbingScheme      = cuco::double_hashing<8,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
-          class Storage            = cuco::storage<1>>
+          class Storage            = cuco::storage<2>>
 class static_multimap {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
