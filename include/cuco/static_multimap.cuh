@@ -858,9 +858,9 @@ class static_multimap {
   [[nodiscard]] size_type size(cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Gets the maximum number of elements the hash map can hold.
+   * @brief Gets the maximum number of elements the multimap can hold.
    *
-   * @return The maximum number of elements the hash map can hold
+   * @return The maximum number of elements the multimap can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept;
 
