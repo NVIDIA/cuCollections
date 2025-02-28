@@ -51,5 +51,18 @@ CUCO_KERNEL void initialize(BucketT* buckets,
   }
 }
 
+template <typename BucketT>
+CUCO_KERNEL void initialize(BucketT* buckets, cuco::detail::index_type n, BucketT value)
+{
+  auto const loop_stride = cuco::detail::grid_stride();
+  auto idx               = cuco::detail::global_thread_id();
+
+  while (idx < n) {
+    auto& slot = *(buckets + idx);
+    slot       = value;
+    idx += loop_stride;
+  }
+}
+
 }  // namespace detail
 }  // namespace cuco

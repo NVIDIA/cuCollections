@@ -99,7 +99,7 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
     return bucket_extent<SizeType>{static_cast<SizeType>(
       *cuco::detail::lower_bound(
         cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
-      CGSize)};
+      CGSize * BucketSize)};
   }
   if constexpr (N != dynamic_extent) {
     return bucket_extent<SizeType,

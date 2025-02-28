@@ -430,71 +430,34 @@ class open_addressing_ref_impl {
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          Value const& value) noexcept
   {
-    auto const val      = this->heterogeneous_value(value);
-    auto const key      = this->extract_key(val);
-    auto probing_iter   = probing_scheme_(group, key, storage_ref_.bucket_extent());
-    auto const init_idx = *probing_iter;
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
+    auto* data        = reinterpret_cast<char*>(storage_ref_.data());
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      value_type bucket_slots[2];
+      auto const tmp =
+        *reinterpret_cast<uint4 const*>(data + *probing_iter * sizeof(value_type) * 2);
+      memcpy(&bucket_slots[0], &tmp, 2 * sizeof(value_type));
 
-      auto const [state, intra_bucket_index] = [&]() {
-        for (auto i = 0; i < bucket_size; ++i) {
-          switch (
-            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]))) {
-            case detail::equal_result::AVAILABLE:
-              return bucket_probing_results{detail::equal_result::AVAILABLE, i};
-            case detail::equal_result::EQUAL: {
-              if constexpr (allows_duplicates) {
-                continue;
-              } else {
-                return bucket_probing_results{detail::equal_result::EQUAL, i};
-              }
-            }
-            default: continue;
-          }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return bucket_probing_results{detail::equal_result::UNEQUAL, -1};
-      }();
+      auto const first_slot_is_empty =
+        detail::bitwise_compare(bucket_slots[0].first, this->empty_key_sentinel());
+      auto const second_slot_is_empty =
+        detail::bitwise_compare(bucket_slots[1].first, this->empty_key_sentinel());
 
-      if constexpr (not allows_duplicates) {
-        // If the key is already in the container, return false
-        if (group.any(state == detail::equal_result::EQUAL)) { return false; }
-      }
+      auto const bucket_contains_empty = group.ballot(first_slot_is_empty or second_slot_is_empty);
 
-      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
-      if (group_contains_available) {
-        auto const src_lane = __ffs(group_contains_available) - 1;
+      if (bucket_contains_empty) {
+        auto const src_lane = __ffs(bucket_contains_empty) - 1;
         auto status         = insert_result::CONTINUE;
         if (group.thread_rank() == src_lane) {
-          if constexpr (SupportsErase) {
-            status =
-              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                             bucket_slots[intra_bucket_index],
-                             val);
-          } else {
-            status =
-              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                             this->empty_slot_sentinel(),
-                             val);
-          }
+          status = attempt_insert(bucket_slots, this->empty_slot_sentinel(), val);
         }
 
-        switch (group.shfl(status, src_lane)) {
-          case insert_result::SUCCESS: return true;
-          case insert_result::DUPLICATE: {
-            if constexpr (allows_duplicates) {
-              [[fallthrough]];
-            } else {
-              return false;
-            }
-          }
-          default: continue;
-        }
+        if (group.any(status == insert_result::SUCCESS)) { return true; }
       } else {
         ++probing_iter;
-        if (*probing_iter == init_idx) { return false; }
       }
     }
   }

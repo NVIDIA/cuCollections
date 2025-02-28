@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/bucket_storage.cuh>
+#include <cuco/flat_storage.cuh>
 
 namespace cuco {
 namespace detail {
@@ -56,6 +57,39 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
    * @param allocator Allocator used for (de)allocating device storage
    */
   explicit constexpr storage(Extent size, Allocator const& allocator) : impl_type{size, allocator}
+  {
+  }
+};
+
+template <class StorageImpl, class T, class Extent, class Allocator>
+class slot_storage : StorageImpl::template impl<T, Extent, Allocator> {
+ public:
+  /// Storage implementation type
+  using impl_type      = typename StorageImpl::template impl<T, Extent, Allocator>;
+  using ref_type       = typename impl_type::ref_type;        ///< Storage ref type
+  using value_type     = typename impl_type::value_type;      ///< Storage value type
+  using allocator_type = typename impl_type::allocator_type;  ///< Storage value type
+
+  /// Number of elements per bucket
+  static constexpr int bucket_size = impl_type::bucket_size;
+
+  using impl_type::allocator;
+  using impl_type::bucket_extent;
+  using impl_type::capacity;
+  using impl_type::data;
+  using impl_type::initialize;
+  using impl_type::initialize_async;
+  using impl_type::num_buckets;
+  using impl_type::ref;
+
+  /**
+   * @brief Constructs storage.
+   *
+   * @param size Number of slots to (de)allocate
+   * @param allocator Allocator used for (de)allocating device storage
+   */
+  explicit constexpr slot_storage(Extent size, Allocator const& allocator)
+    : impl_type{size, allocator}
   {
   }
 };

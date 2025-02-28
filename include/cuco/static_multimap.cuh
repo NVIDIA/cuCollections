@@ -96,7 +96,7 @@ template <class Key,
           class ProbingScheme      = cuco::double_hashing<8,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
-          class Storage            = cuco::storage<2>>
+          class Storage            = cuco::slot_storage<2>>
 class static_multimap {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 

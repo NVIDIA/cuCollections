@@ -45,4 +45,15 @@ class storage {
   using impl = bucket_storage<T, bucket_size, Extent, Allocator>;
 };
 
+template <int32_t BucketSize>
+class slot_storage {
+ public:
+  /// Number of slots per bucket storage
+  static constexpr int32_t bucket_size = BucketSize;
+
+  /// Type of implementation details
+  template <class T, class Extent, class Allocator>
+  using impl = flat_storage<T, bucket_size, Extent, Allocator>;
+};
+
 }  // namespace cuco
