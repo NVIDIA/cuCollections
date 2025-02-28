@@ -69,8 +69,7 @@ int main(void)
     float(thrust::count(thrust::device, tn_result.begin(), tn_result.end(), true)) / float(num_tn);
 
   std::cout << "TPR[measured]=" << tp_rate << " FPR[measured]=" << fp_rate
-            << " FPR[expected]=" << filter.expected_false_positive_rate(num_keys * 0.5)
-            << std::endl;
+            << " FPR[expected]=" << filter.expected_false_positive_rate(num_tp) << std::endl;
 
   return 0;
 }

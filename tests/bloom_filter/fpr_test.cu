@@ -23,8 +23,12 @@
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+
+#include <cstdint>
+#include <exception>
 
 using size_type = int32_t;
 
@@ -69,7 +73,18 @@ void test_fpr(Filter& filter, size_type num_keys)
 
   SECTION("Fals-positive rate should be close to the theoretical value.")
   {
-    REQUIRE(fp_rate < 1.0f);  // TODO use actual theoretical FPR value
+    auto expected_fpr = filter.expected_false_positive_rate(num_tp);
+    INFO("expected_fpr = " << expected_fpr << ", fp_rate = " << fp_rate);
+
+    // If the expected FPR is zero, then we expect fp_rate to be zero.
+    if (expected_fpr == 0.0) {
+      REQUIRE(fp_rate == 0.0f);
+    } else {
+      // Only fail if fp_rate exceeds expected_fpr by more than 3%
+      float relative_excess =
+        (fp_rate > expected_fpr) ? (fp_rate - expected_fpr) / expected_fpr : 0.0f;
+      REQUIRE(relative_excess <= 0.03f);
+    }
   }
 }
 
@@ -86,8 +101,14 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
   constexpr size_type num_keys{400};
 
-  uint32_t pattern_bits =
-    GENERATE(Policy::words_per_block, Policy::words_per_block + 1, Policy::words_per_block + 2);
+  uint32_t pattern_bits = Policy::words_per_block + GENERATE(0, 1, 2, 3, 4);
+
+  // some parameter combinations might be invalid so we skip them
+  try {
+    [[maybe_unused]] auto policy = Policy{pattern_bits};
+  } catch (std::exception const& e) {
+    SKIP(e.what());
+  }
 
   auto filter = filter_type{1000, {}, {pattern_bits}};
 
