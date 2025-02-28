@@ -417,6 +417,11 @@ class bloom_filter_impl {
         first, num_keys, stencil, pred, output_begin, *this);
   }
 
+  [[nodiscard]] __host__ double expected_false_positive_rate(size_t num_items) const
+  {
+    return policy_.expected_false_positive_rate(num_items, num_blocks_);
+  }
+
   [[nodiscard]] __host__ __device__ constexpr word_type* data() noexcept { return words_; }
 
   [[nodiscard]] __host__ __device__ constexpr word_type const* data() const noexcept
@@ -431,7 +436,6 @@ class bloom_filter_impl {
 
   // TODO
   // [[nodiscard]] __host__ double occupancy() const;
-  // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const
   // [[nodiscard]] __host__ __device__ static uint32_t optimal_pattern_bits(size_t num_blocks)
   // template <typename CG, cuda::thread_scope NewScope = thread_scope>
   // [[nodiscard]] __device__ constexpr auto make_copy(CG const& group, word_type* const

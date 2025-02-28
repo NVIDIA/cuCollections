@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,16 +29,18 @@ __host__
 }
 
 template <class Hash, class Word, uint32_t WordsPerBlock>
-__device__ constexpr typename default_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type
-default_filter_policy<Hash, Word, WordsPerBlock>::hash(
-  typename default_filter_policy<Hash, Word, WordsPerBlock>::hash_argument_type const& key) const
+[[nodiscard]] __device__ constexpr
+  typename default_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type
+  default_filter_policy<Hash, Word, WordsPerBlock>::hash(
+    typename default_filter_policy<Hash, Word, WordsPerBlock>::hash_argument_type const& key) const
 {
   return impl_.hash(key);
 }
 
 template <class Hash, class Word, uint32_t WordsPerBlock>
 template <class Extent>
-__device__ constexpr auto default_filter_policy<Hash, Word, WordsPerBlock>::block_index(
+[[nodiscard]] __device__ constexpr auto
+default_filter_policy<Hash, Word, WordsPerBlock>::block_index(
   typename default_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type hash,
   Extent num_blocks) const
 {
@@ -46,12 +48,21 @@ __device__ constexpr auto default_filter_policy<Hash, Word, WordsPerBlock>::bloc
 }
 
 template <class Hash, class Word, uint32_t WordsPerBlock>
-__device__ constexpr typename default_filter_policy<Hash, Word, WordsPerBlock>::word_type
-default_filter_policy<Hash, Word, WordsPerBlock>::word_pattern(
-  default_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type hash,
-  std::uint32_t word_index) const
+[[nodiscard]] __device__ constexpr
+  typename default_filter_policy<Hash, Word, WordsPerBlock>::word_type
+  default_filter_policy<Hash, Word, WordsPerBlock>::word_pattern(
+    default_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type hash,
+    std::uint32_t word_index) const
 {
   return impl_.word_pattern(hash, word_index);
+}
+
+template <class Hash, class Word, uint32_t WordsPerBlock>
+[[nodiscard]] __host__ double
+default_filter_policy<Hash, Word, WordsPerBlock>::expected_false_positive_rate(
+  size_t num_items, size_t num_blocks) const
+{
+  return impl_.expected_false_positive_rate(num_items, num_blocks);
 }
 
 }  // namespace cuco

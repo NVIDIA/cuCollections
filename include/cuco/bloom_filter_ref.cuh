@@ -370,6 +370,17 @@ class bloom_filter_ref {
                                             cuda::stream_ref stream = {}) const noexcept;
 
   /**
+   * @brief Computes the expected false-positive rate of a blocked Bloom filter
+   * using the Poisson-based formula (Eq. 3) from Putze et.al. "Cache-, Hash- and Space-Efficient
+   * Bloom Filters".
+   *
+   * @param num_items Number of inserted distinct elements
+   *
+   * @return Approximation of the expected false-positive rate
+   */
+  [[nodiscard]] __host__ double expected_false_positive_rate(size_t num_items) const;
+
+  /**
    * @brief Gets a pointer to the underlying filter storage.
    *
    * @return Pointer to the underlying filter storage

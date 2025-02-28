@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/bloom_filter/utils.hpp>
 #include <cuco/hash_functions.cuh>
 
 #include <cuda/functional>
@@ -135,7 +136,8 @@ class arrow_filter_policy {
    * @return The block index for the given key's hash value
    */
   template <class Extent>
-  __device__ constexpr auto block_index(hash_result_type hash, Extent num_blocks) const
+  [[nodiscard]] __device__ constexpr auto block_index(hash_result_type hash,
+                                                      Extent num_blocks) const
   {
     constexpr auto hash_bits = cuda::std::numeric_limits<word_type>::digits;
     // TODO: assert if num_blocks > max_filter_blocks
@@ -153,7 +155,8 @@ class arrow_filter_policy {
    *
    * @return The bit pattern for the word/segment in the filter block
    */
-  __device__ constexpr word_type word_pattern(hash_result_type hash, std::uint32_t word_index) const
+  [[nodiscard]] __device__ constexpr word_type word_pattern(hash_result_type hash,
+                                                            std::uint32_t word_index) const
   {
     word_type const key = static_cast<word_type>(hash);
     std::uint32_t salt;
@@ -180,6 +183,27 @@ class arrow_filter_policy {
       }
     }
     return word_type{1} << ((key * salt) >> 27);
+  }
+
+  /**
+   * @brief Computes the expected false-positive rate of a blocked Bloom filter
+   * using the Poisson-based formula (Eq. 3) from Putze et.al. "Cache-, Hash- and Space-Efficient
+   * Bloom Filters".
+   *
+   * @param num_items Number of inserted distinct elements
+   * @param num_blocks The total number of blocks in the filter
+   *
+   * @return Approximation of the expected false-positive rate
+   */
+  [[nodiscard]] __host__ double expected_false_positive_rate(size_t num_items,
+                                                             size_t num_blocks) const
+  {
+    return blocked_bloom_filter_expected_fpr(num_items,
+                                             num_blocks * words_per_block * sizeof(word_type),
+                                             cuda::std::numeric_limits<word_type>::digits,
+                                             words_per_block,
+                                             cuda::std::numeric_limits<hash_result_type>::digits,
+                                             words_per_block);
   }
 
  private:

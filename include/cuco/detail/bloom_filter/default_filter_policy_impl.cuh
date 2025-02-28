@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/bloom_filter/utils.hpp>
 #include <cuco/detail/error.hpp>
 
 #include <cuda/std/bit>
@@ -35,6 +36,14 @@ class default_filter_policy_impl {
   using word_type          = Word;
   using hash_argument_type = typename hasher::argument_type;
   using hash_result_type   = decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));
+
+  static_assert(cuda::std::is_integral<word_type>::value &&
+                  cuda::std::is_unsigned<word_type>::value,
+                "Word type must be an unsigned integral type");
+
+  static_assert(cuda::std::is_integral<hash_result_type>::value &&
+                  cuda::std::is_unsigned<hash_result_type>::value,
+                "Hash result type must be an unsigned integral type");
 
   static constexpr std::uint32_t words_per_block = WordsPerBlock;
 
@@ -103,6 +112,17 @@ class default_filter_policy_impl {
     }
 
     return word;
+  }
+
+  [[nodiscard]] __host__ double expected_false_positive_rate(size_t num_items,
+                                                             size_t num_blocks) const
+  {
+    return blocked_bloom_filter_expected_fpr(num_items,
+                                             num_blocks * words_per_block * sizeof(word_type),
+                                             cuda::std::numeric_limits<word_type>::digits,
+                                             words_per_block,
+                                             cuda::std::numeric_limits<hash_result_type>::digits,
+                                             pattern_bits_);
   }
 
  private:

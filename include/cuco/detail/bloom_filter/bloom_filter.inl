@@ -130,6 +130,14 @@ __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::con
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+[[nodiscard]] __host__ double
+bloom_filter<Key, Extent, Scope, Policy, Allocator>::expected_false_positive_rate(
+  size_t num_items) const
+{
+  return ref_.expected_false_positive_rate(num_items);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
   typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::word_type*
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::data() noexcept

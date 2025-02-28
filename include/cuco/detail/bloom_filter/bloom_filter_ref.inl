@@ -181,6 +181,13 @@ template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+[[nodiscard]] __host__ double
+bloom_filter_ref<Key, Extent, Scope, Policy>::expected_false_positive_rate(size_t num_items) const
+{
+  return impl_.expected_false_positive_rate(num_items);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 [[nodiscard]] __host__ __device__ constexpr
   typename bloom_filter_ref<Key, Extent, Scope, Policy>::word_type const*
   bloom_filter_ref<Key, Extent, Scope, Policy>::data() const noexcept

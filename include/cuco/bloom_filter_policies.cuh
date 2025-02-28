@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,7 +40,7 @@ using arrow_filter_policy = detail::arrow_filter_policy<Key, XXHash64>;
  * @brief The default policy that defines how a Blocked Bloom Filter generates and stores a key's
  * fingerprint.
  *
- * @note `Word` type must be an atomically updatable integral type. `WordsPerBlock` must
+ * @note `Word` type must be an atomically updatable unsigned integral type. `WordsPerBlock` must
  * be a power-of-two.
  *
  * @tparam Hash Hash function used to generate a key's fingerprint
@@ -92,7 +92,7 @@ class default_filter_policy {
    *
    * @return The hash value of the key
    */
-  __device__ constexpr hash_result_type hash(hash_argument_type const& key) const;
+  [[nodiscard]] __device__ constexpr hash_result_type hash(hash_argument_type const& key) const;
 
   /**
    * @brief Determines the filter block a key is added into.
@@ -108,7 +108,8 @@ class default_filter_policy {
    * @return The block index for the given key's hash value
    */
   template <class Extent>
-  __device__ constexpr auto block_index(hash_result_type hash, Extent num_blocks) const;
+  [[nodiscard]] __device__ constexpr auto block_index(hash_result_type hash,
+                                                      Extent num_blocks) const;
 
   /**
    * @brief Determines the fingerprint pattern for a word/segment within the filter block for a
@@ -122,8 +123,21 @@ class default_filter_policy {
    *
    * @return The bit pattern for the word/segment in the filter block
    */
-  __device__ constexpr word_type word_pattern(hash_result_type hash,
-                                              std::uint32_t word_index) const;
+  [[nodiscard]] __device__ constexpr word_type word_pattern(hash_result_type hash,
+                                                            std::uint32_t word_index) const;
+
+  /**
+   * @brief Computes the expected false-positive rate of a blocked Bloom filter
+   * using the Poisson-based formula (Eq. 3) from Putze et.al. "Cache-, Hash- and Space-Efficient
+   * Bloom Filters".
+   *
+   * @param num_items Number of inserted distinct elements
+   * @param num_blocks The total number of blocks in the filter
+   *
+   * @return Approximation of the expected false-positive rate
+   */
+  [[nodiscard]] __host__ double expected_false_positive_rate(size_t num_items,
+                                                             size_t num_blocks) const;
 
  private:
   impl_type impl_;  ///< Policy implementation

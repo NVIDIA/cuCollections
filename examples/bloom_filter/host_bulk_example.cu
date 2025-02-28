@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -68,7 +68,9 @@ int main(void)
   float fp_rate =
     float(thrust::count(thrust::device, tn_result.begin(), tn_result.end(), true)) / float(num_tn);
 
-  std::cout << "TPR=" << tp_rate << " FPR=" << fp_rate << std::endl;
+  std::cout << "TPR[measured]=" << tp_rate << " FPR[measured]=" << fp_rate
+            << " FPR[expected]=" << filter.expected_false_positive_rate(num_keys * 0.5)
+            << std::endl;
 
   return 0;
 }
