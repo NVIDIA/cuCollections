@@ -309,7 +309,7 @@ class open_addressing_ref_impl {
    *
    * @tparam CG The type of the cooperative thread group
    *
-   * @param g The ooperative thread group used to copy the data structure
+   * @param g The cooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
    */
@@ -426,7 +426,7 @@ class open_addressing_ref_impl {
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
+  template <bool SupportsErase, typename Value>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          Value const& value) noexcept
   {
@@ -466,12 +466,20 @@ class open_addressing_ref_impl {
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
-        auto const status =
-          (group.thread_rank() == src_lane)
-            ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
+        auto status         = insert_result::CONTINUE;
+        if (group.thread_rank() == src_lane) {
+          if constexpr (SupportsErase) {
+            status =
+              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
                              bucket_slots[intra_bucket_index],
-                             val)
-            : insert_result::CONTINUE;
+                             val);
+          } else {
+            status =
+              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
+                             this->empty_slot_sentinel(),
+                             val);
+          }
+        }
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
