@@ -990,27 +990,35 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ size_type count(
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
-    auto probing_iter   = probing_scheme_(group, key, storage_ref_.bucket_extent());
-    auto const init_idx = *probing_iter;
-    size_type count     = 0;
+    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
+    size_type count   = 0;
 
-    while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+    auto* data = reinterpret_cast<char*>(storage_ref_.data());
 
-      auto const state = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto& slot : bucket_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
-          if (res == detail::equal_result::EMPTY) { return res; }
-          count += static_cast<size_type>(res);
-        }
-        return res;
-      }();
+    if constexpr (has_payload) {
+      while (true) {
+        value_type bucket_slots[2];
+        auto const tmp =
+          *reinterpret_cast<uint4 const*>(data + *probing_iter * sizeof(value_type) * 2);
+        memcpy(&bucket_slots[0], &tmp, 2 * sizeof(value_type));
 
-      if (group.any(state == detail::equal_result::EMPTY)) { return count; }
-      ++probing_iter;
-      if (*probing_iter == init_idx) { return count; }
+        auto const first_slot_is_empty =
+          detail::bitwise_compare(bucket_slots[0].first, this->empty_key_sentinel());
+        auto const second_slot_is_empty =
+          detail::bitwise_compare(bucket_slots[1].first, this->empty_key_sentinel());
+        auto const first_equals =
+          (not first_slot_is_empty and predicate_.equal_(key, bucket_slots[0].first));
+        auto const second_equals =
+          (not second_slot_is_empty and predicate_.equal_(key, bucket_slots[1].first));
+
+        count += (first_equals + second_equals);
+
+        if (group.any(first_slot_is_empty or second_slot_is_empty)) { return count; }
+
+        ++probing_iter;
+      }
     }
+    return count;
   }
 
   /**
