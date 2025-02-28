@@ -309,7 +309,7 @@ class open_addressing_ref_impl {
    *
    * @tparam CG The type of the cooperative thread group
    *
-   * @param g The ooperative thread group used to copy the data structure
+   * @param g The cooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
    */
