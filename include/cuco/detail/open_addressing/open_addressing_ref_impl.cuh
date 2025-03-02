@@ -367,13 +367,14 @@ class open_addressing_ref_impl {
   /**
    * @brief Inserts an element.
    *
+   * @tparam SupportsErase Whether the container supports erased keys
    * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
+  template <bool SupportsErase, typename Value>
   __device__ bool insert(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
@@ -396,9 +397,21 @@ class open_addressing_ref_impl {
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                                 slot_content,
-                                 val)) {
+          auto const status             = [&]() {
+            if constexpr (SupportsErase) {
+              return attempt_insert(
+                (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
+                slot_content,
+                val);
+            } else {
+              return attempt_insert(
+                (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
+                this->empty_slot_sentinel(),
+                val);
+            }
+          }();
+
+          switch (status) {
             case insert_result::DUPLICATE: {
               if constexpr (allows_duplicates) {
                 [[fallthrough]];
