@@ -417,8 +417,9 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Inserts an element.
+   * @brief Inserts an element using cooperative groups
    *
+   * @tparam SupportsErase Whether the container supports erased keys
    * @tparam Value Input type which is convertible to 'value_type'
    *
    * @param group The Cooperative Group used to perform group insert
