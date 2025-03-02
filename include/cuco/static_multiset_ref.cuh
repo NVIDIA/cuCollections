@@ -244,6 +244,13 @@ class static_multiset_ref
   [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(NewHash const& hash) const;
 
  private:
+  /**
+   * @brief Indicates whether the container supports erased keys.
+   *
+   * @return True if the container supports erased keys, false otherwise
+   */
+  [[nodiscard]] __host__ __device__ constexpr bool supports_erase() const noexcept;
+
   impl_type impl_;
 
   // Mixins need to be friends with this class in order to access private members

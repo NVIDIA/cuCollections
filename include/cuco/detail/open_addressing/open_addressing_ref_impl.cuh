@@ -1497,6 +1497,16 @@ class open_addressing_ref_impl {
       if (*probing_iter == init_idx) { return; }
     }
   }
+  /**
+   * @brief Indicates whether the container supports erased keys.
+   *
+   * @return True if the container supports erased keys, false otherwise
+   */
+
+  [[nodiscard]] __host__ __device__ constexpr bool supports_erase() const noexcept
+  {
+    return predicate_.supports_erase();
+  }
 
   /**
    * @brief Extracts the key from a given value type.

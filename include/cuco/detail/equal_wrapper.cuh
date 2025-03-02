@@ -60,6 +60,16 @@ struct equal_wrapper {
   }
 
   /**
+   * @brief Returns whether the container supports erased keys
+   *
+   * @return True if empty and erased sentinels are different values, indicating erase support
+   */
+  [[nodiscard]] __host__ __device__ constexpr bool supports_erase() const noexcept
+  {
+    return !cuco::detail::bitwise_compare(empty_sentinel_, erased_sentinel_);
+  }
+
+  /**
    * @brief Equality check with the given equality callable.
    *
    * @tparam LHS Left-hand side Element type

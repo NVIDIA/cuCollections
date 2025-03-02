@@ -400,6 +400,19 @@ static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operator
 {
   impl_.initialize(tile);
 }
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+[[nodiscard]] __host__ __device__ constexpr bool
+static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
+  supports_erase() const noexcept
+{
+  return impl_.supports_erase();
+}
 
 namespace detail {
 
@@ -437,7 +450,7 @@ class operator_impl<
   __device__ bool insert(Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+    if (ref_.supports_erase()) {
       return ref_.impl_.insert<true>(value);
     } else {
       return ref_.impl_.insert<false>(value);
@@ -459,7 +472,7 @@ class operator_impl<
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+    if (ref_.supports_erase()) {
       return ref_.impl_.insert<true>(group, value);
     } else {
       return ref_.impl_.insert<false>(group, value);

@@ -301,6 +301,13 @@ class static_multimap_ref
   __device__ constexpr void initialize(CG const& tile) noexcept;
 
  private:
+  /**
+   * @brief Indicates whether the container supports erased keys.
+   *
+   * @return True if the container supports erased keys, false otherwise
+   */
+  [[nodiscard]] __host__ __device__ constexpr bool supports_erase() const noexcept;
+
   impl_type impl_;  ///< Static map ref implementation
 
   // Mixins need to be friends with this class in order to access private members
