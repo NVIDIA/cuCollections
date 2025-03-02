@@ -436,8 +436,12 @@ class operator_impl<
   template <typename Value>
   __device__ bool insert(Value const& value) noexcept
   {
-    ref_type& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(value);
+    auto& ref_ = static_cast<ref_type&>(*this);
+    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+      return ref_.impl_.insert<true>(value);
+    } else {
+      return ref_.impl_.insert<false>(value);
+    }
   }
 
   /**
