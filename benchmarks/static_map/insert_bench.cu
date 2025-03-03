@@ -54,10 +54,19 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
 
   state.add_element_count(num_keys);
 
-  auto map = cuco::static_map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-
-  state.exec([&](nvbench::launch& launch) {
+  state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+    auto map = cuco::static_map{size,
+                                cuco::empty_key<Key>{-1},
+                                cuco::empty_value<Value>{-1},
+                                {},
+                                {},
+                                {},
+                                {},
+                                {},
+                                {launch.get_stream()}};
+    timer.start();
     map.insert_async(pairs.begin(), pairs.end(), {launch.get_stream()});
+    timer.stop();
   });
 }
 
