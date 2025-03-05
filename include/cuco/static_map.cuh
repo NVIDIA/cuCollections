@@ -50,12 +50,12 @@ namespace cuco {
  *
  * The host-side bulk operations include `insert`, `contains`, etc. These APIs should be used when
  * there are a large number of keys to modify or lookup. For example, given a range of keys
- * specified by device-accessible iterators, the bulk `insert` function will insert all keys into
+ * specified by device-accessible iterators, the bulk `insert` function inserts all keys into
  * the map.
  *
  * The singular device-side operations allow individual threads (or cooperative groups) to perform
  * independent modify or lookup operations from device code. These operations are accessed through
- * non-owning, trivially copyable reference types (or "ref"). User can combine any arbitrary
+ * non-owning, trivially copyable reference types (or "ref"). Users can combine any arbitrary
  * operators (see options in `include/cuco/operator.hpp`) when creating the ref. Concurrent modify
  * and lookup will be supported if both kinds of operators are specified during the ref
  * construction.
@@ -799,8 +799,8 @@ class static_map {
    * query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `find_if_async`.
    *
@@ -832,8 +832,8 @@ class static_map {
    * a match with its key equivalent to the query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
@@ -863,8 +863,8 @@ class static_map {
    * a match with its key equivalent to the query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
@@ -1029,7 +1029,7 @@ class static_map {
    *
    * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
    * convertible from `key_type`.
-   * @tparam ValueOut Device accesible random access output iterator whose `value_type` is
+   * @tparam ValueOut Device accessible random access output iterator whose `value_type` is
    * convertible from `mapped_type`.
    *
    * @param keys_out Beginning output iterator for keys
@@ -1066,7 +1066,7 @@ class static_map {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -1091,7 +1091,7 @@ class static_map {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -1512,7 +1512,7 @@ class static_map {
    *
    * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
    * convertible from `key_type`.
-   * @tparam ValueOut Device accesible random access output iterator whose `value_type` is
+   * @tparam ValueOut Device accessible random access output iterator whose `value_type` is
    * convertible from `mapped_type`.
    * @param keys_out Beginning output iterator for keys
    * @param values_out Beginning output iterator for values
@@ -2280,7 +2280,7 @@ class static_map {
      * @endcode
      *
      * @tparam CG The type of the cooperative thread group
-     * @param g The ooperative thread group used to copy the slots
+     * @param g The cooperative thread group used to copy the slots
      * @param source_device_view `device_view` to copy from
      * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
      * the ownership of the memory

@@ -93,10 +93,10 @@ template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
           class KeyEqual           = thrust::equal_to<Key>,
-          class ProbingScheme      = cuco::linear_probing<4,  // CG size
+          class ProbingScheme      = cuco::double_hashing<8,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
-          class Storage            = cuco::storage<1>>
+          class Storage            = cuco::storage<2>>
 class static_multimap {
   static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
 
@@ -523,8 +523,8 @@ class static_multimap {
    * query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `find_if_async`.
    *
@@ -556,8 +556,8 @@ class static_multimap {
    * a match with its key equivalent to the query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
@@ -778,7 +778,7 @@ class static_multimap {
    *
    * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
    * convertible from `key_type`.
-   * @tparam ValueOut Device accesible random access output iterator whose `value_type` is
+   * @tparam ValueOut Device accessible random access output iterator whose `value_type` is
    * convertible from `mapped_type`.
    *
    * @param keys_out Beginning output iterator for keys
@@ -815,7 +815,7 @@ class static_multimap {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -840,7 +840,7 @@ class static_multimap {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -858,9 +858,9 @@ class static_multimap {
   [[nodiscard]] size_type size(cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Gets the maximum number of elements the hash map can hold.
+   * @brief Gets the maximum number of elements the multimap can hold.
    *
-   * @return The maximum number of elements the hash map can hold
+   * @return The maximum number of elements the multimap can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept;
 
@@ -1200,7 +1200,7 @@ class static_multimap {
    * For each key, `k = *(first + i)`, counts all matching keys, `k'`, as determined by
    * `key_equal(k, k')` and returns the sum of all matches for all keys.
    *
-   * @tparam Input Device accesible input iterator whose `value_type` is convertible to `key_type`
+   * @tparam Input Device accessible input iterator whose `value_type` is convertible to `key_type`
    * @tparam KeyEqual Binary callable
    * @param first Beginning of the sequence of keys to count
    * @param last End of the sequence of keys to count
@@ -1221,7 +1221,7 @@ class static_multimap {
    * `key_equal(k, k')` and returns the sum of all matches for all keys. If `k` does not have any
    * matches, it contributes 1 to the final sum.
    *
-   * @tparam Input Device accesible input iterator whose `value_type` is convertible to `key_type`
+   * @tparam Input Device accessible input iterator whose `value_type` is convertible to `key_type`
    * @tparam KeyEqual Binary callable
    * @param first Beginning of the sequence of keys to count
    * @param last End of the sequence of keys to count
