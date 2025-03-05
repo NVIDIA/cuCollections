@@ -271,13 +271,12 @@ class bloom_filter_impl {
       auto const num_keys = cuco::detail::distance(first, last);
       if (num_keys == 0) { return; }
 
-      auto constexpr cg_size    = add_optimal_cg_size();
       auto constexpr block_size = cuco::detail::default_block_size();
       void const* kernel        = reinterpret_cast<void const*>(
-        detail::bloom_filter_ns::add<cg_size, block_size, InputIt, bloom_filter_impl>);
+        detail::bloom_filter_ns::add<block_size, InputIt, bloom_filter_impl>);
       auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel);
 
-      detail::bloom_filter_ns::add<cg_size, block_size>
+      detail::bloom_filter_ns::add<block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
     }
   }
