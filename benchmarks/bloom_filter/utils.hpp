@@ -62,13 +62,24 @@ void add_fpr_summary(nvbench::state& state, FilterType& filter)
   filter.add(tp_begin, tp_end);
   filter.contains(tn_begin, tn_end, result.begin());
 
-  float fp = thrust::count(thrust::device, result.begin(), result.end(), true);
+  auto const fp_emp =
+    static_cast<double>(thrust::count(thrust::device, result.begin(), result.end(), true)) /
+    static_cast<double>(num_keys);
 
-  auto& summ = state.add_summary("FalsePositiveRate");
-  summ.set_string("hint", "FPR");
-  summ.set_string("short_name", "FPR");
-  summ.set_string("description", "False-positive rate of the bloom filter.");
-  summ.set_float64("value", fp / num_keys);
+  auto& summ_fp = state.add_summary("FalsePositiveRate");
+  summ_fp.set_string("hint", "FPR");
+  summ_fp.set_string("short_name", "FPR");
+  summ_fp.set_string("description", "False-positive rate of the bloom filter.");
+  summ_fp.set_float64("value", fp_emp);
+
+  auto const fp_theo = filter.expected_false_positive_rate(num_keys);
+  auto const fp_dev  = fp_emp - fp_theo;
+
+  auto& summ_dev = state.add_summary("FalsePositiveRateDeviation");
+  summ_dev.set_string("hint", "FPRDev");
+  summ_dev.set_string("short_name", "FPRDev");
+  summ_dev.set_string("description", "Deviation of false-positive rate over theoretical value.");
+  summ_dev.set_float64("value", fp_dev);
 
   filter.clear();
 }

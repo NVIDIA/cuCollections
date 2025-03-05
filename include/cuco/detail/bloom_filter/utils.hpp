@@ -36,7 +36,7 @@ namespace cuco::detail {
  * @param ndv Number of distinct inserted elements
  * @param bytes Filter size in bytes
  * @param word_bits Number of bits in the underlying word type of a filter block
- * @param bucket_words Number of words in each filter block
+ * @param block_words Number of words in each filter block
  * @param hash_bits Total number of bits in the hash value type
  * @param k Number of pattern bits to set for a key
  * @param max_iters Maximum number of iterations for accuracy refinement
@@ -46,27 +46,28 @@ namespace cuco::detail {
 __host__ inline double blocked_bloom_filter_expected_fpr(double ndv,
                                                          double bytes,
                                                          double word_bits,
-                                                         double bucket_words,
+                                                         double block_words,
                                                          double hash_bits,
                                                          double k,
-                                                         std::uint64_t max_iters = 10000)
+                                                         std::uint64_t max_iters = 1000)
 {
   if (ndv == 0) return 0.0;
   if (bytes <= 0) return 1.0;
-  if (ndv / (bytes * cuda::std::numeric_limits<std::uint8_t>::digits) > 3) return 1.0;
+  if (ndv / (bytes * cuda::std::numeric_limits<std::uint8_t>::digits) >= 2.0) return 1.0;
 
   double result = 0;
   double const lam =
-    bucket_words * word_bits / ((bytes * cuda::std::numeric_limits<std::uint8_t>::digits) / ndv);
+    block_words * word_bits / ((bytes * cuda::std::numeric_limits<std::uint8_t>::digits) / ndv);
   double const loglam      = cuda::std::log(lam);
   double const log1collide = -hash_bits * cuda::std::log(2.0);
 
   for (std::uint64_t j = 0; j < max_iters; ++j) {
-    std::uint64_t i         = max_iters - 1 - j;
-    double logp             = i * loglam - lam - cuda::std::lgamma(i + 1);
-    double const logfinner  = k * cuda::std::log(1.0 - cuda::std::pow(1.0 - 1.0 / word_bits, i));
+    double const i         = static_cast<double>(max_iters - 1 - j);
+    double const logp      = i * loglam - lam - cuda::std::lgamma(i + 1.0);
+    double const logfinner = k * cuda::std::log(1.0 - cuda::std::pow(1.0 - 1.0 / word_bits, i * k));
     double const logcollide = cuda::std::log(i) + log1collide;
     result += cuda::std::exp(logp + logfinner) + cuda::std::exp(logp + logcollide);
+    // result += exp(logp + logfinner); // alternative approach
   }
 
   return (result > 1.0) ? 1.0 : result;
