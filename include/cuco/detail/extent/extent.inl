@@ -123,9 +123,10 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
   if constexpr (cuco::is_double_hashing<ProbingScheme>::value) {
     return make_bucket_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
   } else {
-    auto const size = cuco::detail::int_div_ceil(
-                        std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)),
-                        ProbingScheme::cg_size * Storage::bucket_size) + static_cast<SizeType>(ext==0);
+    auto const size =
+      cuco::detail::int_div_ceil(std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)),
+                                 ProbingScheme::cg_size * Storage::bucket_size) +
+      static_cast<SizeType>(ext == 0);
 
     if constexpr (N == dynamic_extent) {
       return bucket_extent<SizeType>{size * ProbingScheme::cg_size};
