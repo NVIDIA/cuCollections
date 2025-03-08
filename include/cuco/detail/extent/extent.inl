@@ -120,23 +120,19 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
 {
-  return make_bucket_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
-  /*
-// TODO fix linear probing with exact capacity
-if constexpr (cuco::is_double_hashing<ProbingScheme>::value) {
-  return make_bucket_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
-} else {
-  auto const size = cuco::detail::int_div_ceil(
-                      cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)),
-                      ProbingScheme::cg_size * Storage::bucket_size) +
-                    cuda::std::min(static_cast<SizeType>(ext), static_cast<SizeType>(1));
-  if constexpr (N == dynamic_extent) {
-    return bucket_extent<SizeType>{size * ProbingScheme::cg_size};
+  if constexpr (cuco::is_double_hashing<ProbingScheme>::value) {
+    return make_bucket_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
   } else {
-    return bucket_extent<SizeType, size * ProbingScheme::cg_size>{};
+    auto const size = cuco::detail::int_div_ceil(
+                        std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)),
+                        ProbingScheme::cg_size * Storage::bucket_size) + static_cast<SizeType>(ext==0);
+
+    if constexpr (N == dynamic_extent) {
+      return bucket_extent<SizeType>{size * ProbingScheme::cg_size};
+    } else {
+      return bucket_extent<SizeType, size * ProbingScheme::cg_size>{};
+    }
   }
-}
-*/
 }
 
 template <typename ProbingScheme, typename Storage, typename SizeType>
