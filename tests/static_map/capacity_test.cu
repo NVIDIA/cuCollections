@@ -157,9 +157,9 @@ TEST_CASE("static_map capacity test", "")
     REQUIRE(ref_capacity == gold_capacity);
   }
 
-  SECTION("Dynamic extent is evaluated at run time.")
+  SECTION("Dynamic extent of linear probing is evaluated at run time.")
   {
-    auto constexpr gold_capacity = 412;  // 103 x 2 x 2
+    auto constexpr gold_capacity = 400;
 
     using probe = cuco::linear_probing<2, cuco::default_hash_function<Key>>;
     auto map =
