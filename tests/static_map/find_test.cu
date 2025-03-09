@@ -155,7 +155,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  constexpr size_type num_keys{400};
+  constexpr size_type num_keys{301};
 
   // XXX: testing static extent is intended, DO NOT CHANGE
   using extent_type = cuco::extent<size_type, num_keys>;
@@ -166,10 +166,10 @@ TEMPLATE_TEST_CASE_SIG(
 
   constexpr size_type gold_capacity = [&]() {
     if constexpr (cuco::is_double_hashing<probe>::value) {
-      return (CGSize == 1) ? 422   // 211 x 1 x 2
-                           : 412;  // 103 x 2 x 2
+      return (CGSize == 1) ? 302   // 151 x 1 x 2
+                           : 316;  // 79 x 2 x 2
     } else {
-      return 400;
+      return (CGSize == 1) ? 302 : 304;
     }
   }();
 
