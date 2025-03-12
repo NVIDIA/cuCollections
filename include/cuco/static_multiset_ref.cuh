@@ -250,6 +250,43 @@ class static_multiset_ref
   template <typename NewHash>
   [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(NewHash const& hash) const;
 
+  /**
+   * @brief Makes a copy of the current device reference using non-owned memory
+   *
+   * This function is intended to be used to create shared memory copies of small static sets,
+   * although global memory can be used as well.
+   *
+   * @note This function synchronizes the group `tile`.
+   * @note By-default the thread scope of the copy will be the same as the scope of the parent ref.
+   *
+   * @tparam CG The type of the cooperative thread group
+   * @tparam NewScope The thread scope of the newly created device ref
+   *
+   * @param tile The cooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   * @param scope The thread scope of the newly created device ref
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename CG, cuda::thread_scope NewScope = thread_scope>
+  [[nodiscard]] __device__ constexpr auto make_copy(
+    CG const& tile,
+    bucket_type* const memory_to_use,
+    cuda_thread_scope<NewScope> scope = {}) const noexcept;
+
+  /**
+   * @brief Initializes the set storage using the threads in the group `tile`.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The cooperative thread group used to initialize the set
+   */
+  template <typename CG>
+  __device__ constexpr void initialize(CG const& tile) noexcept;
+
  private:
   impl_type impl_;
 
