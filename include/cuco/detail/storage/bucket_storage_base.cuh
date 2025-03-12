@@ -26,11 +26,11 @@
 namespace cuco {
 namespace detail {
 /**
-￼ * @brief Bucket data structure type
-￼ *
-￼ * @tparam T Bucket slot type
-￼ * @tparam BucketSize Number of elements per bucket
-￼ */
+ * @brief Bucket data structure type
+ *
+ * @tparam T Bucket slot type
+ * @tparam BucketSize Number of elements per bucket
+ */
 template <typename T, int32_t BucketSize>
 struct bucket : public cuda::std::array<T, BucketSize> {
  public:
@@ -91,13 +91,23 @@ class bucket_storage_base : public storage_base<Extent> {
   }
 
   /**
+   * @brief Gets the extent of the current storage.
+   *
+   * @return The storage extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept
+  {
+    return storage_base<Extent>::extent();
+  }
+
+  /**
    * @brief Gets the bucket extent of the current storage.
    *
    * @return The bucket extent.
    */
   [[nodiscard]] __host__ __device__ constexpr extent_type bucket_extent() const noexcept
   {
-    return storage_base<Extent>::extent();
+    return extent();
   }
 };
 

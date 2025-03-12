@@ -239,10 +239,30 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   ProbingScheme,
                                                   StorageRef,
                                                   Operators...>::extent_type
+static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::extent()
+  const noexcept
+{
+  return impl_.extent();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_multimap_ref<Key,
+                                                  T,
+                                                  Scope,
+                                                  KeyEqual,
+                                                  ProbingScheme,
+                                                  StorageRef,
+                                                  Operators...>::extent_type
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   bucket_extent() const noexcept
 {
-  return impl_.bucket_extent();
+  return this->extent();
 }
 
 template <typename Key,
@@ -383,7 +403,7 @@ static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operator
     this->key_eq(),
     impl_.probing_scheme(),
     scope,
-    storage_ref_type{this->bucket_extent(), memory_to_use}};
+    storage_ref_type{this->extent(), memory_to_use}};
 }
 
 template <typename Key,

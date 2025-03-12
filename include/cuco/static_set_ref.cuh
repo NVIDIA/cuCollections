@@ -141,6 +141,13 @@ class static_set_ref
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
 
   /**
+   * @brief Gets the extent of the current storage.
+   *
+   * @return The bucket extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept;
+
+  /**
    * @brief Gets the bucket extent of the current storage.
    *
    * @return The bucket extent.

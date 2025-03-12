@@ -51,5 +51,26 @@ CUCO_KERNEL void initialize(BucketT* buckets,
   }
 }
 
+/**
+ * @brief Initializes each slot in the flat storage to contain `value`.
+ *
+ * @tparam T Value type
+ *
+ * @param slots Pointer to flat storage for slots
+ * @param n Number of input slots
+ * @param value Value to which all values in `slots` are initialized
+ */
+template <typename T>
+CUCO_KERNEL void initialize(T* slots, cuco::detail::index_type n, T value)
+{
+  auto const loop_stride = cuco::detail::grid_stride();
+  auto idx               = cuco::detail::global_thread_id();
+
+  while (idx < n) {
+    slots[idx] = value;
+    idx += loop_stride;
+  }
+}
+
 }  // namespace detail
 }  // namespace cuco

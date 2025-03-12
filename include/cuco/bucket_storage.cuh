@@ -57,7 +57,7 @@ class bucket_storage_ref : public detail::bucket_storage_base<T, BucketSize, Ext
   using base_type::num_buckets;
 
   /**
-   * @brief Constructor of AoS storage ref.
+   * @brief Constructor of bucket storage ref.
    *
    * @param size Number of buckets
    * @param buckets Pointer to the buckets array

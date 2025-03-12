@@ -59,7 +59,7 @@ template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
 constexpr bucket_storage<T, BucketSize, Extent, Allocator>::ref_type
 bucket_storage<T, BucketSize, Extent, Allocator>::ref() const noexcept
 {
-  return ref_type{this->bucket_extent(), this->data()};
+  return ref_type{this->extent(), this->data()};
 }
 
 template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
