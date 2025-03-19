@@ -516,7 +516,7 @@ class operator_impl<
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
-    auto probing_iter         = probing_scheme(key, storage_ref.bucket_extent());
+    auto probing_iter         = probing_scheme(key, storage_ref.extent());
     auto const init_idx       = *probing_iter;
 
     while (true) {
@@ -564,7 +564,7 @@ class operator_impl<
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
-    auto probing_iter         = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto probing_iter         = probing_scheme(group, key, storage_ref.extent());
     auto const init_idx       = *probing_iter;
 
     while (true) {
@@ -882,7 +882,7 @@ class operator_impl<
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
-    auto probing_iter         = probing_scheme(key, storage_ref.bucket_extent());
+    auto probing_iter         = probing_scheme(key, storage_ref.extent());
     auto const init_idx       = *probing_iter;
     auto const empty_value    = ref_.empty_value_sentinel();
 
@@ -958,7 +958,7 @@ class operator_impl<
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
-    auto probing_iter         = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto probing_iter         = probing_scheme(group, key, storage_ref.extent());
     auto const init_idx       = *probing_iter;
     auto const empty_value    = ref_.empty_value_sentinel();
 
