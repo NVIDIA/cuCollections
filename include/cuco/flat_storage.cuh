@@ -53,13 +53,8 @@ class flat_storage_ref {
    */
   __host__ __device__ explicit constexpr flat_storage_ref(Extent size, value_type* slots) noexcept;
 
-  /**
-   * @brief Custom un-incrementable input iterator for the convenience of `find` operations.
-   *
-   * @note This iterator is for read only and NOT incrementable.
-   */
-  struct iterator;
-  using const_iterator = iterator const;  ///< Const forward iterator type
+  using iterator       = value_type*;        ///< Iterator type
+  using const_iterator = value_type const*;  ///< Const forward iterator type
 
   /**
    * @brief Returns an iterator to one past the last slot.
@@ -248,4 +243,4 @@ class flat_storage {
 };
 }  // namespace cuco
 
-#include <cuco/detail/storage/slot_storage.inl>
+#include <cuco/detail/storage/flat_storage.inl>

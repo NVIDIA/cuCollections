@@ -127,14 +127,14 @@ flat_storage_ref<T, BucketSize, Extent>::end() const noexcept
 }
 
 template <typename T, int32_t BucketSize, typename Extent>
-__device__ constexpr flat_storage_ref<T, BucketSize, Extent>::bucket_type*
+__device__ constexpr flat_storage_ref<T, BucketSize, Extent>::value_type*
 flat_storage_ref<T, BucketSize, Extent>::data() noexcept
 {
   return slots_;
 }
 
 template <typename T, int32_t BucketSize, typename Extent>
-__device__ constexpr flat_storage_ref<T, BucketSize, Extent>::bucket_type*
+__device__ constexpr flat_storage_ref<T, BucketSize, Extent>::value_type*
 flat_storage_ref<T, BucketSize, Extent>::data() const noexcept
 {
   return slots_;

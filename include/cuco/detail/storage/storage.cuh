@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,6 +35,12 @@ struct is_bucket_storage : cuda::std::false_type {};
 template <typename T, int BucketSize, typename Extent, typename Allocator>
 struct is_bucket_storage<cuco::bucket_storage<T, BucketSize, Extent, Allocator>>
   : cuda::std::true_type {};
+
+/**
+ * @brief Specialization for bucket_storage_ref
+ */
+template <typename T, int BucketSize, typename Extent>
+struct is_bucket_storage<cuco::bucket_storage_ref<T, BucketSize, Extent>> : cuda::std::true_type {};
 
 /**
  * @brief Helper variable template for is_bucket_storage
