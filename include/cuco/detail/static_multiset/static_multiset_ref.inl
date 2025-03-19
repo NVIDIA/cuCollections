@@ -336,13 +336,17 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
   bucket_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
-  impl_.make_copy(tile, memory_to_use);
-  return static_multiset_ref<Key, NewScope, KeyEqual, ProbingScheme, StorageRef, Operators...>{
-    cuco::empty_key<Key>{this->empty_key_sentinel()},
-    this->key_eq(),
-    impl_.probing_scheme(),
-    scope,
-    storage_ref_type{this->extent(), memory_to_use}};
+  auto const storage_ref = this->storage_ref().make_copy(tile, memory_to_use);
+  return static_multiset_ref<Key,
+                             NewScope,
+                             KeyEqual,
+                             ProbingScheme,
+                             decltype(storage_ref),
+                             Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                           this->key_eq(),
+                                           this->probing_scheme(),
+                                           scope,
+                                           storage_ref};
 }
 
 template <typename Key,
@@ -356,7 +360,7 @@ __device__ constexpr void
 static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
   CG const& tile) noexcept
 {
-  impl_.initialize(tile);
+  this->storage_ref().initialize(tile, this->empty_key_sentinel());
 }
 
 namespace detail {

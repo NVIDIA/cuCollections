@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,9 +120,9 @@ TEST_CASE("static_set capacity test", "")
     REQUIRE(ref_capacity == gold_capacity);
   }
 
-  SECTION("Dynamic extent is evaluated at run time.")
+  SECTION("Dynamic extent of linear probing is evaluated at run time.")
   {
-    auto constexpr gold_capacity = 412;  // 103 x 2 x 2
+    auto constexpr gold_capacity = 400;
 
     using probe = cuco::linear_probing<2, cuco::default_hash_function<Key>>;
     auto set    = cuco::static_set<Key,
