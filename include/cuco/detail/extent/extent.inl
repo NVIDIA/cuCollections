@@ -29,15 +29,15 @@
 namespace cuco {
 
 template <typename SizeType, std::size_t N>
-struct bucket_extent {
+struct valid_extent {
   using value_type = SizeType;  ///< Extent value type
 
   __host__ __device__ constexpr value_type value() const noexcept { return N; }
   __host__ __device__ explicit constexpr operator value_type() const noexcept { return value(); }
 
  private:
-  __host__ __device__ explicit constexpr bucket_extent() noexcept {}
-  __host__ __device__ explicit constexpr bucket_extent(SizeType) noexcept {}
+  __host__ __device__ explicit constexpr valid_extent() noexcept {}
+  __host__ __device__ explicit constexpr valid_extent(SizeType) noexcept {}
 
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
   friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
@@ -46,14 +46,14 @@ struct bucket_extent {
   friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
 
   template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator-(bucket_extent const& lhs,
+  friend __host__ __device__ constexpr value_type operator-(valid_extent const& lhs,
                                                             Rhs rhs) noexcept
   {
     return lhs.value() - rhs;
   }
 
   template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator/(bucket_extent const& lhs,
+  friend __host__ __device__ constexpr value_type operator/(valid_extent const& lhs,
                                                             Rhs rhs) noexcept
   {
     return lhs.value() / rhs;
@@ -61,7 +61,7 @@ struct bucket_extent {
 
   template <typename Lhs>
   friend __host__ __device__ constexpr value_type operator%(Lhs lhs,
-                                                            bucket_extent const& rhs) noexcept
+                                                            valid_extent const& rhs) noexcept
   {
     return lhs % rhs.value();
     ;
@@ -69,7 +69,7 @@ struct bucket_extent {
 };
 
 template <typename SizeType>
-struct bucket_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType> {
+struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType> {
   using value_type =
     typename cuco::utility::fast_int<SizeType>::fast_int::value_type;  ///< Extent value type
 
@@ -96,18 +96,18 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
   if (size > max_value) { CUCO_FAIL("Invalid input extent"); }
 
   if constexpr (N == dynamic_extent) {
-    return bucket_extent<SizeType>{static_cast<SizeType>(
+    return valid_extent<SizeType, dynamic_extent>{static_cast<SizeType>(
       *cuco::detail::lower_bound(
         cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
       CGSize)};
   }
   if constexpr (N != dynamic_extent) {
-    return bucket_extent<SizeType,
-                         static_cast<std::size_t>(
-                           *cuco::detail::lower_bound(cuco::detail::primes.begin(),
-                                                      cuco::detail::primes.end(),
-                                                      static_cast<uint64_t>(size)) *
-                           CGSize)>{};
+    return valid_extent<SizeType,
+                        static_cast<std::size_t>(
+                          *cuco::detail::lower_bound(cuco::detail::primes.begin(),
+                                                     cuco::detail::primes.end(),
+                                                     static_cast<uint64_t>(size)) *
+                          CGSize)>{};
   }
 }
 
@@ -129,9 +129,9 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
       static_cast<SizeType>(ext == 0);
 
     if constexpr (N == dynamic_extent) {
-      return bucket_extent<SizeType>{size * ProbingScheme::cg_size};
+      return valid_extent<SizeType, dynamic_extent>{size * ProbingScheme::cg_size};
     } else {
-      return bucket_extent<SizeType, size * ProbingScheme::cg_size>{};
+      return valid_extent<SizeType, size * ProbingScheme::cg_size>{};
     }
   }
 }
@@ -167,7 +167,7 @@ template <typename...>
 struct is_bucket_extent : cuda::std::false_type {};
 
 template <typename SizeType, std::size_t N>
-struct is_bucket_extent<bucket_extent<SizeType, N>> : cuda::std::true_type {};
+struct is_bucket_extent<valid_extent<SizeType, N>> : cuda::std::true_type {};
 
 template <typename T>
 inline constexpr bool is_bucket_extent_v = is_bucket_extent<T>::value;
