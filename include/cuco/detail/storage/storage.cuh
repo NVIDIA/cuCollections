@@ -22,33 +22,6 @@
 namespace cuco {
 namespace detail {
 /**
- * @brief Trait to determine if a storage is bucket-based
- *
- * @tparam T Storage class
- */
-template <typename T>
-struct is_bucket_storage : cuda::std::false_type {};
-
-/**
- * @brief Specialization for bucket_storage
- */
-template <typename T, int BucketSize, typename Extent, typename Allocator>
-struct is_bucket_storage<cuco::bucket_storage<T, BucketSize, Extent, Allocator>>
-  : cuda::std::true_type {};
-
-/**
- * @brief Specialization for bucket_storage_ref
- */
-template <typename T, int BucketSize, typename Extent>
-struct is_bucket_storage<cuco::bucket_storage_ref<T, BucketSize, Extent>> : cuda::std::true_type {};
-
-/**
- * @brief Helper variable template for is_bucket_storage
- */
-template <typename T>
-__host__ __device__ constexpr bool is_bucket_storage_v = is_bucket_storage<T>::value;
-
-/**
  * @brief Intermediate class internally used by data structures
  *
  * @tparam StorageImpl Storage implementation class
