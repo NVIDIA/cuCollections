@@ -143,7 +143,7 @@ int main()
 
   for (size_t i = 0; i < num; ++i) {
     valid_sizes.emplace_back(static_cast<std::size_t>(
-      cuco::make_bucket_extent<probing_scheme_type, storage_ref_type>(subset_sizes[i])));
+      cuco::make_valid_extent<probing_scheme_type, storage_ref_type>(subset_sizes[i])));
   }
 
   std::vector<std::size_t> offsets(num + 1, 0);

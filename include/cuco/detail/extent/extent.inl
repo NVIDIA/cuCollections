@@ -42,24 +42,24 @@ struct valid_extent {
   __host__ __device__ explicit constexpr valid_extent() noexcept {}
   __host__ __device__ explicit constexpr valid_extent(SizeType) noexcept {}
 
-  // Friend declarations for all make_bucket_extent overloads
+  // Friend declarations for all make_valid_extent overloads
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
-  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 
   template <typename ProbingScheme, typename Storage, typename SizeType_, std::size_t N_>
-  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 
   template <template <typename> class ProbingScheme,
             typename Storage,
             typename SizeType_,
             std::size_t N_>
-  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 
   template <template <typename, typename> class ProbingScheme,
             typename Storage,
             typename SizeType_,
             std::size_t N_>
-  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 
   // Operator overloads
   template <typename Rhs>
@@ -92,24 +92,24 @@ struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType
  private:
   using cuco::utility::fast_int<SizeType>::fast_int;
 
-  // Friend declarations for all make_bucket_extent overloads
+  // Friend declarations for all make_valid_extent overloads
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
-  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 
   template <typename ProbingScheme, typename Storage, typename SizeType_, std::size_t N_>
-  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 
   template <template <typename> class ProbingScheme,
             typename Storage,
             typename SizeType_,
             std::size_t N_>
-  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 
   template <template <typename, typename> class ProbingScheme,
             typename Storage,
             typename SizeType_,
             std::size_t N_>
-  friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
+  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 };
 
 namespace detail {
@@ -127,7 +127,7 @@ inline constexpr bool is_bucket_extent_v = is_bucket_extent<T>::value;
 
 // Primary implementation for fixed CGSize and BucketSize
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
+[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
 {
   auto constexpr max_prime = cuco::detail::primes.back();
   auto constexpr max_value =
@@ -155,18 +155,17 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 
 // Overload for SizeType without extent
 template <int32_t CGSize, int32_t BucketSize, typename SizeType>
-[[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
+[[nodiscard]] auto constexpr make_valid_extent(SizeType size)
 {
-  return make_bucket_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size});
+  return make_valid_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size});
 }
 
 // Implementation for ProbingScheme and Storage types
 template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
+[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
 {
   if constexpr (cuco::is_double_hashing<ProbingScheme>::value) {
-    auto result =
-      make_bucket_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
+    auto result = make_valid_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
     if constexpr (!cuco::is_bucket_storage_v<Storage>) {
       if constexpr (N == dynamic_extent) {
         return valid_extent<SizeType, dynamic_extent>{static_cast<SizeType>(result) *
@@ -202,10 +201,76 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
 
 // Overload for ProbingScheme and Storage with SizeType
 template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(SizeType size)
+{
+  return make_valid_extent<ProbingScheme, Storage, SizeType, dynamic_extent>(
+    cuco::extent<SizeType>{size});
+}
+
+// Template template parameter overloads for single-type ProbingScheme
+template <template <typename> class ProbingScheme,
+          typename Storage,
+          typename SizeType,
+          std::size_t N>
+[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
+{
+  using ProbeType = ProbingScheme<int>;
+  return make_valid_extent<ProbeType, Storage, SizeType, N>(ext);
+}
+
+template <template <typename> class ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(SizeType size)
+{
+  using ProbeType = ProbingScheme<int>;
+  return make_valid_extent<ProbeType, Storage, SizeType>(size);
+}
+
+// Template template parameter overloads for two-type ProbingScheme
+template <template <typename, typename> class ProbingScheme,
+          typename Storage,
+          typename SizeType,
+          std::size_t N>
+[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
+{
+  using ProbeType = ProbingScheme<int, int>;
+  return make_valid_extent<ProbeType, Storage, SizeType, N>(ext);
+}
+
+template <template <typename, typename> class ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(SizeType size)
+{
+  using ProbeType = ProbingScheme<int, int>;
+  return make_valid_extent<ProbeType, Storage, SizeType>(size);
+}
+
+// make_bucket_extent implementations - aliases for make_valid_extent
+
+// Primary implementation for fixed CGSize and BucketSize
+template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
+{
+  return make_valid_extent<CGSize, BucketSize, SizeType, N>(ext);
+}
+
+// Overload for SizeType without extent
+template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
 {
-  return make_bucket_extent<ProbingScheme, Storage, SizeType, dynamic_extent>(
-    cuco::extent<SizeType>{size});
+  return make_valid_extent<CGSize, BucketSize, SizeType>(size);
+}
+
+// Implementation for ProbingScheme and Storage types
+template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
+{
+  return make_valid_extent<ProbingScheme, Storage, SizeType, N>(ext);
+}
+
+// Overload for ProbingScheme and Storage with SizeType
+template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
+{
+  return make_valid_extent<ProbingScheme, Storage, SizeType>(size);
 }
 
 // Template template parameter overloads for single-type ProbingScheme
@@ -215,15 +280,13 @@ template <template <typename> class ProbingScheme,
           std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
 {
-  using ProbeType = ProbingScheme<int>;
-  return make_bucket_extent<ProbeType, Storage, SizeType, N>(ext);
+  return make_valid_extent<ProbingScheme, Storage, SizeType, N>(ext);
 }
 
 template <template <typename> class ProbingScheme, typename Storage, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
 {
-  using ProbeType = ProbingScheme<int>;
-  return make_bucket_extent<ProbeType, Storage, SizeType>(size);
+  return make_valid_extent<ProbingScheme, Storage, SizeType>(size);
 }
 
 // Template template parameter overloads for two-type ProbingScheme
@@ -233,15 +296,13 @@ template <template <typename, typename> class ProbingScheme,
           std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
 {
-  using ProbeType = ProbingScheme<int, int>;
-  return make_bucket_extent<ProbeType, Storage, SizeType, N>(ext);
+  return make_valid_extent<ProbingScheme, Storage, SizeType, N>(ext);
 }
 
 template <template <typename, typename> class ProbingScheme, typename Storage, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
 {
-  using ProbeType = ProbingScheme<int, int>;
-  return make_bucket_extent<ProbeType, Storage, SizeType>(size);
+  return make_valid_extent<ProbingScheme, Storage, SizeType>(size);
 }
 
 }  // namespace cuco

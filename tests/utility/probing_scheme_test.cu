@@ -89,7 +89,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  auto const upper_bound = cuco::make_bucket_extent<1, BucketSize>(cuco::extent<std::size_t>{10});
+  auto const upper_bound = cuco::make_valid_extent<1, BucketSize>(cuco::extent<std::size_t>{10});
   constexpr size_t seq_length{8};
   constexpr Key key{42};
 

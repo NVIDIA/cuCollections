@@ -156,7 +156,7 @@ class flat_storage {
    * @brief Constructor of flat slot storage.
    *
    * @note The input `size` should be exclusively determined by the return value of
-   * `make_bucket_extent` since it depends on the requested low-bound value, the probing scheme, and
+   * `make_valid_extent` since it depends on the requested low-bound value, the probing scheme, and
    * the storage.
    *
    * @param size Number of slots to (de)allocate

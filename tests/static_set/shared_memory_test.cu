@@ -108,8 +108,8 @@ TEMPLATE_TEST_CASE_SIG(
     thrust::device_vector<ref_type> d_refs(h_refs);
 
     auto constexpr num_buckets =
-      cuco::make_bucket_extent<typename ref_type::probing_scheme_type,
-                               typename ref_type::storage_ref_type>(extent_type{});
+      cuco::make_valid_extent<typename ref_type::probing_scheme_type,
+                              typename ref_type::storage_ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
@@ -138,8 +138,8 @@ TEMPLATE_TEST_CASE_SIG(
     thrust::device_vector<ref_type> d_refs(h_refs);
 
     auto constexpr num_buckets =
-      cuco::make_bucket_extent<typename ref_type::probing_scheme_type,
-                               typename ref_type::storage_ref_type>(extent_type{});
+      cuco::make_valid_extent<typename ref_type::probing_scheme_type,
+                              typename ref_type::storage_ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
@@ -195,7 +195,7 @@ TEST_CASE("static_set shared memory slots test", "")
 {
   constexpr std::size_t N = 256;
   [[maybe_unused]] auto constexpr num_buckets =
-    cuco::make_bucket_extent<cg_size, bucket_size>(cuco::extent<std::size_t, N>{});
+    cuco::make_valid_extent<cg_size, bucket_size>(cuco::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_set_kernel<num_buckets.value()><<<8, 32>>>(key_found.data().get());

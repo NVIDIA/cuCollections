@@ -102,7 +102,7 @@ int main(void)
   // This function will take the requested capacity (1000) and return the next larger
   // valid extent.
   auto constexpr bucket_extent =
-    cuco::make_bucket_extent<probing_scheme_type, cuco::storage<bucket_size>>(extent_type{});
+    cuco::make_valid_extent<probing_scheme_type, cuco::storage<bucket_size>>(extent_type{});
 
   // Launch the kernel with a single thread block.
   shmem_set_kernel<set_ref_type><<<1, 128>>>(bucket_extent, empty_key_sentinel);

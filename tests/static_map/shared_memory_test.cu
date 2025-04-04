@@ -122,8 +122,8 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
 
     // maybe_unused to silence false positive "variable set but not used" warning
     [[maybe_unused]] auto constexpr num_buckets =
-      cuco::make_bucket_extent<typename ref_type::probing_scheme_type,
-                               typename ref_type::storage_ref_type>(extent_type{});
+      cuco::make_valid_extent<typename ref_type::probing_scheme_type,
+                              typename ref_type::storage_ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
@@ -154,8 +154,8 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
 
     // maybe_unused to silence false positive "variable set but not used" warning
     [[maybe_unused]] auto constexpr num_buckets =
-      cuco::make_bucket_extent<typename ref_type::probing_scheme_type,
-                               typename ref_type::storage_ref_type>(extent_type{});
+      cuco::make_valid_extent<typename ref_type::probing_scheme_type,
+                              typename ref_type::storage_ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
@@ -217,7 +217,7 @@ TEST_CASE("static map shared memory slots.", "")
   constexpr std::size_t N = 256;
   // maybe_unused to silence false positive "variable set but not used" warning
   [[maybe_unused]] auto constexpr num_buckets =
-    cuco::make_bucket_extent<cg_size, bucket_size>(cuco::extent<std::size_t, N>{});
+    cuco::make_valid_extent<cg_size, bucket_size>(cuco::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
   shared_memory_hash_table_kernel<num_buckets.value()><<<8, 32>>>(key_found.data().get());

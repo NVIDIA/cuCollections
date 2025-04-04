@@ -96,7 +96,7 @@ class open_addressing_impl {
   using hasher              = typename probing_scheme_type::hasher;  ///< Hash function type
   /// Extent type
   using extent_type =
-    decltype(make_bucket_extent<probing_scheme_type, Storage>(std::declval<Extent>()));
+    decltype(make_valid_extent<probing_scheme_type, Storage>(std::declval<Extent>()));
   using size_type = typename extent_type::value_type;  ///< Size type
   using key_equal = KeyEqual;                          ///< Key equality comparator type
   using storage_type =
@@ -110,7 +110,7 @@ class open_addressing_impl {
    * capacity, sentinel values and CUDA stream.
    *
    * @note The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the container. Attempting to insert more unique keys than the capacity of
    * the container results in undefined behavior.
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
@@ -135,7 +135,7 @@ class open_addressing_impl {
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<probing_scheme_type, Storage>(capacity), alloc}
+      storage_{make_valid_extent<probing_scheme_type, Storage>(capacity), alloc}
   {
     this->clear_async(stream);
   }
@@ -148,7 +148,7 @@ class open_addressing_impl {
    * insert and the desired load factor without manually computing the desired capacity. The actual
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
+   * size, and the bucket size and is computed via the `make_valid_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -181,7 +181,7 @@ class open_addressing_impl {
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<probing_scheme_type, Storage>(
+      storage_{make_valid_extent<probing_scheme_type, Storage>(
                  static_cast<size_type>(std::ceil(static_cast<double>(n) / desired_load_factor))),
                alloc}
   {
@@ -196,7 +196,7 @@ class open_addressing_impl {
    * capacity, sentinel values and CUDA stream.
    *
    * @note The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the container. Attempting to insert more unique keys than the capacity of
    * the container results in undefined behavior.
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
@@ -223,7 +223,7 @@ class open_addressing_impl {
       erased_key_sentinel_{erased_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<probing_scheme_type, Storage>(capacity), alloc}
+      storage_{make_valid_extent<probing_scheme_type, Storage>(capacity), alloc}
   {
     CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",

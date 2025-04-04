@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -73,17 +73,39 @@ struct extent<SizeType, dynamic_extent> {
 };
 
 /**
- * @brief Bucket extent strong type.
+ * @brief Computes valid bucket extent/capacity based on given parameters.
  *
- * @note This type is used internally and can only be constructed using the `make_bucket_extent'
- * factory method.
+ * @note The actual capacity of a hash table should be exclusively determined by the return
+ * value of this utility since the output depends on the requested low-bound size, the probing
+ * scheme, and the storage. This utility is used internally during container constructions while for
+ * container ref constructions, it would be users' responsibility to use this function to determine
+ * the capacity ctor argument for the container.
  *
+ * @tparam ProbingScheme Type of probing scheme
+ * @tparam Storage Type of storage
  * @tparam SizeType Size type
- * @tparam N Extent
+ * @tparam N Extent size (can be dynamic_extent)
  *
+ * @param ext The input extent
+ *
+ * @throw If the input extent is invalid
+ *
+ * @return Resulting valid extent
  */
-template <typename SizeType, std::size_t N = dynamic_extent>
-struct bucket_extent;
+template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
+[[nodiscard]] auto constexpr make_valid_extent(cuco::extent<SizeType, N> ext);
+
+template <template <typename> class ProbingScheme,
+          typename Storage,
+          typename SizeType,
+          std::size_t N>
+[[nodiscard]] auto constexpr make_valid_extent(cuco::extent<SizeType, N> ext);
+
+template <template <typename, typename> class ProbingScheme,
+          typename Storage,
+          typename SizeType,
+          std::size_t N>
+[[nodiscard]] auto constexpr make_valid_extent(cuco::extent<SizeType, N> ext);
 
 /**
  * @brief Computes valid bucket extent/capacity based on given parameters.
@@ -94,6 +116,32 @@ struct bucket_extent;
  * container ref constructions, it would be users' responsibility to use this function to determine
  * the capacity ctor argument for the container.
  *
+ * @tparam ProbingScheme Type of probing scheme
+ * @tparam Storage Type of storage
+ * @tparam SizeType Size type
+ *
+ * @param ext The input size value
+ *
+ * @throw If the input size is invalid
+ *
+ * @return Resulting valid bucket extent
+ */
+template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(SizeType ext);
+
+template <template <typename> class ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(SizeType ext);
+
+template <template <typename, typename> class ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(SizeType ext);
+
+/**
+ * @brief Computes valid bucket extent/capacity based on given parameters.
+ *
+ * @note Facade for make_valid_extent.
+ *
+ * @deprecated Use make_valid_extent instead.
+
  * @tparam ProbingScheme Type of probing scheme
  * @tparam Storage Type of storage
  * @tparam SizeType Size type
@@ -123,12 +171,9 @@ template <template <typename, typename> class ProbingScheme,
 /**
  * @brief Computes valid bucket extent/capacity based on given parameters.
  *
- * @note The actual capacity of a hash table should be exclusively determined by the return
- * value of this utility since the output depends on the requested low-bound size, the probing
- * scheme, and the storage. This utility is used internally during container constructions while for
- * container ref constructions, it would be users' responsibility to use this function to determine
- * the capacity ctor argument for the container.
+ * @note Facade for make_valid_extent.
  *
+ * @deprecated Use make_valid_extent instead.
  * @tparam ProbingScheme Type of probing scheme
  * @tparam Storage Type of storage
  * @tparam SizeType Size type

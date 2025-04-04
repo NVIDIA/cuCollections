@@ -157,7 +157,7 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
    * @brief Constructor of bucket storage.
    *
    * @note The input `size` should be exclusively determined by the return value of
-   * `make_bucket_extent` since it depends on the requested low-bound value, the probing scheme, and
+   * `make_valid_extent` since it depends on the requested low-bound value, the probing scheme, and
    * the storage.
    *
    * @param size Number of buckets to (de)allocate

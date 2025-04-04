@@ -50,14 +50,14 @@ TEMPLATE_TEST_CASE_SIG(
   SECTION("Compute static valid extent at compile time.")
   {
     auto constexpr size = cuco::extent<SizeType, num>{};
-    auto constexpr res  = cuco::make_bucket_extent<probing_t, storage_t>(size);
+    auto constexpr res  = cuco::make_valid_extent<probing_t, storage_t>(size);
     STATIC_REQUIRE(gold_reference == res.value());
   }
 
   SECTION("Compute dynamic valid extent at run time.")
   {
     auto const size = cuco::extent<SizeType>{num};
-    auto const res  = cuco::make_bucket_extent<probing_t, storage_t>(size);
+    auto const res  = cuco::make_valid_extent<probing_t, storage_t>(size);
     REQUIRE(gold_reference == res.value());
   }
 }
