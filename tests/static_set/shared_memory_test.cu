@@ -107,7 +107,9 @@ TEMPLATE_TEST_CASE_SIG(
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_buckets = cuco::make_bucket_extent<ref_type>(extent_type{});
+    auto constexpr num_buckets =
+      cuco::make_bucket_extent<typename ref_type::probing_scheme_type,
+                               typename ref_type::storage_ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
@@ -135,7 +137,9 @@ TEMPLATE_TEST_CASE_SIG(
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_buckets = cuco::make_bucket_extent<ref_type>(extent_type{});
+    auto constexpr num_buckets =
+      cuco::make_bucket_extent<typename ref_type::probing_scheme_type,
+                               typename ref_type::storage_ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),

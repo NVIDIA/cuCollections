@@ -562,7 +562,7 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_set>(capacity);
+  auto const extent = make_bucket_extent<probing_scheme_type, storage_ref_type>(capacity);
   this->impl_->rehash(extent, *this, stream);
 }
 

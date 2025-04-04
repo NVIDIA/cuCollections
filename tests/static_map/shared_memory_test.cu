@@ -121,7 +121,9 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
     thrust::device_vector<ref_type> d_refs(h_refs);
 
     // maybe_unused to silence false positive "variable set but not used" warning
-    [[maybe_unused]] auto constexpr num_buckets = cuco::make_bucket_extent<ref_type>(extent_type{});
+    [[maybe_unused]] auto constexpr num_buckets =
+      cuco::make_bucket_extent<typename ref_type::probing_scheme_type,
+                               typename ref_type::storage_ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
@@ -151,7 +153,9 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
     thrust::device_vector<ref_type> d_refs(h_refs);
 
     // maybe_unused to silence false positive "variable set but not used" warning
-    [[maybe_unused]] auto constexpr num_buckets = cuco::make_bucket_extent<ref_type>(extent_type{});
+    [[maybe_unused]] auto constexpr num_buckets =
+      cuco::make_bucket_extent<typename ref_type::probing_scheme_type,
+                               typename ref_type::storage_ref_type>(extent_type{});
 
     shared_memory_test_kernel<num_buckets.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),

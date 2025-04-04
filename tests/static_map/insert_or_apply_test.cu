@@ -100,8 +100,10 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
                                            Allocator,
                                            cuco::storage<1>>;
 
-  using shared_map_ref_type    = typename shared_map_type::ref_type<>;
-  auto constexpr bucket_extent = cuco::make_bucket_extent<shared_map_ref_type>(extent_type{});
+  using shared_map_ref_type = typename shared_map_type::ref_type<>;
+  auto constexpr bucket_extent =
+    cuco::make_bucket_extent<typename shared_map_ref_type::probing_scheme_type,
+                             typename shared_map_ref_type::storage_ref_type>(extent_type{});
 
   // Insert pairs
   auto pairs_begin = thrust::make_transform_iterator(
