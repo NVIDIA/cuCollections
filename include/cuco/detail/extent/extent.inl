@@ -42,6 +42,7 @@ struct valid_extent {
   __host__ __device__ explicit constexpr valid_extent() noexcept {}
   __host__ __device__ explicit constexpr valid_extent(SizeType) noexcept {}
 
+  // Friend declarations for all make_bucket_extent overloads
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
   friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
 
@@ -60,6 +61,7 @@ struct valid_extent {
             std::size_t N_>
   friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
 
+  // Operator overloads
   template <typename Rhs>
   friend __host__ __device__ constexpr value_type operator-(valid_extent const& lhs,
                                                             Rhs rhs) noexcept
@@ -79,7 +81,6 @@ struct valid_extent {
                                                             valid_extent const& rhs) noexcept
   {
     return lhs % rhs.value();
-    ;
   }
 };
 
@@ -91,6 +92,7 @@ struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType
  private:
   using cuco::utility::fast_int<SizeType>::fast_int;
 
+  // Friend declarations for all make_bucket_extent overloads
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
   friend auto constexpr make_bucket_extent(extent<SizeType_, N_> ext);
 
@@ -123,6 +125,7 @@ inline constexpr bool is_bucket_extent_v = is_bucket_extent<T>::value;
 
 }  // namespace detail
 
+// Primary implementation for fixed CGSize and BucketSize
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
 {
@@ -140,8 +143,7 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
       *cuco::detail::lower_bound(
         cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
       CGSize)};
-  }
-  if constexpr (N != dynamic_extent) {
+  } else {
     return valid_extent<SizeType,
                         static_cast<std::size_t>(
                           *cuco::detail::lower_bound(cuco::detail::primes.begin(),
@@ -151,12 +153,14 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
   }
 }
 
+// Overload for SizeType without extent
 template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
 {
   return make_bucket_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size});
 }
 
+// Implementation for ProbingScheme and Storage types
 template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(extent<SizeType, N> ext)
 {
@@ -181,10 +185,8 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
 
     if constexpr (N == dynamic_extent) {
       if constexpr (cuco::is_bucket_storage_v<Storage>) {
-        printf("im bucket storage\n");
         return valid_extent<SizeType, dynamic_extent>{size * ProbingScheme::cg_size};
       } else {
-        printf("im not bucket storage\n");
         return valid_extent<SizeType, dynamic_extent>{size * ProbingScheme::cg_size *
                                                       Storage::bucket_size};
       }
@@ -198,6 +200,7 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
   }
 }
 
+// Overload for ProbingScheme and Storage with SizeType
 template <typename ProbingScheme, typename Storage, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType size)
 {
@@ -205,6 +208,7 @@ template <typename ProbingScheme, typename Storage, typename SizeType>
     cuco::extent<SizeType>{size});
 }
 
+// Template template parameter overloads for single-type ProbingScheme
 template <template <typename> class ProbingScheme,
           typename Storage,
           typename SizeType,
@@ -222,6 +226,7 @@ template <template <typename> class ProbingScheme, typename Storage, typename Si
   return make_bucket_extent<ProbeType, Storage, SizeType>(size);
 }
 
+// Template template parameter overloads for two-type ProbingScheme
 template <template <typename, typename> class ProbingScheme,
           typename Storage,
           typename SizeType,
