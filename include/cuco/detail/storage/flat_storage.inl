@@ -74,14 +74,14 @@ template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
 void flat_storage<T, BucketSize, Extent, Allocator>::initialize_async(
   value_type key, cuda::stream_ref stream) noexcept
 {
-  if (this->extent() == 0) { return; }
+  if (this->capacity() == 0) { return; }
 
   auto constexpr cg_size = 1;
   auto constexpr stride  = 4;
-  auto const grid_size   = cuco::detail::grid_size(this->extent(), cg_size, stride);
+  auto const grid_size   = cuco::detail::grid_size(this->capacity(), cg_size, stride);
 
   detail::initialize<<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-    this->data(), this->extent(), key);
+    this->data(), this->capacity(), key);
 }
 
 template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
@@ -95,7 +95,7 @@ template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
 __host__ __device__ constexpr typename flat_storage<T, BucketSize, Extent, Allocator>::size_type
 flat_storage<T, BucketSize, Extent, Allocator>::capacity() const noexcept
 {
-  return extent_ * bucket_size;
+  return static_cast<size_type>(extent_) * bucket_size;
 }
 
 template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
@@ -152,14 +152,14 @@ template <typename T, int32_t BucketSize, typename Extent>
 __host__ __device__ constexpr typename flat_storage_ref<T, BucketSize, Extent>::size_type
 flat_storage_ref<T, BucketSize, Extent>::num_buckets() const noexcept
 {
-  return extent_;
+  return static_cast<size_type>(extent_);
 }
 
 template <typename T, int32_t BucketSize, typename Extent>
 __host__ __device__ constexpr typename flat_storage_ref<T, BucketSize, Extent>::size_type
 flat_storage_ref<T, BucketSize, Extent>::capacity() const noexcept
 {
-  return extent_ * bucket_size;
+  return static_cast<size_type>(extent_) * bucket_size;
 }
 
 template <typename T, int32_t BucketSize, typename Extent>
