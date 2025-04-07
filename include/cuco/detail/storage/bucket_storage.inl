@@ -174,10 +174,10 @@ bucket_storage_ref<T, BucketSize, Extent>::end() noexcept
 }
 
 template <typename T, int32_t BucketSize, typename Extent>
-__device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::const_iterator
+__device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::iterator
 bucket_storage_ref<T, BucketSize, Extent>::end() const noexcept
 {
-  return const_iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
+  return iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
 }
 
 template <typename T, int32_t BucketSize, typename Extent>

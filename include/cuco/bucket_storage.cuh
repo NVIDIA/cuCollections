@@ -91,7 +91,7 @@ class bucket_storage_ref : public detail::bucket_storage_base<T, BucketSize, Ext
    *
    * @return A const_iterator to one past the last slot
    */
-  [[nodiscard]] __device__ constexpr const_iterator end() const noexcept;
+  [[nodiscard]] __device__ constexpr iterator end() const noexcept;
 
   /**
    * @brief Gets buckets array.

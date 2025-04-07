@@ -849,14 +849,20 @@ class open_addressing_impl {
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
     auto storage_ref = this->storage_ref();
-    auto const op    = [callback_op, is_filled, storage_ref] __device__(auto const bucket_slots) {
-      for (auto const slot : bucket_slots) {
-        if (is_filled(slot)) { callback_op(slot); }
+    auto const op    = [callback_op, is_filled, storage_ref] __device__(auto const slot_or_bucket) {
+      if constexpr (is_bucket_storage_v<decltype(storage_ref)>) {
+        // For bucket storage, iterate through slots in the bucket
+        for (auto const& slot : slot_or_bucket) {
+          if (is_filled(slot)) { callback_op(slot); }
+        }
+      } else {
+        // For flat storage, process the single slot directly
+        if (is_filled(slot_or_bucket)) { callback_op(slot_or_bucket); }
       }
     };
 
     CUCO_CUDA_TRY(cub::DeviceFor::ForEachCopyN(
-      storage_ref.data(), storage_ref.num_buckets(), op, stream.get()));
+      storage_ref.data(), static_cast<size_type>(storage_ref.extent()), op, stream.get()));
   }
 
   /**

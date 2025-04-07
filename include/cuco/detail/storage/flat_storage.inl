@@ -88,7 +88,7 @@ template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
 __host__ __device__ constexpr typename flat_storage<T, BucketSize, Extent, Allocator>::size_type
 flat_storage<T, BucketSize, Extent, Allocator>::num_buckets() const noexcept
 {
-  return extent_;
+  return static_cast<size_type>(extent_);
 }
 
 template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
@@ -120,10 +120,10 @@ flat_storage_ref<T, BucketSize, Extent>::end() noexcept
 }
 
 template <typename T, int32_t BucketSize, typename Extent>
-__device__ constexpr flat_storage_ref<T, BucketSize, Extent>::const_iterator
+__device__ constexpr flat_storage_ref<T, BucketSize, Extent>::iterator
 flat_storage_ref<T, BucketSize, Extent>::end() const noexcept
 {
-  return const_iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
+  return iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
 }
 
 template <typename T, int32_t BucketSize, typename Extent>

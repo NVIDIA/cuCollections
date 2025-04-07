@@ -42,7 +42,7 @@ class storage {
 
   /// Type of implementation details
   template <class T, class Extent, class Allocator>
-  using impl = bucket_storage<T, bucket_size, Extent, Allocator>;
+  using impl = flat_storage<T, bucket_size, Extent, Allocator>;
 };
 
 /**

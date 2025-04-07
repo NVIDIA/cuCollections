@@ -289,7 +289,7 @@ class open_addressing_ref_impl {
    *
    * @return A const_iterator to one past the last slot
    */
-  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr iterator end() const noexcept
   {
     return storage_ref_.end();
   }
@@ -905,7 +905,7 @@ class open_addressing_ref_impl {
    * @return An iterator to the position at which the equivalent key is stored
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ iterator find(ProbeKey const& key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter   = probing_scheme_(key, storage_ref_.extent());
@@ -922,7 +922,7 @@ class open_addressing_ref_impl {
             return this->end();
           }
           case detail::equal_result::EQUAL: {
-            return const_iterator{get_slot_ptr(*probing_iter, i)};
+            return iterator{get_slot_ptr(*probing_iter, i)};
           }
           default: continue;
         }
@@ -946,7 +946,7 @@ class open_addressing_ref_impl {
    * @return An iterator to the position at which the equivalent key is stored
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(
+  [[nodiscard]] __device__ iterator find(
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto probing_iter   = probing_scheme_(group, key, storage_ref_.extent());
@@ -971,7 +971,7 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_finds_match) - 1;
         auto const res      = group.shfl(
           reinterpret_cast<intptr_t>(get_slot_ptr(*probing_iter, intra_bucket_index)), src_lane);
-        return const_iterator{reinterpret_cast<value_type*>(res)};
+        return iterator{reinterpret_cast<value_type*>(res)};
       }
 
       // Find an empty slot, meaning that the probe key isn't present in the container

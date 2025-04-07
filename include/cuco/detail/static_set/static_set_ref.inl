@@ -351,6 +351,29 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           typename... Operators>
+template <typename CG, cuda::thread_scope NewScope>
+__device__ constexpr auto
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
+  CG const& tile,
+  typename StorageRef::value_type* const memory_to_use,
+  cuda_thread_scope<NewScope> scope) const noexcept
+{
+  this->impl_.make_copy(tile, memory_to_use);
+  return static_set_ref<Key, NewScope, KeyEqual, ProbingScheme, StorageRef, Operators...>{
+    cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
+    this->key_eq(),
+    this->probing_scheme(),
+    scope,
+    storage_ref_type{this->extent(), memory_to_use}};
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
 template <typename CG>
 __device__ constexpr void
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(

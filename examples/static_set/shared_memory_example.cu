@@ -24,16 +24,16 @@
  */
 
 template <class SetRef>
-__global__ void shmem_set_kernel(typename SetRef::extent_type bucket_extent,
+__global__ void shmem_set_kernel(typename SetRef::extent_type valid_extent,
                                  cuco::empty_key<typename SetRef::key_type> empty_key_sentinel)
 {
   // We first allocate the shared memory storage for the `set`.
   // The storage is comprised of contiguous buckets of slots,
   // which allow for vectorized loads.
-  __shared__ typename SetRef::bucket_type buckets[bucket_extent.value()];
+  __shared__ typename SetRef::value_type slots[valid_extent.value()];
 
   // Next, we construct the actual storage object from the raw array.
-  auto storage = SetRef::storage_ref_type(bucket_extent, buckets);
+  auto storage = SetRef::storage_ref_type(valid_extent, slots);
   // Now we can instantiate the set from the storage.
   auto set = SetRef(empty_key_sentinel, {}, {}, {}, storage);
 
@@ -101,10 +101,10 @@ int main(void)
   // Cuco imposes a number of non-trivial contraints on the capacity value.
   // This function will take the requested capacity (1000) and return the next larger
   // valid extent.
-  auto constexpr bucket_extent =
+  auto constexpr valid_extent =
     cuco::make_valid_extent<probing_scheme_type, cuco::storage<bucket_size>>(extent_type{});
 
   // Launch the kernel with a single thread block.
-  shmem_set_kernel<set_ref_type><<<1, 128>>>(bucket_extent, empty_key_sentinel);
+  shmem_set_kernel<set_ref_type><<<1, 128>>>(valid_extent, empty_key_sentinel);
   cudaDeviceSynchronize();
 }
