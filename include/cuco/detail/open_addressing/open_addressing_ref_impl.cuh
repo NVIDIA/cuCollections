@@ -396,9 +396,8 @@ class open_addressing_ref_impl {
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                                 slot_content,
-                                 val)) {
+          switch (
+            attempt_insert(get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, val)) {
             case insert_result::DUPLICATE: {
               if constexpr (allows_duplicates) {
                 [[fallthrough]];
@@ -469,15 +468,12 @@ class open_addressing_ref_impl {
         auto status         = insert_result::CONTINUE;
         if (group.thread_rank() == src_lane) {
           if constexpr (SupportsErase) {
-            status =
-              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                             bucket_slots[intra_bucket_index],
-                             val);
+            status = attempt_insert(get_slot_ptr(*probing_iter, intra_bucket_index),
+                                    bucket_slots[intra_bucket_index],
+                                    val);
           } else {
-            status =
-              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                             this->empty_slot_sentinel(),
-                             val);
+            status = attempt_insert(
+              get_slot_ptr(*probing_iter, intra_bucket_index), this->empty_slot_sentinel(), val);
           }
         }
 
@@ -536,31 +532,31 @@ class open_addressing_ref_impl {
       for (auto i = 0; i < bucket_size; ++i) {
         auto const eq_res =
           this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]));
-        auto* bucket_ptr = (storage_ref_.data() + *probing_iter)->data();
+        auto* slot_ptr = get_slot_ptr(*probing_iter, i);
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
           if constexpr (has_payload) {
             // wait to ensure that the write to the value part also took place
-            this->wait_for_payload((bucket_ptr + i)->second, this->empty_value_sentinel());
+            this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
           }
-          return {iterator{&bucket_ptr[i]}, false};
+          return {iterator{slot_ptr}, false};
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          switch (this->attempt_insert_stable(bucket_ptr + i, bucket_slots[i], val)) {
+          switch (this->attempt_insert_stable(slot_ptr, bucket_slots[i], val)) {
             case insert_result::SUCCESS: {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
-                this->wait_for_payload((bucket_ptr + i)->second, this->empty_value_sentinel());
+                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
               }
-              return {iterator{&bucket_ptr[i]}, true};
+              return {iterator{slot_ptr}, true};
             }
             case insert_result::DUPLICATE: {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
-                this->wait_for_payload((bucket_ptr + i)->second, this->empty_value_sentinel());
+                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
               }
-              return {iterator{&bucket_ptr[i]}, false};
+              return {iterator{slot_ptr}, false};
             }
             default: continue;
           }
@@ -617,7 +613,7 @@ class open_addressing_ref_impl {
         return bucket_probing_results{res, -1};
       }();
 
-      auto* slot_ptr = (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index;
+      auto* slot_ptr = get_slot_ptr(*probing_iter, intra_bucket_index);
 
       // If the key is already in the container, return false
       auto const group_finds_equal = group.ballot(state == detail::equal_result::EQUAL);
@@ -702,10 +698,9 @@ class open_addressing_ref_impl {
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-          switch (attempt_insert_stable(
-            (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-            slot_content,
-            this->erased_slot_sentinel())) {
+          switch (attempt_insert_stable(get_slot_ptr(*probing_iter, intra_bucket_index),
+                                        slot_content,
+                                        this->erased_slot_sentinel())) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
             default: continue;
@@ -752,10 +747,9 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
-            ? attempt_insert_stable(
-                (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                bucket_slots[intra_bucket_index],
-                this->erased_slot_sentinel())
+            ? attempt_insert_stable(get_slot_ptr(*probing_iter, intra_bucket_index),
+                                    bucket_slots[intra_bucket_index],
+                                    this->erased_slot_sentinel())
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -796,8 +790,9 @@ class open_addressing_ref_impl {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = storage_ref_[*probing_iter];
 
-      for (auto& slot_content : bucket_slots) {
-        switch (this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
+      for (auto i = 0; i < bucket_size; ++i) {
+        switch (
+          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::UNEQUAL: continue;
           case detail::equal_result::EMPTY: return false;
           case detail::equal_result::EQUAL: return true;
@@ -833,8 +828,8 @@ class open_addressing_ref_impl {
 
       auto const state = [&]() {
         auto res = detail::equal_result::UNEQUAL;
-        for (auto& slot : bucket_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
+        for (auto i = 0; i < bucket_size; ++i) {
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return res; }
         }
         return res;
@@ -878,7 +873,7 @@ class open_addressing_ref_impl {
             return this->end();
           }
           case detail::equal_result::EQUAL: {
-            return const_iterator{&(*(storage_ref_.data() + *probing_iter))[i]};
+            return const_iterator{get_slot_ptr(*probing_iter, i)};
           }
           default: continue;
         }
@@ -926,8 +921,7 @@ class open_addressing_ref_impl {
       if (group_finds_match) {
         auto const src_lane = __ffs(group_finds_match) - 1;
         auto const res      = group.shfl(
-          reinterpret_cast<intptr_t>(&(*(storage_ref_.data() + *probing_iter))[intra_bucket_index]),
-          src_lane);
+          reinterpret_cast<intptr_t>(get_slot_ptr(*probing_iter, intra_bucket_index)), src_lane);
         return const_iterator{reinterpret_cast<value_type*>(res)};
       }
 
@@ -962,9 +956,9 @@ class open_addressing_ref_impl {
         // TODO atomic_ref::load if insert operator is present
         auto const bucket_slots = storage_ref_[*probing_iter];
 
-        for (auto& slot_content : bucket_slots) {
+        for (auto i = 0; i < bucket_size; ++i) {
           switch (
-            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
+            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
             case detail::equal_result::EMPTY: return count;
             case detail::equal_result::EQUAL: ++count; break;
             default: continue;
@@ -999,8 +993,8 @@ class open_addressing_ref_impl {
 
       auto const state = [&]() {
         auto res = detail::equal_result::UNEQUAL;
-        for (auto& slot : bucket_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
+        for (int i = 0; i < bucket_size; ++i) {
+          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
           if (res == detail::equal_result::EMPTY) { return res; }
           count += static_cast<size_type>(res);
         }
@@ -1481,6 +1475,23 @@ class open_addressing_ref_impl {
 
       ++probing_iter;
       if (*probing_iter == init_idx) { return; }
+    }
+  }
+
+  /**
+   * @brief Gets a pointer to the slot at the given probing index and intra-bucket index.
+   *
+   * @param probing_idx The current probing index
+   * @param intra_bucket_idx The index within the bucket (0 for flat storage)
+   * @return Pointer to the slot
+   */
+  __device__ value_type* get_slot_ptr(size_type probing_idx,
+                                      int32_t intra_bucket_idx) const noexcept
+  {
+    if constexpr (is_bucket_storage_v<storage_ref_type>) {
+      return (storage_ref_.data() + probing_idx)->data() + intra_bucket_idx;
+    } else {
+      return storage_ref_.data() + probing_idx + intra_bucket_idx;
     }
   }
 
