@@ -340,6 +340,44 @@ class open_addressing_ref_impl {
   }
 
   /**
+   * @brief Makes a copy of the current device reference using non-owned memory.
+   *
+   * This function is intended to be used to create shared memory copies of small static data
+   * structures, although global memory can be used as well.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param g The cooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   */
+  template <typename CG>
+  __device__ void make_copy(CG const& g, value_type* const memory_to_use) const noexcept
+  {
+    auto const num_slots = static_cast<size_type>(this->extent());
+#if defined(CUCO_HAS_CUDA_BARRIER)
+#pragma nv_diagnostic push
+// Disables `barrier` initialization warning.
+#pragma nv_diag_suppress static_var_with_dynamic_init
+    __shared__ cuda::barrier<cuda::thread_scope::thread_scope_block> barrier;
+#pragma nv_diagnostic pop
+    if (g.thread_rank() == 0) { init(&barrier, g.size()); }
+    g.sync();
+
+    cuda::memcpy_async(
+      g, memory_to_use, this->storage_ref().data(), sizeof(value_type) * num_slots, barrier);
+
+    barrier.arrive_and_wait();
+#else
+    value_type const* const slots_ptr = this->storage_ref().data();
+    for (size_type i = g.thread_rank(); i < num_slots; i += g.size()) {
+      memory_to_use[i] = slots_ptr[i];
+    }
+    g.sync();
+#endif
+  }
+
+  /**
    * @brief Initializes the container storage.
    *
    * @note This function synchronizes the group `tile`.
@@ -351,16 +389,27 @@ class open_addressing_ref_impl {
   template <typename CG>
   __device__ constexpr void initialize(CG const& tile) noexcept
   {
-    auto tid                = tile.thread_rank();
-    auto* const buckets_ptr = this->storage_ref().data();
-    while (tid < static_cast<size_type>(this->extent())) {
-      auto& bucket = *(buckets_ptr + tid);
+    auto tid          = tile.thread_rank();
+    auto const extent = static_cast<size_type>(this->extent());
+
+    if constexpr (is_bucket_storage_v<storage_ref_type>) {
+      auto* const buckets_ptr = this->storage_ref().data();
+      while (tid < extent) {
+        auto& bucket = *(buckets_ptr + tid);
 #pragma unroll
-      for (auto& slot : bucket) {
-        slot = this->empty_slot_sentinel();
+        for (auto& slot : bucket) {
+          slot = this->empty_slot_sentinel();
+        }
+        tid += tile.size();
       }
-      tid += tile.size();
+    } else {
+      auto* const slots_ptr = this->storage_ref().data();
+      while (tid < extent) {
+        slots_ptr[tid] = this->empty_slot_sentinel();
+        tid += tile.size();
+      }
     }
+
     tile.sync();
   }
 
