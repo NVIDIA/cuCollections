@@ -42,7 +42,6 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   static constexpr int bucket_size = impl_type::bucket_size;
 
   using impl_type::allocator;
-  using impl_type::bucket_extent;
   using impl_type::capacity;
   using impl_type::data;
   using impl_type::extent;
