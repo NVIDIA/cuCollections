@@ -191,8 +191,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   auto const warp_thread_idx = warp.thread_rank();
 
   // Shared map initialization
-  __shared__ typename SharedMapRefType::bucket_type buckets[bucket_extent.value()];
-  auto storage           = SharedMapRefType::storage_ref_type(bucket_extent, buckets);
+  __shared__ typename SharedMapRefType::value_type slots[bucket_extent.value()];
+  auto storage           = SharedMapRefType::storage_ref_type(bucket_extent, slots);
   auto const num_buckets = storage.num_buckets();
 
   using atomic_type = cuda::atomic<int32_t, cuda::thread_scope_block>;

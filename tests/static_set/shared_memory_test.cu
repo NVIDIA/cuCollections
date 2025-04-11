@@ -40,7 +40,7 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   const size_t set_id = blockIdx.x;
   const size_t offset = set_id * number_of_elements;
 
-  __shared__ typename Ref::bucket_type sm_buffer[NumBuckets];
+  __shared__ typename Ref::value_type sm_buffer[NumBuckets];
 
   auto g          = cuco::test::cg::this_thread_block();
   auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::thread_scope_block);

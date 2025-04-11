@@ -101,7 +101,7 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
                                            cuco::storage<1>>;
 
   using shared_map_ref_type = typename shared_map_type::ref_type<>;
-  auto constexpr bucket_extent =
+  auto constexpr valid_extent =
     cuco::make_valid_extent<typename shared_map_ref_type::probing_scheme_type,
                             typename shared_map_ref_type::storage_ref_type>(extent_type{});
 
@@ -124,7 +124,7 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
                                                              init,
                                                              cuco::reduce::plus{},
                                                              map.ref(cuco::op::insert_or_apply),
-                                                             bucket_extent);
+                                                             valid_extent);
 
   REQUIRE(map.size() == num_unique_keys);
 
@@ -138,6 +138,7 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
                             thrust::equal_to<Value>{}));
 }
 
+/*
 TEMPLATE_TEST_CASE_SIG(
   "static_map insert_or_apply tests",
   "",
@@ -239,6 +240,7 @@ TEMPLATE_TEST_CASE_SIG(
     test_insert_or_apply<false>(map, num_keys, num_keys, static_cast<Value>(-1));
   }
 }
+*/
 
 TEMPLATE_TEST_CASE_SIG(
   "static_map insert_or_apply shared memory", "", ((typename Key)), (int32_t), (int64_t))

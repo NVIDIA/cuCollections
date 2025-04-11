@@ -387,31 +387,6 @@ template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
   CG const& tile,
-  bucket_type* const memory_to_use,
-  cuda_thread_scope<NewScope> scope) const noexcept
-{
-  this->impl_.make_copy(tile, memory_to_use);
-  return static_map_ref<Key, T, NewScope, KeyEqual, ProbingScheme, StorageRef, Operators...>{
-    cuco::empty_key<Key>{this->empty_key_sentinel()},
-    cuco::empty_value<T>{this->empty_value_sentinel()},
-    cuco::erased_key<Key>{this->erased_key_sentinel()},
-    this->key_eq(),
-    this->probing_scheme(),
-    scope,
-    storage_ref_type{this->extent(), memory_to_use}};
-}
-
-template <typename Key,
-          typename T,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename StorageRef,
-          typename... Operators>
-template <typename CG, cuda::thread_scope NewScope>
-__device__ constexpr auto
-static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
-  CG const& tile,
   typename StorageRef::value_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
@@ -551,7 +526,7 @@ class operator_impl<
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
         auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
+        auto slot_ptr                 = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
@@ -607,7 +582,7 @@ class operator_impl<
         return detail::bucket_probing_results{res, -1};
       }();
 
-      auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
+      auto slot_ptr = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {

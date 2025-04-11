@@ -88,7 +88,7 @@ template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
 __host__ __device__ constexpr typename flat_storage<T, BucketSize, Extent, Allocator>::size_type
 flat_storage<T, BucketSize, Extent, Allocator>::num_buckets() const noexcept
 {
-  return static_cast<size_type>(extent_);
+  return static_cast<size_type>(extent_) / bucket_size;
 }
 
 template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
