@@ -129,27 +129,28 @@ inline constexpr bool is_bucket_extent_v = is_bucket_extent<T>::value;
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
 {
+  auto constexpr stride    = CGSize * BucketSize;
   auto constexpr max_prime = cuco::detail::primes.back();
   auto constexpr max_value =
     (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
       ? std::numeric_limits<SizeType>::max()
       : static_cast<SizeType>(max_prime);
   auto const size = cuco::detail::int_div_ceil(
-    std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), CGSize * BucketSize);
+    std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride);
   if (size > max_value) { CUCO_FAIL("Invalid input extent"); }
 
   if constexpr (N == dynamic_extent) {
     return valid_extent<SizeType, dynamic_extent>{static_cast<SizeType>(
       *cuco::detail::lower_bound(
         cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
-      CGSize)};
+      stride)};
   } else {
     return valid_extent<SizeType,
                         static_cast<std::size_t>(
                           *cuco::detail::lower_bound(cuco::detail::primes.begin(),
                                                      cuco::detail::primes.end(),
                                                      static_cast<uint64_t>(size)) *
-                          CGSize)>{};
+                          stride)>{};
   }
 }
 
@@ -165,36 +166,17 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
 [[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
 {
   if constexpr (cuco::is_double_hashing<ProbingScheme>::value) {
-    auto result = make_valid_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
-    if constexpr (!cuco::is_bucket_storage_v<Storage>) {
-      if constexpr (N == dynamic_extent) {
-        return valid_extent<SizeType, dynamic_extent>{static_cast<SizeType>(result) *
-                                                      Storage::bucket_size};
-      } else {
-        return valid_extent<SizeType, static_cast<SizeType>(result) * Storage::bucket_size>{};
-      }
-    } else {
-      return result;
-    }
+    return make_valid_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
   } else {
-    auto const size =
-      cuco::detail::int_div_ceil(std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)),
-                                 ProbingScheme::cg_size * Storage::bucket_size) +
-      static_cast<SizeType>(ext == 0);
+    auto constexpr stride = ProbingScheme::cg_size * Storage::bucket_size;
+    auto const size       = cuco::detail::int_div_ceil(
+                        std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride) +
+                      static_cast<SizeType>(ext == 0);
 
     if constexpr (N == dynamic_extent) {
-      if constexpr (cuco::is_bucket_storage_v<Storage>) {
-        return valid_extent<SizeType, dynamic_extent>{size * ProbingScheme::cg_size};
-      } else {
-        return valid_extent<SizeType, dynamic_extent>{size * ProbingScheme::cg_size *
-                                                      Storage::bucket_size};
-      }
+      return valid_extent<SizeType, dynamic_extent>{size * stride};
     } else {
-      if constexpr (cuco::is_bucket_storage_v<Storage>) {
-        return valid_extent<SizeType, size * ProbingScheme::cg_size>{};
-      } else {
-        return valid_extent<SizeType, size * ProbingScheme::cg_size * Storage::bucket_size>{};
-      }
+      return valid_extent<SizeType, size * stride>{};
     }
   }
 }

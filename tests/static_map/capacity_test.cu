@@ -75,7 +75,7 @@ TEST_CASE("static_map capacity test", "")
 
   SECTION("Static bucket extent can be evaluated at build time.")
   {
-    std::size_t constexpr gold_extent = 211;
+    std::size_t constexpr gold_extent = 422;  // 211 x 2
 
     using extent_type = cuco::extent<std::size_t, num_keys>;
     cuco::static_map<Key,

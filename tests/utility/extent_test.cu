@@ -33,7 +33,7 @@ TEMPLATE_TEST_CASE_SIG(
   "utility extent tests", "", ((typename SizeType), SizeType), (int32_t), (int64_t), (std::size_t))
 {
   SizeType constexpr num            = 1234;
-  SizeType constexpr gold_reference = 314;  // 157 x 2
+  SizeType constexpr gold_reference = 1256;  // 157 x 2 x 4
 
   SECTION("Static extent must be evaluated at compile time.")
   {

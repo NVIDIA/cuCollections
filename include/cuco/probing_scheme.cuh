@@ -68,6 +68,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
   /**
    * @brief Operator to return a probing iterator
    *
+   * @tparam BucketSize Size of the bucket
    * @tparam ProbeKey Type of probing key
    * @tparam Extent Type of extent
    *
@@ -75,13 +76,14 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <typename ProbeKey, typename Extent>
+  template <int32_t BucketSize, typename ProbeKey, typename Extent>
   __host__ __device__ constexpr auto operator()(ProbeKey const& probe_key,
                                                 Extent upper_bound) const noexcept;
 
   /**
    * @brief Operator to return a CG-based probing iterator
    *
+   * @tparam BucketSize Size of the bucket
    * @tparam ProbeKey Type of probing key
    * @tparam Extent Type of extent
    *
@@ -90,7 +92,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <typename ProbeKey, typename Extent>
+  template <int32_t BucketSize, typename ProbeKey, typename Extent>
   __host__ __device__ constexpr auto operator()(
     cooperative_groups::thread_block_tile<cg_size> const& g,
     ProbeKey const& probe_key,
@@ -163,6 +165,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   /**
    * @brief Operator to return a probing iterator
    *
+   * @tparam BucketSize Size of the bucket
    * @tparam ProbeKey Type of probing key
    * @tparam Extent Type of extent
    *
@@ -170,13 +173,14 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <typename ProbeKey, typename Extent>
+  template <int32_t BucketSize, typename ProbeKey, typename Extent>
   __host__ __device__ constexpr auto operator()(ProbeKey const& probe_key,
                                                 Extent upper_bound) const noexcept;
 
   /**
    * @brief Operator to return a CG-based probing iterator
    *
+   * @tparam BucketSize Size of the bucket
    * @tparam ProbeKey Type of probing key
    * @tparam Extent Type of extent
    *
@@ -185,7 +189,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <typename ProbeKey, typename Extent>
+  template <int32_t BucketSize, typename ProbeKey, typename Extent>
   __host__ __device__ constexpr auto operator()(
     cooperative_groups::thread_block_tile<cg_size> const& g,
     ProbeKey const& probe_key,

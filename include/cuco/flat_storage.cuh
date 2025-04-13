@@ -43,7 +43,7 @@ class flat_storage_ref {
   using extent_type = Extent;                            ///< Storage extent type
   using size_type   = typename extent_type::value_type;  ///< Storage size type
   using value_type  = T;                                 ///< Slot type
-  using bucket_type = detail::bucket<T, BucketSize>;     ///< Slot bucket type
+  using bucket_type = cuda::std::array<T, BucketSize>;   ///< Slot bucket type
 
   /**
    * @brief Constructor of slot storage ref.
@@ -143,7 +143,7 @@ class flat_storage {
   using extent_type = Extent;                            ///< Storage extent type
   using size_type   = typename extent_type::value_type;  ///< Storage size type
   using value_type  = T;                                 ///< Slot type
-  using bucket_type = detail::bucket<T, BucketSize>;     ///< Slot bucket type
+  using bucket_type = cuda::std::array<T, BucketSize>;   ///< Slot bucket type
 
   /// Type of the allocator to (de)allocate buckets
   using allocator_type =

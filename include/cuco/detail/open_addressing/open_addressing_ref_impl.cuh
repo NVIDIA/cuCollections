@@ -427,10 +427,19 @@ class open_addressing_ref_impl {
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto const val      = this->heterogeneous_value(value);
-    auto const key      = this->extract_key(val);
-    auto probing_iter   = probing_scheme_(key, storage_ref_.extent());
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
+
+    auto probing_iter   = probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
+
+    /*
+         if constexpr (cuda::std::is_integral_v<decltype(key)>) {
+            printf("### tid: %d init_idx: %d key: %d extent: %d\n", threadIdx.x,
+            int(static_cast<size_type>(*probing_iter)), int(key),
+       int(static_cast<size_type>(storage_ref_.extent())));
+          }
+    */
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -478,9 +487,9 @@ class open_addressing_ref_impl {
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          Value const& value) noexcept
   {
-    auto const val      = this->heterogeneous_value(value);
-    auto const key      = this->extract_key(val);
-    auto probing_iter   = probing_scheme_(group, key, storage_ref_.extent());
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
+    auto probing_iter = probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -572,7 +581,7 @@ class open_addressing_ref_impl {
 
     auto const val      = this->heterogeneous_value(value);
     auto const key      = this->extract_key(val);
-    auto probing_iter   = probing_scheme_(key, storage_ref_.extent());
+    auto probing_iter   = probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -643,9 +652,9 @@ class open_addressing_ref_impl {
       "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
-    auto const val      = this->heterogeneous_value(value);
-    auto const key      = this->extract_key(val);
-    auto probing_iter   = probing_scheme_(group, key, storage_ref_.extent());
+    auto const val    = this->heterogeneous_value(value);
+    auto const key    = this->extract_key(val);
+    auto probing_iter = probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -732,7 +741,7 @@ class open_addressing_ref_impl {
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto probing_iter   = probing_scheme_(key, storage_ref_.extent());
+    auto probing_iter   = probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -775,7 +784,7 @@ class open_addressing_ref_impl {
   __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
                         ProbeKey const& key) noexcept
   {
-    auto probing_iter   = probing_scheme_(group, key, storage_ref_.extent());
+    auto probing_iter = probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -832,7 +841,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter   = probing_scheme_(key, storage_ref_.extent());
+    auto probing_iter   = probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -869,7 +878,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ bool contains(
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
-    auto probing_iter   = probing_scheme_(group, key, storage_ref_.extent());
+    auto probing_iter = probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -908,7 +917,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ iterator find(ProbeKey const& key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter   = probing_scheme_(key, storage_ref_.extent());
+    auto probing_iter   = probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -949,7 +958,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ iterator find(
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
-    auto probing_iter   = probing_scheme_(group, key, storage_ref_.extent());
+    auto probing_iter = probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -997,7 +1006,7 @@ class open_addressing_ref_impl {
     if constexpr (not allows_duplicates) {
       return static_cast<size_type>(this->contains(key));
     } else {
-      auto probing_iter   = probing_scheme_(key, storage_ref_.extent());
+      auto probing_iter   = probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
       auto const init_idx = *probing_iter;
       size_type count     = 0;
 
@@ -1033,7 +1042,7 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ size_type count(
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
-    auto probing_iter   = probing_scheme_(group, key, storage_ref_.extent());
+    auto probing_iter = probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
     size_type count     = 0;
 
@@ -1250,8 +1259,8 @@ class open_addressing_ref_impl {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
         auto const probe_key = *(input_probe + idx);
-        auto probing_iter =
-          this->probing_scheme_(probing_tile, probe_key, this->storage_ref_.extent());
+        auto probing_iter    = this->probing_scheme_.operator()<bucket_size>(
+          probing_tile, probe_key, this->storage_ref_.extent());
         auto const init_idx = *probing_iter;
 
         bool running                      = true;
@@ -1382,7 +1391,8 @@ class open_addressing_ref_impl {
   __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter   = this->probing_scheme_(key, this->storage_ref_.extent());
+    auto probing_iter =
+      this->probing_scheme_.operator()<bucket_size>(key, this->storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -1431,7 +1441,8 @@ class open_addressing_ref_impl {
                            ProbeKey const& key,
                            CallbackOp&& callback_op) const noexcept
   {
-    auto probing_iter   = this->probing_scheme_(group, key, this->storage_ref_.extent());
+    auto probing_iter =
+      this->probing_scheme_.operator()<bucket_size>(group, key, this->storage_ref_.extent());
     auto const init_idx = *probing_iter;
     bool empty          = false;
 
@@ -1495,7 +1506,8 @@ class open_addressing_ref_impl {
                            CallbackOp&& callback_op,
                            SyncOp&& sync_op) const noexcept
   {
-    auto probing_iter   = this->probing_scheme_(group, key, this->storage_ref_.extent());
+    auto probing_iter =
+      this->probing_scheme_.operator()<bucket_size>(group, key, this->storage_ref_.extent());
     auto const init_idx = *probing_iter;
     bool empty          = false;
 
