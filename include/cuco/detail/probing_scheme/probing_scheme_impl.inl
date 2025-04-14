@@ -172,10 +172,12 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
-    cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) % (upper_bound / BucketSize) *
-      BucketSize,
-    cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / BucketSize - 1) +
-      1 * BucketSize,  // step size in range [1, prime - 1]
+    static_cast<size_type>(cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) %
+                           (upper_bound / BucketSize) * BucketSize),
+    static_cast<size_type>(
+      (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / BucketSize - 1) +
+       1) *
+      BucketSize),  // step size in range [1, prime - 1]
     upper_bound};
 }
 
@@ -188,11 +190,11 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
 {
   int32_t const stride = cg_size * BucketSize;
   using size_type      = typename Extent::value_type;
-  size_type const init =
-    cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) % (upper_bound / stride) * stride +
-    g.thread_rank() * BucketSize;
+
   return detail::probing_iterator<Extent>{
-    init,
+    static_cast<size_type>(cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) %
+                             (upper_bound / stride) * stride +
+                           g.thread_rank() * BucketSize),
     static_cast<size_type>(
       (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / stride - 1) + 1) *
       stride),
