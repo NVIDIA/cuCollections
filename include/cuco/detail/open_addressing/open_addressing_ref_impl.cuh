@@ -433,14 +433,6 @@ class open_addressing_ref_impl {
     auto probing_iter   = probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
-    /*
-         if constexpr (cuda::std::is_integral_v<decltype(key)>) {
-            printf("### tid: %d init_idx: %d key: %d extent: %d\n", threadIdx.x,
-            int(static_cast<size_type>(*probing_iter)), int(key),
-       int(static_cast<size_type>(storage_ref_.extent())));
-          }
-    */
-
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
 

@@ -913,7 +913,7 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size = cuco::detail::grid_size(storage_.num_buckets());
+    auto const grid_size = cuco::detail::grid_size(this->capacity());
     auto const is_filled = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 

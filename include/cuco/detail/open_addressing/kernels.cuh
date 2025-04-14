@@ -664,14 +664,11 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void size(StorageRef storage,
   auto idx               = cuco::detail::global_thread_id();
 
   size_type thread_count = 0;
-  auto const n           = storage.num_buckets();
+  auto const n           = storage.capacity();
 
   while (idx < n) {
-    auto const bucket = storage[idx];
-#pragma unroll
-    for (auto const& it : bucket) {
-      thread_count += static_cast<size_type>(is_filled(it));
-    }
+    thread_count += static_cast<size_type>(is_filled(*(storage.data() + idx)));
+
     idx += loop_stride;
   }
 
