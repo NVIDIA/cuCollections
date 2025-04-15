@@ -108,8 +108,12 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
 
   SECTION("Keys are all found after insertion.")
   {
-    auto pairs_begin =
-      thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
+    auto pairs_begin = thrust::make_transform_iterator(
+      thrust::counting_iterator(0),
+      cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+        [d_keys = d_keys.data(), d_values = d_values.data()] __device__(int idx) {
+          return cuco::pair<Key, Value>(d_keys[idx], d_values[idx]);
+        }));
     std::vector<ref_type> h_refs;
     for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
       const std::size_t offset = map_id * elements_in_map;
