@@ -701,7 +701,6 @@ class static_multimap {
    * @note This function synchronizes the given stream.
    * @note Behavior is undefined if the size of the output range exceeds
    * `std::distance(output_begin, output_end)`.
-   * @note Behavior is undefined if the given key has multiple matches in the set.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam OutputProbeIt Device accessible output iterator whose `value_type` can be constructed
