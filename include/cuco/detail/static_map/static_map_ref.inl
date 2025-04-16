@@ -514,7 +514,7 @@ class operator_impl<
           payload_ref.store(val.second, cuda::memory_order_relaxed);
           return;
         }
-        if (eq_res == detail::equal_result::AVAILABLE) {
+        if ((eq_res == detail::equal_result::EMPTY) or (eq_res == detail::equal_result::ERASED)) {
           if (attempt_insert_or_assign(slot_ptr, val)) { return; }
         }
       }
@@ -575,7 +575,8 @@ class operator_impl<
         return;
       }
 
-      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
+      auto const group_contains_available = group.ballot((state == detail::equal_result::EMPTY) or
+                                                         (state == detail::equal_result::ERASED));
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status =
@@ -887,7 +888,7 @@ class operator_impl<
           op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
           return false;
         }
-        if (eq_res == detail::equal_result::AVAILABLE) {
+        if ((eq_res == detail::equal_result::EMPTY) or (eq_res == detail::equal_result::ERASED)) {
           switch (ref_.attempt_insert_or_apply<UseDirectApply>(slot_ptr, slot_content, val, op)) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: {
@@ -974,7 +975,8 @@ class operator_impl<
         return false;
       }
 
-      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
+      auto const group_contains_available = group.ballot((state == detail::equal_result::EMPTY) or
+                                                         (state == detail::equal_result::ERASED));
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status   = [&, target_idx = intra_bucket_index]() {

@@ -383,7 +383,12 @@ class open_addressing_ref_impl {
     auto probing_iter   = probing_scheme_(key, storage_ref_.bucket_extent());
     auto const init_idx = *probing_iter;
 
+    [[maybe_unused]] auto probing_iter_copy  = probing_iter;
+    [[maybe_unused]] bool erased             = false;
+    [[maybe_unused]] bool empty_after_erased = false;
+
     while (true) {
+    [[maybe_unused]] continue_after_erased:
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : bucket_slots) {
@@ -393,21 +398,34 @@ class open_addressing_ref_impl {
         if constexpr (not allows_duplicates) {
           // If the key is already in the container, return false
           if (eq_res == detail::equal_result::EQUAL) { return false; }
+          if (eq_res == detail::equal_result::ERASED and not erased and not empty_after_erased) {
+            erased            = true;
+            probing_iter_copy = probing_iter;
+          }
+          if (eq_res == detail::equal_result::EMPTY and erased and not empty_after_erased) {
+            empty_after_erased = true;
+            probing_iter       = probing_iter_copy;
+            goto continue_after_erased;
+          }
         }
-        if (eq_res == detail::equal_result::AVAILABLE) {
-          auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                                 slot_content,
-                                 val)) {
-            case insert_result::DUPLICATE: {
-              if constexpr (allows_duplicates) {
-                [[fallthrough]];
-              } else {
-                return false;
+
+        if (not erased or empty_after_erased) {
+          if ((eq_res == detail::equal_result::EMPTY) or (eq_res == detail::equal_result::ERASED)) {
+            auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+            switch (
+              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
+                             slot_content,
+                             val)) {
+              case insert_result::DUPLICATE: {
+                if constexpr (allows_duplicates) {
+                  [[fallthrough]];
+                } else {
+                  return false;
+                }
               }
+              case insert_result::CONTINUE: continue;
+              case insert_result::SUCCESS: return true;
             }
-            case insert_result::CONTINUE: continue;
-            case insert_result::SUCCESS: return true;
           }
         }
       }
@@ -442,8 +460,10 @@ class open_addressing_ref_impl {
         for (auto i = 0; i < bucket_size; ++i) {
           switch (
             this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]))) {
-            case detail::equal_result::AVAILABLE:
-              return bucket_probing_results{detail::equal_result::AVAILABLE, i};
+            case detail::equal_result::EMPTY:
+              return bucket_probing_results{detail::equal_result::EMPTY, i};
+            case detail::equal_result::ERASED:
+              return bucket_probing_results{detail::equal_result::ERASED, i};
             case detail::equal_result::EQUAL: {
               if constexpr (allows_duplicates) {
                 continue;
@@ -463,7 +483,8 @@ class open_addressing_ref_impl {
         if (group.any(state == detail::equal_result::EQUAL)) { return false; }
       }
 
-      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
+      auto const group_contains_available = group.ballot((state == detail::equal_result::EMPTY) or
+                                                         (state == detail::equal_result::ERASED));
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto status         = insert_result::CONTINUE;
@@ -546,7 +567,7 @@ class open_addressing_ref_impl {
           }
           return {iterator{&bucket_ptr[i]}, false};
         }
-        if (eq_res == detail::equal_result::AVAILABLE) {
+        if ((eq_res == detail::equal_result::EMPTY) or (eq_res == detail::equal_result::ERASED)) {
           switch (this->attempt_insert_stable(bucket_ptr + i, bucket_slots[i], val)) {
             case insert_result::SUCCESS: {
               if constexpr (has_payload) {
@@ -634,7 +655,8 @@ class open_addressing_ref_impl {
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
 
-      auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
+      auto const group_contains_available = group.ballot((state == detail::equal_result::EMPTY) or
+                                                         (state == detail::equal_result::ERASED));
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);

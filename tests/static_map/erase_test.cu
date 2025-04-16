@@ -74,6 +74,10 @@ void test_erase(Map& map, size_type num_keys)
     REQUIRE(cuco::test::all_of(
       d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), cuda::std::identity{}));
 
+    // tests #606
+    map.insert(pairs_begin + num_keys / 2, pairs_begin + num_keys);
+    // TODO insert_and_find, insert_or_assign, insert_or_apply
+
     map.erase(keys_begin + num_keys / 2, keys_begin + num_keys);
     REQUIRE(map.size() == 0);
   }

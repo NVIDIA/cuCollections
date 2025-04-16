@@ -26,7 +26,7 @@ namespace detail {
  * @brief Enum of equality comparison results
  */
 // ENUM VALUE MATTERS, DO NOT CHANGE
-enum class equal_result : int32_t { UNEQUAL = 0, EQUAL = 1, EMPTY = 2, AVAILABLE = 3 };
+enum class equal_result : int32_t { UNEQUAL = 0, EQUAL = 1, EMPTY = 2, ERASED = 3 };
 
 enum class is_insert : bool { YES, NO };
 
@@ -97,10 +97,13 @@ struct equal_wrapper {
   __device__ constexpr equal_result operator()(LHS const& lhs, RHS const& rhs) const noexcept
   {
     if constexpr (IsInsert == is_insert::YES) {
-      return (cuco::detail::bitwise_compare(rhs, empty_sentinel_) or
-              cuco::detail::bitwise_compare(rhs, erased_sentinel_))
-               ? equal_result::AVAILABLE
-               : this->equal_to(lhs, rhs);
+      if (cuco::detail::bitwise_compare(rhs, empty_sentinel_)) {
+        return equal_result::EMPTY;
+      } else if (cuco::detail::bitwise_compare(rhs, erased_sentinel_)) {
+        return equal_result::ERASED;
+      } else {
+        return this->equal_to(lhs, rhs);
+      }
     } else {
       return cuco::detail::bitwise_compare(rhs, empty_sentinel_) ? equal_result::EMPTY
                                                                  : this->equal_to(lhs, rhs);
