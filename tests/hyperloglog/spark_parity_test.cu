@@ -139,7 +139,7 @@ TEST_CASE("hyperloglog: Spark parity: merging HLL instances", "")
   REQUIRE(cuco::test::equal(entire_sketch.data(),
                             entire_sketch.data() + entire_sketch.size(),
                             lower_sketch.data(),
-                            thrust::equal_to{}));
+                            cuda::std::equal_to{}));
 }
 
 /*

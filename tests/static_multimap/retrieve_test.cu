@@ -18,10 +18,10 @@
 
 #include <cuco/static_multimap.cuh>
 
+#include <cuda/std/functional>
+#include <cuda/std/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/distance.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/sort.h>
@@ -70,7 +70,7 @@ void test_retrieve(Map& map, std::size_t num_items)
                                         map.hash_function(),
                                         thrust::discard_iterator{},
                                         output_begin);
-    std::size_t const size = thrust::distance(output_begin, output_end);
+    std::size_t const size = cuda::std::distance(output_begin, output_end);
 
     REQUIRE(size == num_gold);
 
@@ -122,7 +122,7 @@ TEMPLATE_TEST_CASE_SIG(
                                                  T,
                                                  cuco::extent<std::size_t>,
                                                  cuda::thread_scope_device,
-                                                 thrust::equal_to<T>,
+                                                 cuda::std::equal_to<T>,
                                                  probe,
                                                  cuco::cuda_allocator<cuda::std::byte>,
                                                  cuco::storage<2>>{

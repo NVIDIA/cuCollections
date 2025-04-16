@@ -18,9 +18,8 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/distance.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
@@ -53,7 +52,7 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
     auto d_res_end = set.retrieve_all(d_res.begin());
     thrust::sort(d_res.begin(), d_res_end);
     REQUIRE(cuco::test::equal(
-      d_res.begin(), d_res_end, thrust::counting_iterator<Key>(0), thrust::equal_to<Key>{}));
+      d_res.begin(), d_res_end, thrust::counting_iterator<Key>(0), cuda::std::equal_to<Key>{}));
   }
 }
 

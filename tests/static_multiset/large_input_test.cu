@@ -18,8 +18,8 @@
 
 #include <cuco/static_multiset.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/sort.h>
@@ -48,7 +48,7 @@ void test_unique_sequence(Set& set, typename Set::value_type* res_begin, std::si
 
     thrust::sort(thrust::device, res_begin, res_end);
 
-    REQUIRE(cuco::test::equal(res_begin, res_end, keys_begin, thrust::equal_to<Key>{}));
+    REQUIRE(cuco::test::equal(res_begin, res_end, keys_begin, cuda::std::equal_to<Key>{}));
   }
 }
 

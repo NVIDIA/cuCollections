@@ -27,8 +27,8 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/std/atomic>
+#include <cuda/std/functional>
 #include <cuda/stream_ref>
-#include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -92,7 +92,7 @@ template <class Key,
           class T,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class KeyEqual           = thrust::equal_to<Key>,
+          class KeyEqual           = cuda::std::equal_to<Key>,
           class ProbingScheme      = cuco::double_hashing<8,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
@@ -1157,7 +1157,7 @@ class static_multimap {
    * @param key_equal The binary function to compare two keys for equality
    * @param stream CUDA stream used for contains
    */
-  template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename OutputIt, typename KeyEqual = cuda::std::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
@@ -1207,7 +1207,7 @@ class static_multimap {
    * @param key_equal Binary function to compare two keys for equality
    * @return The sum of total occurrences of all keys in `[first, last)`
    */
-  template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename KeyEqual = cuda::std::equal_to<key_type>>
   std::size_t count(InputIt first,
                     InputIt last,
                     cudaStream_t stream = 0,
@@ -1229,7 +1229,7 @@ class static_multimap {
    * @return The sum of total occurrences of all keys in `[first, last)` where keys without matches
    * are considered to have a single occurrence.
    */
-  template <typename InputIt, typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename KeyEqual = cuda::std::equal_to<key_type>>
   std::size_t count_outer(InputIt first,
                           InputIt last,
                           cudaStream_t stream = 0,
@@ -1302,7 +1302,7 @@ class static_multimap {
    * @param key_equal The binary function to compare two keys for equality
    * @return The iterator indicating the last valid key/value pairs in the output
    */
-  template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename OutputIt, typename KeyEqual = cuda::std::equal_to<key_type>>
   OutputIt retrieve(InputIt first,
                     InputIt last,
                     OutputIt output_begin,
@@ -1331,7 +1331,7 @@ class static_multimap {
    * @param key_equal The binary function to compare two keys for equality
    * @return The iterator indicating the last valid key/value pairs in the output
    */
-  template <typename InputIt, typename OutputIt, typename KeyEqual = thrust::equal_to<key_type>>
+  template <typename InputIt, typename OutputIt, typename KeyEqual = cuda::std::equal_to<key_type>>
   OutputIt retrieve_outer(InputIt first,
                           InputIt last,
                           OutputIt output_begin,
@@ -1733,7 +1733,7 @@ class static_multimap {
      * @return A boolean indicating whether the key/value pair
      * containing `k` was inserted
      */
-    template <typename ProbeKey, typename KeyEqual = thrust::equal_to<key_type>>
+    template <typename ProbeKey, typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ __forceinline__ bool contains(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       ProbeKey const& k,
@@ -1782,7 +1782,7 @@ class static_multimap {
      * for equality
      * @return Number of matches found by the current thread
      */
-    template <typename KeyEqual = thrust::equal_to<key_type>>
+    template <typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ __forceinline__ std::size_t count(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       Key const& k,
@@ -1802,7 +1802,7 @@ class static_multimap {
      * for equality
      * @return Number of matches found by the current thread
      */
-    template <typename KeyEqual = thrust::equal_to<key_type>>
+    template <typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ __forceinline__ std::size_t count_outer(
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
       Key const& k,
@@ -1874,7 +1874,7 @@ class static_multimap {
               typename FlushingCG,
               typename atomicT,
               typename OutputIt,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ __forceinline__ void retrieve(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,
@@ -1914,7 +1914,7 @@ class static_multimap {
               typename FlushingCG,
               typename atomicT,
               typename OutputIt,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ __forceinline__ void retrieve_outer(
       FlushingCG const& flushing_cg,
       cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& probing_cg,

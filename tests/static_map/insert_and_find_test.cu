@@ -69,7 +69,7 @@ TEMPLATE_TEST_CASE_SIG(
                                 Value,
                                 cuco::extent<size_type>,
                                 cuda::thread_scope_device,
-                                thrust::equal_to<Key>,
+                                cuda::std::equal_to<Key>,
                                 probe,
                                 cuco::cuda_allocator<cuda::std::byte>,
                                 cuco::storage<2>>{
@@ -95,6 +95,6 @@ TEMPLATE_TEST_CASE_SIG(
 
     // both found1 and found2 should be same, as keys will be referring to same slot
     REQUIRE(
-      cuco::test::equal(found1.begin(), found1.end(), found2.begin(), thrust::equal_to<Key>{}));
+      cuco::test::equal(found1.begin(), found1.end(), found2.begin(), cuda::std::equal_to<Key>{}));
   }
 }
