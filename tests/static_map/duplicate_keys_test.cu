@@ -67,7 +67,7 @@ TEMPLATE_TEST_CASE_SIG(
                               Value,
                               cuco::extent<size_type>,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{
@@ -113,7 +113,7 @@ TEMPLATE_TEST_CASE_SIG(
     REQUIRE(cuco::test::equal(unique_keys.begin(),
                               unique_keys.end(),
                               thrust::make_counting_iterator<Key>(0),
-                              thrust::equal_to<Key>{}));
+                              cuda::std::equal_to<Key>{}));
   }
 
   SECTION("Tests of contains")

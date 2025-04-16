@@ -39,7 +39,7 @@ void test_hash_function()
                               Value,
                               cuco::extent<size_type>,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               cuco::linear_probing<1, Hash>,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{

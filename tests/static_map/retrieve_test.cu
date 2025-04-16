@@ -19,6 +19,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
@@ -74,7 +75,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
 
     auto [_, output_end] =
       map.retrieve(keys_begin, keys_begin + num_keys, thrust::discard_iterator{}, output_begin);
-    auto const size = thrust::distance(output_begin, output_end);
+    auto const size = cuda::std::distance(output_begin, output_end);
 
     REQUIRE(size == num_keys);
 
@@ -135,7 +136,7 @@ TEMPLATE_TEST_CASE_SIG(
                               Value,
                               extent_type,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<1>>{

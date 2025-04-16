@@ -47,7 +47,8 @@ void test_insert_and_find(Set& set, std::size_t num_keys)
   REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
 
   // both iters1 and iters2 should be same, as keys will be referring to same slot
-  REQUIRE(cuco::test::equal(iters1.begin(), iters1.end(), iters2.begin(), thrust::equal_to<Key>{}));
+  REQUIRE(
+    cuco::test::equal(iters1.begin(), iters1.end(), iters2.begin(), cuda::std::equal_to<Key>{}));
 }
 
 TEMPLATE_TEST_CASE_SIG(
