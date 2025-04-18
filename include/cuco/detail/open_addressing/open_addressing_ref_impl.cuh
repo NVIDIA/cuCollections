@@ -965,9 +965,9 @@ class open_addressing_ref_impl {
       size_type count     = 0;
 
       while (true) {
-        auto const bucket_slots = storage_ref_[*probing_iter];
-        int32_t equals[bucket_size];
-        bool empty_found = false;
+        auto const bucket_slots     = storage_ref_[*probing_iter];
+        int32_t equals[bucket_size] = {0};
+        bool empty_found            = false;
 
 #pragma unroll bucket_size
         for (int32_t i = 0; i < bucket_size; ++i) {
@@ -1009,9 +1009,9 @@ class open_addressing_ref_impl {
     size_type count     = 0;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
-      int32_t equals[bucket_size];
-      bool empty_found = false;
+      auto const bucket_slots     = storage_ref_[*probing_iter];
+      int32_t equals[bucket_size] = {0};
+      bool empty_found            = false;
 
 #pragma unroll bucket_size
       for (int32_t i = 0; i < bucket_size; ++i) {
