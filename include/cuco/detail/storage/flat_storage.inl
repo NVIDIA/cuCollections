@@ -145,11 +145,6 @@ __device__ constexpr flat_storage_ref<T, BucketSize, Extent>::bucket_type
 flat_storage_ref<T, BucketSize, Extent>::operator[](size_type index) const noexcept
 {
   return *reinterpret_cast<bucket_type*>(this->data() + index);
-  /*
-    bucket_type res;
-    memcpy(res.data(), this->data() + index, sizeof(value_type) * bucket_size);
-    return res;
-    */
 }
 
 template <typename T, int32_t BucketSize, typename Extent>

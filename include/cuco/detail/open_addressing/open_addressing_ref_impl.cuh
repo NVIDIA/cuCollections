@@ -965,17 +965,25 @@ class open_addressing_ref_impl {
       size_type count     = 0;
 
       while (true) {
-        // TODO atomic_ref::load if insert operator is present
         auto const bucket_slots = storage_ref_[*probing_iter];
+        int32_t equals[bucket_size];
+        bool empty_found = false;
 
-        for (auto i = 0; i < bucket_size; ++i) {
-          switch (
-            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
-            case detail::equal_result::EMPTY: return count;
-            case detail::equal_result::EQUAL: ++count; break;
-            default: continue;
+#pragma unroll bucket_size
+        for (int32_t i = 0; i < bucket_size; ++i) {
+          auto const result = this->predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i]));
+          equals[i] = (result == detail::equal_result::EQUAL);
+          if (result == detail::equal_result::EMPTY) {
+            empty_found = true;
+            break;
           }
         }
+
+        count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
+
+        if (empty_found) { return count; }
+
         ++probing_iter;
         if (*probing_iter == init_idx) { return count; }
       }
@@ -1002,18 +1010,24 @@ class open_addressing_ref_impl {
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
+      int32_t equals[bucket_size];
+      bool empty_found = false;
 
-      auto const state = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (int i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
-          if (res == detail::equal_result::EMPTY) { return res; }
-          count += static_cast<size_type>(res);
+#pragma unroll bucket_size
+      for (int32_t i = 0; i < bucket_size; ++i) {
+        auto const result = this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]));
+        equals[i] = (result == detail::equal_result::EQUAL);
+        if (result == detail::equal_result::EMPTY) {
+          empty_found = true;
+          break;
         }
-        return res;
-      }();
+      }
 
-      if (group.any(state == detail::equal_result::EMPTY)) { return count; }
+      count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
+
+      if (group.any(empty_found)) { return count; }
+
       ++probing_iter;
       if (*probing_iter == init_idx) { return count; }
     }
