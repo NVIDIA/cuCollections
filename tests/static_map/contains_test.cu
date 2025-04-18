@@ -112,7 +112,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(cuco::test::equal(d_values.begin(),
                               values_end,
                               thrust::make_counting_iterator<Value>(0),
-                              thrust::equal_to<Value>{}));
+                              cuda::std::equal_to<Value>{}));
   }
 }
 
@@ -146,7 +146,7 @@ TEMPLATE_TEST_CASE_SIG(
                               Value,
                               extent_type,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{

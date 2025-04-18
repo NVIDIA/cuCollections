@@ -63,9 +63,9 @@ void test_multiplicity(Container& container, std::size_t num_keys, std::size_t m
     thrust::sort(probed_keys.begin(), probed_end);
     thrust::sort(matched_keys.begin(), matched_end);
     REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_keys.end(), keys_begin, thrust::equal_to<key_type>{}));
+      probed_keys.begin(), probed_keys.end(), keys_begin, cuda::std::equal_to<key_type>{}));
     REQUIRE(cuco::test::equal(
-      matched_keys.begin(), matched_keys.end(), keys_begin, thrust::equal_to<key_type>{}));
+      matched_keys.begin(), matched_keys.end(), keys_begin, cuda::std::equal_to<key_type>{}));
   }
 }
 
@@ -114,14 +114,14 @@ void test_outer(Container& container, std::size_t num_keys)
                                                                     probed_keys.begin(),
                                                                     matched_keys.begin());
     thrust::sort_by_key(
-      probed_keys.begin(), probed_end, matched_keys.begin(), thrust::less<key_type>());
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
     REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_keys.end(), keys_begin, thrust::equal_to<key_type>{}));
+      probed_keys.begin(), probed_keys.end(), keys_begin, cuda::std::equal_to<key_type>{}));
     REQUIRE(cuco::test::equal(matched_keys.begin(),
                               matched_keys.begin() + num_keys,
                               keys_begin,
-                              thrust::equal_to<key_type>{}));
+                              cuda::std::equal_to<key_type>{}));
     REQUIRE(cuco::test::all_of(
       matched_keys.begin() + num_keys,
       matched_keys.end(),

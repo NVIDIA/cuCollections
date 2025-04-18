@@ -82,7 +82,7 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
                                        Value,
                                        extent_type,
                                        cuda::thread_scope_device,
-                                       thrust::equal_to<Key>,
+                                       cuda::std::equal_to<Key>,
                                        cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all maps, first elements_in_map element belong to map 0, second to map 1 and so
@@ -191,7 +191,7 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   auto raw_ref =
     cuco::static_map_ref{cuco::empty_key<Key>{-1},
                          cuco::empty_value<Value>{-1},
-                         thrust::equal_to<Key>{},
+                         cuda::std::equal_to<Key>{},
                          cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
                          cuco::thread_scope_block,
                          storage_ref_type{extent_type{}, map}};

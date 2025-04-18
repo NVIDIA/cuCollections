@@ -19,6 +19,7 @@
 #include <cuco/static_set.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
@@ -93,7 +94,7 @@ TEMPLATE_TEST_CASE_SIG(
   using set_t = cuco::static_set<Key,
                                  cuco::extent<size_type>,
                                  cuda::thread_scope_device,
-                                 thrust::equal_to<Key>,
+                                 cuda::std::equal_to<Key>,
                                  probe,
                                  cuco::cuda_allocator<cuda::std::byte>,
                                  cuco::storage<2>>;

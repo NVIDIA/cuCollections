@@ -21,6 +21,7 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
 
@@ -525,7 +526,7 @@ class operator_impl<
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+        auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
         auto slot_ptr                 = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
         // If the key is already in the container, update the payload and return
@@ -895,7 +896,7 @@ class operator_impl<
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+        auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
         auto slot_ptr                 = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
         // If the key is already in the container, update the payload and return

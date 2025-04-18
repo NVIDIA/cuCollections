@@ -16,6 +16,8 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/std/functional>
+
 #include <cooperative_groups.h>
 
 /**
@@ -90,7 +92,7 @@ int main(void)
   using set_type = cuco::static_set<Key,
                                     extent_type,
                                     cuda::thread_scope_block,
-                                    thrust::equal_to<Key>,
+                                    cuda::std::equal_to<Key>,
                                     probing_scheme_type,
                                     cuco::cuda_allocator<Key>,
                                     cuco::storage<bucket_size>>;

@@ -74,7 +74,7 @@ TEMPLATE_TEST_CASE_SIG(
   using set_type    = cuco::static_set<Key,
                                        extent_type,
                                        cuda::thread_scope_device,
-                                       thrust::equal_to<Key>,
+                                       cuda::std::equal_to<Key>,
                                        cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all sets, first elements_in_set element belong to set 0, second to set 1 and so
@@ -168,7 +168,7 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
 
   auto raw_ref =
     cuco::static_set_ref{cuco::empty_key<Key>{-1},
-                         thrust::equal_to<Key>{},
+                         cuda::std::equal_to<Key>{},
                          cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
                          cuco::thread_scope_block,
                          storage_ref_type{extent_type{}, set}};

@@ -25,8 +25,8 @@
 
 #include <cuda/atomic>
 #include <cuda/std/functional>
+#include <cuda/std/iterator>
 #include <cuda/std/type_traits>
-#include <thrust/distance.h>
 #include <thrust/execution_policy.h>
 #include <thrust/logical.h>
 #include <thrust/reduce.h>
@@ -407,7 +407,7 @@ class open_addressing_ref_impl {
           if (eq_res == detail::equal_result::EQUAL) { return false; }
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+          auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
           switch (
             attempt_insert(get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, val)) {
             case insert_result::DUPLICATE: {
@@ -709,7 +709,7 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EMPTY) { return false; }
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
-          auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+          auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
           switch (attempt_insert_stable(get_slot_ptr(*probing_iter, intra_bucket_index),
                                         slot_content,
                                         this->erased_slot_sentinel())) {
