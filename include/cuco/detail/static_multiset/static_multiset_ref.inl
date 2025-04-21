@@ -415,7 +415,7 @@ class operator_impl<
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+    if (!cuco::detail::bitwise_compare(ref_.erased_key_sentinel(), ref_.empty_key_sentinel())) {
       return ref_.impl_.insert<true>(group, value);
     } else {
       return ref_.impl_.insert<false>(group, value);
