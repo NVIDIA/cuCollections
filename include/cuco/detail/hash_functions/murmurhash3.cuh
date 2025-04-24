@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,16 +28,70 @@
 namespace cuco::detail {
 
 /**
- * @brief The 32bit integer finalizer hash function of `MurmurHash3`.
+ * @brief The 32-bit integer finalizer function of `MurmurHash3`.
+ *
+ * This function implements the final mixing step of the `MurmurHash3` algorithm for 32-bit values.
+ * It is designed to improve the avalanche behavior of the hash, ensuring that changes in input bits
+ * have a more uniform effect on all output bits.
  *
  * @throw Key type must be 4 bytes in size
+ *
+ * @tparam Key The type of the value to finalize
+ *
+ * @param key The input value to finalize
+ * @param seed Optional seed value
+ * @return The finalized 32-bit hash value
+ */
+template <typename Key>
+__host__ __device__ constexpr std::uint32_t fmix32(Key key, std::uint32_t seed = 0) noexcept
+{
+  static_assert(sizeof(Key) == 4, "Key type must be 4 bytes in size.");
+
+  std::uint32_t h = static_cast<std::uint32_t>(key) ^ seed;
+  h ^= h >> 16;
+  h *= 0x85ebca6b;
+  h ^= h >> 13;
+  h *= 0xc2b2ae35;
+  h ^= h >> 16;
+  return h;
+}
+
+/**
+ * @brief The 64-bit integer finalizer function of `MurmurHash3`.
+ *
+ * This function implements the final mixing step of the `MurmurHash3` algorithm for 64-bit values.
+ * It is designed to improve the avalanche behavior of the hash, ensuring that changes in input bits
+ * have a more uniform effect on all output bits.
+ *
+ * @throw Key type must be 8 bytes in size
+ *
+ * @tparam Key The type of the value to finalize
+ *
+ * @param key The input value to finalize
+ * @param seed Optional seed value
+ * @return The finalized 64-bit hash value
+ */
+template <typename Key>
+__host__ __device__ constexpr std::uint64_t fmix64(Key key, std::uint64_t seed = 0) noexcept
+{
+  static_assert(sizeof(Key) == 8, "Key type must be 8 bytes in size.");
+
+  std::uint64_t h = static_cast<std::uint64_t>(key) ^ seed;
+  h ^= h >> 33;
+  h *= 0xff51afd7ed558ccdULL;
+  h ^= h >> 33;
+  h *= 0xc4ceb9fe1a85ec53ULL;
+  h ^= h >> 33;
+  return h;
+}
+
+/**
+ * @brief The 32bit integer finalizer hash function of `MurmurHash3`.
  *
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
 struct MurmurHash3_fmix32 {
-  static_assert(sizeof(Key) == 4, "Key type must be 4 bytes in size.");
-
   using argument_type = Key;            ///< The type of the values taken as argument
   using result_type   = std::uint32_t;  ///< The type of the hash values produced
 
@@ -56,13 +110,7 @@ struct MurmurHash3_fmix32 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    std::uint32_t h = static_cast<std::uint32_t>(key) ^ seed_;
-    h ^= h >> 16;
-    h *= 0x85ebca6b;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35;
-    h ^= h >> 16;
-    return h;
+    return fmix32(key, seed_);
   }
 
  private:
@@ -72,14 +120,10 @@ struct MurmurHash3_fmix32 {
 /**
  * @brief The 64bit integer finalizer hash function of `MurmurHash3`.
  *
- * @throw Key type must be 8 bytes in size
- *
  * @tparam Key The type of the values to hash
  */
 template <typename Key>
 struct MurmurHash3_fmix64 {
-  static_assert(sizeof(Key) == 8, "Key type must be 8 bytes in size.");
-
   using argument_type = Key;            ///< The type of the values taken as argument
   using result_type   = std::uint64_t;  ///< The type of the hash values produced
 
@@ -98,13 +142,7 @@ struct MurmurHash3_fmix64 {
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
   {
-    std::uint64_t h = static_cast<std::uint64_t>(key) ^ seed_;
-    h ^= h >> 33;
-    h *= 0xff51afd7ed558ccd;
-    h ^= h >> 33;
-    h *= 0xc4ceb9fe1a85ec53;
-    h ^= h >> 33;
-    return h;
+    return fmix64(key, seed_);
   }
 
  private:
@@ -136,7 +174,7 @@ struct MurmurHash3_32 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_32(std::uint32_t seed = 0) : fmix32_{0}, seed_{seed} {}
+  __host__ __device__ constexpr MurmurHash3_32(std::uint32_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -199,7 +237,7 @@ struct MurmurHash3_32 {
     //----------
     // finalization
     h1 ^= size;
-    h1 = fmix32_(h1);
+    h1 = fmix32(h1);
     return h1;
   }
 
@@ -224,7 +262,6 @@ struct MurmurHash3_32 {
   }
 
  private:
-  MurmurHash3_fmix32<std::uint32_t> fmix32_;
   std::uint32_t seed_;
 };
 
@@ -253,10 +290,7 @@ struct MurmurHash3_x64_128 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_x64_128(std::uint64_t seed = 0)
-    : fmix64_{0}, seed_{seed}
-  {
-  }
+  __host__ __device__ constexpr MurmurHash3_x64_128(std::uint64_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -357,8 +391,8 @@ struct MurmurHash3_x64_128 {
     h1 += h2;
     h2 += h1;
 
-    h1 = fmix64_(h1);
-    h2 = fmix64_(h2);
+    h1 = fmix64(h1);
+    h2 = fmix64(h2);
 
     h1 += h2;
     h2 += h1;
@@ -387,7 +421,6 @@ struct MurmurHash3_x64_128 {
   }
 
  private:
-  MurmurHash3_fmix64<std::uint64_t> fmix64_;
   std::uint64_t seed_;
 };
 
@@ -416,10 +449,7 @@ struct MurmurHash3_x86_128 {
    *
    * @param seed A custom number to randomize the resulting hash value
    */
-  __host__ __device__ constexpr MurmurHash3_x86_128(std::uint32_t seed = 0)
-    : fmix32_{0}, seed_{seed}
-  {
-  }
+  __host__ __device__ constexpr MurmurHash3_x86_128(std::uint32_t seed = 0) : seed_{seed} {}
 
   /**
    * @brief Returns a hash value for its argument, as a value of type `result_type`.
@@ -568,10 +598,10 @@ struct MurmurHash3_x86_128 {
     h3 += h1;
     h4 += h1;
 
-    h1 = fmix32_(h1);
-    h2 = fmix32_(h2);
-    h3 = fmix32_(h3);
-    h4 = fmix32_(h4);
+    h1 = fmix32(h1);
+    h2 = fmix32(h2);
+    h3 = fmix32(h3);
+    h4 = fmix32(h4);
 
     h1 += h2;
     h1 += h3;
@@ -604,7 +634,6 @@ struct MurmurHash3_x86_128 {
   }
 
  private:
-  MurmurHash3_fmix32<std::uint32_t> fmix32_;
   std::uint32_t seed_;
 };
 
