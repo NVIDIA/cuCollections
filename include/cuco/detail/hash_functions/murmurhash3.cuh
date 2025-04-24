@@ -224,11 +224,6 @@ struct MurmurHash3_32 {
   }
 
  private:
-  constexpr __host__ __device__ std::uint32_t rotl32(std::uint32_t x, std::int8_t r) const noexcept
-  {
-    return (x << r) | (x >> (32 - r));
-  }
-
   MurmurHash3_fmix32<std::uint32_t> fmix32_;
   std::uint32_t seed_;
 };
