@@ -48,6 +48,7 @@ DEBUG_BUILD=0 # Default build type is Release
 PARALLEL_LEVEL=${PARALLEL_LEVEL:-$(nproc)} # defaults to number of cores in the system
 CUDA_COMPILER=${CUDACXX:-nvcc} # $CUDACXX if set, otherwise `nvcc`
 HOST_COMPILER=${CXX:-g++} # $CXX if set, otherwise `g++`
+CMAKE_BINARY=${CMAKE:-cmake} # $CMAKE if set, otherwise `cmake`
 CUDA_ARCHS=native # detect system's GPU architectures
 CXX_STANDARD=17
 
@@ -65,6 +66,7 @@ function usage {
     echo "  -p/--parallel: Build parallelism (Defaults to \$PARALLEL_LEVEL if set, otherwise the system's number of CPU cores)"
     echo "  --cuda: CUDA compiler (Defaults to \$CUDACXX if set, otherwise nvcc)"
     echo "  --cxx: Host compiler (Defaults to \$CXX if set, otherwise g++)"
+    echo "  --cmake: cmake binary (Defaults to \$CMAKE if set, otherwise cmake)"
     echo "  --arch: Target CUDA arches, e.g. \"60-real;70;80-virtual\" (Defaults to the system's native GPU archs)"
     echo "  --std: CUDA/C++ standard (Defaults to 17)"
     echo "  -v/-verbose/--verbose: Enable shell echo for debugging"
@@ -123,6 +125,7 @@ while [ "${#args[@]}" -ne 0 ]; do
     -p | --parallel)  PARALLEL_LEVEL="${args[1]}";  args=("${args[@]:2}");;
     --cuda) CUDA_COMPILER=$(resolve_path "${args[1]}"); args=("${args[@]:2}");;
     --cxx)  HOST_COMPILER=$(resolve_path "${args[1]}"); args=("${args[@]:2}");;
+    --cmake) CMAKE_BINARY=$(resolve_path "${args[1]}"); args=("${args[@]:2}");;
     --arch) CUDA_ARCHS="${args[1]}";    args=("${args[@]:2}");;
     --std)  CXX_STANDARD="${args[1]}";  args=("${args[@]:2}");;
     -v | -verbose | --verbose) VERBOSE=1; args=("${args[@]:1}");;
@@ -134,6 +137,7 @@ done
 # Convert to full paths:
 HOST_COMPILER=$(which ${HOST_COMPILER})
 CUDA_COMPILER=$(which ${CUDA_COMPILER})
+CMAKE_BINARY=$(which ${CMAKE_BINARY})
 # Make CUDA arch list compatible with cmake
 CUDA_ARCHS=$(echo "$CUDA_ARCHS" | tr ' ,' ';;')
 
@@ -201,7 +205,7 @@ echo "-- BUILD_EXAMPLES: ${BUILD_EXAMPLES}"
 echo "-- BUILD_BENCHMARKS: ${BUILD_BENCHMARKS}"
 
 # configure
-cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
+"${CMAKE_BINARY}" -S .. -B $BUILD_DIR $CMAKE_OPTIONS
 echo "========================================"
 
 if command -v sccache >/dev/null; then
