@@ -18,6 +18,7 @@
 
 #include <cuco/static_multimap.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -99,7 +100,7 @@ TEMPLATE_TEST_CASE_SIG(
                                                  Value,
                                                  extent_type,
                                                  cuda::thread_scope_device,
-                                                 thrust::equal_to<Key>,
+                                                 cuda::std::equal_to<Key>,
                                                  probe,
                                                  cuco::cuda_allocator<cuda::std::byte>,
                                                  cuco::storage<2>>{

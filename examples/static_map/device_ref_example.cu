@@ -16,10 +16,10 @@
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/zip_iterator.h>
-#include <thrust/logical.h>
 #include <thrust/sequence.h>
 #include <thrust/tuple.h>
 
@@ -138,7 +138,7 @@ int main(void)
   auto map = cuco::static_map{capacity,
                               cuco::empty_key{empty_key_sentinel},
                               cuco::empty_value{empty_value_sentinel},
-                              thrust::equal_to<Key>{},
+                              cuda::std::equal_to<Key>{},
                               cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
   // Get a non-owning, mutable reference of the map that allows inserts to pass by value into the
