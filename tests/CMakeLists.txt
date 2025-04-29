@@ -69,6 +69,7 @@ ConfigureTest(STATIC_SET_TEST
     static_set/rehash_test.cu
     static_set/size_test.cu
     static_set/shared_memory_test.cu
+    static_set/spark_test.cu
     static_set/unique_sequence_test.cu)
 
 ###################################################################################################
