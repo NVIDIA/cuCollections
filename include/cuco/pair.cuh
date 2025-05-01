@@ -20,11 +20,11 @@
 #include <cuco/detail/pair/traits.hpp>
 
 #include <cuda/std/tuple>
+#include <cuda/std/type_traits>
 #include <thrust/device_reference.h>
 #include <thrust/tuple.h>
 
 #include <tuple>
-#include <type_traits>
 
 namespace cuco {
 
@@ -86,7 +86,7 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
    *
    * @param p The input pair to copy from
    */
-  template <typename T, std::enable_if_t<detail::is_std_pair_like<T>::value>* = nullptr>
+  template <typename T, cuda::std::enable_if_t<detail::is_std_pair_like<T>::value>* = nullptr>
   __host__ __device__ constexpr pair(T const& p)
     : pair{std::get<0>(thrust::raw_reference_cast(p)), std::get<1>(thrust::raw_reference_cast(p))}
   {
@@ -99,7 +99,7 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
    *
    * @param p The input pair to copy from
    */
-  template <typename T, std::enable_if_t<detail::is_cuda_std_pair_like<T>::value>* = nullptr>
+  template <typename T, cuda::std::enable_if_t<detail::is_cuda_std_pair_like<T>::value>* = nullptr>
   __host__ __device__ constexpr pair(T const& p)
     : pair{cuda::std::get<0>(thrust::raw_reference_cast(p)),
            cuda::std::get<1>(thrust::raw_reference_cast(p))}
@@ -122,8 +122,8 @@ struct alignas(detail::pair_alignment<First, Second>()) pair {
  * @return A pair with first element `f` and second element `s`.
  */
 template <typename F, typename S>
-__host__ __device__ constexpr pair<std::decay_t<F>, std::decay_t<S>> make_pair(F&& f,
-                                                                               S&& s) noexcept;
+__host__ __device__ constexpr pair<cuda::std::decay_t<F>, cuda::std::decay_t<S>> make_pair(
+  F&& f, S&& s) noexcept;
 
 /**
  * @brief Tests if both elements of lhs and rhs are equal
