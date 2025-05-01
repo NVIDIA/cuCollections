@@ -35,6 +35,7 @@
 #include <thrust/shuffle.h>
 #include <thrust/system/detail/generic/select_system.h>
 #include <thrust/transform.h>
+#include <thrust/tuple.h>
 #include <thrust/type_traits/is_execution_policy.h>
 
 #include <cstdint>
@@ -488,7 +489,7 @@ generate_random_byte_sequences(std::size_t n_sequences,
   thrust::device_vector<cuda::std::byte> bytes(n_bytes);
 
   auto offsets_and_lengths =
-    thrust::make_zip_iterator(thrust::make_tuple(offsets.begin(), lengths.begin()));
+    thrust::make_zip_iterator(thrust::tuple{offsets.begin(), lengths.begin()});
   thrust::device_vector<cuda::std::span<cuda::std::byte>> sequences(n_sequences);
   // create the span object for each sequence
   thrust::transform(

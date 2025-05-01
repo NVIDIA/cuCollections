@@ -206,13 +206,13 @@ class dynamic_map {
  *                         empty_value<int>{empty_value_sentinel}};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
- * thrust::device_vector<thrust::pair<int,int>> pairs_0(50'000);
+ * thrust::device_vector<cuda::std::pair<int,int>> pairs_0(50'000);
  * thrust::transform(thrust::make_counting_iterator(0),
  *                   thrust::make_counting_iterator(pairs_0.size()),
  *                   pairs_0.begin(),
  *                   []__device__(auto i){ return cuco::pair{i,i}; };
  *
- * thrust::device_vector<thrust::pair<int,int>> pairs_1(100'000);
+ * thrust::device_vector<cuda::std::pair<int,int>> pairs_1(100'000);
  * thrust::transform(thrust::make_counting_iterator(50'000),
  *                   thrust::make_counting_iterator(pairs_1.size()),
  *                   pairs_1.begin(),

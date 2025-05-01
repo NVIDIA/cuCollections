@@ -178,7 +178,7 @@ int main(void)
   // Iterate over all slot contents and verify that `slot.key + 1 == slot.value` is always true.
   auto result = thrust::all_of(
     thrust::device, tuple_iter, tuple_iter + num_inserted[0], [] __device__(auto const& tuple) {
-      return cuda::std::get<0>(tuple) + 1 == cuda::std::get<1>(tuple);
+      return thrust::get<0>(tuple) + 1 == thrust::get<1>(tuple);
     });
 
   if (result) { std::cout << "Success! Target values are properly incremented.\n"; }

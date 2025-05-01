@@ -31,7 +31,6 @@
 #include <thrust/execution_policy.h>
 #include <thrust/logical.h>
 #include <thrust/reduce.h>
-#include <thrust/tuple.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
 #endif
@@ -515,7 +514,7 @@ class open_addressing_ref_impl {
    * insertion is successful or not.
    */
   template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 #if __CUDA_ARCH__ < 700
@@ -588,7 +587,7 @@ class open_addressing_ref_impl {
    * insertion is successful or not.
    */
   template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
 #if __CUDA_ARCH__ < 700

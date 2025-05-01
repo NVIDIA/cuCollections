@@ -22,7 +22,6 @@
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 #include <thrust/device_reference.h>
-#include <thrust/tuple.h>
 
 #include <tuple>
 
@@ -31,7 +30,7 @@ namespace cuco {
 /**
  * @brief Custom pair type
  *
- * @note This is necessary because `thrust::pair` is under aligned.
+ * @note This is necessary because `cuda::std::pair` is under aligned.
  *
  * @tparam First Type of the first value in the pair
  * @tparam Second Type of the second value in the pair
