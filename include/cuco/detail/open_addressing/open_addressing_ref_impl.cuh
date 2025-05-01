@@ -25,6 +25,7 @@
 
 #include <cuda/atomic>
 #include <cuda/std/functional>
+#include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 #include <thrust/distance.h>
 #include <thrust/execution_policy.h>
@@ -38,7 +39,6 @@
 #include <cooperative_groups.h>
 
 #include <cstdint>
-#include <type_traits>
 
 namespace cuco {
 namespace detail {
@@ -97,12 +97,13 @@ class open_addressing_ref_impl {
     "Key type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
-  static_assert(
-    std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
-    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+  static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
+                                        ProbingScheme>,
+                "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
   /// Determines if the container is a key/value or key-only store
-  static constexpr auto has_payload = not std::is_same_v<Key, typename StorageRef::value_type>;
+  static constexpr auto has_payload =
+    not cuda::std::is_same_v<Key, typename StorageRef::value_type>;
 
   /// Flag indicating whether duplicate keys are allowed or not
   static constexpr auto allows_duplicates = AllowsDuplicates;
@@ -187,7 +188,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty payload slot
    */
-  template <bool Dummy = true, typename Enable = std::enable_if_t<has_payload and Dummy>>
+  template <bool Dummy = true, typename Enable = cuda::std::enable_if_t<has_payload and Dummy>>
   [[nodiscard]] __host__ __device__ constexpr auto empty_value_sentinel() const noexcept
   {
     return this->extract_payload(this->empty_slot_sentinel());
@@ -1157,7 +1158,7 @@ class open_addressing_ref_impl {
 
     if (n == 0) { return; }
 
-    using probe_type = typename std::iterator_traits<InputProbeIt>::value_type;
+    using probe_type = typename cuda::std::iterator_traits<InputProbeIt>::value_type;
 
     // tuning parameter
     auto constexpr buffer_multiplier = 1;
@@ -1514,7 +1515,7 @@ class open_addressing_ref_impl {
    *
    * @return The payload
    */
-  template <typename Value, typename Enable = std::enable_if_t<has_payload and sizeof(Value)>>
+  template <typename Value, typename Enable = cuda::std::enable_if_t<has_payload and sizeof(Value)>>
   [[nodiscard]] __device__ constexpr auto extract_payload(Value const& value) const noexcept
   {
     return thrust::raw_reference_cast(value).second;
