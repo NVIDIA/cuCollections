@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@
 #include <cuco/types.cuh>
 
 #include <cuda/std/atomic>
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 
 #include <cstddef>
 #include <memory>
@@ -52,7 +52,7 @@ template <class Key,
           class T,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class KeyEqual           = thrust::equal_to<Key>,
+          class KeyEqual           = cuda::std::equal_to<Key>,
           class ProbingScheme      = cuco::linear_probing<4,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
@@ -347,7 +347,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void insert(InputIt first,
               InputIt last,
               Hash hash           = Hash{},
@@ -386,7 +386,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void erase(InputIt first,
              InputIt last,
              Hash hash           = Hash{},
@@ -416,7 +416,7 @@ class dynamic_map {
   template <typename InputIt,
             typename OutputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
@@ -446,7 +446,7 @@ class dynamic_map {
   template <typename InputIt,
             typename OutputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
