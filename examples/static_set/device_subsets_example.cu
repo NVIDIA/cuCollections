@@ -18,6 +18,7 @@
 #include <cuco/storage.cuh>
 
 #include <cuda/std/array>
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/reduce.h>
 #include <thrust/scan.h>

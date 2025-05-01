@@ -16,13 +16,15 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/std/functional>
+
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("static_set capacity test", "")
 {
   using Key        = int32_t;
   using ProbeT     = cuco::double_hashing<1, cuco::default_hash_function<Key>>;
-  using Equal      = thrust::equal_to<Key>;
+  using Equal      = cuda::std::equal_to<Key>;
   using AllocatorT = cuco::cuda_allocator<cuda::std::byte>;
   using StorageT   = cuco::storage<2>;
 

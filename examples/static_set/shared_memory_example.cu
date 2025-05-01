@@ -16,6 +16,8 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/std/functional>
+
 #include <cooperative_groups.h>
 
 /**

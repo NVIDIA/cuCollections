@@ -22,6 +22,7 @@
 
 #include <cuda/std/cmath>
 #include <cuda/std/functional>  // TODO include <cuda/std/algorithm> instead once available
+#include <cuda/std/iterator>
 #include <cuda/std/limits>
 #include <cuda/std/span>
 #include <thrust/device_vector.h>
@@ -284,7 +285,7 @@ class key_generator {
       thrust::sequence(exec_policy, out_begin, out_end, value_type{0});
       thrust::shuffle(exec_policy, out_begin, out_end, this->rng_);
     } else if constexpr (std::is_same_v<Dist, distribution::uniform>) {
-      size_t num_keys = thrust::distance(out_begin, out_end);
+      size_t num_keys = cuda::std::distance(out_begin, out_end);
       size_t seed     = this->rng_();
 
       thrust::transform(exec_policy,
@@ -293,7 +294,7 @@ class key_generator {
                         out_begin,
                         detail::generate_uniform_fn<value_type, Dist, RNG>{num_keys, dist, seed});
     } else if constexpr (std::is_same_v<Dist, distribution::gaussian>) {
-      size_t num_keys = thrust::distance(out_begin, out_end);
+      size_t num_keys = cuda::std::distance(out_begin, out_end);
 
       thrust::counting_iterator<size_t> seq(this->rng_());
 
@@ -369,7 +370,7 @@ class key_generator {
     CUCO_EXPECTS(keep_prob >= 0.0 and keep_prob <= 1.0, "Probability needs to be between 0 and 1");
 
     if (keep_prob < 1.0) {
-      size_t const num_keys = thrust::distance(begin, end);
+      size_t const num_keys = cuda::std::distance(begin, end);
 
       thrust::counting_iterator<size_t> seeds(rng_());
 

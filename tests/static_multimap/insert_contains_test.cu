@@ -109,7 +109,7 @@ TEMPLATE_TEST_CASE_SIG(
                                                  Value,
                                                  extent_type,
                                                  cuda::thread_scope_device,
-                                                 thrust::equal_to<Key>,
+                                                 cuda::std::equal_to<Key>,
                                                  probe,
                                                  cuco::cuda_allocator<cuda::std::byte>,
                                                  cuco::storage<2>>{

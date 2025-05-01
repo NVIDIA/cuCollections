@@ -21,6 +21,7 @@
 #include <cuco/hash_functions.cuh>
 #include <cuco/probing_scheme.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
 
 #include <cooperative_groups.h>
@@ -104,5 +105,5 @@ TEMPLATE_TEST_CASE_SIG(
   generate_cg_probing_sequence<probe><<<1, 1>>>(key, upper_bound, seq_length, cg_seq.begin());
 
   REQUIRE(cuco::test::equal(
-    scalar_seq.begin(), scalar_seq.end(), cg_seq.begin(), thrust::equal_to<std::size_t>{}));
+    scalar_seq.begin(), scalar_seq.end(), cg_seq.begin(), cuda::std::equal_to<std::size_t>{}));
 }
