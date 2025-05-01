@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -132,7 +132,7 @@ int main(void)
                               load_factor,
                               cuco::empty_key{empty_key_sentinel},
                               cuco::empty_value{empty_value_sentinel},
-                              thrust::equal_to<Key>{},
+                              cuda::std::equal_to<Key>{},
                               cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
   // Get a non-owning, mutable reference of the map that allows `insert_and_find` operation to pass

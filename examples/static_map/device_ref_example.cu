@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -138,7 +138,7 @@ int main(void)
   auto map = cuco::static_map{capacity,
                               cuco::empty_key{empty_key_sentinel},
                               cuco::empty_value{empty_value_sentinel},
-                              thrust::equal_to<Key>{},
+                              cuda::std::equal_to<Key>{},
                               cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
   // Get a non-owning, mutable reference of the map that allows inserts to pass by value into the
@@ -178,7 +178,7 @@ int main(void)
   // Iterate over all slot contents and verify that `slot.key + 1 == slot.value` is always true.
   auto result = thrust::all_of(
     thrust::device, tuple_iter, tuple_iter + num_inserted[0], [] __device__(auto const& tuple) {
-      return thrust::get<0>(tuple) + 1 == thrust::get<1>(tuple);
+      return cuda::std::get<0>(tuple) + 1 == cuda::std::get<1>(tuple);
     });
 
   if (result) { std::cout << "Success! Target values are properly incremented.\n"; }

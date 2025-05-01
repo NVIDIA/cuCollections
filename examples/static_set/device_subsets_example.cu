@@ -59,7 +59,7 @@ using storage_type = cuco::bucket_storage<key_type, bucket_size>;
 using storage_ref_type = typename storage_type::ref_type;
 using ref_type         = cuco::static_set_ref<key_type,
                                               cuda::thread_scope_device,
-                                              thrust::equal_to<key_type>,
+                                              cuda::std::equal_to<key_type>,
                                               probing_scheme_type,
                                               storage_ref_type>;  ///< Set ref type
 
