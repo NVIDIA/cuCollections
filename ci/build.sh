@@ -131,15 +131,15 @@ while [ "${#args[@]}" -ne 0 ]; do
     esac
 done
 
+if [ $VERBOSE ]; then
+    set -x
+fi
+
 # Convert to full paths:
 HOST_COMPILER=$(which ${HOST_COMPILER})
 CUDA_COMPILER=$(which ${CUDA_COMPILER})
 # Make CUDA arch list compatible with cmake
 CUDA_ARCHS=$(echo "$CUDA_ARCHS" | tr ' ,' ';;')
-
-if [ $VERBOSE ]; then
-    set -x
-fi
 
 # Begin processing unsets after option parsing
 set -u
