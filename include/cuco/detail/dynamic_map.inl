@@ -245,8 +245,8 @@ std::pair<KeyOut, ValueOut> dynamic_map<Key, Value, Scope, Allocator>::retrieve_
   auto constexpr block_size = 128;
   auto constexpr stride     = 1;
 
-  auto const capacity       = get_capacity();
-  auto grid_size            = (capacity + stride * block_size - 1) / (stride * block_size);
+  auto const capacity = get_capacity();
+  auto grid_size      = (capacity + stride * block_size - 1) / (stride * block_size);
 
   std::vector<size_t> submap_cap_prefix(submaps_.size());
   std::inclusive_scan(

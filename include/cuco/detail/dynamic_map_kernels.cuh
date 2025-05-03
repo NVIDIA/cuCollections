@@ -487,7 +487,6 @@ CUCO_KERNEL void find(InputIt first,
   }
 }
 
-
 /**
  * @brief Retrieves all of the keys and their associated values.
  *
@@ -511,7 +510,8 @@ CUCO_KERNEL void find(InputIt first,
  * perform `retrieve_all` operations on each underlying `static_map`
  * @param num_submaps The number of submaps in the map
  * @param capacity The total number of slots of all submaps
- * @param d_num_out Pointer to the device memory location where the number of keys/vals retrieved are stored
+ * @param d_num_out Pointer to the device memory location where the number of keys/vals retrieved
+ * are stored
  * @param cap_prefix_sum Array of prefix sums of the number of slots in each submap
  * @return Pair of iterators indicating the last elements in the output
  */

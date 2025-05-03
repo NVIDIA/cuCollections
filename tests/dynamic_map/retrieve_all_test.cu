@@ -20,13 +20,12 @@
 
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/sort.h>
 #include <thrust/equal.h>
-#include <thrust/sequence.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/sequence.h>
+#include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
-
 
 TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
                        "",
@@ -60,8 +59,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
     thrust::device_vector<Key> retrieved_keys(num_keys);
     thrust::device_vector<Value> retrieved_values(num_keys);
 
-    auto [keys_out, values_out] = map.retrieve_all(retrieved_keys.begin(),
-                                                   retrieved_values.begin());
+    auto [keys_out, values_out] =
+      map.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());
 
     REQUIRE(keys_out == retrieved_keys.end());
     REQUIRE(values_out == retrieved_values.end());
@@ -71,7 +70,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
     thrust::sort(thrust::device, retrieved_values.begin(), retrieved_values.end());
 
     REQUIRE(thrust::equal(thrust::device, d_keys.begin(), d_keys.end(), retrieved_keys.begin()));
-    REQUIRE(thrust::equal(thrust::device, d_values.begin(), d_values.end(), retrieved_values.begin()));
+    REQUIRE(
+      thrust::equal(thrust::device, d_values.begin(), d_values.end(), retrieved_values.begin()));
   }
 
   SECTION("retrieve_all after partial erase")
@@ -93,8 +93,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
     thrust::device_vector<Key> retrieved_keys(num_keys / 2);
     thrust::device_vector<Value> retrieved_values(num_keys / 2);
 
-    auto [keys_out, values_out] = map.retrieve_all(retrieved_keys.begin(),
-                                                   retrieved_values.begin());
+    auto [keys_out, values_out] =
+      map.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());
 
     REQUIRE(std::distance(retrieved_keys.begin(), keys_out) == num_keys / 2);
     REQUIRE(std::distance(retrieved_values.begin(), values_out) == num_keys / 2);
@@ -114,8 +114,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
     thrust::device_vector<Key> retrieved_keys(0);
     thrust::device_vector<Value> retrieved_values(0);
 
-    auto [keys_out, values_out] = map.retrieve_all(retrieved_keys.begin(),
-                                                   retrieved_values.begin());
+    auto [keys_out, values_out] =
+      map.retrieve_all(retrieved_keys.begin(), retrieved_values.begin());
 
     REQUIRE(keys_out == retrieved_keys.begin());
     REQUIRE(values_out == retrieved_values.begin());

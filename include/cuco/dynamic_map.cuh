@@ -27,9 +27,9 @@
 
 #include <cstddef>
 #include <memory>
+#include <numeric>
 #include <type_traits>
 #include <vector>
-#include <numeric>
 
 namespace cuco {
 
@@ -447,7 +447,7 @@ class dynamic_map {
   std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
                                            ValueOut values_out,
                                            cudaStream_t stream = 0) const;
-            
+
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
    *
