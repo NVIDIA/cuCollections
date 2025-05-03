@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -235,6 +235,52 @@ void dynamic_map<Key, Value, Scope, Allocator>::find(InputIt first,
   detail::find<block_size, tile_size, Value><<<grid_size, block_size, 0, stream>>>(
     first, last, output_begin, submap_views_.data().get(), submaps_.size(), hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
+}
+
+template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
+template <typename KeyOut, typename ValueOut>
+std::pair<KeyOut, ValueOut> dynamic_map<Key, Value, Scope, Allocator>::retrieve_all(
+  KeyOut keys_out, ValueOut values_out, cudaStream_t stream) const
+{
+  auto constexpr block_size = 128;
+  auto constexpr stride     = 1;
+
+  auto const capacity       = get_capacity();
+  auto grid_size            = (capacity + stride * block_size - 1) / (stride * block_size);
+
+  std::vector<size_t> submap_cap_prefix(submaps_.size());
+  std::inclusive_scan(
+    submaps_.begin(),
+    submaps_.end(),
+    submap_cap_prefix.begin(),
+    [](auto const& sum, auto const& submap) { return sum + submap->get_capacity(); },
+    (size_t)0);
+  thrust::device_vector<size_t> submap_cap_prefix_d(submap_cap_prefix);
+
+  using temp_allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<char>;
+  auto temp_allocator = temp_allocator_type{alloc_};
+  auto d_num_out =
+    reinterpret_cast<unsigned long long*>(std::allocator_traits<temp_allocator_type>::allocate(
+      temp_allocator, sizeof(unsigned long long)));
+  CUCO_CUDA_TRY(cudaMemsetAsync(d_num_out, 0, sizeof(unsigned long long), stream));
+
+  detail::retrieve_all<block_size>
+    <<<grid_size, block_size, 0, stream>>>(keys_out,
+                                           values_out,
+                                           submap_views_.data().get(),
+                                           submaps_.size(),
+                                           capacity,
+                                           d_num_out,
+                                           submap_cap_prefix_d.data().get());
+
+  size_t h_num_out;
+  CUCO_CUDA_TRY(
+    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
+  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
+  std::allocator_traits<temp_allocator_type>::deallocate(
+    temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(unsigned long long));
+  return {keys_out + h_num_out, values_out + h_num_out};
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
