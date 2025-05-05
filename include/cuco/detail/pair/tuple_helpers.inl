@@ -79,9 +79,9 @@ __host__ __device__ constexpr auto get(cuco::pair<T1, T2>&& p) ->
 {
   static_assert(I < 2);
   if constexpr (I == 0) {
-    return std::move(p.first);
+    return cuda::std::move(p.first);
   } else {
-    return std::move(p.second);
+    return cuda::std::move(p.second);
   }
 }
 
@@ -103,8 +103,8 @@ __host__ __device__ constexpr auto get(cuco::pair<T1, T2> const&& p) ->
 {
   static_assert(I < 2);
   if constexpr (I == 0) {
-    return std::move(p.first);
+    return cuda::std::move(p.first);
   } else {
-    return std::move(p.second);
+    return cuda::std::move(p.second);
   }
 }
