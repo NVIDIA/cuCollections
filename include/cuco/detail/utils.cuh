@@ -82,7 +82,7 @@ struct slot_is_filled {
   template <typename S>
   __device__ bool operator()(S const& s)
   {
-    return not cuco::detail::bitwise_compare(thrust::get<0>(s), empty_key_sentinel_);
+    return not cuco::detail::bitwise_compare(cuda::std::get<0>(s), empty_key_sentinel_);
   }
 };
 

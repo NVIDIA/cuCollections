@@ -20,6 +20,7 @@
 #include <cuco/detail/utils.hpp>
 
 #include <cub/device/device_select.cuh>
+#include <cuda/std/tuple>
 #include <cuda/std/utility>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
@@ -218,7 +219,7 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   auto begin =
     thrust::make_transform_iterator(slots_begin, cuco::detail::slot_to_tuple<Key, Value>{});
   auto filled           = cuco::detail::slot_is_filled<Key>{get_empty_key_sentinel()};
-  auto zipped_out_begin = thrust::make_zip_iterator(thrust::tuple{keys_out, values_out});
+  auto zipped_out_begin = thrust::make_zip_iterator(cuda::std::tuple{keys_out, values_out});
 
   std::size_t temp_storage_bytes = 0;
   using temp_allocator_type =
