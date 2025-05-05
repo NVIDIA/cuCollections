@@ -83,10 +83,10 @@ struct insert_tag {
  * API Signature:
  * ```cpp
  * template <typename Value>
- * __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
+ * __device__ cuda::std::pair<iterator, bool> insert_and_find(Value const& value) noexcept
  *
  * template <typename Value>
- * __device__ thrust::pair<iterator, bool> insert_and_find(
+ * __device__ cuda::std::pair<iterator, bool> insert_and_find(
  *   cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
  * ```
  *
