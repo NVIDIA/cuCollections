@@ -537,7 +537,7 @@ CUCO_KERNEL void retrieve_all(KeyOutputIt keys_out,
   auto const empty_key_sentinel  = submap_views[0].get_empty_key_sentinel();
   auto const erased_key_sentinel = submap_views[0].get_erased_key_sentinel();
 
-  while (tid < capacity) {
+  while ((tid - threadIdx.x) < capacity) {
     uint32_t submap_idx    = 0;
     uint32_t submap_offset = tid;
     while (tid >= cap_prefix_sum[submap_idx] && submap_idx < num_submaps)
