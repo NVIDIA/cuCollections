@@ -79,6 +79,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStrea
 {
   int64_t num_elements_remaining = n;
   uint32_t submap_idx            = 0;
+
   while (num_elements_remaining > 0) {
     std::size_t submap_capacity;
 
@@ -130,7 +131,6 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
   auto constexpr tile_size  = 4;
 
   std::size_t num_to_insert = std::distance(first, last);
-
   reserve(size_ + num_to_insert, stream);
 
   uint32_t submap_idx = 0;
