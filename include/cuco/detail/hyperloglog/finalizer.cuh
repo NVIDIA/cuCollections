@@ -55,7 +55,7 @@ class finalizer {
    *
    * @return Bias-corrected cardinality estimate
    */
-  __host__ __device__ std::size_t operator()(double z, int v) const noexcept
+  __host__ __device__ constexpr std::size_t operator()(double z, int v) const noexcept
   {
     double e = this->alpha_mm() / z;
 
