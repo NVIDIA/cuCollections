@@ -255,7 +255,7 @@ std::pair<KeyOut, ValueOut> dynamic_map<Key, Value, Scope, Allocator>::retrieve_
     submap_cap_prefix.begin(),
     [](auto const& sum, auto const& submap) {
     return sum + submap->get_capacity(); },
-    size_t{0};
+    size_t{0});
   thrust::device_vector<size_t> submap_cap_prefix_d(submap_cap_prefix);
 
   using temp_allocator_type =
