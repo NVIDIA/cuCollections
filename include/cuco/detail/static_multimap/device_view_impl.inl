@@ -492,7 +492,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     std::size_t offset;
     const auto lane_id = g.thread_rank();
     if (0 == lane_id) {
-      offset = num_matches->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
+      offset = atomicAdd(reinterpret_cast<unsigned long long*>(num_matches), num_outputs);
     }
     offset = g.shfl(offset, 0);
 
@@ -552,7 +552,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     std::size_t offset;
     const auto lane_id = g.thread_rank();
     if (0 == lane_id) {
-      offset = num_matches->fetch_add(num_outputs, cuda::std::memory_order_relaxed);
+      offset = atomicAdd(reinterpret_cast<unsigned long long*>(num_matches), num_outputs);
     }
     offset = g.shfl(offset, 0);
 

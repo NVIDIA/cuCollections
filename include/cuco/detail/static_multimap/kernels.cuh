@@ -259,7 +259,7 @@ CUCO_KERNEL void count(
   // and atomically add to the grand total
   std::size_t block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
   if (threadIdx.x == 0) {
-    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+    atomicAdd(reinterpret_cast<unsigned long long*>(num_matches), block_num_matches);
   }
 }
 
@@ -318,7 +318,7 @@ CUCO_KERNEL void pair_count(
   // and atomically add to the grand total
   std::size_t block_num_matches = BlockReduce(temp_storage).Sum(thread_num_matches);
   if (threadIdx.x == 0) {
-    num_matches->fetch_add(block_num_matches, cuda::std::memory_order_relaxed);
+    atomicAdd(reinterpret_cast<unsigned long long*>(num_matches), block_num_matches);
   }
 }
 
