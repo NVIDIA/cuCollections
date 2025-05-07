@@ -47,7 +47,10 @@ class build_fn {
   cuco::default_hash_function<T> _hash{};
 };
 
-TEST_CASE("spark_test", "")
+// This test exercise is designed to replicate a Spark runtime failure scenario
+// that is not addressed by the current test suite. It will result in a runtime
+// crash if the CCCL atomic storage is not managed correctly.
+TEST_CASE("atomic_storage_test", "")
 {
   using probe = cuco::linear_probing<1, hasher>;
 
