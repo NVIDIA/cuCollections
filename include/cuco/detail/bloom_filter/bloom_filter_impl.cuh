@@ -183,7 +183,8 @@ class bloom_filter_impl {
     // If single thread is optimal, use scalar add
     if constexpr (worker_num_threads == 1) {
       for (auto i = rank; i < num_keys; i += num_threads) {
-        typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + i)};
+        typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
+          *(first + i)};
         this->add(insert_element);
       }
     } else if constexpr (num_threads == worker_num_threads) {  // given CG is optimal CG
@@ -193,7 +194,7 @@ class bloom_filter_impl {
       auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
       for (size_type i = 0; (i / num_threads) < group_iters; i += num_threads) {
         if (i + rank < num_keys) {
-          typename std::iterator_traits<InputIt>::value_type const& insert_element{
+          typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
             *(first + i + rank)};
           hash_value  = policy_.hash(insert_element);
           block_index = policy_.block_index(hash_value, num_blocks_);
@@ -214,7 +215,7 @@ class bloom_filter_impl {
 
       for (size_type i = 0; (i / num_threads) < group_iters; i += num_threads) {
         if (i + rank < num_keys) {
-          typename std::iterator_traits<InputIt>::value_type const& key{*(first + i + rank)};
+          typename cuda::std::iterator_traits<InputIt>::value_type const& key{*(first + i + rank)};
           hash_value  = policy_.hash(key);
           block_index = policy_.block_index(hash_value, num_blocks_);
         }

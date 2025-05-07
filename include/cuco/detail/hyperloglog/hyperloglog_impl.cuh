@@ -402,7 +402,7 @@ class hyperloglog_impl {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __host__ constexpr size_t estimate(cuda::stream_ref stream) const
+  [[nodiscard]] __host__ size_t estimate(cuda::stream_ref stream) const
   {
     auto const num_regs = 1ull << this->precision_;
     std::vector<register_type> host_sketch(num_regs);
