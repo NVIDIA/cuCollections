@@ -502,7 +502,7 @@ CUCO_KERNEL void find(InputIt first,
  * @tparam ValueOutputIt Device accessible output iterator whose `value_type` is
  * convertible to the map's `mapped_type`
  * @tparam viewT Type of `static_map` device view
- * @tparam PrefixT Type of the prefix sum array of submaps
+ * @tparam AtomicT Atomic counter type
  *
  * @param keys_out Beginning output iterator for keys
  * @param values_out Beginning output iterator for values
@@ -519,14 +519,14 @@ template <uint32_t block_size,
           typename KeyOutputIt,
           typename ValueOutputIt,
           typename viewT,
-          typename PrefixT>
+          typename AtomicT>
 CUCO_KERNEL void retrieve_all(KeyOutputIt keys_out,
                               ValueOutputIt values_out,
                               viewT* submap_views,
                               uint32_t num_submaps,
                               uint64_t capacity,
-                              unsigned long long* d_num_out,
-                              PrefixT* cap_prefix_sum)
+                              AtomicT* d_num_out,
+                              size_t* cap_prefix_sum)
 {
   using BlockScan = cub::BlockScan<unsigned int, block_size>;
 
@@ -540,8 +540,9 @@ CUCO_KERNEL void retrieve_all(KeyOutputIt keys_out,
   while ((tid - threadIdx.x) < capacity) {
     uint32_t submap_idx    = 0;
     uint32_t submap_offset = tid;
-    while (tid >= cap_prefix_sum[submap_idx] && submap_idx < num_submaps)
+    while (tid >= cap_prefix_sum[submap_idx] && submap_idx < num_submaps) {
       ++submap_idx;
+    }
     if (submap_idx > 0) { submap_offset = tid - cap_prefix_sum[submap_idx - 1]; }
 
     auto const& current_slot = submap_views[submap_idx].get_slots()[submap_offset];
@@ -554,7 +555,9 @@ CUCO_KERNEL void retrieve_all(KeyOutputIt keys_out,
     unsigned int block_valid = 0;
     BlockScan(scan_temp_storage).ExclusiveSum(is_filled ? 1u : 0u, local_idx, block_valid);
 
-    if (threadIdx.x == 0) { block_base = atomicAdd(d_num_out, block_valid); }
+    if (threadIdx.x == 0) {
+      block_base = d_num_out->fetch_add(block_valid, cuda::memory_order_relaxed);
+    }
     __syncthreads();
 
     if (is_filled) {

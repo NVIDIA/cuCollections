@@ -257,13 +257,8 @@ std::pair<KeyOut, ValueOut> dynamic_map<Key, Value, Scope, Allocator>::retrieve_
     size_t{0});
   thrust::device_vector<size_t> submap_cap_prefix_d(submap_cap_prefix);
 
-  using temp_allocator_type =
-    typename std::allocator_traits<Allocator>::template rebind_alloc<char>;
-  auto temp_allocator = temp_allocator_type{alloc_};
-  auto d_num_out =
-    reinterpret_cast<unsigned long long*>(std::allocator_traits<temp_allocator_type>::allocate(
-      temp_allocator, sizeof(unsigned long long)));
-  CUCO_CUDA_TRY(cudaMemsetAsync(d_num_out, 0, sizeof(unsigned long long), stream));
+  auto counter = detail::counter_storage<size_t, Scope, Allocator>{this->alloc_};
+  counter.reset({stream});
 
   detail::retrieve_all<block_size>
     <<<grid_size, block_size, 0, stream>>>(keys_out,
@@ -271,15 +266,10 @@ std::pair<KeyOut, ValueOut> dynamic_map<Key, Value, Scope, Allocator>::retrieve_
                                            submap_views_.data().get(),
                                            submaps_.size(),
                                            capacity,
-                                           d_num_out,
+                                           counter.data(),
                                            submap_cap_prefix_d.data().get());
 
-  size_t h_num_out;
-  CUCO_CUDA_TRY(
-    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
-  CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
-  std::allocator_traits<temp_allocator_type>::deallocate(
-    temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(unsigned long long));
+  auto const h_num_out = counter.load_to_host({stream});
   return {keys_out + h_num_out, values_out + h_num_out};
 }
 
