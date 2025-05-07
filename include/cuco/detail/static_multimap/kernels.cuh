@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,8 @@
 
 #include <cub/block/block_reduce.cuh>
 #include <cuda/std/atomic>
+#include <cuda/std/iterator>
 #include <thrust/type_traits/is_contiguous_iterator.h>
-
-#include <iterator>
 
 namespace cuco {
 namespace detail {
@@ -185,8 +184,8 @@ CUCO_KERNEL void contains(InputIt first, int64_t n, OutputIt output_begin, viewT
   __shared__ bool writeBuffer[block_size / tile_size];
 
   while (idx < n) {
-    typename std::iterator_traits<InputIt>::value_type element = *(first + idx);
-    auto found                                                 = [&]() {
+    typename cuda::std::iterator_traits<InputIt>::value_type element = *(first + idx);
+    auto found                                                       = [&]() {
       if constexpr (is_pair_contains) { return view.pair_contains(tile, element, equal); }
       if constexpr (not is_pair_contains) { return view.contains(tile, element, equal); }
     }();
