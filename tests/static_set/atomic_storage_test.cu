@@ -48,6 +48,8 @@ class build_fn {
 };
 
 // This test exercise is designed to replicate a Spark runtime failure scenario
+// https://github.com/NVIDIA/spark-rapids/issues/12586 and
+// https://github.com/rapidsai/cudf/issues/18587
 // that is not addressed by the current test suite. It will result in a runtime
 // crash if the CCCL atomic storage is not managed correctly.
 TEST_CASE("atomic_storage_test", "")
