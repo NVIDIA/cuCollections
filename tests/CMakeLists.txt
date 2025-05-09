@@ -59,6 +59,7 @@ ConfigureTest(UTILITY_TEST
 ###################################################################################################
 # - static_set tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_SET_TEST
+    static_set/atomic_storage_test.cu
     static_set/capacity_test.cu
     static_set/for_each_test.cu
     static_set/heterogeneous_lookup_test.cu
