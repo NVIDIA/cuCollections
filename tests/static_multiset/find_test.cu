@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -40,15 +41,15 @@ void test_unique_sequence(Set& set, size_type num_keys)
   thrust::device_vector<bool> d_contained(num_keys);
 
   auto zip_equal = cuda::proclaim_return_type<bool>(
-    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+    [] __device__(auto const& p) { return cuda::std::get<0>(p) == cuda::std::get<1>(p); });
 
   SECTION("Non-inserted keys have no matches")
   {
     thrust::device_vector<Key> d_results(num_keys);
 
     set.find(keys_begin, keys_begin + num_keys, d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
-      d_results.begin(), thrust::constant_iterator<Key>{set.empty_key_sentinel()}));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{
+      d_results.begin(), thrust::constant_iterator<Key>{set.empty_key_sentinel()}});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -60,7 +61,7 @@ void test_unique_sequence(Set& set, size_type num_keys)
     thrust::device_vector<Key> d_results(num_keys);
 
     set.find(keys_begin, keys_begin + num_keys, d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), keys_begin});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }

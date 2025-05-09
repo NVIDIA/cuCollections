@@ -18,7 +18,7 @@
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/pair/traits.hpp>
 
-#include <thrust/tuple.h>
+#include <cuda/std/tuple>
 
 namespace cuco::detail::open_addressing_ns {
 
@@ -51,7 +51,7 @@ struct get_slot {
     auto const intra_idx  = idx % StorageRef::bucket_size;
     if constexpr (HasPayload) {
       auto const [first, second] = storage_[bucket_idx][intra_idx];
-      return thrust::tuple{first, second};
+      return cuda::std::tuple{first, second};
     } else {
       return storage_[bucket_idx][intra_idx];
     }
@@ -96,7 +96,7 @@ struct slot_is_filled {
       if constexpr (HasPayload) {
         // required by thrust zip iterator in `retrieve_all`
         if constexpr (cuco::detail::is_cuda_std_pair_like<S>::value) {
-          return thrust::get<0>(slot);
+          return cuda::std::get<0>(slot);
         } else {
           return slot.first;
         }

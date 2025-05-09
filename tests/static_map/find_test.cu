@@ -19,6 +19,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
@@ -27,7 +28,6 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sort.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -56,7 +56,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
       [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
 
   auto zip_equal = cuda::proclaim_return_type<bool>(
-    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+    [] __device__(auto const& p) { return cuda::std::get<0>(p) == cuda::std::get<1>(p); });
   auto is_even =
     cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
@@ -65,8 +65,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
   SECTION("Non-inserted keys have no matches")
   {
     map.find(keys_begin, keys_begin + num_keys, d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
-      d_results.begin(), thrust::constant_iterator<Key>{map.empty_key_sentinel()}));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{
+      d_results.begin(), thrust::constant_iterator<Key>{map.empty_key_sentinel()}});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -76,7 +76,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
   SECTION("All inserted keys should be correctly recovered during find")
   {
     map.find(keys_begin, keys_begin + num_keys, d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), keys_begin});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -86,8 +86,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
     map.find_async(
       keys_begin, keys_begin + num_keys, always_false{}, map.hash_function(), d_results.begin());
     CUCO_CUDA_TRY(cudaDeviceSynchronize());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
-      d_results.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{
+      d_results.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -123,8 +123,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
                       d_results.begin());
 
     CUCO_CUDA_TRY(cudaDeviceSynchronize());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
-      d_results.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{
+      d_results.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }

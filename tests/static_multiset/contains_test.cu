@@ -19,6 +19,7 @@
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -44,7 +45,7 @@ void test_unique_sequence(Set& set, size_type num_keys)
   thrust::device_vector<bool> d_contained(num_keys);
 
   auto zip_equal = cuda::proclaim_return_type<bool>(
-    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+    [] __device__(auto const& p) { return cuda::std::get<0>(p) == cuda::std::get<1>(p); });
   auto is_even =
     cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
@@ -71,7 +72,7 @@ void test_unique_sequence(Set& set, size_type num_keys)
                     d_contained.begin());
     auto gold_iter =
       thrust::make_transform_iterator(thrust::counting_iterator<std::size_t>(0), is_even);
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_contained.begin(), gold_iter));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_contained.begin(), gold_iter});
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@
 #include <cuda/std/iterator>
 #include <cuda/std/limits>
 #include <cuda/std/span>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -36,7 +37,6 @@
 #include <thrust/shuffle.h>
 #include <thrust/system/detail/generic/select_system.h>
 #include <thrust/transform.h>
-#include <thrust/tuple.h>
 #include <thrust/type_traits/is_execution_policy.h>
 
 #include <cstdint>
@@ -490,7 +490,7 @@ generate_random_byte_sequences(std::size_t n_sequences,
   thrust::device_vector<cuda::std::byte> bytes(n_bytes);
 
   auto offsets_and_lengths =
-    thrust::make_zip_iterator(thrust::tuple{offsets.begin(), lengths.begin()});
+    thrust::make_zip_iterator(cuda::std::tuple{offsets.begin(), lengths.begin()});
   thrust::device_vector<cuda::std::span<cuda::std::byte>> sequences(n_sequences);
   // create the span object for each sequence
   thrust::transform(
@@ -500,8 +500,8 @@ generate_random_byte_sequences(std::size_t n_sequences,
     sequences.begin(),
     cuda::proclaim_return_type<cuda::std::span<cuda::std::byte>>(
       [bytes_ptr = thrust::raw_pointer_cast(bytes.data())] __device__(auto const& seq) {
-        return cuda::std::span<cuda::std::byte>{bytes_ptr + thrust::get<0>(seq),
-                                                thrust::get<1>(seq)};
+        return cuda::std::span<cuda::std::byte>{bytes_ptr + cuda::std::get<0>(seq),
+                                                cuda::std::get<1>(seq)};
       }));
 
   // fill the byte buffer with random data
