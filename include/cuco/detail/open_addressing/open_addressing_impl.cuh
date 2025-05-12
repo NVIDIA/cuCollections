@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@
 #include <cub/device/device_for.cuh>
 #include <cub/device/device_select.cuh>
 #include <cuda/atomic>
+#include <cuda/std/functional>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
@@ -77,12 +78,12 @@ class open_addressing_impl {
     "Key type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
-  static_assert(
-    std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
-    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+  static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
+                                        ProbingScheme>,
+                "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
   /// Determines if the container is a key/value or key-only store
-  static constexpr auto has_payload = not std::is_same_v<Key, Value>;
+  static constexpr auto has_payload = not cuda::std::is_same_v<Key, Value>;
 
  public:
   static constexpr auto cg_size      = ProbingScheme::cg_size;  ///< CG size used for probing
@@ -273,7 +274,7 @@ class open_addressing_impl {
   size_type insert(InputIt first, InputIt last, Ref container_ref, cuda::stream_ref stream)
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
-    return this->insert_if(first, last, always_true, thrust::identity{}, container_ref, stream);
+    return this->insert_if(first, last, always_true, cuda::std::identity{}, container_ref, stream);
   }
 
   /**
@@ -296,7 +297,7 @@ class open_addressing_impl {
                     cuda::stream_ref stream) noexcept
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
-    this->insert_if_async(first, last, always_true, thrust::identity{}, container_ref, stream);
+    this->insert_if_async(first, last, always_true, cuda::std::identity{}, container_ref, stream);
   }
 
   /**
@@ -494,7 +495,7 @@ class open_addressing_impl {
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
     this->contains_if_async(
-      first, last, always_true, thrust::identity{}, output_begin, container_ref, stream);
+      first, last, always_true, cuda::std::identity{}, output_begin, container_ref, stream);
   }
 
   /**
@@ -569,7 +570,7 @@ class open_addressing_impl {
     auto const always_true = thrust::constant_iterator<bool>{true};
 
     this->find_if_async(
-      first, last, always_true, thrust::identity{}, output_begin, container_ref, stream);
+      first, last, always_true, cuda::std::identity{}, output_begin, container_ref, stream);
   }
 
   /**
@@ -577,8 +578,8 @@ class open_addressing_impl {
    * a match with its key equivalent to the query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, stores `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, stores `empty_value_sentinel` to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose value_type is
@@ -952,7 +953,7 @@ class open_addressing_impl {
    * @note Behavior is undefined if the desired `extent` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
    *
@@ -993,7 +994,7 @@ class open_addressing_impl {
    * @note Behavior is undefined if the desired `extent` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
    *

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,14 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sort.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -47,7 +46,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
   thrust::device_vector<bool> d_contained(num_keys);
 
   auto zip_equal = cuda::proclaim_return_type<bool>(
-    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+    [] __device__(auto const& p) { return cuda::std::get<0>(p) == cuda::std::get<1>(p); });
   auto is_even =
     cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
@@ -58,7 +57,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(map.count(keys_begin, keys_begin + num_keys) == 0);
 
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("All conditionally inserted keys should be contained")
@@ -85,7 +84,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(map.count(keys_begin, keys_begin + num_keys) == num_keys);
 
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Conditional contains should return true on even inputs.")
@@ -97,7 +96,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
                     d_contained.begin());
     auto gold_iter =
       thrust::make_transform_iterator(thrust::counting_iterator<std::size_t>(0), is_even);
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_contained.begin(), gold_iter));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_contained.begin(), gold_iter});
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 
@@ -113,7 +112,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(cuco::test::equal(d_values.begin(),
                               values_end,
                               thrust::make_counting_iterator<Value>(0),
-                              thrust::equal_to<Value>{}));
+                              cuda::std::equal_to<Value>{}));
   }
 }
 
@@ -147,7 +146,7 @@ TEMPLATE_TEST_CASE_SIG(
                               Value,
                               extent_type,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{

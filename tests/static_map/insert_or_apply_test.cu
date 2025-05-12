@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,12 +20,12 @@
 #include <cuco/utility/reduction_functors.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -64,7 +64,7 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
   REQUIRE(cuco::test::equal(d_values.begin(),
                             d_values.end(),
                             thrust::make_constant_iterator<Value>(num_keys / num_unique_keys),
-                            thrust::equal_to<Value>{}));
+                            cuda::std::equal_to<Value>{}));
 }
 
 template <bool HasInit, typename Map, typename Init>
@@ -133,7 +133,7 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
   REQUIRE(cuco::test::equal(d_values.begin(),
                             d_values.end(),
                             thrust::make_constant_iterator<Value>(num_keys / num_unique_keys),
-                            thrust::equal_to<Value>{}));
+                            cuda::std::equal_to<Value>{}));
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -173,7 +173,7 @@ TEMPLATE_TEST_CASE_SIG(
                                     Value,
                                     cuco::extent<size_type>,
                                     cuda::thread_scope_device,
-                                    thrust::equal_to<Key>,
+                                    cuda::std::equal_to<Key>,
                                     probe,
                                     cuco::cuda_allocator<cuda::std::byte>,
                                     cuco::storage<2>>;
@@ -211,7 +211,7 @@ TEMPLATE_TEST_CASE_SIG(
                                     Value,
                                     cuco::extent<size_type>,
                                     cuda::thread_scope_device,
-                                    thrust::equal_to<Key>,
+                                    cuda::std::equal_to<Key>,
                                     cuco::linear_probing<2, cuco::murmurhash3_32<Key>>,
                                     cuco::cuda_allocator<cuda::std::byte>,
                                     cuco::storage<2>>;
@@ -247,7 +247,7 @@ TEMPLATE_TEST_CASE_SIG(
                                     Value,
                                     cuco::extent<size_type>,
                                     cuda::thread_scope_device,
-                                    thrust::equal_to<Key>,
+                                    cuda::std::equal_to<Key>,
                                     cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
                                     cuco::cuda_allocator<cuda::std::byte>,
                                     cuco::storage<2>>;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/std/functional>
+
 #include <catch2/catch_test_macros.hpp>
 
 TEST_CASE("static_map capacity test", "")
@@ -23,7 +25,7 @@ TEST_CASE("static_map capacity test", "")
   using Key        = int32_t;
   using T          = int32_t;
   using ProbeT     = cuco::double_hashing<1, cuco::default_hash_function<Key>>;
-  using Equal      = thrust::equal_to<Key>;
+  using Equal      = cuda::std::equal_to<Key>;
   using AllocatorT = cuco::cuda_allocator<cuda::std::byte>;
   using StorageT   = cuco::storage<2>;
 
@@ -157,9 +159,9 @@ TEST_CASE("static_map capacity test", "")
     REQUIRE(ref_capacity == gold_capacity);
   }
 
-  SECTION("Dynamic extent is evaluated at run time.")
+  SECTION("Dynamic extent of linear probing is evaluated at run time.")
   {
-    auto constexpr gold_capacity = 412;  // 103 x 2 x 2
+    auto constexpr gold_capacity = 400;
 
     using probe = cuco::linear_probing<2, cuco::default_hash_function<Key>>;
     auto map =

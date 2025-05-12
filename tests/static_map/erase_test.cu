@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@
 
 #include <cuda/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
@@ -56,7 +55,7 @@ void test_erase(Map& map, size_type num_keys)
 
     map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
@@ -64,16 +63,16 @@ void test_erase(Map& map, size_type num_keys)
 
     map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     map.erase(keys_begin, keys_begin + num_keys / 2);
     map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
 
     REQUIRE(cuco::test::none_of(
-      d_keys_exist.begin(), d_keys_exist.begin() + num_keys / 2, thrust::identity{}));
+      d_keys_exist.begin(), d_keys_exist.begin() + num_keys / 2, cuda::std::identity{}));
 
     REQUIRE(cuco::test::all_of(
-      d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), thrust::identity{}));
+      d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), cuda::std::identity{}));
 
     map.erase(keys_begin + num_keys / 2, keys_begin + num_keys);
     REQUIRE(map.size() == 0);
@@ -116,11 +115,13 @@ TEMPLATE_TEST_CASE_SIG(
                               Value,
                               cuco::extent<size_type>,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
-                              cuco::storage<2>>{
-    num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
+                              cuco::storage<2>>{num_keys * 2,
+                                                cuco::empty_key<Key>{-1},
+                                                cuco::empty_value<Value>{-1},
+                                                cuco::erased_key<Key>{-2}};
 
   test_erase(map, num_keys);
 }

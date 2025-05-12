@@ -16,12 +16,12 @@
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/std/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/zip_iterator.h>
-#include <thrust/logical.h>
 #include <thrust/sequence.h>
-#include <thrust/tuple.h>
 
 #include <cmath>
 #include <cstddef>
@@ -138,7 +138,7 @@ int main(void)
   auto map = cuco::static_map{capacity,
                               cuco::empty_key{empty_key_sentinel},
                               cuco::empty_value{empty_value_sentinel},
-                              thrust::equal_to<Key>{},
+                              cuda::std::equal_to<Key>{},
                               cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
   // Get a non-owning, mutable reference of the map that allows inserts to pass by value into the
@@ -174,11 +174,11 @@ int main(void)
   map.retrieve_all(contained_keys.begin(), contained_values.begin());
 
   auto tuple_iter =
-    thrust::make_zip_iterator(thrust::make_tuple(contained_keys.begin(), contained_values.begin()));
+    thrust::make_zip_iterator(cuda::std::tuple{contained_keys.begin(), contained_values.begin()});
   // Iterate over all slot contents and verify that `slot.key + 1 == slot.value` is always true.
   auto result = thrust::all_of(
     thrust::device, tuple_iter, tuple_iter + num_inserted[0], [] __device__(auto const& tuple) {
-      return thrust::get<0>(tuple) + 1 == thrust::get<1>(tuple);
+      return cuda::std::get<0>(tuple) + 1 == cuda::std::get<1>(tuple);
     });
 
   if (result) { std::cout << "Success! Target values are properly incremented.\n"; }

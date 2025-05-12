@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@
 
 #include <thrust/device_vector.h>
 #include <thrust/equal.h>
-#include <thrust/iterator/zip_iterator.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
@@ -57,16 +58,21 @@ int main(void)
   auto map = cuco::static_map{
     capacity, cuco::empty_key{empty_key_sentinel}, cuco::empty_value{empty_value_sentinel}};
 
-  // Create a sequence of keys and values {{0,0}, {1,1}, ... {i,i}}
+  // Create a sequence of keys and values
   thrust::device_vector<Key> insert_keys(num_keys);
   thrust::sequence(insert_keys.begin(), insert_keys.end(), 0);
   thrust::device_vector<Value> insert_values(num_keys);
   thrust::sequence(insert_values.begin(), insert_values.end(), 0);
-  auto zipped =
-    thrust::make_zip_iterator(thrust::make_tuple(insert_keys.begin(), insert_values.begin()));
+  // Combine keys and values into pairs {{0,0}, {1,1}, ... {i,i}}
+  auto pairs = thrust::make_transform_iterator(
+    thrust::counting_iterator<std::size_t>{0},
+    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+      [keys = insert_keys.begin(), values = insert_values.begin()] __device__(auto i) {
+        return cuco::pair<Key, Value>{keys[i], values[i]};
+      }));
 
   // Inserts all pairs into the map
-  map.insert(zipped, zipped + insert_keys.size());
+  map.insert(pairs, pairs + num_keys);
 
   // Storage for found values
   thrust::device_vector<Value> found_values(num_keys);

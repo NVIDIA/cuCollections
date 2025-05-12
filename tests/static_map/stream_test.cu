@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,14 +19,13 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -70,12 +69,12 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
 
     map.insert(pairs_begin, pairs_begin + num_keys, stream);
     map.find(d_keys.begin(), d_keys.end(), d_results.begin(), stream);
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), d_values.begin()));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), d_values.begin()});
 
     REQUIRE(cuco::test::all_of(zip,
                                zip + num_keys,
                                cuda::proclaim_return_type<bool>([] __device__(auto const& p) {
-                                 return thrust::get<0>(p) == thrust::get<1>(p);
+                                 return cuda::std::get<0>(p) == cuda::std::get<1>(p);
                                }),
                                stream));
   }
@@ -87,7 +86,8 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
     map.insert(pairs_begin, pairs_begin + num_keys, stream);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), stream);
 
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), thrust::identity{}, stream));
+    REQUIRE(
+      cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}, stream));
   }
 
   CUCO_CUDA_TRY(cudaStreamDestroy(stream));

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
 
@@ -449,7 +450,11 @@ class operator_impl<
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(group, value);
+    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+      return ref_.impl_.insert<true>(group, value);
+    } else {
+      return ref_.impl_.insert<false>(group, value);
+    }
   }
 };
 
@@ -488,12 +493,12 @@ class operator_impl<
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val       = ref_.impl_.heterogeneous_value(value);
-    auto const key       = ref_.impl_.extract_key(val);
-    auto& probing_scheme = ref_.impl_.probing_scheme();
-    auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(key, storage_ref.bucket_extent());
-    auto const init_idx  = *probing_iter;
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter         = probing_scheme(key, storage_ref.bucket_extent());
+    auto const init_idx       = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -501,7 +506,7 @@ class operator_impl<
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+        auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
         auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
 
         // If the key is already in the container, update the payload and return
@@ -536,12 +541,12 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val       = ref_.impl_.heterogeneous_value(value);
-    auto const key       = ref_.impl_.extract_key(val);
-    auto& probing_scheme = ref_.impl_.probing_scheme();
-    auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(group, key, storage_ref.bucket_extent());
-    auto const init_idx  = *probing_iter;
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter         = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const init_idx       = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -854,13 +859,13 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(key, storage_ref.bucket_extent());
-    auto const init_idx    = *probing_iter;
-    auto const empty_value = ref_.empty_value_sentinel();
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter         = probing_scheme(key, storage_ref.bucket_extent());
+    auto const init_idx       = *probing_iter;
+    auto const empty_value    = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
@@ -871,7 +876,7 @@ class operator_impl<
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
           ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+        auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
         auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
 
         // If the key is already in the container, update the payload and return
@@ -930,13 +935,13 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(group, key, storage_ref.bucket_extent());
-    auto const init_idx    = *probing_iter;
-    auto const empty_value = ref_.empty_value_sentinel();
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter         = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const init_idx       = *probing_iter;
+    auto const empty_value    = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
@@ -1096,7 +1101,7 @@ class operator_impl<
    * insertion is successful or not.
    */
   template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(value);
@@ -1118,7 +1123,7 @@ class operator_impl<
    * insertion is successful or not.
    */
   template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);

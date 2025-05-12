@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@
 #include <cuco/hash_functions.cuh>
 #include <cuco/static_map.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
@@ -39,7 +39,7 @@ void test_hash_function()
                               Value,
                               cuco::extent<size_type>,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               cuco::linear_probing<1, Hash>,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{
@@ -60,7 +60,7 @@ void test_hash_function()
 
   map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
 
-  REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+  REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 }
 
 TEMPLATE_TEST_CASE_SIG("static_map hash tests", "", ((typename Key)), (int32_t), (int64_t))

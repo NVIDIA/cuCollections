@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -220,18 +220,6 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
   /// Pointer to the bucket storage
   std::unique_ptr<bucket_type, bucket_deleter_type> buckets_;
 };
-
-/// Alias for bucket_storage_ref
-template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::size_t>>
-using aow_storage_ref = bucket_storage_ref<T, BucketSize, Extent>;
-
-/// Alias for bucket_storage
-template <typename T,
-          int32_t BucketSize,
-          typename Extent    = cuco::extent<std::size_t>,
-          typename Allocator = cuco::cuda_allocator<cuco::bucket<T, BucketSize>>>
-using aow_storage = bucket_storage<T, BucketSize, Extent, Allocator>;
-
 }  // namespace cuco
 
 #include <cuco/detail/storage/bucket_storage.inl>

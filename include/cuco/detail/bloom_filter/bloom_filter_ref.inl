@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,13 @@
 #include <cuda/stream_ref>
 
 namespace cuco {
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+__host__ __device__ constexpr bloom_filter_ref<Key, Extent, Scope, Policy>::bloom_filter_ref(
+  filter_block_type* data, Extent num_blocks, cuda_thread_scope<Scope>, Policy const& policy)
+  : impl_{data, num_blocks, {}, policy}
+{
+}
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 __host__ __device__ constexpr bloom_filter_ref<Key, Extent, Scope, Policy>::bloom_filter_ref(
@@ -63,6 +70,15 @@ __device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(CG const& grou
                                                                   ProbeKey const& key)
 {
   impl_.add(group, key);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class CG, class InputIt>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(CG const& group,
+                                                                  InputIt first,
+                                                                  InputIt last)
+{
+  impl_.add(group, first, last);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>

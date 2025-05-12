@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <cuco/static_multimap.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
@@ -38,7 +39,7 @@ void test_multimap_find(Map& map, size_type num_keys)
   using Value = typename Map::mapped_type;
 
   auto zip_equal = cuda::proclaim_return_type<bool>(
-    [] __device__(auto val) { return thrust::get<0>(val) == thrust::get<1>(val); });
+    [] __device__(auto val) { return cuda::std::get<0>(val) == cuda::std::get<1>(val); });
 
   auto const keys_begin = thrust::counting_iterator<Key>{0};
 
@@ -47,8 +48,8 @@ void test_multimap_find(Map& map, size_type num_keys)
     thrust::device_vector<Value> found_vals(num_keys);
 
     map.find(keys_begin, keys_begin + num_keys, found_vals.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
-      found_vals.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{
+      found_vals.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -69,7 +70,7 @@ void test_multimap_find(Map& map, size_type num_keys)
     auto const gold_vals_begin = thrust::make_transform_iterator(
       thrust::make_counting_iterator<size_type>(0),
       cuda::proclaim_return_type<Value>([] __device__(auto i) { return Value{i * 2}; }));
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(found_vals.begin(), gold_vals_begin));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{found_vals.begin(), gold_vals_begin});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -122,7 +123,7 @@ TEMPLATE_TEST_CASE_SIG(
                                                  T,
                                                  cuco::extent<size_type>,
                                                  cuda::thread_scope_device,
-                                                 thrust::equal_to<T>,
+                                                 cuda::std::equal_to<T>,
                                                  probe,
                                                  cuco::cuda_allocator<cuda::std::byte>,
                                                  cuco::storage<2>>{

@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2024, NVIDIA CORPORATION.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ ConfigureTest(UTILITY_TEST
 ###################################################################################################
 # - static_set tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_SET_TEST
+    static_set/atomic_storage_test.cu
     static_set/capacity_test.cu
     static_set/for_each_test.cu
     static_set/heterogeneous_lookup_test.cu
@@ -97,7 +98,8 @@ ConfigureTest(STATIC_MAP_TEST
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
     dynamic_map/unique_sequence_test_experimental.cu
-    dynamic_map/erase_test.cu)
+    dynamic_map/erase_test.cu
+    dynamic_map/retrieve_all_test.cu)
 
 ###################################################################################################
 # - static_multiset tests -------------------------------------------------------------------------
@@ -120,7 +122,8 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/insert_contains_test.cu
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
-    static_multimap/for_each_test.cu)
+    static_multimap/for_each_test.cu
+    static_multimap/retrieve_test.cu)
 
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------
@@ -143,4 +146,4 @@ ConfigureTest(HYPERLOGLOG_TEST
 ConfigureTest(BLOOM_FILTER_TEST
     bloom_filter/unique_sequence_test.cu
     bloom_filter/arrow_policy_test.cu
-    )
+    bloom_filter/variable_cg_test.cu)

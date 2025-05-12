@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2024, NVIDIA CORPORATION.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,10 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
+set(rapids-cmake-version 25.06)
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
-    file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-25.02/RAPIDS.cmake
+    file(DOWNLOAD
+      https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-${rapids-cmake-version}/RAPIDS.cmake
          ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
 endif()
 include(${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
@@ -94,9 +96,13 @@ if(BUILD_TESTS)
 endif(BUILD_TESTS)
 
 ###################################################################################################
-# - Optionally build google benchmarks ------------------------------------------------------------
+# - Optionally build nvbench benchmarks -----------------------------------------------------------
 
 if(BUILD_BENCHMARKS)
+    include(${rapids-cmake-dir}/cpm/nvbench.cmake)
+    include(${rapids-cmake-dir}/cpm/package_override.cmake)
+    rapids_cpm_nvbench(BUILD_STATIC)
+
     add_subdirectory(benchmarks)
 endif(BUILD_BENCHMARKS)
 

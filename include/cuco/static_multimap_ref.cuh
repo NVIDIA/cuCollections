@@ -275,7 +275,7 @@ class static_multimap_ref
    * @tparam CG The type of the cooperative thread group
    * @tparam NewScope The thread scope of the newly created device ref
    *
-   * @param tile The ooperative thread group used to copy the data structure
+   * @param tile The cooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
    * @param scope The thread scope of the newly created device ref

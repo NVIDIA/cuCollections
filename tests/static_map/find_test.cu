@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
@@ -27,13 +28,20 @@
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sort.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
 using size_type = int32_t;
 
 int32_t constexpr SENTINEL = -1;
+
+struct always_false {
+  template <typename T>
+  __device__ bool operator()(T const&, T const&) const
+  {
+    return false;
+  }
+};
 
 template <typename Map>
 void test_unique_sequence(Map& map, size_type num_keys)
@@ -48,17 +56,17 @@ void test_unique_sequence(Map& map, size_type num_keys)
       [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
 
   auto zip_equal = cuda::proclaim_return_type<bool>(
-    [] __device__(auto const& p) { return thrust::get<0>(p) == thrust::get<1>(p); });
+    [] __device__(auto const& p) { return cuda::std::get<0>(p) == cuda::std::get<1>(p); });
   auto is_even =
     cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
+  thrust::device_vector<Value> d_results(num_keys);
+
   SECTION("Non-inserted keys have no matches")
   {
-    thrust::device_vector<Value> d_results(num_keys);
-
     map.find(keys_begin, keys_begin + num_keys, d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(
-      d_results.begin(), thrust::constant_iterator<Key>{map.empty_key_sentinel()}));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{
+      d_results.begin(), thrust::constant_iterator<Key>{map.empty_key_sentinel()}});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -67,18 +75,26 @@ void test_unique_sequence(Map& map, size_type num_keys)
 
   SECTION("All inserted keys should be correctly recovered during find")
   {
-    thrust::device_vector<Value> d_results(num_keys);
-
     map.find(keys_begin, keys_begin + num_keys, d_results.begin());
-    auto zip = thrust::make_zip_iterator(thrust::make_tuple(d_results.begin(), keys_begin));
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), keys_begin});
+
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+  }
+
+  SECTION("No keys should be found with custom always_false equal")
+  {
+    map.find_async(
+      keys_begin, keys_begin + num_keys, always_false{}, map.hash_function(), d_results.begin());
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{
+      d_results.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 
   SECTION("Conditional find should return valid values on even inputs.")
   {
-    auto found_results = thrust::device_vector<Key>(num_keys);
-    auto gold_fn       = cuda::proclaim_return_type<Value>([] __device__(auto const& i) {
+    auto gold_fn = cuda::proclaim_return_type<Value>([] __device__(auto const& i) {
       return i % 2 == 0 ? static_cast<Value>(i) : Value{SENTINEL};
     });
 
@@ -86,14 +102,31 @@ void test_unique_sequence(Map& map, size_type num_keys)
                 keys_begin + num_keys,
                 thrust::counting_iterator<std::size_t>{0},
                 is_even,
-                found_results.begin());
+                d_results.begin());
 
     REQUIRE(cuco::test::equal(
-      found_results.begin(),
-      found_results.end(),
+      d_results.begin(),
+      d_results.end(),
       thrust::make_transform_iterator(thrust::counting_iterator<Key>{0}, gold_fn),
       cuda::proclaim_return_type<bool>(
         [] __device__(auto const& found, auto const& gold) { return found == gold; })));
+  }
+
+  SECTION("Conditional find with always_false should always get sentinel.")
+  {
+    map.find_if_async(keys_begin,
+                      keys_begin + num_keys,
+                      thrust::counting_iterator<std::size_t>{0},
+                      is_even,
+                      always_false{},
+                      map.hash_function(),
+                      d_results.begin());
+
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
+    auto zip = thrust::make_zip_iterator(cuda::std::tuple{
+      d_results.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}});
+
+    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 }
 
@@ -122,9 +155,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  constexpr size_type num_keys{400};
-  constexpr size_type gold_capacity = CGSize == 1 ? 422   // 211 x 1 x 2
-                                                  : 412;  // 103 x 2 x 2
+  constexpr size_type num_keys{301};
 
   // XXX: testing static extent is intended, DO NOT CHANGE
   using extent_type = cuco::extent<size_type, num_keys>;
@@ -133,11 +164,20 @@ TEMPLATE_TEST_CASE_SIG(
           cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
           cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
+  constexpr size_type gold_capacity = [&]() {
+    if constexpr (cuco::is_double_hashing<probe>::value) {
+      return (CGSize == 1) ? 302   // 151 x 1 x 2
+                           : 316;  // 79 x 2 x 2
+    } else {
+      return (CGSize == 1) ? 302 : 304;
+    }
+  }();
+
   auto map = cuco::static_map<Key,
                               Value,
                               extent_type,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{

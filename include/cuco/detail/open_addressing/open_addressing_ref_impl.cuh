@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,12 +24,12 @@
 #include <cuco/probing_scheme.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/functional>
+#include <cuda/std/iterator>
 #include <cuda/std/type_traits>
-#include <thrust/distance.h>
 #include <thrust/execution_policy.h>
 #include <thrust/logical.h>
 #include <thrust/reduce.h>
-#include <thrust/tuple.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
 #endif
@@ -37,7 +37,6 @@
 #include <cooperative_groups.h>
 
 #include <cstdint>
-#include <type_traits>
 
 namespace cuco {
 namespace detail {
@@ -96,12 +95,13 @@ class open_addressing_ref_impl {
     "Key type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
-  static_assert(
-    std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
-    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+  static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
+                                        ProbingScheme>,
+                "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
   /// Determines if the container is a key/value or key-only store
-  static constexpr auto has_payload = not std::is_same_v<Key, typename StorageRef::value_type>;
+  static constexpr auto has_payload =
+    not cuda::std::is_same_v<Key, typename StorageRef::value_type>;
 
   /// Flag indicating whether duplicate keys are allowed or not
   static constexpr auto allows_duplicates = AllowsDuplicates;
@@ -176,7 +176,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  [[nodiscard]] __host__ __device__ constexpr key_type const& empty_key_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept
   {
     return this->predicate_.empty_sentinel_;
   }
@@ -186,8 +186,8 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty payload slot
    */
-  template <bool Dummy = true, typename Enable = std::enable_if_t<has_payload and Dummy>>
-  [[nodiscard]] __host__ __device__ constexpr auto const& empty_value_sentinel() const noexcept
+  template <bool Dummy = true, typename Enable = cuda::std::enable_if_t<has_payload and Dummy>>
+  [[nodiscard]] __host__ __device__ constexpr auto empty_value_sentinel() const noexcept
   {
     return this->extract_payload(this->empty_slot_sentinel());
   }
@@ -197,7 +197,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an erased key slot
    */
-  [[nodiscard]] __host__ __device__ constexpr key_type const& erased_key_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr key_type erased_key_sentinel() const noexcept
   {
     return this->predicate_.erased_sentinel_;
   }
@@ -207,7 +207,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty slot
    */
-  [[nodiscard]] __host__ __device__ constexpr value_type const& empty_slot_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr value_type empty_slot_sentinel() const noexcept
   {
     return empty_slot_sentinel_;
   }
@@ -217,8 +217,8 @@ class open_addressing_ref_impl {
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> const&
-  predicate() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> predicate()
+    const noexcept
   {
     return this->predicate_;
   }
@@ -238,8 +238,7 @@ class open_addressing_ref_impl {
    *
    * @return The probing scheme used for the container
    */
-  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type const& probing_scheme()
-    const noexcept
+  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type probing_scheme() const noexcept
   {
     return probing_scheme_;
   }
@@ -259,7 +258,7 @@ class open_addressing_ref_impl {
    *
    * @return The non-owning storage ref of the container
    */
-  [[nodiscard]] __host__ __device__ constexpr storage_ref_type const& storage_ref() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr storage_ref_type storage_ref() const noexcept
   {
     return storage_ref_;
   }
@@ -309,7 +308,7 @@ class open_addressing_ref_impl {
    *
    * @tparam CG The type of the cooperative thread group
    *
-   * @param g The ooperative thread group used to copy the data structure
+   * @param g The cooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
    */
@@ -395,7 +394,7 @@ class open_addressing_ref_impl {
           if (eq_res == detail::equal_result::EQUAL) { return false; }
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+          auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
           switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
                                  slot_content,
                                  val)) {
@@ -426,7 +425,7 @@ class open_addressing_ref_impl {
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
+  template <bool SupportsErase, typename Value>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
                          Value const& value) noexcept
   {
@@ -466,12 +465,20 @@ class open_addressing_ref_impl {
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
-        auto const status =
-          (group.thread_rank() == src_lane)
-            ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
+        auto status         = insert_result::CONTINUE;
+        if (group.thread_rank() == src_lane) {
+          if constexpr (SupportsErase) {
+            status =
+              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
                              bucket_slots[intra_bucket_index],
-                             val)
-            : insert_result::CONTINUE;
+                             val);
+          } else {
+            status =
+              attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
+                             this->empty_slot_sentinel(),
+                             val);
+          }
+        }
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
@@ -506,7 +513,7 @@ class open_addressing_ref_impl {
    * insertion is successful or not.
    */
   template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(Value const& value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 #if __CUDA_ARCH__ < 700
@@ -579,7 +586,7 @@ class open_addressing_ref_impl {
    * insertion is successful or not.
    */
   template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(
     cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
   {
 #if __CUDA_ARCH__ < 700
@@ -693,7 +700,7 @@ class open_addressing_ref_impl {
         if (eq_res == detail::equal_result::EMPTY) { return false; }
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
-          auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
+          auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
           switch (attempt_insert_stable(
             (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
             slot_content,
@@ -1149,7 +1156,7 @@ class open_addressing_ref_impl {
 
     if (n == 0) { return; }
 
-    using probe_type = typename std::iterator_traits<InputProbeIt>::value_type;
+    using probe_type = typename cuda::std::iterator_traits<InputProbeIt>::value_type;
 
     // tuning parameter
     auto constexpr buffer_multiplier = 1;
@@ -1198,7 +1205,7 @@ class open_addressing_ref_impl {
       if (active_flag) {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
-        auto const& probe_key = *(input_probe + idx);
+        auto const probe_key = *(input_probe + idx);
         auto probing_iter =
           this->probing_scheme_(probing_tile, probe_key, this->storage_ref_.bucket_extent());
         auto const init_idx = *probing_iter;
@@ -1206,15 +1213,15 @@ class open_addressing_ref_impl {
         bool running                      = true;
         [[maybe_unused]] bool found_match = false;
 
-        bool equals[buffer_size];
-        uint32_t exists[buffer_size];
+        bool equals[bucket_size];
+        uint32_t exists[bucket_size];
 
         while (active_flushing_tile.any(running)) {
           if (running) {
             // TODO atomic_ref::load if insert operator is present
             auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-#pragma unroll buffer_size
+#pragma unroll bucket_size
             for (int32_t i = 0; i < bucket_size; ++i) {
               equals[i] = false;
               if (running) {
@@ -1239,14 +1246,14 @@ class open_addressing_ref_impl {
 
             probing_tile.sync();
             running = probing_tile.all(running);
-#pragma unroll buffer_size
+#pragma unroll bucket_size
             for (int32_t i = 0; i < bucket_size; ++i) {
               exists[i] = probing_tile.ballot(equals[i]);
             }
 
             // Fill the buffer if any matching keys are found
             auto const lane_id = probing_tile.thread_rank();
-            if (thrust::any_of(thrust::seq, exists, exists + bucket_size, thrust::identity{})) {
+            if (thrust::any_of(thrust::seq, exists, exists + bucket_size, cuda::std::identity{})) {
               if constexpr (IsOuter) { found_match = true; }
 
               int32_t num_matches[bucket_size];
@@ -1266,7 +1273,7 @@ class open_addressing_ref_impl {
               output_idx = probing_tile.shfl(output_idx, 0);
 
               int32_t matches_offset = 0;
-#pragma unroll buffer_size
+#pragma unroll bucket_size
               for (int32_t i = 0; i < bucket_size; ++i) {
                 if (equals[i]) {
                   auto const lane_offset = detail::count_least_significant_bits(exists[i], lane_id);
@@ -1486,8 +1493,7 @@ class open_addressing_ref_impl {
    * @return The key
    */
   template <typename Value>
-  [[nodiscard]] __host__ __device__ constexpr auto const& extract_key(
-    Value const& value) const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto extract_key(Value const& value) const noexcept
   {
     if constexpr (this->has_payload) {
       return thrust::raw_reference_cast(value).first;
@@ -1507,8 +1513,8 @@ class open_addressing_ref_impl {
    *
    * @return The payload
    */
-  template <typename Value, typename Enable = std::enable_if_t<has_payload and sizeof(Value)>>
-  [[nodiscard]] __device__ constexpr auto const& extract_payload(Value const& value) const noexcept
+  template <typename Value, typename Enable = cuda::std::enable_if_t<has_payload and sizeof(Value)>>
+  [[nodiscard]] __device__ constexpr auto extract_payload(Value const& value) const noexcept
   {
     return thrust::raw_reference_cast(value).second;
   }

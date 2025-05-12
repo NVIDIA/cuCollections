@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,11 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -83,7 +82,7 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
                                        Value,
                                        extent_type,
                                        cuda::thread_scope_device,
-                                       thrust::equal_to<Key>,
+                                       cuda::std::equal_to<Key>,
                                        cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all maps, first elements_in_map element belong to map 0, second to map 1 and so
@@ -110,7 +109,7 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
   SECTION("Keys are all found after insertion.")
   {
     auto pairs_begin =
-      thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
+      thrust::make_zip_iterator(cuda::std::tuple{d_keys.begin(), d_values.begin()});
     std::vector<ref_type> h_refs;
     for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
       const std::size_t offset = map_id * elements_in_map;
@@ -134,12 +133,12 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
 
     REQUIRE(d_keys_exist.size() == d_keys_and_values_correct.size());
     auto zip = thrust::make_zip_iterator(
-      thrust::make_tuple(d_keys_exist.begin(), d_keys_and_values_correct.begin()));
+      cuda::std::tuple{d_keys_exist.begin(), d_keys_and_values_correct.begin()});
 
     REQUIRE(cuco::test::all_of(zip,
                                zip + d_keys_exist.size(),
                                cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
-                                 return thrust::get<0>(z) and thrust::get<1>(z);
+                                 return cuda::std::get<0>(z) and cuda::std::get<1>(z);
                                })));
   }
 
@@ -162,7 +161,7 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
   }
 }
 
@@ -179,12 +178,12 @@ __global__ void shared_memory_hash_table_kernel(bool* key_found)
   __shared__ cuco::bucket<slot_type, bucket_size> map[NumBuckets];
 
   using extent_type      = cuco::extent<std::size_t, NumBuckets>;
-  using storage_ref_type = cuco::aow_storage_ref<slot_type, bucket_size, extent_type>;
+  using storage_ref_type = cuco::bucket_storage_ref<slot_type, bucket_size, extent_type>;
 
   auto raw_ref =
     cuco::static_map_ref{cuco::empty_key<Key>{-1},
                          cuco::empty_value<Value>{-1},
-                         thrust::equal_to<Key>{},
+                         cuda::std::equal_to<Key>{},
                          cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
                          cuco::thread_scope_block,
                          storage_ref_type{extent_type{}, map}};
@@ -220,5 +219,5 @@ TEST_CASE("static map shared memory slots.", "")
   shared_memory_hash_table_kernel<num_buckets.value()><<<8, 32>>>(key_found.data().get());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
+  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), cuda::std::identity{}));
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,9 @@
 
 #include <cuda/atomic>
 #include <cuda/std/type_traits>
+#include <cuda/std/utility>
 
 #include <cooperative_groups.h>
-
-#include <utility>
 
 namespace cuco {
 
@@ -305,6 +304,45 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
                                            {},
                                            this->storage_ref()};
 }
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename CG, cuda::thread_scope NewScope>
+__device__ constexpr auto
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
+  CG const& tile,
+  bucket_type* const memory_to_use,
+  cuda_thread_scope<NewScope> scope) const noexcept
+{
+  auto const storage_ref = this->storage_ref().make_copy(tile, memory_to_use);
+  return static_multiset_ref<Key,
+                             NewScope,
+                             KeyEqual,
+                             ProbingScheme,
+                             decltype(storage_ref),
+                             Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                           this->key_eq(),
+                                           this->probing_scheme(),
+                                           scope,
+                                           storage_ref};
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+template <typename CG>
+__device__ constexpr void
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
+  CG const& tile) noexcept
+{
+  this->storage_ref().initialize(tile, this->empty_key_sentinel());
+}
 
 namespace detail {
 
@@ -358,7 +396,11 @@ class operator_impl<
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(group, value);
+    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+      return ref_.impl_.insert<true>(group, value);
+    } else {
+      return ref_.impl_.insert<false>(group, value);
+    }
   }
 };
 
@@ -630,7 +672,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(key, std::forward<CallbackOp>(callback_op));
+    ref_.impl_.for_each(key, cuda::std::forward<CallbackOp>(callback_op));
   }
 
   /**
@@ -660,7 +702,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(group, key, std::forward<CallbackOp>(callback_op));
+    ref_.impl_.for_each(group, key, cuda::std::forward<CallbackOp>(callback_op));
   }
 
   /**
@@ -700,7 +742,7 @@ class operator_impl<
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
     ref_.impl_.for_each(
-      group, key, std::forward<CallbackOp>(callback_op), std::forward<SyncOp>(sync_op));
+      group, key, cuda::std::forward<CallbackOp>(callback_op), cuda::std::forward<SyncOp>(sync_op));
   }
 };
 

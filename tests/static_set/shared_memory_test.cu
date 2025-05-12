@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,11 @@
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -75,7 +74,7 @@ TEMPLATE_TEST_CASE_SIG(
   using set_type    = cuco::static_set<Key,
                                        extent_type,
                                        cuda::thread_scope_device,
-                                       thrust::equal_to<Key>,
+                                       cuda::std::equal_to<Key>,
                                        cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all sets, first elements_in_set element belong to set 0, second to set 1 and so
@@ -119,12 +118,12 @@ TEMPLATE_TEST_CASE_SIG(
 
     REQUIRE(d_keys_exist.size() == d_keys_correct.size());
     auto zip =
-      thrust::make_zip_iterator(thrust::make_tuple(d_keys_exist.begin(), d_keys_correct.begin()));
+      thrust::make_zip_iterator(cuda::std::tuple{d_keys_exist.begin(), d_keys_correct.begin()});
 
     REQUIRE(cuco::test::all_of(zip,
                                zip + d_keys_exist.size(),
                                cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
-                                 return thrust::get<0>(z) and thrust::get<1>(z);
+                                 return cuda::std::get<0>(z) and cuda::std::get<1>(z);
                                })));
   }
 
@@ -145,7 +144,7 @@ TEMPLATE_TEST_CASE_SIG(
                                d_keys_exist.data().get(),
                                d_keys_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
   }
 }
 
@@ -161,11 +160,11 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   __shared__ cuco::bucket<slot_type, bucket_size> set[NumBuckets];
 
   using extent_type      = cuco::extent<std::size_t, NumBuckets>;
-  using storage_ref_type = cuco::aow_storage_ref<slot_type, bucket_size, extent_type>;
+  using storage_ref_type = cuco::bucket_storage_ref<slot_type, bucket_size, extent_type>;
 
   auto raw_ref =
     cuco::static_set_ref{cuco::empty_key<Key>{-1},
-                         thrust::equal_to<Key>{},
+                         cuda::std::equal_to<Key>{},
                          cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
                          cuco::thread_scope_block,
                          storage_ref_type{extent_type{}, set}};
@@ -198,5 +197,5 @@ TEST_CASE("static_set shared memory slots test", "")
   shared_memory_hash_set_kernel<num_buckets.value()><<<8, 32>>>(key_found.data().get());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
+  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), cuda::std::identity{}));
 }

@@ -18,8 +18,8 @@
 
 #include <cub/block/block_reduce.cuh>
 #include <cuda/std/atomic>
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/logical.h>
 #include <thrust/transform.h>
 
 #include <cmath>
@@ -132,7 +132,7 @@ int main(void)
                               load_factor,
                               cuco::empty_key{empty_key_sentinel},
                               cuco::empty_value{empty_value_sentinel},
-                              thrust::equal_to<Key>{},
+                              cuda::std::equal_to<Key>{},
                               cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
   // Get a non-owning, mutable reference of the map that allows `insert_and_find` operation to pass

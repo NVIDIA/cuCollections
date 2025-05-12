@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -49,13 +49,29 @@ class bloom_filter_ref {
   using size_type   = typename extent_type::value_type;  ///< Underlying type of the extent type
   using word_type =
     typename impl_type::word_type;  ///< Underlying word/segment type of a filter block
+  using filter_block_type =
+    typename impl_type::filter_block_type;  ///< Opaque type of a filter block
 
   /**
    * @brief Constructs the ref object from existing storage.
    *
    * @note The storage span starting at `data` must have an extent of at least `num_blocks`
-   * elements.
-   * @note `data` must be aligned to at least `sizeof(word_type) * words_per_block`.
+   * elements of type `filter_block_type`.
+   *
+   * @param data Pointer to the storage span of the filter
+   * @param num_blocks Number of sub-filters or blocks
+   * @param scope The scope in which operations will be performed
+   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
+   */
+  __host__ __device__ explicit constexpr bloom_filter_ref(filter_block_type* data,
+                                                          Extent num_blocks,
+                                                          cuda_thread_scope<Scope> scope,
+                                                          Policy const& policy);
+
+  /**
+   * @brief Constructs the ref object from existing storage.
+   *
+   * @note This overload is deprecated and will be removed in the near future.
    *
    * @param data Pointer to the storage span of the filter
    * @param num_blocks Number of sub-filters or blocks
@@ -117,6 +133,22 @@ class bloom_filter_ref {
    */
   template <class CG, class ProbeKey>
   __device__ void add(CG const& group, ProbeKey const& key);
+
+  /**
+   * @brief Device function that adds all keys in the range `[first, last)` to the filter.
+   *
+   * @note Best performance is achieved if the size of the CG is larger than or equal to
+   * `words_per_block`.
+   *
+   * @tparam CG Cooperative Group type
+   * @tparam InputIt Device-accessible random access input key iterator
+   *
+   * @param group The Cooperative Group this operation is executed with
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   */
+  template <class CG, class InputIt>
+  __device__ void add(CG const& group, InputIt first, InputIt last);
 
   /**
    * @brief Adds all keys in the range `[first, last)` to the filter.

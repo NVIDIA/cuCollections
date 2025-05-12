@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -48,7 +48,7 @@ class operator_impl {
  * @return `true` if `Operator` is contained in `Operators`, `false` otherwise.
  */
 template <typename Operator, typename... Operators>
-static constexpr bool has_operator()
+__host__ __device__ static constexpr bool has_operator()
 {
   return ((std::is_same_v<Operators, Operator>) || ...);
 }
