@@ -185,14 +185,13 @@ TEMPLATE_TEST_CASE_SIG(
   "static_multiset count tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
-  /*
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
   (int64_t, cuco::test::probe_sequence::double_hashing, 2),
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 1),*/
+  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
   constexpr size_type num_keys{666};
