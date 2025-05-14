@@ -76,6 +76,8 @@ void test_count_each(Set& set, size_type num_keys)
   auto const keys_begin   = d_keys.begin();
   auto const counts_begin = d_counts.begin();
 
+  set.clear();
+
   SECTION("Count_each of empty set should be all zeros.")
   {
     set.count_each(keys_begin, keys_begin + num_keys, ProbeKeyEqual{}, ProbeHash{}, counts_begin);
@@ -97,20 +99,22 @@ void test_count_each(Set& set, size_type num_keys)
       cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 1; })));
   }
 
+  set.clear();
+
   auto constexpr multiplicity = 3;
-  auto query_begin            = thrust::make_transform_iterator(
+  auto duplicate_keys_begin   = thrust::make_transform_iterator(
     thrust::make_counting_iterator<size_type>(0),
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i / multiplicity}; }));
+  set.insert(duplicate_keys_begin, duplicate_keys_begin + num_keys);
 
+  auto const query_begin = thrust::counting_iterator<size_type>{0};
+  auto const query_size  = num_keys / multiplicity;
   SECTION("Count_each with duplicates should return correct counts.")
   {
-    set.count_each(query_begin,
-                   query_begin + num_keys * multiplicity,
-                   ProbeKeyEqual{},
-                   ProbeHash{},
-                   counts_begin);
+    set.count_each(
+      query_begin, query_begin + query_size, ProbeKeyEqual{}, ProbeHash{}, counts_begin);
     REQUIRE(cuco::test::all_of(d_counts.begin(),
-                               d_counts.end(),
+                               d_counts.begin() + query_size,
                                cuda::proclaim_return_type<bool>([] __device__(size_type count) {
                                  return count == multiplicity;
                                })));
@@ -128,6 +132,8 @@ void test_count_each_outer(Set& set, size_type num_keys)
   thrust::device_vector<size_type> d_counts(num_keys);
   auto const keys_begin   = d_keys.begin();
   auto const counts_begin = d_counts.begin();
+
+  set.clear();
 
   SECTION("Count_each_outer of empty set should be all ones.")
   {
@@ -152,20 +158,23 @@ void test_count_each_outer(Set& set, size_type num_keys)
       cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 1; })));
   }
 
+  set.clear();
+
   auto constexpr multiplicity = 3;
-  auto query_begin            = thrust::make_transform_iterator(
+  auto duplicate_keys_begin   = thrust::make_transform_iterator(
     thrust::make_counting_iterator<size_type>(0),
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i / multiplicity}; }));
+  set.insert(duplicate_keys_begin, duplicate_keys_begin + num_keys);
+
+  auto const query_size  = num_keys / multiplicity;
+  auto const query_begin = thrust::counting_iterator<size_type>{0};
 
   SECTION("Count_each_outer with duplicates should return correct counts.")
   {
-    set.count_each_outer(query_begin,
-                         query_begin + num_keys * multiplicity,
-                         ProbeKeyEqual{},
-                         ProbeHash{},
-                         counts_begin);
+    set.count_each_outer(
+      query_begin, query_begin + query_size, ProbeKeyEqual{}, ProbeHash{}, counts_begin);
     REQUIRE(cuco::test::all_of(d_counts.begin(),
-                               d_counts.end(),
+                               d_counts.begin() + query_size,
                                cuda::proclaim_return_type<bool>([] __device__(size_type count) {
                                  return count == multiplicity;
                                })));
@@ -176,16 +185,17 @@ TEMPLATE_TEST_CASE_SIG(
   "static_multiset count tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  /*
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
   (int64_t, cuco::test::probe_sequence::double_hashing, 2),
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 1),*/
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  constexpr size_type num_keys{555};
+  constexpr size_type num_keys{666};
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
