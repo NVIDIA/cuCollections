@@ -17,10 +17,11 @@
 
 #include <cuco/detail/utility/cuda.cuh>
 
+#include <cuda/std/iterator>
+
 #include <cooperative_groups.h>
 
 #include <cstdint>
-#include <iterator>
 
 namespace cuco::detail::bloom_filter_ns {
 
@@ -66,7 +67,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename std::iterator_traits<InputIt>::value_type const& insert_element{*(first + idx)};
+      typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
+        *(first + idx)};
       ref.add(tile, insert_element);
     }
     idx += loop_stride;
@@ -96,14 +98,14 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
 
   if constexpr (CGSize == 1) {
     while (idx < n) {
-      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+      typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       *(out + idx) = pred(*(stencil + idx)) ? ref.contains(key) : false;
       idx += loop_stride;
     }
   } else {
     auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
     while (idx < n) {
-      typename std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+      typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
       if (tile.thread_rank() == 0) { *(out + idx) = found; }
       idx += loop_stride;

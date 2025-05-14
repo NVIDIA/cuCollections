@@ -1,5 +1,5 @@
 ﻿#=============================================================================
-# Copyright (c) 2018-2024, NVIDIA CORPORATION.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,14 +14,6 @@
 # limitations under the License.
 #=============================================================================
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
-
-CPMAddPackage(
-  NAME nvbench
-  GITHUB_REPOSITORY NVIDIA/nvbench
-  GIT_TAG main
-  GIT_SHALLOW TRUE
-  EXCLUDE_FROM_ALL YES
-)
 
 ###################################################################################################
 ### compiler function #############################################################################
@@ -89,7 +81,8 @@ ConfigureBench(DYNAMIC_MAP_BENCH
   dynamic_map/insert_bench.cu
   dynamic_map/find_bench.cu
   dynamic_map/contains_bench.cu
-  dynamic_map/erase_bench.cu)
+  dynamic_map/erase_bench.cu
+  dynamic_map/retrieve_all_bench.cu)
 
 ###################################################################################################
 # - hash function benchmarks ----------------------------------------------------------------------

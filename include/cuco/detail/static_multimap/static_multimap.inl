@@ -18,10 +18,10 @@
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.cuh>
 
+#include <cuda/std/tuple>
 #include <thrust/count.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/transform_iterator.h>
-#include <thrust/tuple.h>
 
 #include <iterator>
 
@@ -523,7 +523,7 @@ std::pair<KeyOut, ValueOut>
 static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   KeyOut keys_out, ValueOut values_out, cuda::stream_ref stream) const
 {
-  auto const zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
+  auto const zipped_out_begin = thrust::make_zip_iterator(cuda::std::tuple{keys_out, values_out});
   auto const zipped_out_end   = impl_->retrieve_all(zipped_out_begin, stream);
   auto const num              = std::distance(zipped_out_begin, zipped_out_end);
 

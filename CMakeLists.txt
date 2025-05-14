@@ -96,9 +96,13 @@ if(BUILD_TESTS)
 endif(BUILD_TESTS)
 
 ###################################################################################################
-# - Optionally build google benchmarks ------------------------------------------------------------
+# - Optionally build nvbench benchmarks -----------------------------------------------------------
 
 if(BUILD_BENCHMARKS)
+    include(${rapids-cmake-dir}/cpm/nvbench.cmake)
+    include(${rapids-cmake-dir}/cpm/package_override.cmake)
+    rapids_cpm_nvbench(BUILD_STATIC)
+
     add_subdirectory(benchmarks)
 endif(BUILD_BENCHMARKS)
 
