@@ -29,6 +29,7 @@
 
 #include <cuda/std/atomic>
 #include <cuda/std/functional>
+#include <cuda/std/utility>
 #include <cuda/stream_ref>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -1237,7 +1238,7 @@ namespace legacy {
  * static_map<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel, erased_value_sentinel};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
- * thrust::device_vector<thrust::pair<int,int>> pairs(50,000);
+ * thrust::device_vector<cuda::std::pair<int,int>> pairs(50,000);
  * thrust::transform(thrust::make_counting_iterator(0),
  *                   thrust::make_counting_iterator(pairs.size()),
  *                   pairs.begin(),
@@ -2102,7 +2103,7 @@ class static_map {
      */
     template <typename Hash     = cuco::default_hash_function<key_type>,
               typename KeyEqual = cuda::std::equal_to<key_type>>
-    __device__ thrust::pair<iterator, bool> insert_and_find(
+    __device__ cuda::std::pair<iterator, bool> insert_and_find(
       value_type const& insert_pair, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
@@ -2475,7 +2476,7 @@ class static_map {
               typename ProbeKey,
               typename Hash     = cuco::default_hash_function<key_type>,
               typename KeyEqual = cuda::std::equal_to<key_type>>
-    __device__ std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool> contains(
+    __device__ cuda::std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool> contains(
       CG const& g,
       ProbeKey const& k,
       Hash hash          = Hash{},

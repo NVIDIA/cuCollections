@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@
 
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/pair/traits.hpp>
+
+#include <cuda/std/tuple>
 
 namespace cuco::detail::open_addressing_ns {
 
@@ -47,7 +49,7 @@ struct get_slot {
   {
     if constexpr (HasPayload) {
       auto const [first, second] = *(storage_.data() + idx);
-      return thrust::make_tuple(first, second);
+      return cuda::std::tuple{first, second};
     } else {
       return *(storage_.data() + idx);
     }
@@ -92,7 +94,7 @@ struct slot_is_filled {
       if constexpr (HasPayload) {
         // required by thrust zip iterator in `retrieve_all`
         if constexpr (cuco::detail::is_cuda_std_pair_like<S>::value) {
-          return thrust::get<0>(slot);
+          return cuda::std::get<0>(slot);
         } else {
           return slot.first;
         }

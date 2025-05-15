@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -83,7 +83,8 @@ using packed_t = typename packed<sizeof(Pair)>::type;
 template <typename Pair>
 __host__ __device__ constexpr bool is_packable()
 {
-  return not std::is_void<packed_t<Pair>>::value and std::has_unique_object_representations_v<Pair>;
+  return not cuda::std::is_void<packed_t<Pair>>::value and
+         cuda::std::has_unique_object_representations_v<Pair>;
 }
 
 /**

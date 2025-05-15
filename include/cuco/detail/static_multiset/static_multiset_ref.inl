@@ -20,10 +20,9 @@
 
 #include <cuda/atomic>
 #include <cuda/std/type_traits>
+#include <cuda/std/utility>
 
 #include <cooperative_groups.h>
-
-#include <utility>
 
 namespace cuco {
 
@@ -691,7 +690,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(key, std::forward<CallbackOp>(callback_op));
+    ref_.impl_.for_each(key, cuda::std::forward<CallbackOp>(callback_op));
   }
 
   /**
@@ -721,7 +720,7 @@ class operator_impl<
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.for_each(group, key, std::forward<CallbackOp>(callback_op));
+    ref_.impl_.for_each(group, key, cuda::std::forward<CallbackOp>(callback_op));
   }
 
   /**
@@ -761,7 +760,7 @@ class operator_impl<
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
     ref_.impl_.for_each(
-      group, key, std::forward<CallbackOp>(callback_op), std::forward<SyncOp>(sync_op));
+      group, key, cuda::std::forward<CallbackOp>(callback_op), cuda::std::forward<SyncOp>(sync_op));
   }
 };
 

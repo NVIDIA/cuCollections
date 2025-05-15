@@ -20,11 +20,10 @@
 
 #include <cub/block/block_reduce.cuh>
 #include <cuda/atomic>
+#include <cuda/std/iterator>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
-
-#include <iterator>
 
 namespace cuco::detail::static_map_ns {
 CUCO_SUPPRESS_KERNEL_WARNINGS
@@ -57,7 +56,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename std::iterator_traits<InputIt>::value_type const& insert_pair = *(first + idx);
+    typename cuda::std::iterator_traits<InputIt>::value_type const& insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
       ref.insert_or_assign(insert_pair);
     } else {
@@ -110,7 +109,7 @@ __global__ void insert_or_apply(
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    using value_type              = typename std::iterator_traits<InputIt>::value_type;
+    using value_type              = typename cuda::std::iterator_traits<InputIt>::value_type;
     value_type const& insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
       if constexpr (HasInit) {
@@ -180,7 +179,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   namespace cg     = cooperative_groups;
   using Key        = typename Ref::key_type;
   using Value      = typename Ref::mapped_type;
-  using value_type = typename std::iterator_traits<InputIt>::value_type;
+  using value_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   auto const block       = cg::this_thread_block();
   auto const thread_idx  = block.thread_rank();
