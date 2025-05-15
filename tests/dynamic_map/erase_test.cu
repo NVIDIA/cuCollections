@@ -49,7 +49,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
     thrust::sequence(thrust::device, d_values.begin(), d_values.end(), 1);
 
     auto pairs_begin =
-      thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
+      thrust::make_zip_iterator(cuda::std::tuple{d_keys.begin(), d_values.begin()});
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
@@ -100,7 +100,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
     thrust::sequence(thrust::device, d_values.begin(), d_values.end(), 1);
 
     auto pairs_begin =
-      thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
+      thrust::make_zip_iterator(cuda::std::tuple{d_keys.begin(), d_values.begin()});
 
     map.insert(pairs_begin, pairs_begin + num);
 

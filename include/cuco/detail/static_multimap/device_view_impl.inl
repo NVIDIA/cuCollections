@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 #include <cuco/detail/static_multimap/kernels.cuh>
 #include <cuco/detail/utils.cuh>
 
-#include <thrust/tuple.h>
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
@@ -349,7 +348,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
    * @return void.
    */
   template <bool uses_vector_load, typename CG>
-  __device__ __forceinline__ std::enable_if_t<uses_vector_load, void> insert(
+  __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, void> insert(
     CG g, value_type const& insert_pair) noexcept
   {
     auto current_slot = initial_slot(g, insert_pair.first);
@@ -400,7 +399,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
    * @return void.
    */
   template <bool uses_vector_load, typename CG>
-  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, void> insert(
+  __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, void> insert(
     CG g, value_type const& insert_pair) noexcept
   {
     auto current_slot = initial_slot(g, insert_pair.first);
@@ -512,8 +511,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 #endif  // end CUCO_HAS_CUDA_BARRIER
     } else {
       for (auto index = lane_id; index < num_outputs; index += g.size()) {
-        thrust::get<0>(*(output_begin + offset + index)) = output_buffer[index].first;
-        thrust::get<1>(*(output_begin + offset + index)) = output_buffer[index].second;
+        cuda::std::get<0>(*(output_begin + offset + index)) = output_buffer[index].first;
+        cuda::std::get<1>(*(output_begin + offset + index)) = output_buffer[index].second;
       }
     }
   }
@@ -558,12 +557,12 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     offset = g.shfl(offset, 0);
 
     for (auto index = lane_id; index < num_outputs; index += g.size()) {
-      auto& probe_pair                                           = probe_output_buffer[index];
-      auto& contained_pair                                       = contained_output_buffer[index];
-      thrust::get<0>(*(probe_output_begin + offset + index))     = probe_pair.first;
-      thrust::get<1>(*(probe_output_begin + offset + index))     = probe_pair.second;
-      thrust::get<0>(*(contained_output_begin + offset + index)) = contained_pair.first;
-      thrust::get<1>(*(contained_output_begin + offset + index)) = contained_pair.second;
+      auto& probe_pair                                          = probe_output_buffer[index];
+      auto& contained_pair                                      = contained_output_buffer[index];
+      cuda::std::get<0>(*(probe_output_begin + offset + index)) = probe_pair.first;
+      cuda::std::get<1>(*(probe_output_begin + offset + index)) = probe_pair.second;
+      cuda::std::get<0>(*(contained_output_begin + offset + index)) = contained_pair.first;
+      cuda::std::get<1>(*(contained_output_begin + offset + index)) = contained_pair.second;
     }
   }
 
@@ -586,7 +585,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return A boolean indicating whether the key/value pair represented by `element` was inserted
    */
   template <bool is_pair_contains, bool uses_vector_load, typename ProbeT, typename Equal>
-  __device__ __forceinline__ std::enable_if_t<uses_vector_load, bool> contains(
+  __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, bool> contains(
     cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
     ProbeT const& element,
     Equal equal) const noexcept
@@ -652,7 +651,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return A boolean indicating whether the key/value pair represented by `element` was inserted
    */
   template <bool is_pair_contains, bool uses_vector_load, typename ProbeT, typename Equal>
-  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, bool> contains(
+  __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, bool> contains(
     cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
     ProbeT const& element,
     Equal equal) const noexcept
@@ -706,7 +705,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return Number of matches found by the current thread
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
-  __device__ __forceinline__ std::enable_if_t<uses_vector_load, std::size_t> count(
+  __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, std::size_t> count(
     CG const& g, Key const& k, KeyEqual key_equal) noexcept
   {
     std::size_t count = 0;
@@ -756,7 +755,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return Number of matches found by the current thread
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
-  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, std::size_t> count(
+  __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, std::size_t> count(
     CG const& g, Key const& k, KeyEqual key_equal) noexcept
   {
     std::size_t count = 0;
@@ -804,7 +803,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return Number of matches found by the current thread
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-  __device__ __forceinline__ std::enable_if_t<uses_vector_load, std::size_t> pair_count(
+  __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, std::size_t> pair_count(
     CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
   {
     std::size_t count = 0;
@@ -857,7 +856,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @return Number of matches found by the current thread
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
-  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, std::size_t> pair_count(
+  __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, std::size_t> pair_count(
     CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
   {
     std::size_t count = 0;
@@ -1141,7 +1140,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename OutputIt3,
             typename OutputIt4,
             typename PairEqual>
-  __device__ __forceinline__ std::enable_if_t<uses_vector_load, void> pair_retrieve(
+  __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, void> pair_retrieve(
     ProbingCG const& probing_cg,
     value_type const& pair,
     OutputIt1 probe_key_begin,
@@ -1252,7 +1251,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename OutputIt3,
             typename OutputIt4,
             typename PairEqual>
-  __device__ __forceinline__ std::enable_if_t<not uses_vector_load, void> pair_retrieve(
+  __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, void> pair_retrieve(
     ProbingCG const& probing_cg,
     value_type const& pair,
     OutputIt1 probe_key_begin,
