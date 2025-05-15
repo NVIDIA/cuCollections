@@ -22,8 +22,6 @@
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/utility/allocator.hpp>
 
-#include <thrust/functional.h>
-
 #include <cooperative_groups.h>
 
 #include <iterator>
