@@ -748,6 +748,70 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Counts the number of occurrences of each query key in the container
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the container and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param output_begin Beginning of the output range where per-key counts will be stored
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename OutputIt, typename Ref>
+  void count_each(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  Ref container_ref,
+                  cuda::stream_ref stream) const noexcept
+  {
+    auto constexpr is_outer = false;
+    this->count_each<is_outer>(first, last, output_begin, container_ref, stream);
+  }
+
+  /**
+   * @brief Counts the number of occurrences of each query key in the container with outer semantics
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the container and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * If a query key has no matches in the container, the result for that key will be 1 instead of 0.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param output_begin Beginning of the output range where per-key counts will be stored
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename OutputIt, typename Ref>
+  void count_each_outer(InputIt first,
+                        InputIt last,
+                        OutputIt output_begin,
+                        Ref container_ref,
+                        cuda::stream_ref stream) const noexcept
+  {
+    auto constexpr is_outer = true;
+    this->count_each<is_outer>(first, last, output_begin, container_ref, stream);
+  }
+
+  /**
    * @brief Retrieves all keys contained in the container.
    *
    * @note This API synchronizes the given stream.
@@ -1121,6 +1185,47 @@ class open_addressing_impl {
         first, num_keys, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
+  }
+
+  /**
+   * @brief Counts the number of occurrences of each query key in the container
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the container and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * If `IsOuter` is `true` and a query key has no matches in the container, the result for that key
+   * will be 1 instead of 0. Otherwise, the actual number of matches is returned.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam IsOuter Flag indicating whether to use outer semantics (non-matches count as 1)
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param output_begin Beginning of the output range where per-key counts will be stored
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <bool IsOuter, typename InputIt, typename OutputIt, typename Ref>
+  void count_each(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  Ref container_ref,
+                  cuda::stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::open_addressing_ns::count_each<IsOuter, cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num_keys, output_begin, container_ref);
   }
 
   /**
