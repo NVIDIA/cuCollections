@@ -111,7 +111,8 @@ ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/insert_test.cu
     static_multiset/for_each_test.cu
     static_multiset/retrieve_test.cu
-    static_multiset/large_input_test.cu)
+    static_multiset/large_input_test.cu
+    static_multiset/load_factor_test.cu)
 
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------

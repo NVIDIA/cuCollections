@@ -181,13 +181,8 @@ class open_addressing_impl {
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<probing_scheme_type, Storage>(
-                 static_cast<size_type>(std::ceil(static_cast<double>(n) / desired_load_factor))),
-               alloc}
+      storage_{make_bucket_extent<probing_scheme_type, Storage>(n, desired_load_factor), alloc}
   {
-    CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
-    CUCO_EXPECTS(desired_load_factor <= 1., "Desired occupancy must be no larger than one");
-
     this->clear_async(stream);
   }
 

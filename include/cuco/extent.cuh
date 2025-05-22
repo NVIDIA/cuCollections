@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -133,8 +133,43 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_bucket_extent(cuco::extent<SizeType, N> ext);
 
+/**
+ * @brief Computes valid bucket extent based on given parameters and desired load factor.
+ *
+ * @tparam ProbingScheme Type of probing scheme
+ * @tparam Storage Type of storage
+ * @tparam SizeType Size type
+ *
+ * @param ext The input extent
+ * @param desired_load_factor The desired load factor (e.g., 0.5 for 50%)
+ *
+ * @throw If the desired load factor is invalid
+ *
+ * @return Resulting valid extent
+ */
+template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_bucket_extent(cuco::extent<SizeType> ext,
+                                                double desired_load_factor);
+
 template <typename ProbingScheme, typename Storage, typename SizeType>
 [[nodiscard]] auto constexpr make_bucket_extent(SizeType ext);
+
+/**
+ * @brief Computes valid bucket extent based on given size and desired load factor.
+ *
+ * @tparam ProbingScheme Type of probing scheme
+ * @tparam Storage Type of storage
+ * @tparam SizeType Size type
+ *
+ * @param ext The input extent
+ * @param desired_load_factor The desired load factor (e.g., 0.5 for 50%)
+ *
+ * @throw If the desired load factor is invalid
+ *
+ * @return Resulting valid extent
+ */
+template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_bucket_extent(SizeType ext, double desired_load_factor);
 
 /**
  * @brief Computes a valid bucket extent/capacity for a given container type.
