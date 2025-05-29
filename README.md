@@ -7,11 +7,11 @@
 
 `cuCollections` (`cuco`) is an open-source, header-only library of GPU-accelerated, concurrent data structures.
 
-Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://github.com/thrust/cub) provide STL-like, GPU accelerated algorithms and primitives, `cuCollections` provides STL-like concurrent data structures. `cuCollections` is not a one-to-one, drop-in replacement for STL data structures like `std::unordered_map`. Instead, it provides functionally similar data structures tailored for efficient use with GPUs.
+Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://github.com/thrust/cub) provide STL-like, GPU-accelerated algorithms and primitives, `cuCollections` provides STL-like concurrent data structures. `cuCollections` is not a one-to-one, drop-in replacement for STL data structures like `std::unordered_map`. Instead, it provides functionally similar data structures optimized for efficient use with GPUs.
 
 ## Development Status
 
-`cuCollections` is still under heavy development. Users should expect breaking changes and refactoring to be common.
+`cuCollections` is still under active development. Users should expect breaking changes and refactoring to be common.
 
 ### Major Updates
 
@@ -24,13 +24,13 @@ __01/02/2024__ Moved the legacy `static_map` to `cuco::legacy` namespace
 
 ## Getting cuCollections
 
-`cuCollections` is header only and can be incorporated manually into your project by downloading the headers and placing them into your source tree.
+`cuCollections` is header-only and can be incorporated manually into your project by downloading the headers and placing them into your source tree.
 
 ### Adding `cuCollections` to a CMake Project
 
 `cuCollections` is designed to make it easy to include within another CMake project.
  The `CMakeLists.txt` exports a `cuco` target that can be linked<sup>[1](#link-footnote)</sup>
- into a target to setup include directories, dependencies, and compile flags necessary to use `cuCollections` in your project.
+ into a target to set up include directories, dependencies, and compile flags necessary to use `cuCollections` in your project.
 
 
 We recommend using [CMake Package Manager (CPM)](https://github.com/TheLartians/CPM.cmake) to fetch `cuCollections` into your project.
@@ -59,9 +59,9 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 <a name="link-footnote">1</a>: `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets.
 
 ## Requirements
-- `nvcc 11.5+`
+- NVCC 11.8 or newer
 - C++17
-- Volta+
+- GPU Architecture: Volta or newer
     - Pascal is partially supported. Any data structures that require blocking algorithms are not supported. See [libcu++](https://nvidia.github.io/libcudacxx/setup/requirements.html#device-architectures) documentation for more details.
 
 ## Dependencies
