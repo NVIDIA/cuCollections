@@ -34,7 +34,6 @@ template <int32_t Words>
 struct large_key {
   constexpr __host__ __device__ large_key(int32_t seed) noexcept
   {
-#pragma unroll Words
     for (int32_t i = 0; i < Words; ++i) {
       data_[i] = seed;
     }
