@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/extent.cuh>
+#include <cuco/hash_functions.cuh>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include <stdexcept>
 
 auto constexpr cg_size     = 2;
 auto constexpr bucket_size = 4;
@@ -59,5 +61,20 @@ TEMPLATE_TEST_CASE_SIG(
     auto const size = cuco::extent<SizeType>{num};
     auto const res  = cuco::make_valid_extent<probing_t, storage_t>(size);
     REQUIRE(gold_reference == res.value());
+  }
+
+  SECTION("Invalid desired load factor throws exception")
+  {
+    using probing_scheme_type = cuco::linear_probing<cg_size, cuco::default_hash_function<int>>;
+    using storage_type        = cuco::storage<bucket_size>;
+
+    auto const size = cuco::extent<SizeType>{num};
+
+    // Test load factor <= 0
+    REQUIRE_THROWS(cuco::make_valid_extent<probing_scheme_type, storage_type>(size, 0.0));
+    REQUIRE_THROWS(cuco::make_valid_extent<probing_scheme_type, storage_type>(size, -0.5));
+
+    // Test load factor > 1
+    REQUIRE_THROWS(cuco::make_valid_extent<probing_scheme_type, storage_type>(size, 1.5));
   }
 }

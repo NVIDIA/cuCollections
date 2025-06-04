@@ -24,6 +24,7 @@
 #include <cuda/std/type_traits>
 
 #include <cooperative_groups.h>
+#include <cooperative_groups/reduce.h>
 
 namespace cuco::detail::open_addressing_ns {
 CUCO_SUPPRESS_KERNEL_WARNINGS
@@ -578,6 +579,66 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
 }
 
 /**
+ * @brief Counts the occurrences of each key in `[first, last)` contained in the container
+ * and stores the counts in the output array.
+ *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator
+ * @tparam OutputIt Device accessible output iterator
+ * @tparam Ref Type of non-owning device container ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param output_begin Beginning of the sequence of counts for each key
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <bool IsOuter,
+          int32_t CGSize,
+          int32_t BlockSize,
+          typename InputIt,
+          typename OutputIt,
+          typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
+                                                         cuco::detail::index_type n,
+                                                         OutputIt output_begin,
+                                                         Ref ref)
+{
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  using size_type                     = typename Ref::size_type;
+  size_type constexpr outer_min_count = 1;
+
+  while (idx < n) {
+    typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+    if constexpr (CGSize == 1) {
+      if constexpr (IsOuter) {
+        *(output_begin + idx) = max(ref.count(key), size_type{outer_min_count});
+      } else {
+        *(output_begin + idx) = ref.count(key);
+      }
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+      if constexpr (IsOuter) {
+        auto temp_count = ref.count(tile, key);
+        if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
+        auto const count =
+          cooperative_groups::reduce(tile, temp_count, cooperative_groups::plus<size_type>());
+        if (tile.thread_rank() == 0) { *(output_begin + idx) = count; }
+      } else {
+        auto const count = cooperative_groups::reduce(
+          tile, ref.count(tile, key), cooperative_groups::plus<size_type>());
+        if (tile.thread_rank() == 0) { *(output_begin + idx) = count; }
+      }
+    }
+    idx += loop_stride;
+  }
+}
+
+/**
  * @brief Retrieves the equivalent container elements of all keys in the range `[input_probe,
  * input_probe + n)`.
  *
@@ -731,5 +792,4 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
     idx += loop_stride;
   }
 }
-
 }  // namespace cuco::detail::open_addressing_ns

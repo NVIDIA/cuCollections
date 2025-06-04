@@ -136,63 +136,39 @@ template <template <typename, typename> class ProbingScheme, typename Storage, t
 [[nodiscard]] auto constexpr make_valid_extent(SizeType ext);
 
 /**
- * @brief Computes valid bucket extent/capacity based on given parameters.
+ * @brief Computes valid bucket extent based on given parameters and desired load factor.
  *
- * @note Facade for make_valid_extent.
- *
- * @deprecated Use make_valid_extent instead.
-
  * @tparam ProbingScheme Type of probing scheme
  * @tparam Storage Type of storage
  * @tparam SizeType Size type
- * @tparam N Extent size (can be dynamic_extent)
  *
  * @param ext The input extent
+ * @param desired_load_factor The desired load factor (e.g., 0.5 for 50%)
  *
- * @throw If the input extent is invalid
+ * @throw If the desired load factor is invalid
  *
  * @return Resulting valid extent
  */
-template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>
-[[nodiscard]] auto constexpr make_bucket_extent(cuco::extent<SizeType, N> ext);
-
-template <template <typename> class ProbingScheme,
-          typename Storage,
-          typename SizeType,
-          std::size_t N>
-[[nodiscard]] auto constexpr make_bucket_extent(cuco::extent<SizeType, N> ext);
-
-template <template <typename, typename> class ProbingScheme,
-          typename Storage,
-          typename SizeType,
-          std::size_t N>
-[[nodiscard]] auto constexpr make_bucket_extent(cuco::extent<SizeType, N> ext);
+template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(cuco::extent<SizeType> ext,
+                                               double desired_load_factor);
 
 /**
- * @brief Computes valid bucket extent/capacity based on given parameters.
+ * @brief Computes valid bucket extent based on given size and desired load factor.
  *
- * @note Facade for make_valid_extent.
- *
- * @deprecated Use make_valid_extent instead.
  * @tparam ProbingScheme Type of probing scheme
  * @tparam Storage Type of storage
  * @tparam SizeType Size type
  *
- * @param ext The input size value
+ * @param ext The input extent
+ * @param desired_load_factor The desired load factor (e.g., 0.5 for 50%)
  *
- * @throw If the input size is invalid
+ * @throw If the desired load factor is invalid
  *
- * @return Resulting valid bucket extent
+ * @return Resulting valid extent
  */
 template <typename ProbingScheme, typename Storage, typename SizeType>
-[[nodiscard]] auto constexpr make_bucket_extent(SizeType ext);
-
-template <template <typename> class ProbingScheme, typename Storage, typename SizeType>
-[[nodiscard]] auto constexpr make_bucket_extent(SizeType ext);
-
-template <template <typename, typename> class ProbingScheme, typename Storage, typename SizeType>
-[[nodiscard]] auto constexpr make_bucket_extent(SizeType ext);
-
+[[nodiscard]] auto constexpr make_valid_extent(SizeType ext, double desired_load_factor);
 }  // namespace cuco
 
 #include <cuco/detail/extent/extent.inl>

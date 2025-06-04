@@ -681,6 +681,74 @@ class static_multiset {
                         cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Counts the number of occurrences of each query key in the multiset
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the multiset and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam InputIt       Device-accessible input iterator type for query keys
+   * @tparam ProbeKeyEqual Binary callable that compares two keys for equality
+   * @tparam ProbeHash     Unary callable that computes the hash of a key
+   * @tparam OutputIt      Device-accessible output iterator type for storing per-key counts
+   *
+   * @param first          Iterator to the beginning of the sequence of query keys
+   * @param last           Iterator to the end of the sequence of query keys
+   * @param probe_key_equal Predicate to compare a query key with a multiset key for equality
+   * @param probe_hash     Hash function to compute the hash value of a query key
+   * @param output_begin   Iterator to the beginning of the output range where per-key counts will
+   * be stored
+   * @param stream         CUDA stream on which to execute the counting operation
+   */
+  template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash, typename OutputIt>
+  void count_each(InputIt first,
+                  InputIt last,
+                  ProbeKeyEqual const& probe_key_equal,
+                  ProbeHash const& probe_hash,
+                  OutputIt output_begin,
+                  cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Counts the number of occurrences of each query key in the multiset with outer semantics.
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the multiset and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * If a query key has no matches in the multiset, the result for that key will be 1 instead of 0.
+   * Otherwise, the actual number of matches is returned.
+   *
+   * This provides "outer join"-like semantics, ensuring that every query key contributes at least 1
+   * count.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam InputIt       Device-accessible input iterator type for query keys
+   * @tparam ProbeKeyEqual Binary callable that compares two keys for equality
+   * @tparam ProbeHash     Unary callable that computes the hash of a key
+   * @tparam OutputIt      Device-accessible output iterator type for storing per-key counts
+   *
+   * @param first          Iterator to the beginning of the sequence of query keys
+   * @param last           Iterator to the end of the sequence of query keys
+   * @param probe_key_equal Predicate to compare a query key with a multiset key for equality
+   * @param probe_hash     Hash function to compute the hash value of a query key
+   * @param output_begin   Iterator to the beginning of the output range where per-key counts will
+   * be stored
+   * @param stream         CUDA stream on which to execute the counting operation
+   */
+  template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash, typename OutputIt>
+  void count_each_outer(InputIt first,
+                        InputIt last,
+                        ProbeKeyEqual const& probe_key_equal,
+                        ProbeHash const& probe_hash,
+                        OutputIt output_begin,
+                        cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
    *
    * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated

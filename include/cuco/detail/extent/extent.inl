@@ -170,6 +170,29 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
 
 // Overload for ProbingScheme and Storage with SizeType
 template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(extent<SizeType> ext, double desired_load_factor)
+{
+  CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
+  CUCO_EXPECTS(desired_load_factor <= 1., "Desired occupancy must be no larger than one");
+
+  auto const temp = cuda::std::ceil(static_cast<double>(SizeType{ext}) / desired_load_factor);
+  if (temp > static_cast<double>(cuda::std::numeric_limits<SizeType>::max())) {
+    CUCO_FAIL(
+      "Invalid load factor: requested extent divided by load factor exceeds maximum representable "
+      "value");
+  }
+  return make_valid_extent<ProbingScheme, Storage>(
+    cuco::extent<SizeType>{static_cast<SizeType>(temp)});
+}
+
+template <typename ProbingScheme, typename Storage, typename SizeType>
+[[nodiscard]] auto constexpr make_valid_extent(SizeType size, double desired_load_factor)
+{
+  return make_valid_extent<ProbingScheme, Storage>(cuco::extent<SizeType>{size},
+                                                   desired_load_factor);
+}
+
+template <typename ProbingScheme, typename Storage, typename SizeType>
 [[nodiscard]] auto constexpr make_valid_extent(SizeType size)
 {
   return make_valid_extent<ProbingScheme, Storage, SizeType, dynamic_extent>(
