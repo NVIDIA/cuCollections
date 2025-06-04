@@ -35,8 +35,7 @@ constexpr bucket_storage<T, BucketSize, Extent, Allocator>::bucket_storage(
   Extent size, Allocator const& allocator)
   : extent_{size},
     allocator_{allocator},
-    slot_deleter_{capacity(), allocator_},
-    slots_{allocator_.allocate(capacity()), slot_deleter_}
+    slots_{allocator_.allocate(capacity()), slot_deleter_type{capacity(), allocator_}}
 {
 }
 

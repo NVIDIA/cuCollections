@@ -150,8 +150,6 @@ class bucket_storage {
   /// Type of the allocator to (de)allocate buckets
   using allocator_type =
     typename std::allocator_traits<Allocator>::template rebind_alloc<value_type>;
-  using slot_deleter_type =
-    detail::custom_deleter<size_type, allocator_type>;  ///< Type of slot deleter
   using ref_type = bucket_storage_ref<value_type, bucket_size, extent_type>;  ///< Storage ref type
 
   /**
@@ -237,9 +235,11 @@ class bucket_storage {
   [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept;
 
  private:
-  extent_type extent_;              ///< Storage extent
-  allocator_type allocator_;        ///< Allocator used to (de)allocate slots
-  slot_deleter_type slot_deleter_;  ///< Custom slots deleter
+  using slot_deleter_type =
+    detail::custom_deleter<size_type, allocator_type>;  ///< Type of slot deleter
+
+  extent_type extent_;        ///< Storage extent
+  allocator_type allocator_;  ///< Allocator used to (de)allocate slots
   /// Pointer to the slot storage
   std::unique_ptr<value_type, slot_deleter_type> slots_;
 };
