@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,7 @@
 
 #include <cstddef>
 
-namespace cuco {
-namespace detail {
+namespace cuco::detail {
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
@@ -72,5 +71,4 @@ CUCO_KERNEL void initialize(T* slots, cuco::detail::index_type n, T value)
   }
 }
 
-}  // namespace detail
-}  // namespace cuco
+}  // namespace cuco::detail

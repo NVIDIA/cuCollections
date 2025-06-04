@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,38 +44,4 @@ class storage {
   template <class T, class Extent, class Allocator>
   using impl = flat_storage<T, bucket_size, Extent, Allocator>;
 };
-
-/**
- * @brief Trait to determine if a storage is bucket-based
- *
- * @tparam T Storage class
- */
-template <typename T>
-struct is_bucket_storage : cuda::std::false_type {};
-
-/**
- * @brief Specialization for bucket_storage
- */
-template <typename T, int BucketSize, typename Extent, typename Allocator>
-struct is_bucket_storage<cuco::bucket_storage<T, BucketSize, Extent, Allocator>>
-  : cuda::std::true_type {};
-
-/**
- * @brief Specialization for bucket_storage_ref
- */
-template <typename T, int BucketSize, typename Extent>
-struct is_bucket_storage<cuco::bucket_storage_ref<T, BucketSize, Extent>> : cuda::std::true_type {};
-
-/**
- * @brief Specialization for bucket_storage_ref
- */
-template <int BucketSize>
-struct is_bucket_storage<cuco::storage<BucketSize>> : cuda::std::true_type {};
-
-/**
- * @brief Helper variable template for is_bucket_storage
- */
-template <typename T>
-constexpr bool is_bucket_storage_v = is_bucket_storage<T>::value;
-
 }  // namespace cuco

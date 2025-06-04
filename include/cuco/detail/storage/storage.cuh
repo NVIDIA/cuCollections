@@ -16,11 +16,9 @@
 
 #pragma once
 
-#include <cuco/bucket_storage.cuh>
 #include <cuco/flat_storage.cuh>
 
-namespace cuco {
-namespace detail {
+namespace cuco::detail {
 /**
  * @brief Intermediate class internally used by data structures
  *
@@ -60,5 +58,4 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   {
   }
 };
-}  // namespace detail
-}  // namespace cuco
+}  // namespace cuco::detail

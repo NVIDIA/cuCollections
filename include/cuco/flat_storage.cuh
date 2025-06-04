@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/utility/allocator.hpp>
 

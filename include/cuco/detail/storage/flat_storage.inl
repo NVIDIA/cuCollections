@@ -17,7 +17,6 @@
 #pragma once
 
 #include <cuco/detail/storage/kernels.cuh>
-#include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
 

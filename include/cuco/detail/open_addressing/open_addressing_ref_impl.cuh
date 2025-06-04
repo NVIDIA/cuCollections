@@ -353,22 +353,10 @@ class open_addressing_ref_impl {
     auto tid          = tile.thread_rank();
     auto const extent = static_cast<size_type>(this->extent());
 
-    if constexpr (is_bucket_storage_v<storage_ref_type>) {
-      auto* const buckets_ptr = this->storage_ref().data();
-      while (tid < extent) {
-        auto& bucket = *(buckets_ptr + tid);
-#pragma unroll
-        for (auto& slot : bucket) {
-          slot = this->empty_slot_sentinel();
-        }
-        tid += tile.size();
-      }
-    } else {
-      auto* const slots_ptr = this->storage_ref().data();
-      while (tid < extent) {
-        slots_ptr[tid] = this->empty_slot_sentinel();
-        tid += tile.size();
-      }
+    auto* const slots_ptr = this->storage_ref().data();
+    while (tid < extent) {
+      slots_ptr[tid] = this->empty_slot_sentinel();
+      tid += tile.size();
     }
 
     tile.sync();
@@ -1516,11 +1504,7 @@ class open_addressing_ref_impl {
   __device__ value_type* get_slot_ptr(size_type probing_idx,
                                       int32_t intra_bucket_idx) const noexcept
   {
-    if constexpr (is_bucket_storage_v<storage_ref_type>) {
-      return (storage_ref_.data() + probing_idx)->data() + intra_bucket_idx;
-    } else {
-      return storage_ref_.data() + probing_idx + intra_bucket_idx;
-    }
+    return storage_ref_.data() + probing_idx + intra_bucket_idx;
   }
 
   /**
