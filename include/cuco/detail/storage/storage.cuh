@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include <cuco/flat_storage.cuh>
+#include <cuco/bucket_storage.cuh>
 
 namespace cuco::detail {
 /**

@@ -164,7 +164,7 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   __shared__ slot_type set[ValidSize];
 
   using extent_type      = cuco::extent<std::size_t, ValidSize>;
-  using storage_ref_type = cuco::flat_storage_ref<slot_type, bucket_size, extent_type>;
+  using storage_ref_type = cuco::bucket_storage_ref<slot_type, bucket_size, extent_type>;
 
   auto raw_ref =
     cuco::static_set_ref{cuco::empty_key<Key>{-1},

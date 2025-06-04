@@ -37,7 +37,7 @@ namespace cuco {
  * @tparam Extent Type of extent denoting storage capacity
  */
 template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::size_t>>
-class flat_storage_ref {
+class bucket_storage_ref {
  public:
   static constexpr int32_t bucket_size = BucketSize;  ///< Number of elements processed per bucket
 
@@ -52,7 +52,8 @@ class flat_storage_ref {
    * @param size Number of slots
    * @param slots Pointer to the slots array
    */
-  __host__ __device__ explicit constexpr flat_storage_ref(Extent size, value_type* slots) noexcept;
+  __host__ __device__ explicit constexpr bucket_storage_ref(Extent size,
+                                                            value_type* slots) noexcept;
 
   using iterator       = value_type*;        ///< Iterator type
   using const_iterator = value_type const*;  ///< Const forward iterator type
@@ -137,7 +138,7 @@ template <typename T,
           int32_t BucketSize,
           typename Extent    = cuco::extent<std::size_t>,
           typename Allocator = cuco::cuda_allocator<T>>
-class flat_storage {
+class bucket_storage {
  public:
   static constexpr int32_t bucket_size = BucketSize;  ///< Number of elements processed per bucket
 
@@ -151,10 +152,10 @@ class flat_storage {
     typename std::allocator_traits<Allocator>::template rebind_alloc<value_type>;
   using slot_deleter_type =
     detail::custom_deleter<size_type, allocator_type>;  ///< Type of slot deleter
-  using ref_type = flat_storage_ref<value_type, bucket_size, extent_type>;  ///< Storage ref type
+  using ref_type = bucket_storage_ref<value_type, bucket_size, extent_type>;  ///< Storage ref type
 
   /**
-   * @brief Constructor of flat slot storage.
+   * @brief Constructor of bucket slot storage.
    *
    * @note The input `size` should be exclusively determined by the return value of
    * `make_valid_extent` since it depends on the requested low-bound value, the probing scheme, and
@@ -163,22 +164,22 @@ class flat_storage {
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
-  explicit constexpr flat_storage(Extent size, Allocator const& allocator = {});
+  explicit constexpr bucket_storage(Extent size, Allocator const& allocator = {});
 
-  flat_storage(flat_storage&&) = default;  ///< Move constructor
+  bucket_storage(bucket_storage&&) = default;  ///< Move constructor
   /**
    * @brief Replaces the contents of the storage with another storage.
    *
    * @return Reference of the current storage object
    */
-  flat_storage& operator=(flat_storage&&) = default;
-  ~flat_storage()                         = default;  ///< Destructor
+  bucket_storage& operator=(bucket_storage&&) = default;
+  ~bucket_storage()                           = default;  ///< Destructor
 
-  flat_storage(flat_storage const&)            = delete;
-  flat_storage& operator=(flat_storage const&) = delete;
+  bucket_storage(bucket_storage const&)            = delete;
+  bucket_storage& operator=(bucket_storage const&) = delete;
 
   /**
-   * @brief Gets flat slots array.
+   * @brief Gets bucket slots array.
    *
    * @return Pointer to the first slot
    */
@@ -192,14 +193,14 @@ class flat_storage {
   [[nodiscard]] constexpr allocator_type allocator() const noexcept;
 
   /**
-   * @brief Gets flat storage reference.
+   * @brief Gets bucket storage reference.
    *
-   * @return Reference of flat storage
+   * @return Reference of bucket storage
    */
   [[nodiscard]] constexpr ref_type ref() const noexcept;
 
   /**
-   * @brief Initializes each slot in the flat slot storage to contain `key`.
+   * @brief Initializes each slot in the bucket slot storage to contain `key`.
    *
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
@@ -207,7 +208,7 @@ class flat_storage {
   void initialize(value_type key, cuda::stream_ref stream = {});
 
   /**
-   * @brief Asynchronously initializes each slot in the flat storage to contain `key`.
+   * @brief Asynchronously initializes each slot in the bucket storage to contain `key`.
    *
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
@@ -244,4 +245,4 @@ class flat_storage {
 };
 }  // namespace cuco
 
-#include <cuco/detail/storage/flat_storage.inl>
+#include <cuco/detail/storage/bucket_storage.inl>
