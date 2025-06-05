@@ -156,9 +156,10 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
     return make_valid_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
   } else {
     auto constexpr stride = ProbingScheme::cg_size * Storage::bucket_size;
-    auto const size       = cuco::detail::int_div_ceil(
-                        cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride) +
-                      static_cast<SizeType>(ext == 0);
+    auto const size =
+      cuco::detail::int_div_ceil(
+        cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride) +
+      static_cast<SizeType>(ext == 0);
 
     if constexpr (N == dynamic_extent) {
       return valid_extent<SizeType, dynamic_extent>{size * stride};

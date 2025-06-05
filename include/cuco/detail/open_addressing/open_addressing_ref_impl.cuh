@@ -958,8 +958,8 @@ class open_addressing_ref_impl {
 
 #pragma unroll bucket_size
         for (int32_t i = 0; i < bucket_size; ++i) {
-          auto const result = predicate_.template operator()<is_insert::NO>(
-            key, this->extract_key(bucket_slots[i]));
+          auto const result =
+            predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
           equals[i] = (result == detail::equal_result::EQUAL);
           if (result == detail::equal_result::EMPTY) {
             empty_found = true;
@@ -1002,8 +1002,8 @@ class open_addressing_ref_impl {
 
 #pragma unroll bucket_size
       for (int32_t i = 0; i < bucket_size; ++i) {
-        auto const result = predicate_.template operator()<is_insert::NO>(
-          key, this->extract_key(bucket_slots[i]));
+        auto const result =
+          predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
         equals[i] = (result == detail::equal_result::EQUAL);
         if (result == detail::equal_result::EMPTY) {
           empty_found = true;
@@ -1214,8 +1214,8 @@ class open_addressing_ref_impl {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
         auto const probe_key = *(input_probe + idx);
-        auto probing_iter    = probing_scheme_.operator()<bucket_size>(
-          probing_tile, probe_key, storage_ref_.extent());
+        auto probing_iter =
+          probing_scheme_.operator()<bucket_size>(probing_tile, probe_key, storage_ref_.extent());
         auto const init_idx = *probing_iter;
 
         bool running                      = true;
@@ -1346,8 +1346,7 @@ class open_addressing_ref_impl {
   __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter =
-      probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
+    auto probing_iter   = probing_scheme_.operator()<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -1396,8 +1395,7 @@ class open_addressing_ref_impl {
                            ProbeKey const& key,
                            CallbackOp&& callback_op) const noexcept
   {
-    auto probing_iter =
-      probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
+    auto probing_iter = probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
     bool empty          = false;
 
@@ -1461,8 +1459,7 @@ class open_addressing_ref_impl {
                            CallbackOp&& callback_op,
                            SyncOp&& sync_op) const noexcept
   {
-    auto probing_iter =
-      probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
+    auto probing_iter = probing_scheme_.operator()<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
     bool empty          = false;
 
