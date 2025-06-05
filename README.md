@@ -15,6 +15,8 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 ### Major Updates
 
+__06/04/2025__ Removed CUDA 11 support
+
 __11/01/2024__ Refined the term `window` as `bucket`
 
 __01/08/2024__ Deprecated the `experimental` namespace
@@ -59,7 +61,7 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 <a name="link-footnote">1</a>: `cuCollections` is header-only and therefore there is no binary component to "link" against. The linking terminology comes from CMake's `target_link_libraries` which is still used even for header-only library targets.
 
 ## Requirements
-- NVCC 11.8 or newer
+- NVCC 12.0 or newer
 - C++17
 - GPU Architecture: Volta or newer
     - Pascal is partially supported. Any data structures that require blocking algorithms are not supported. See [libcu++](https://nvidia.github.io/libcudacxx/setup/requirements.html#device-architectures) documentation for more details.

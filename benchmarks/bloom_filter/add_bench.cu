@@ -56,7 +56,7 @@ void bloom_filter_add(nvbench::state& state,
   auto const pattern_bits   = WordsPerBlock;
 
   try {
-    auto const policy = policy_type{static_cast<std::uint32_t>(pattern_bits)};
+    [[maybe_unused]] auto const policy = policy_type{static_cast<uint32_t>(pattern_bits)};
   } catch (std::exception const& e) {
     state.skip(e.what());  // skip invalid configurations
   }
