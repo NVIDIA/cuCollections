@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -64,7 +64,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_insert(
                                         launch.get_stream()};
 
       timer.start();
-      for (std::size_t i = 0; i < num_keys; i += batch_size) {
+      for (int64_t i = 0; i < num_keys; i += batch_size) {
         map.insert(pairs.begin() + i, pairs.begin() + i + batch_size, {}, {}, launch.get_stream());
       }
       timer.stop();

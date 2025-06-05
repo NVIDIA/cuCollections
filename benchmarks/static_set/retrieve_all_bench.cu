@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ void static_set_retrieve_all(nvbench::state& state, nvbench::type_list<Key, Dist
 
   state.add_element_count(num_keys);
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    auto end = set.retrieve_all(result.begin(), {launch.get_stream()});
+    [[maybe_unused]] auto end = set.retrieve_all(result.begin(), {launch.get_stream()});
   });
 }
 
