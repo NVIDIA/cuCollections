@@ -395,8 +395,8 @@ class open_addressing_ref_impl {
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
-          switch (
-            attempt_insert(get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, val)) {
+          switch (attempt_insert(
+            this->get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, val)) {
             case insert_result::DUPLICATE: {
               if constexpr (allows_duplicates) {
                 [[fallthrough]];
@@ -467,12 +467,13 @@ class open_addressing_ref_impl {
         auto status         = insert_result::CONTINUE;
         if (group.thread_rank() == src_lane) {
           if constexpr (SupportsErase) {
-            status = attempt_insert(get_slot_ptr(*probing_iter, intra_bucket_index),
+            status = attempt_insert(this->get_slot_ptr(*probing_iter, intra_bucket_index),
                                     bucket_slots[intra_bucket_index],
                                     val);
           } else {
-            status = attempt_insert(
-              get_slot_ptr(*probing_iter, intra_bucket_index), this->empty_slot_sentinel(), val);
+            status = attempt_insert(this->get_slot_ptr(*probing_iter, intra_bucket_index),
+                                    this->empty_slot_sentinel(),
+                                    val);
           }
         }
 
@@ -531,7 +532,7 @@ class open_addressing_ref_impl {
       for (auto i = 0; i < bucket_size; ++i) {
         auto const eq_res =
           this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]));
-        auto* slot_ptr = get_slot_ptr(*probing_iter, i);
+        auto* slot_ptr = this->get_slot_ptr(*probing_iter, i);
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
@@ -612,7 +613,7 @@ class open_addressing_ref_impl {
         return bucket_probing_results{res, -1};
       }();
 
-      auto* slot_ptr = get_slot_ptr(*probing_iter, intra_bucket_index);
+      auto* slot_ptr = this->get_slot_ptr(*probing_iter, intra_bucket_index);
 
       // If the key is already in the container, return false
       auto const group_finds_equal = group.ballot(state == detail::equal_result::EQUAL);
@@ -697,7 +698,7 @@ class open_addressing_ref_impl {
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
-          switch (attempt_insert_stable(get_slot_ptr(*probing_iter, intra_bucket_index),
+          switch (attempt_insert_stable(this->get_slot_ptr(*probing_iter, intra_bucket_index),
                                         slot_content,
                                         this->erased_slot_sentinel())) {
             case insert_result::SUCCESS: return true;
@@ -746,7 +747,7 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
-            ? attempt_insert_stable(get_slot_ptr(*probing_iter, intra_bucket_index),
+            ? attempt_insert_stable(this->get_slot_ptr(*probing_iter, intra_bucket_index),
                                     bucket_slots[intra_bucket_index],
                                     this->erased_slot_sentinel())
             : insert_result::CONTINUE;
@@ -872,7 +873,7 @@ class open_addressing_ref_impl {
             return this->end();
           }
           case detail::equal_result::EQUAL: {
-            return iterator{get_slot_ptr(*probing_iter, i)};
+            return iterator{this->get_slot_ptr(*probing_iter, i)};
           }
           default: continue;
         }
@@ -920,7 +921,8 @@ class open_addressing_ref_impl {
       if (group_finds_match) {
         auto const src_lane = __ffs(group_finds_match) - 1;
         auto const res      = group.shfl(
-          reinterpret_cast<intptr_t>(get_slot_ptr(*probing_iter, intra_bucket_index)), src_lane);
+          reinterpret_cast<intptr_t>(this->get_slot_ptr(*probing_iter, intra_bucket_index)),
+          src_lane);
         return iterator{reinterpret_cast<value_type*>(res)};
       }
 
