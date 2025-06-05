@@ -31,7 +31,7 @@
 #include <limits>
 
 namespace cuco {
-template <typename SizeType, std::size_t N = dynamic_extent>
+template <typename SizeType, std::size_t N>
 struct valid_extent {
   using value_type = SizeType;  ///< Extent value type
 
