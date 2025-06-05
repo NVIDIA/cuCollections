@@ -1037,7 +1037,7 @@ class open_addressing_impl {
   template <typename Container>
   void rehash_async(Container const& container, cuda::stream_ref stream)
   {
-    this->rehash_async(this->storage_.extent(), container, stream);
+    this->rehash_async(storage_.extent(), container, stream);
   }
 
   /**
