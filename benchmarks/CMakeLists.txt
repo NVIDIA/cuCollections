@@ -28,7 +28,7 @@ function(ConfigureBench BENCH_NAME)
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_options(${BENCH_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      -Wno-deprecated-gpu-targets --expt-extended-lambda -Xcompiler -Wno-subobject-linkage)
+      -Wno-deprecated-gpu-targets --expt-extended-lambda -Xcompiler -Wno-subobject-linkage -lineinfo)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
                                         pthread
