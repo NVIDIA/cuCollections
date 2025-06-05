@@ -119,11 +119,11 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
   auto constexpr stride    = CGSize * BucketSize;
   auto constexpr max_prime = cuco::detail::primes.back();
   auto constexpr max_value =
-    (static_cast<uint64_t>(std::numeric_limits<SizeType>::max()) < max_prime)
-      ? std::numeric_limits<SizeType>::max()
+    (static_cast<uint64_t>(cuda::std::numeric_limits<SizeType>::max()) < max_prime)
+      ? cuda::std::numeric_limits<SizeType>::max()
       : static_cast<SizeType>(max_prime);
   auto const size = cuco::detail::int_div_ceil(
-    std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride);
+    cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride);
   if (size > max_value) { CUCO_FAIL("Invalid input extent"); }
 
   if constexpr (N == dynamic_extent) {
@@ -156,9 +156,10 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
     return make_valid_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
   } else {
     auto constexpr stride = ProbingScheme::cg_size * Storage::bucket_size;
-    auto const size       = cuco::detail::int_div_ceil(
-                        std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride) +
-                      static_cast<SizeType>(ext == 0);
+    auto const size =
+      cuco::detail::int_div_ceil(
+        cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride) +
+      static_cast<SizeType>(ext == 0);
 
     if constexpr (N == dynamic_extent) {
       return valid_extent<SizeType, dynamic_extent>{size * stride};
