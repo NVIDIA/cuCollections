@@ -16,10 +16,11 @@
 
 #pragma once
 
-#include <cuco/detail/storage/kernels.cuh>
+#include <cuco/detail/storage/functors.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
 
+#include <cub/device/device_for.cuh>
 #include <cuda/std/array>
 #include <cuda/stream_ref>
 
@@ -69,17 +70,13 @@ void bucket_storage<T, BucketSize, Extent, Allocator>::initialize(value_type key
 }
 
 template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
-void bucket_storage<T, BucketSize, Extent, Allocator>::initialize_async(
-  value_type key, cuda::stream_ref stream) noexcept
+void bucket_storage<T, BucketSize, Extent, Allocator>::initialize_async(value_type key,
+                                                                        cuda::stream_ref stream)
 {
   if (this->capacity() == 0) { return; }
 
-  auto constexpr cg_size = 1;
-  auto constexpr stride  = 4;
-  auto const grid_size   = cuco::detail::grid_size(this->capacity(), cg_size, stride);
-
-  detail::initialize<<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-    this->data(), this->capacity(), key);
+  auto ftor = cuco::detail::initialize_functor<size_type, T>{this->data(), key};
+  CUCO_CUDA_TRY(cub::DeviceFor::Bulk(this->capacity(), ftor, stream.get()));
 }
 
 template <typename T, int32_t BucketSize, typename Extent, typename Allocator>

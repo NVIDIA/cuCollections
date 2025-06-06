@@ -211,7 +211,7 @@ class bucket_storage {
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
    */
-  void initialize_async(value_type key, cuda::stream_ref stream = {}) noexcept;
+  void initialize_async(value_type key, cuda::stream_ref stream = {});
 
   /**
    * @brief Gets the total number of slot buckets in the current storage.
