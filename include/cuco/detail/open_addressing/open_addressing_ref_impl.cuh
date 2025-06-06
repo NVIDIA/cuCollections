@@ -284,9 +284,9 @@ class open_addressing_ref_impl {
   }
 
   /**
-   * @brief Returns a const_iterator to one past the last slot.
+   * @brief Returns an iterator to one past the last slot.
    *
-   * @return A const_iterator to one past the last slot
+   * @return An iterator to one past the last slot
    */
   [[nodiscard]] __host__ __device__ constexpr iterator end() const noexcept
   {
