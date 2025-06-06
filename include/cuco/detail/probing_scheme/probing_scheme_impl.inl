@@ -106,7 +106,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::rebind_hash_fun
 
 template <int32_t CGSize, typename Hash>
 template <int32_t BucketSize, typename ProbeKey, typename Extent>
-__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
+__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
   using size_type      = typename Extent::value_type;
@@ -117,7 +117,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
 
 template <int32_t CGSize, typename Hash>
 template <int32_t BucketSize, typename ProbeKey, typename Extent>
-__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::operator()(
+__host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
   cooperative_groups::thread_block_tile<cg_size> const& g,
   ProbeKey const& probe_key,
   Extent upper_bound) const noexcept
@@ -167,7 +167,7 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::rebind_
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
 template <int32_t BucketSize, typename ProbeKey, typename Extent>
-__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
+__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_iterator(
   ProbeKey const& probe_key, Extent upper_bound) const noexcept
 {
   using size_type = typename Extent::value_type;
@@ -183,7 +183,7 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operato
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
 template <int32_t BucketSize, typename ProbeKey, typename Extent>
-__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::operator()(
+__host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_iterator(
   cooperative_groups::thread_block_tile<cg_size> const& g,
   ProbeKey const& probe_key,
   Extent upper_bound) const noexcept

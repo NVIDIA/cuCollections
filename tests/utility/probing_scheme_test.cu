@@ -44,11 +44,11 @@ __global__ void generate_scalar_probing_sequence(Key key,
   auto probing_scheme = ProbingScheme{};
 
   if (tid == 0) {
-    auto iter = probing_scheme.operator()<BucketSize>(key, upper_bound);
+    auto iter = probing_scheme.make_iterator<BucketSize>(key, upper_bound);
 
     for (size_t i = 0; i < seq_length; ++i) {
       out_seq[i] = *iter;
-      iter++;
+      ++iter;
     }
   }
 }
@@ -68,11 +68,11 @@ __global__ void generate_cg_probing_sequence(Key key,
     auto const tile =
       cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
 
-    auto iter = probing_scheme.operator()<BucketSize>(tile, key, upper_bound);
+    auto iter = probing_scheme.make_iterator<BucketSize>(tile, key, upper_bound);
 
     for (size_t i = tile.thread_rank(); i < seq_length; ++i) {
       out_seq[i] = *iter;
-      iter++;
+      ++iter;
     }
   }
 }
