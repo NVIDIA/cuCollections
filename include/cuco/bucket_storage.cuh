@@ -21,6 +21,7 @@
 #include <cuco/utility/allocator.hpp>
 
 #include <cuda/std/array>
+#include <cuda/std/functional>
 #include <cuda/stream_ref>
 
 #include <cstddef>
@@ -40,6 +41,8 @@ template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::si
 class bucket_storage_ref {
  public:
   static constexpr int32_t bucket_size = BucketSize;  ///< Number of elements processed per bucket
+  static constexpr std::size_t alignment =
+    cuda::std::min(sizeof(T) * bucket_size, std::size_t{16});  ///< Required alignment
 
   using extent_type = Extent;                            ///< Storage extent type
   using size_type   = typename extent_type::value_type;  ///< Storage size type
