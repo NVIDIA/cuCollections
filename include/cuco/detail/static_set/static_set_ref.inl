@@ -210,10 +210,28 @@ __host__ __device__ constexpr static_set_ref<Key,
                                              ProbingScheme,
                                              StorageRef,
                                              Operators...>::extent_type
+static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::extent()
+  const noexcept
+{
+  return impl_.extent();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_set_ref<Key,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::extent_type
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::bucket_extent()
   const noexcept
 {
-  return impl_.bucket_extent();
+  return this->extent();
 }
 
 template <typename Key,
@@ -314,7 +332,7 @@ template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
   CG const& tile,
-  bucket_type* const memory_to_use,
+  typename StorageRef::value_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
   this->impl_.make_copy(tile, memory_to_use);
@@ -324,7 +342,7 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::m
     this->key_eq(),
     this->probing_scheme(),
     scope,
-    storage_ref_type{this->bucket_extent(), memory_to_use}};
+    storage_ref_type{this->extent(), memory_to_use}};
 }
 
 template <typename Key,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -75,8 +75,10 @@ void dispatch_insert_or_apply(
                                              Allocator,
                                              cuco::storage<1>>;
 
-    using shared_map_ref_type    = typename shared_map_type::ref_type<>;
-    auto constexpr bucket_extent = cuco::make_bucket_extent<shared_map_ref_type>(extent_type{});
+    using shared_map_ref_type = typename shared_map_type::ref_type<>;
+    auto constexpr bucket_extent =
+      cuco::make_valid_extent<typename shared_map_ref_type::probing_scheme_type,
+                              typename shared_map_ref_type::storage_ref_type>(extent_type{});
 
     auto insert_or_apply_shmem_fn_ptr = insert_or_apply_shmem<HasInit,
                                                               CGSize,

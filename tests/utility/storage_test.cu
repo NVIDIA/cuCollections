@@ -32,7 +32,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
 {
   constexpr std::size_t size{1'000};
   constexpr int bucket_size{2};
-  constexpr std::size_t gold_capacity{2'000};
+  constexpr std::size_t gold_capacity{1'000};
 
   using allocator_type = cuco::cuda_allocator<char>;
   auto allocator       = allocator_type{};
@@ -56,7 +56,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
-    REQUIRE(num_buckets == size);
+    REQUIRE(num_buckets == size / bucket_size);
     REQUIRE(capacity == gold_capacity);
   }
 
@@ -68,7 +68,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
-    STATIC_REQUIRE(num_buckets == size);
+    STATIC_REQUIRE(num_buckets == size / bucket_size);
     STATIC_REQUIRE(capacity == gold_capacity);
   }
 
@@ -79,7 +79,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
-    REQUIRE(num_buckets == size);
+    REQUIRE(num_buckets == size / bucket_size);
     REQUIRE(capacity == gold_capacity);
   }
 
@@ -91,7 +91,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
-    STATIC_REQUIRE(num_buckets == size);
+    STATIC_REQUIRE(num_buckets == size / bucket_size);
     STATIC_REQUIRE(capacity == gold_capacity);
   }
 }

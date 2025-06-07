@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -128,7 +128,7 @@ class static_multiset {
    * values and CUDA stream
    *
    * The actual multiset capacity depends on the given `capacity`, the probing scheme, CG size, and
-   * the bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will
+   * the bucket size and it is computed via the `make_valid_extent` factory. Insert operations will
    * not automatically grow the set. Attempting to insert more unique keys than the capacity of the
    * multiset results in undefined behavior.
    *
@@ -162,7 +162,7 @@ class static_multiset {
    * the desired load factor without manually computing the desired capacity. The actual set
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
+   * size, and the bucket size and is computed via the `make_valid_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -201,7 +201,7 @@ class static_multiset {
    * and CUDA stream.
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the
    * multiset results in undefined behavior.
    *

@@ -16,11 +16,12 @@
 
 #pragma once
 
-#include <cuco/detail/storage/bucket_storage_base.cuh>
+#include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/utility/allocator.hpp>
 
 #include <cuda/std/array>
+#include <cuda/std/functional>
 #include <cuda/stream_ref>
 
 #include <cstddef>
@@ -29,49 +30,36 @@
 #include <memory>
 
 namespace cuco {
-/// Bucket type alias
-template <typename T, int32_t BucketSize>
-using bucket = detail::bucket<T, BucketSize>;
-
 /**
- * @brief Non-owning array of buckets storage reference type.
+ * @brief Non-owning array of slots storage reference type.
  *
  * @tparam T Storage element type
  * @tparam BucketSize Number of slots in each bucket
  * @tparam Extent Type of extent denoting storage capacity
  */
 template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::size_t>>
-class bucket_storage_ref : public detail::bucket_storage_base<T, BucketSize, Extent> {
+class bucket_storage_ref {
  public:
-  /// Array of buckets base class type
-  using base_type = detail::bucket_storage_base<T, BucketSize, Extent>;
+  static constexpr int32_t bucket_size = BucketSize;  ///< Number of elements processed per bucket
+  static constexpr std::size_t alignment =
+    cuda::std::min(sizeof(T) * bucket_size, std::size_t{16});  ///< Required alignment
 
-  using base_type::bucket_size;  ///< Number of elements processed per bucket
-
-  using extent_type = typename base_type::extent_type;  ///< Storage extent type
-  using size_type   = typename base_type::size_type;    ///< Storage size type
-  using value_type  = typename base_type::value_type;   ///< Slot type
-  using bucket_type = typename base_type::bucket_type;  ///< Slot bucket type
-
-  using base_type::capacity;
-  using base_type::num_buckets;
+  using extent_type = Extent;                            ///< Storage extent type
+  using size_type   = typename extent_type::value_type;  ///< Storage size type
+  using value_type  = T;                                 ///< Slot type
+  using bucket_type = cuda::std::array<T, BucketSize>;   ///< Slot bucket type
 
   /**
-   * @brief Constructor of AoS storage ref.
+   * @brief Constructor of slot storage ref.
    *
-   * @param size Number of buckets
-   * @param buckets Pointer to the buckets array
+   * @param size Number of slots
+   * @param slots Pointer to the slots array
    */
   __host__ __device__ explicit constexpr bucket_storage_ref(Extent size,
-                                                            bucket_type* buckets) noexcept;
+                                                            value_type* slots) noexcept;
 
-  /**
-   * @brief Custom un-incrementable input iterator for the convenience of `find` operations.
-   *
-   * @note This iterator is for read only and NOT incrementable.
-   */
-  struct iterator;
-  using const_iterator = iterator const;  ///< Const forward iterator type
+  using iterator       = value_type*;        ///< Iterator type
+  using const_iterator = value_type const*;  ///< Const forward iterator type
 
   /**
    * @brief Returns an iterator to one past the last slot.
@@ -91,76 +79,90 @@ class bucket_storage_ref : public detail::bucket_storage_base<T, BucketSize, Ext
    *
    * @return A const_iterator to one past the last slot
    */
-  [[nodiscard]] __device__ constexpr const_iterator end() const noexcept;
+  [[nodiscard]] __device__ constexpr iterator end() const noexcept;
 
   /**
-   * @brief Gets buckets array.
+   * @brief Gets slots array.
    *
-   * @return Pointer to the first bucket
+   * @return Pointer to the first slot
    */
-  [[nodiscard]] __device__ constexpr bucket_type* data() noexcept;
+  [[nodiscard]] __device__ constexpr value_type* data() noexcept;
 
   /**
-   * @brief Gets bucket array.
+   * @brief Gets slots array.
    *
-   * @return Pointer to the first bucket
+   * @return Pointer to the first slot
    */
-  [[nodiscard]] __device__ constexpr bucket_type* data() const noexcept;
+  [[nodiscard]] __device__ constexpr value_type* data() const noexcept;
 
   /**
    * @brief Returns an array of slots (or a bucket) for a given index.
    *
-   * @param index Index of the bucket
+   * @param index Index of the slot
    * @return An array of slots
    */
   [[nodiscard]] __device__ constexpr bucket_type operator[](size_type index) const noexcept;
 
+  /**
+   * @brief Gets the total number of slot buckets in the current storage.
+   *
+   * @return The total number of slot buckets
+   */
+  [[nodiscard]] __host__ __device__ constexpr size_type num_buckets() const noexcept;
+
+  /**
+   * @brief Gets the total number of slots in the current storage.
+   *
+   * @return The total number of slots
+   */
+  [[nodiscard]] __host__ __device__ constexpr size_type capacity() const noexcept;
+
+  /**
+   * @brief Gets the bucket extent of the current storage.
+   *
+   * @return The bucket extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept;
+
  private:
-  bucket_type* buckets_;  ///< Pointer to the buckets array
+  extent_type extent_;  ///< Storage extent
+  value_type* slots_;   ///< Pointer to the slots array
 };
 
 /**
- * @brief Array of buckets open addressing storage class.
+ * @brief Array of slots open addressing storage class.
  *
  * @tparam T Slot type
  * @tparam BucketSize Number of slots in each bucket
- * @tparam Extent Type of extent denoting number of buckets
+ * @tparam Extent Type of extent denoting number of slots
  * @tparam Allocator Type of allocator used for device storage (de)allocation
  */
 template <typename T,
           int32_t BucketSize,
           typename Extent    = cuco::extent<std::size_t>,
-          typename Allocator = cuco::cuda_allocator<cuco::bucket<T, BucketSize>>>
-class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent> {
+          typename Allocator = cuco::cuda_allocator<T>>
+class bucket_storage {
  public:
-  /// Array of buckets base class type
-  using base_type = detail::bucket_storage_base<T, BucketSize, Extent>;
+  static constexpr int32_t bucket_size = BucketSize;  ///< Number of elements processed per bucket
 
-  using base_type::bucket_size;  ///< Number of elements processed per bucket
-
-  using extent_type = typename base_type::extent_type;  ///< Storage extent type
-  using size_type   = typename base_type::size_type;    ///< Storage size type
-  using value_type  = typename base_type::value_type;   ///< Slot type
-  using bucket_type = typename base_type::bucket_type;  ///< Slot bucket type
-
-  using base_type::capacity;
-  using base_type::num_buckets;
+  using extent_type = Extent;                            ///< Storage extent type
+  using size_type   = typename extent_type::value_type;  ///< Storage size type
+  using value_type  = T;                                 ///< Slot type
+  using bucket_type = cuda::std::array<T, BucketSize>;   ///< Slot bucket type
 
   /// Type of the allocator to (de)allocate buckets
   using allocator_type =
-    typename std::allocator_traits<Allocator>::template rebind_alloc<bucket_type>;
-  using bucket_deleter_type =
-    detail::custom_deleter<size_type, allocator_type>;  ///< Type of bucket deleter
+    typename std::allocator_traits<Allocator>::template rebind_alloc<value_type>;
   using ref_type = bucket_storage_ref<value_type, bucket_size, extent_type>;  ///< Storage ref type
 
   /**
-   * @brief Constructor of bucket storage.
+   * @brief Constructor of bucket slot storage.
    *
    * @note The input `size` should be exclusively determined by the return value of
-   * `make_bucket_extent` since it depends on the requested low-bound value, the probing scheme, and
+   * `make_valid_extent` since it depends on the requested low-bound value, the probing scheme, and
    * the storage.
    *
-   * @param size Number of buckets to (de)allocate
+   * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
    */
   explicit constexpr bucket_storage(Extent size, Allocator const& allocator = {});
@@ -178,11 +180,11 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
   bucket_storage& operator=(bucket_storage const&) = delete;
 
   /**
-   * @brief Gets buckets array.
+   * @brief Gets bucket slots array.
    *
-   * @return Pointer to the first bucket
+   * @return Pointer to the first slot
    */
-  [[nodiscard]] constexpr bucket_type* data() const noexcept;
+  [[nodiscard]] constexpr value_type* data() const noexcept;
 
   /**
    * @brief Gets the storage allocator.
@@ -199,7 +201,7 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
   [[nodiscard]] constexpr ref_type ref() const noexcept;
 
   /**
-   * @brief Initializes each slot in the bucket storage to contain `key`.
+   * @brief Initializes each slot in the bucket slot storage to contain `key`.
    *
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
@@ -212,13 +214,37 @@ class bucket_storage : public detail::bucket_storage_base<T, BucketSize, Extent>
    * @param key Key to which all keys in `slots` are initialized
    * @param stream Stream used for executing the kernel
    */
-  void initialize_async(value_type key, cuda::stream_ref stream = {}) noexcept;
+  void initialize_async(value_type key, cuda::stream_ref stream = {});
+
+  /**
+   * @brief Gets the total number of slot buckets in the current storage.
+   *
+   * @return The total number of slot buckets
+   */
+  [[nodiscard]] __host__ __device__ constexpr size_type num_buckets() const noexcept;
+
+  /**
+   * @brief Gets the total number of slots in the current storage.
+   *
+   * @return The total number of slots
+   */
+  [[nodiscard]] __host__ __device__ constexpr size_type capacity() const noexcept;
+
+  /**
+   * @brief Gets the bucket extent of the current storage.
+   *
+   * @return The bucket extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept;
 
  private:
-  allocator_type allocator_;            ///< Allocator used to (de)allocate buckets
-  bucket_deleter_type bucket_deleter_;  ///< Custom buckets deleter
-  /// Pointer to the bucket storage
-  std::unique_ptr<bucket_type, bucket_deleter_type> buckets_;
+  using slot_deleter_type =
+    detail::custom_deleter<size_type, allocator_type>;  ///< Type of slot deleter
+
+  extent_type extent_;        ///< Storage extent
+  allocator_type allocator_;  ///< Allocator used to (de)allocate slots
+  /// Pointer to the slot storage
+  std::unique_ptr<value_type, slot_deleter_type> slots_;
 };
 }  // namespace cuco
 

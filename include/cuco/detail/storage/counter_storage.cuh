@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,8 +43,6 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
   using value_type     = cuda::atomic<size_type, Scope>;  ///< Type of the counter
   using allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
     value_type>;  ///< Type of the allocator to (de)allocate counter
-  using counter_deleter_type =
-    custom_deleter<size_type, allocator_type>;  ///< Type of counter deleter
 
   /**
    * @brief Constructor of counter storage.
@@ -54,8 +52,8 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
   explicit constexpr counter_storage(Allocator const& allocator)
     : storage_base<cuco::extent<SizeType, 1>>{cuco::extent<size_type, 1>{}},
       allocator_{allocator},
-      counter_deleter_{this->capacity(), allocator_},
-      counter_{allocator_.allocate(this->capacity()), counter_deleter_}
+      counter_{allocator_.allocate(this->capacity()),
+               counter_deleter_type{this->capacity(), allocator_}}
   {
   }
 
@@ -102,8 +100,10 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
   }
 
  private:
-  allocator_type allocator_;              ///< Allocator used to (de)allocate counter
-  counter_deleter_type counter_deleter_;  ///< Custom counter deleter
+  using counter_deleter_type =
+    detail::custom_deleter<size_type, allocator_type>;  ///< Type of counter deleter
+
+  allocator_type allocator_;  ///< Allocator used to (de)allocate counter
   std::unique_ptr<value_type, counter_deleter_type> counter_;  ///< Pointer to counter storage
 };
 

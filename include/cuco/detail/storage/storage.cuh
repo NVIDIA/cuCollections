@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,7 @@
 
 #include <cuco/bucket_storage.cuh>
 
-namespace cuco {
-namespace detail {
+namespace cuco::detail {
 /**
  * @brief Intermediate class internally used by data structures
  *
@@ -41,9 +40,9 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   static constexpr int bucket_size = impl_type::bucket_size;
 
   using impl_type::allocator;
-  using impl_type::bucket_extent;
   using impl_type::capacity;
   using impl_type::data;
+  using impl_type::extent;
   using impl_type::initialize;
   using impl_type::initialize_async;
   using impl_type::num_buckets;
@@ -59,6 +58,4 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
   {
   }
 };
-
-}  // namespace detail
-}  // namespace cuco
+}  // namespace cuco::detail

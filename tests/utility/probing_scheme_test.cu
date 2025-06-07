@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 
-template <class ProbingScheme, class Key, class Extent, class OutputIt>
+template <int32_t BucketSize, class ProbingScheme, class Key, class Extent, class OutputIt>
 __global__ void generate_scalar_probing_sequence(Key key,
                                                  Extent upper_bound,
                                                  size_t seq_length,
@@ -44,16 +44,16 @@ __global__ void generate_scalar_probing_sequence(Key key,
   auto probing_scheme = ProbingScheme{};
 
   if (tid == 0) {
-    auto iter = probing_scheme(key, upper_bound);
+    auto iter = probing_scheme.make_iterator<BucketSize>(key, upper_bound);
 
     for (size_t i = 0; i < seq_length; ++i) {
       out_seq[i] = *iter;
-      iter++;
+      ++iter;
     }
   }
 }
 
-template <class ProbingScheme, class Key, class Extent, class OutputIt>
+template <int32_t BucketSize, class ProbingScheme, class Key, class Extent, class OutputIt>
 __global__ void generate_cg_probing_sequence(Key key,
                                              Extent upper_bound,
                                              size_t seq_length,
@@ -68,11 +68,11 @@ __global__ void generate_cg_probing_sequence(Key key,
     auto const tile =
       cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
 
-    auto iter = probing_scheme(tile, key, upper_bound);
+    auto iter = probing_scheme.make_iterator<BucketSize>(tile, key, upper_bound);
 
     for (size_t i = tile.thread_rank(); i < seq_length; ++i) {
       out_seq[i] = *iter;
-      iter++;
+      ++iter;
     }
   }
 }
@@ -90,7 +90,9 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, cuco::test::probe_sequence::linear_probing, 2))
 {
-  auto const upper_bound = cuco::make_bucket_extent<1, BucketSize>(cuco::extent<std::size_t>{10});
+  using probing_scheme_t = cuco::linear_probing<1, cuco::default_hash_function<int>>;
+  auto const upper_bound = cuco::make_valid_extent<probing_scheme_t, cuco::storage<BucketSize>>(
+    cuco::extent<std::size_t>{10});
   constexpr size_t seq_length{8};
   constexpr Key key{42};
 
@@ -99,10 +101,11 @@ TEMPLATE_TEST_CASE_SIG(
                                    cuco::double_hashing<1, cuco::default_hash_function<Key>>>;
 
   thrust::device_vector<size_t> scalar_seq(seq_length);
-  generate_scalar_probing_sequence<probe>
+  generate_scalar_probing_sequence<BucketSize, probe>
     <<<1, 1>>>(key, upper_bound, seq_length, scalar_seq.begin());
   thrust::device_vector<size_t> cg_seq(seq_length);
-  generate_cg_probing_sequence<probe><<<1, 1>>>(key, upper_bound, seq_length, cg_seq.begin());
+  generate_cg_probing_sequence<BucketSize, probe>
+    <<<1, 1>>>(key, upper_bound, seq_length, cg_seq.begin());
 
   REQUIRE(cuco::test::equal(
     scalar_seq.begin(), scalar_seq.end(), cg_seq.begin(), cuda::std::equal_to<std::size_t>{}));

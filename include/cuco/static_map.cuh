@@ -158,7 +158,7 @@ class static_map {
    * and CUDA stream
    *
    * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *
@@ -194,7 +194,7 @@ class static_map {
    * the desired load factor without manually computing the desired capacity. The actual map
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
+   * size, and the bucket size and is computed via the `make_valid_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -235,7 +235,7 @@ class static_map {
    * and CUDA stream.
    *
    * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *

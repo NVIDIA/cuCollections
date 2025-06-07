@@ -555,7 +555,7 @@ template <class Key,
 void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_multimap>(capacity);
+  auto const extent = make_valid_extent<static_multimap>(capacity);
   impl_->rehash(extent, *this, stream);
 }
 
@@ -584,7 +584,7 @@ template <class Key,
 void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   rehash_async(size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_multimap>(capacity);
+  auto const extent = make_valid_extent<static_multimap>(capacity);
   impl_->rehash_async(extent, *this, stream);
 }
 

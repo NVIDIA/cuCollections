@@ -15,7 +15,6 @@
  */
 
 #include <cuco/static_set_ref.cuh>
-#include <cuco/storage.cuh>
 
 #include <cuda/std/array>
 #include <cuda/std/functional>
@@ -143,24 +142,24 @@ int main()
   valid_sizes.reserve(num);
 
   for (size_t i = 0; i < num; ++i) {
-    valid_sizes.emplace_back(
-      static_cast<std::size_t>(cuco::make_bucket_extent<ref_type>(subset_sizes[i])));
+    valid_sizes.emplace_back(static_cast<std::size_t>(
+      cuco::make_valid_extent<probing_scheme_type, storage_ref_type>(subset_sizes[i])));
   }
 
   std::vector<std::size_t> offsets(num + 1, 0);
 
-  // prefix sum to compute offsets and total number of buckets
+  // prefix sum to compute offsets and total number of slots
   std::size_t current_sum = 0;
   for (std::size_t i = 0; i < valid_sizes.size(); ++i) {
     current_sum += valid_sizes[i];
     offsets[i + 1] = current_sum;
   }
 
-  // total number of buckets is located at the back of the offsets array
-  auto const total_num_buckets = offsets.back();
+  // total number of slots is located at the back of the offsets array
+  auto const total_num_slots = offsets.back();
 
   // Create a single bulk storage used by all subsets
-  auto set_storage = storage_type{total_num_buckets};
+  auto set_storage = storage_type{total_num_slots};
   // Initializes the storage with the given sentinel
   set_storage.initialize(empty_key_sentinel);
 

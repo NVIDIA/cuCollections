@@ -176,10 +176,28 @@ __host__ __device__ constexpr static_multiset_ref<Key,
                                                   ProbingScheme,
                                                   StorageRef,
                                                   Operators...>::extent_type
+static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::extent()
+  const noexcept
+{
+  return impl_.extent();
+}
+
+template <typename Key,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_multiset_ref<Key,
+                                                  Scope,
+                                                  KeyEqual,
+                                                  ProbingScheme,
+                                                  StorageRef,
+                                                  Operators...>::extent_type
 static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::bucket_extent()
   const noexcept
 {
-  return impl_.bucket_extent();
+  return this->extent();
 }
 
 template <typename Key,
@@ -396,7 +414,7 @@ class operator_impl<
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+    if (!cuco::detail::bitwise_compare(ref_.erased_key_sentinel(), ref_.empty_key_sentinel())) {
       return ref_.impl_.insert<true>(group, value);
     } else {
       return ref_.impl_.insert<false>(group, value);

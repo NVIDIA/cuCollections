@@ -50,7 +50,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_count(
 
   thrust::device_vector<pair_type> pairs(num_keys);
   thrust::transform(keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
-    return pair_type(key, {});
+    return pair_type{key, {}};
   });
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);
