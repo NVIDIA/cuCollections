@@ -208,15 +208,17 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
                                        num_blocks,
                                        stream.get()));
 
-  size_type num_selects{};
+  size_type* h_num_selects;
+  CUCO_CUDA_TRY(cudaMallocHost(&h_num_selects, sizeof(size_type)));
   CUCO_CUDA_TRY(
-    cudaMemcpyAsync(&num_selects, d_sum, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+    cudaMemcpyAsync(h_num_selects, d_sum, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
   stream.wait();
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, thrust::device_ptr<char>{reinterpret_cast<char*>(d_sum)}, sizeof(size_type));
   temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 
-  selects.resize(num_selects);
+  selects.resize(*h_num_selects);
+  CUCO_CUDA_TRY(cudaFreeHost(h_num_selects));
 
   auto const select_begin = thrust::raw_pointer_cast(selects.data());
 
