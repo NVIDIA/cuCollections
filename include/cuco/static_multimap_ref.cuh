@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -154,6 +154,13 @@ class static_multimap_ref
    * @return The maximum number of elements the container can hold
    */
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
+
+  /**
+   * @brief Gets the extent of the current storage.
+   *
+   * @return The bucket extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept;
 
   /**
    * @brief Gets the bucket extent of the current storage.

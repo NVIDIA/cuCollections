@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -447,6 +447,53 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_each(
+  InputIt first,
+  InputIt last,
+  ProbeKeyEqual const& probe_key_equal,
+  ProbeHash const& probe_hash,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  impl_->count_each(first,
+                    last,
+                    output_begin,
+                    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
+                    stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash, typename OutputIt>
+void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  count_each_outer(InputIt first,
+                   InputIt last,
+                   ProbeKeyEqual const& probe_key_equal,
+                   ProbeHash const& probe_hash,
+                   OutputIt output_begin,
+                   cuda::stream_ref stream) const
+{
+  impl_->count_each_outer(
+    first,
+    last,
+    output_begin,
+    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
+    stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt>
 std::pair<OutputProbeIt, OutputMatchIt>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
@@ -551,7 +598,7 @@ template <class Key,
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_multiset>(capacity);
+  auto const extent = make_valid_extent<static_multiset>(capacity);
   impl_->rehash(extent, *this, stream);
 }
 
@@ -578,7 +625,7 @@ template <class Key,
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_multiset>(capacity);
+  auto const extent = make_valid_extent<static_multiset>(capacity);
   impl_->rehash_async(extent, *this, stream);
 }
 

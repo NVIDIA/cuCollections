@@ -82,7 +82,9 @@ void test_unique_sequence(Set& set, size_type num_keys)
       })));
   }
 
-  set.insert(keys_begin, keys_begin + num_keys);
+  set.clear();
+  auto const inserted = set.insert(keys_begin, keys_begin + num_keys);
+  REQUIRE(inserted == num_keys);
   REQUIRE(set.size() == num_keys);
 
   SECTION("All inserted keys should be contained.")

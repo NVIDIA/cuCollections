@@ -735,7 +735,7 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_map>(capacity);
+  auto const extent = make_valid_extent<probing_scheme_type, storage_ref_type>(capacity);
   this->impl_->rehash(extent, *this, stream);
 }
 
@@ -764,7 +764,7 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_map>(capacity);
+  auto const extent = make_valid_extent<static_map>(capacity);
   this->impl_->rehash_async(extent, *this, stream);
 }
 

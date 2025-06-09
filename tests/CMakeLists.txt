@@ -39,7 +39,7 @@ function(ConfigureTest TEST_NAME)
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --expt-extended-lambda -Xcompiler -Wno-subobject-linkage)
+      -Wno-deprecated-gpu-targets --expt-extended-lambda -Xcompiler -Wno-subobject-linkage)
     catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
@@ -111,7 +111,8 @@ ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/insert_test.cu
     static_multiset/for_each_test.cu
     static_multiset/retrieve_test.cu
-    static_multiset/large_input_test.cu)
+    static_multiset/large_input_test.cu
+    static_multiset/load_factor_test.cu)
 
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------
