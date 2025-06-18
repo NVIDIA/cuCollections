@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 #pragma once
+
+#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
