@@ -691,14 +691,14 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
 
   if (block_begin_offset < block_end_offset) {
     if constexpr (IsOuter) {
-      ref.retrieve_outer<BlockSize>(block,
+      ref.template retrieve_outer<BlockSize>(block,
                                     input_probe + block_begin_offset,
                                     input_probe + block_end_offset,
                                     output_probe,
                                     output_match,
                                     atomic_counter);
     } else {
-      ref.retrieve<BlockSize>(block,
+      ref.template retrieve<BlockSize>(block,
                               input_probe + block_begin_offset,
                               input_probe + block_end_offset,
                               output_probe,

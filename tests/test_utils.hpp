@@ -100,5 +100,7 @@ bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cuda
   return res == size;
 }
 
+inline bool modulo_bitgen(uint64_t i) { return i % 7 == 0; }
+
 }  // namespace test
 }  // namespace cuco

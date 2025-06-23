@@ -517,7 +517,7 @@ class operator_impl<
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
-    auto probing_iter   = probing_scheme.make_iterator<bucket_size>(key, storage_ref.extent());
+    auto probing_iter   = probing_scheme.template make_iterator<bucket_size>(key, storage_ref.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -525,7 +525,7 @@ class operator_impl<
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
-          ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
+          ref_.impl_.predicate_.template operator()<is_insert::YES>(key, slot_content.first);
         auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
         auto slot_ptr                 = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
@@ -565,7 +565,7 @@ class operator_impl<
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
-    auto probing_iter = probing_scheme.make_iterator<bucket_size>(group, key, storage_ref.extent());
+    auto probing_iter = probing_scheme.template make_iterator<bucket_size>(group, key, storage_ref.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -574,7 +574,7 @@ class operator_impl<
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, bucket_slots[i].first);
+          res = ref_.impl_.predicate_.template operator()<is_insert::YES>(key, bucket_slots[i].first);
           if (res != detail::equal_result::UNEQUAL) {
             return detail::bucket_probing_results{res, i};
           }
@@ -819,9 +819,9 @@ class operator_impl<
     ref_type& ref_ = static_cast<ref_type&>(*this);
     // if init equals sentinel value, then we can just `apply` op instead of write
     if (cuco::detail::bitwise_compare(init, ref_.empty_value_sentinel())) {
-      return ref_.insert_or_apply_impl<true>(value, op);
+      return ref_.template insert_or_apply_impl<true>(value, op);
     } else {
-      return ref_.insert_or_apply_impl<false>(value, op);
+      return ref_.template insert_or_apply_impl<false>(value, op);
     }
   }
 
@@ -883,7 +883,7 @@ class operator_impl<
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme.make_iterator<bucket_size>(key, storage_ref.extent());
+    auto probing_iter      = probing_scheme.template make_iterator<bucket_size>(key, storage_ref.extent());
     auto const init_idx    = *probing_iter;
     auto const empty_value = ref_.empty_value_sentinel();
 
@@ -895,7 +895,7 @@ class operator_impl<
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
-          ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
+          ref_.impl_.predicate_.template operator()<is_insert::YES>(key, slot_content.first);
         auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
         auto slot_ptr                 = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
@@ -909,7 +909,7 @@ class operator_impl<
           return false;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          switch (ref_.attempt_insert_or_apply<UseDirectApply>(slot_ptr, slot_content, val, op)) {
+          switch (ref_.template attempt_insert_or_apply<UseDirectApply>(slot_ptr, slot_content, val, op)) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: {
               // wait for payload only when performing insert operation
@@ -959,7 +959,7 @@ class operator_impl<
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
-    auto probing_iter = probing_scheme.make_iterator<bucket_size>(group, key, storage_ref.extent());
+    auto probing_iter = probing_scheme.template make_iterator<bucket_size>(group, key, storage_ref.extent());
     auto const init_idx    = *probing_iter;
     auto const empty_value = ref_.empty_value_sentinel();
 
@@ -972,7 +972,7 @@ class operator_impl<
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, bucket_slots[i].first);
+          res = ref_.impl_.predicate_.template operator()<is_insert::YES>(key, bucket_slots[i].first);
           if (res != detail::equal_result::UNEQUAL) {
             return detail::bucket_probing_results{res, i};
           }
@@ -1517,7 +1517,7 @@ class operator_impl<
                            AtomicCounter* atomic_counter) const
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.retrieve<BlockSize>(
+    ref_.impl_.template retrieve<BlockSize>(
       block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
 };

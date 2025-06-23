@@ -363,7 +363,7 @@ class bloom_filter_impl {
   // const;
 
   template <class InputIt, class OutputIt>
-  __host__ constexpr void contains(InputIt first,
+  __host__ void contains(InputIt first,
                                    InputIt last,
                                    OutputIt output_begin,
                                    cuda::stream_ref stream) const
@@ -373,7 +373,7 @@ class bloom_filter_impl {
   }
 
   template <class InputIt, class OutputIt>
-  __host__ constexpr void contains_async(InputIt first,
+  __host__ void contains_async(InputIt first,
                                          InputIt last,
                                          OutputIt output_begin,
                                          cuda::stream_ref stream) const noexcept
@@ -383,7 +383,7 @@ class bloom_filter_impl {
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ constexpr void contains_if(InputIt first,
+  __host__ void contains_if(InputIt first,
                                       InputIt last,
                                       StencilIt stencil,
                                       Predicate pred,
@@ -395,7 +395,7 @@ class bloom_filter_impl {
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ constexpr void contains_if_async(InputIt first,
+  __host__ void contains_if_async(InputIt first,
                                             InputIt last,
                                             StencilIt stencil,
                                             Predicate pred,
