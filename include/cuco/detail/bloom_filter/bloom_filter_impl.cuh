@@ -364,9 +364,9 @@ class bloom_filter_impl {
 
   template <class InputIt, class OutputIt>
   __host__ void contains(InputIt first,
-                                   InputIt last,
-                                   OutputIt output_begin,
-                                   cuda::stream_ref stream) const
+                         InputIt last,
+                         OutputIt output_begin,
+                         cuda::stream_ref stream) const
   {
     this->contains_async(first, last, output_begin, stream);
     stream.wait();
@@ -374,9 +374,9 @@ class bloom_filter_impl {
 
   template <class InputIt, class OutputIt>
   __host__ void contains_async(InputIt first,
-                                         InputIt last,
-                                         OutputIt output_begin,
-                                         cuda::stream_ref stream) const noexcept
+                               InputIt last,
+                               OutputIt output_begin,
+                               cuda::stream_ref stream) const noexcept
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
     this->contains_if_async(first, last, always_true, cuda::std::identity{}, output_begin, stream);
@@ -384,11 +384,11 @@ class bloom_filter_impl {
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
   __host__ void contains_if(InputIt first,
-                                      InputIt last,
-                                      StencilIt stencil,
-                                      Predicate pred,
-                                      OutputIt output_begin,
-                                      cuda::stream_ref stream) const
+                            InputIt last,
+                            StencilIt stencil,
+                            Predicate pred,
+                            OutputIt output_begin,
+                            cuda::stream_ref stream) const
   {
     this->contains_if_async(first, last, stencil, pred, output_begin, stream);
     stream.wait();
@@ -396,11 +396,11 @@ class bloom_filter_impl {
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
   __host__ void contains_if_async(InputIt first,
-                                            InputIt last,
-                                            StencilIt stencil,
-                                            Predicate pred,
-                                            OutputIt output_begin,
-                                            cuda::stream_ref stream) const noexcept
+                                  InputIt last,
+                                  StencilIt stencil,
+                                  Predicate pred,
+                                  OutputIt output_begin,
+                                  cuda::stream_ref stream) const noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }

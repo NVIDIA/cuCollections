@@ -1373,13 +1373,13 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retri
   constexpr bool is_outer = true;
   if constexpr (uses_vector_load()) {
     impl_.template retrieve<buffer_size, is_outer>(flushing_cg,
-                                          probing_cg,
-                                          k,
-                                          flushing_cg_counter,
-                                          output_buffer,
-                                          num_matches,
-                                          output_begin,
-                                          key_equal);
+                                                   probing_cg,
+                                                   k,
+                                                   flushing_cg_counter,
+                                                   output_buffer,
+                                                   num_matches,
+                                                   output_begin,
+                                                   key_equal);
   } else  // In the case of scalar load, flushing CG is the same as probing CG
   {
     impl_.template retrieve<buffer_size, is_outer>(
