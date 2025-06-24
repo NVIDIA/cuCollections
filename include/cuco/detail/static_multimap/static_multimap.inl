@@ -1131,7 +1131,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutable_vie
   cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
   value_type const& insert_pair) noexcept
 {
-  impl_.insert<uses_vector_load()>(g, insert_pair);
+  impl_.template insert<uses_vector_load()>(g, insert_pair);
 }
 
 template <typename Key,
@@ -1228,7 +1228,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::conta
   KeyEqual key_equal) const noexcept
 {
   constexpr bool is_pair_contains = false;
-  return impl_.contains<is_pair_contains, uses_vector_load()>(g, k, key_equal);
+  return impl_.template contains<is_pair_contains, uses_vector_load()>(g, k, key_equal);
 }
 
 template <typename Key,
@@ -1244,7 +1244,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::pair_
   PairEqual pair_equal) const noexcept
 {
   constexpr bool is_pair_contains = true;
-  return impl_.contains<is_pair_contains, uses_vector_load()>(g, p, pair_equal);
+  return impl_.template contains<is_pair_contains, uses_vector_load()>(g, p, pair_equal);
 }
 
 template <typename Key,
@@ -1334,17 +1334,17 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retri
 {
   constexpr bool is_outer = false;
   if constexpr (uses_vector_load()) {
-    impl_.retrieve<buffer_size, is_outer>(flushing_cg,
-                                          probing_cg,
-                                          k,
-                                          flushing_cg_counter,
-                                          output_buffer,
-                                          num_matches,
-                                          output_begin,
-                                          key_equal);
+    impl_.template retrieve<buffer_size, is_outer>(flushing_cg,
+                                                   probing_cg,
+                                                   k,
+                                                   flushing_cg_counter,
+                                                   output_buffer,
+                                                   num_matches,
+                                                   output_begin,
+                                                   key_equal);
   } else  // In the case of scalar load, flushing CG is the same as probing CG
   {
-    impl_.retrieve<buffer_size, is_outer>(
+    impl_.template retrieve<buffer_size, is_outer>(
       probing_cg, k, flushing_cg_counter, output_buffer, num_matches, output_begin, key_equal);
   }
 }
@@ -1372,17 +1372,17 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view::retri
 {
   constexpr bool is_outer = true;
   if constexpr (uses_vector_load()) {
-    impl_.retrieve<buffer_size, is_outer>(flushing_cg,
-                                          probing_cg,
-                                          k,
-                                          flushing_cg_counter,
-                                          output_buffer,
-                                          num_matches,
-                                          output_begin,
-                                          key_equal);
+    impl_.template retrieve<buffer_size, is_outer>(flushing_cg,
+                                                   probing_cg,
+                                                   k,
+                                                   flushing_cg_counter,
+                                                   output_buffer,
+                                                   num_matches,
+                                                   output_begin,
+                                                   key_equal);
   } else  // In the case of scalar load, flushing CG is the same as probing CG
   {
-    impl_.retrieve<buffer_size, is_outer>(
+    impl_.template retrieve<buffer_size, is_outer>(
       probing_cg, k, flushing_cg_counter, output_buffer, num_matches, output_begin, key_equal);
   }
 }

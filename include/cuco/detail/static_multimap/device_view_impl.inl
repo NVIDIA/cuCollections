@@ -402,7 +402,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
   __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, void> insert(
     CG g, value_type const& insert_pair) noexcept
   {
-    auto current_slot = initial_slot(g, insert_pair.first);
+    auto current_slot = this->initial_slot(g, insert_pair.first);
 
     while (true) {
       value_type slot_contents = *reinterpret_cast<value_type const*>(current_slot);
@@ -436,7 +436,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_mutab
       // if there are no empty slots in the current bucket,
       // we move onto the next bucket
       else {
-        current_slot = next_slot(current_slot);
+        current_slot = this->next_slot(current_slot);
       }
     }  // while true
   }
@@ -657,8 +657,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
     Equal equal) const noexcept
   {
     auto current_slot = [&]() {
-      if constexpr (is_pair_contains) { return initial_slot(g, element.first); }
-      if constexpr (not is_pair_contains) { return initial_slot(g, element); }
+      if constexpr (is_pair_contains) { return this->initial_slot(g, element.first); }
+      if constexpr (not is_pair_contains) { return this->initial_slot(g, element); }
     }();
 
     while (true) {
@@ -687,7 +687,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
 
       // otherwise, all slots in the current bucket are full with other keys, so we move onto the
       // next bucket
-      current_slot = next_slot(current_slot);
+      current_slot = this->next_slot(current_slot);
     }
   }
 
