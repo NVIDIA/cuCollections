@@ -35,7 +35,7 @@ __global__ void test_kernel(BitsetRef ref, size_type num_elements, OutputIt outp
   }
 }
 
-bool modulo_bitgen(uint64_t i) { return i % 7 == 0; }
+using cuco::test::modulo_bitgen;
 
 TEST_CASE("dynamic_bitset get test", "")
 {

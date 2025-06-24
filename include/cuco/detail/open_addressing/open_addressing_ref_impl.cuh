@@ -522,17 +522,18 @@ class open_addressing_ref_impl {
       "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
-    auto const val      = this->heterogeneous_value(value);
-    auto const key      = this->extract_key(val);
-    auto probing_iter   = probing_scheme_.make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < bucket_size; ++i) {
-        auto const eq_res =
-          this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]));
+        auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
+          key, this->extract_key(bucket_slots[i]));
         auto* slot_ptr = this->get_slot_ptr(*probing_iter, i);
 
         // If the key is already in the container, return false
@@ -598,7 +599,7 @@ class open_addressing_ref_impl {
     auto const val = this->heterogeneous_value(value);
     auto const key = this->extract_key(val);
     auto probing_iter =
-      probing_scheme_.make_iterator<bucket_size>(group, key, storage_ref_.extent());
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -607,8 +608,8 @@ class open_addressing_ref_impl {
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res =
-            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]));
+          res = this->predicate_.template operator()<is_insert::YES>(
+            key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -685,7 +686,8 @@ class open_addressing_ref_impl {
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto probing_iter   = probing_scheme_.make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -693,7 +695,7 @@ class open_addressing_ref_impl {
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content));
+          this->predicate_.template operator()<is_insert::NO>(key, this->extract_key(slot_content));
 
         // Key doesn't exist, return false
         if (eq_res == detail::equal_result::EMPTY) { return false; }
@@ -729,7 +731,7 @@ class open_addressing_ref_impl {
                         ProbeKey const& key) noexcept
   {
     auto probing_iter =
-      probing_scheme_.make_iterator<bucket_size>(group, key, storage_ref_.extent());
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -738,7 +740,8 @@ class open_addressing_ref_impl {
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
+          res = this->predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -824,7 +827,7 @@ class open_addressing_ref_impl {
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto probing_iter =
-      probing_scheme_.make_iterator<bucket_size>(group, key, storage_ref_.extent());
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -833,7 +836,8 @@ class open_addressing_ref_impl {
       auto const state = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
+          res = this->predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return res; }
         }
         return res;
@@ -863,7 +867,8 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ iterator find(ProbeKey const& key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter   = probing_scheme_.make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -871,8 +876,8 @@ class open_addressing_ref_impl {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < bucket_size; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
             return this->end();
           }
@@ -905,7 +910,7 @@ class open_addressing_ref_impl {
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto probing_iter =
-      probing_scheme_.make_iterator<bucket_size>(group, key, storage_ref_.extent());
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -914,7 +919,8 @@ class open_addressing_ref_impl {
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
+          res = this->predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -954,7 +960,8 @@ class open_addressing_ref_impl {
     if constexpr (not allows_duplicates) {
       return static_cast<size_type>(this->contains(key));
     } else {
-      auto probing_iter   = probing_scheme_.make_iterator<bucket_size>(key, storage_ref_.extent());
+      auto probing_iter =
+        probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
       auto const init_idx = *probing_iter;
       size_type count     = 0;
 
@@ -999,7 +1006,7 @@ class open_addressing_ref_impl {
     cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
   {
     auto probing_iter =
-      probing_scheme_.make_iterator<bucket_size>(group, key, storage_ref_.extent());
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
     size_type count     = 0;
 
@@ -1222,7 +1229,7 @@ class open_addressing_ref_impl {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
         auto const probe_key = *(input_probe + idx);
-        auto probing_iter    = probing_scheme_.make_iterator<bucket_size>(
+        auto probing_iter    = probing_scheme_.template make_iterator<bucket_size>(
           probing_tile, probe_key, storage_ref_.extent());
         auto const init_idx = *probing_iter;
 
@@ -1242,7 +1249,7 @@ class open_addressing_ref_impl {
               equals[i] = false;
               if (running) {
                 // inspect slot content
-                switch (this->predicate_.operator()<is_insert::NO>(
+                switch (this->predicate_.template operator()<is_insert::NO>(
                   probe_key, this->extract_key(bucket_slots[i]))) {
                   case detail::equal_result::EMPTY: {
                     running = false;
@@ -1354,7 +1361,8 @@ class open_addressing_ref_impl {
   __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter   = probing_scheme_.make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -1362,8 +1370,8 @@ class open_addressing_ref_impl {
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
       for (int32_t i = 0; i < bucket_size; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
             return;
           }
@@ -1404,7 +1412,7 @@ class open_addressing_ref_impl {
                            CallbackOp&& callback_op) const noexcept
   {
     auto probing_iter =
-      probing_scheme_.make_iterator<bucket_size>(group, key, storage_ref_.extent());
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
     bool empty          = false;
 
@@ -1413,8 +1421,8 @@ class open_addressing_ref_impl {
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
       for (int32_t i = 0; i < bucket_size and !empty; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
             empty = true;
             continue;
@@ -1469,7 +1477,7 @@ class open_addressing_ref_impl {
                            SyncOp&& sync_op) const noexcept
   {
     auto probing_iter =
-      probing_scheme_.make_iterator<bucket_size>(group, key, storage_ref_.extent());
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
     bool empty          = false;
 
@@ -1478,8 +1486,8 @@ class open_addressing_ref_impl {
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
       for (int32_t i = 0; i < bucket_size and !empty; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
             empty = true;
             continue;

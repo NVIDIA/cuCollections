@@ -35,7 +35,7 @@ __global__ void find_next_kernel(BitsetRef ref, size_type num_elements, OutputIt
   }
 }
 
-extern bool modulo_bitgen(uint64_t i);  // Defined in get_test.cu
+using cuco::test::modulo_bitgen;
 
 TEST_CASE("dynamic_bitset find next set test", "")
 {

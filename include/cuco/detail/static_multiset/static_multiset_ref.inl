@@ -415,9 +415,9 @@ class operator_impl<
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     if (!cuco::detail::bitwise_compare(ref_.erased_key_sentinel(), ref_.empty_key_sentinel())) {
-      return ref_.impl_.insert<true>(group, value);
+      return ref_.impl_.template insert<true>(group, value);
     } else {
-      return ref_.impl_.insert<false>(group, value);
+      return ref_.impl_.template insert<false>(group, value);
     }
   }
 };
@@ -602,7 +602,7 @@ class operator_impl<
                            AtomicCounter& atomic_counter) const
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.retrieve<BlockSize>(
+    ref_.impl_.template retrieve<BlockSize>(
       block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
 
@@ -651,7 +651,7 @@ class operator_impl<
                                  AtomicCounter& atomic_counter) const
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.retrieve_outer<BlockSize>(
+    ref_.impl_.template retrieve_outer<BlockSize>(
       block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
 };
