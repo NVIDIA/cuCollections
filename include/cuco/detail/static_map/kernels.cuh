@@ -191,7 +191,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
 
   // Shared map initialization
   __shared__ typename SharedMapRefType::value_type slots[bucket_extent.value()];
-  using storage_ref_type = SharedMapRefType::storage_ref_type;
+  using storage_ref_type = typename SharedMapRefType::storage_ref_type;
   auto storage           = storage_ref_type(bucket_extent, slots);
   auto const num_buckets = storage.num_buckets();
 
