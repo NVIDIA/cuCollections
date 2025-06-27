@@ -20,6 +20,7 @@
 
 #include <cub/block/block_reduce.cuh>
 #include <cuda/atomic>
+#include <cuda/std/cstdint>
 #include <cuda/std/iterator>
 
 #include <cooperative_groups.h>
@@ -47,7 +48,7 @@ CUCO_SUPPRESS_KERNEL_WARNINGS
  * @param n Number of input elements
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
+template <::int CGSize, ::int BlockSize, typename InputIt, typename Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
                                                                cuco::detail::index_type n,
                                                                Ref ref)
@@ -96,8 +97,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <bool HasInit,
-          int32_t CGSize,
-          int32_t BlockSize,
+          ::int CGSize,
+          ::int BlockSize,
           typename InputIt,
           typename Init,
           typename Op,
@@ -160,8 +161,8 @@ __global__ void insert_or_apply(
  * @param bucket_extent Bucket Extent used for shared memory map slot storage
  */
 template <bool HasInit,
-          int32_t CGSize,
-          int32_t BlockSize,
+          ::int CGSize,
+          ::int BlockSize,
           class SharedMapRefType,
           class InputIt,
           class Init,
@@ -195,7 +196,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   auto storage           = storage_ref_type(bucket_extent, slots);
   auto const num_buckets = storage.num_buckets();
 
-  using atomic_type = cuda::atomic<int32_t, cuda::thread_scope_block>;
+  using atomic_type = cuda::atomic<cuda::std::int32_t, cuda::thread_scope_block>;
   __shared__ atomic_type block_cardinality;
   if (thread_idx == 0) { new (&block_cardinality) atomic_type{}; }
   block.sync();
@@ -211,8 +212,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   block.sync();
 
   while ((idx - thread_idx / CGSize) < n) {
-    int32_t inserted         = 0;
-    int32_t warp_cardinality = 0;
+    cuda::std::int32_t inserted         = 0;
+    cuda::std::int32_t warp_cardinality = 0;
     // insert-or-apply into the shared map first
     if (idx < n) {
       value_type const& insert_pair = *(first + idx);
@@ -223,7 +224,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
       }
     }
     if (idx - warp_thread_idx < n) {  // all threads in warp particpate
-      warp_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
+      warp_cardinality = cg::reduce(warp, inserted, cg::plus<cuda::std::int32_t>());
     }
     if (warp_thread_idx == 0) {
       block_cardinality.fetch_add(warp_cardinality, cuda::memory_order_relaxed);

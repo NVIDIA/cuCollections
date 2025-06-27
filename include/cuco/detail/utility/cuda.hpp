@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,16 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
-#include <cuco/detail/utility/math.cuh>
+#include <cuco/detail/utility/cuda.cuh>
+
+#include <cstdint>
 
 namespace cuco {
 namespace detail {
 
-using index_type = int64_t;  ///< CUDA thread index type
-
-/// Default block size
-constexpr int32_t default_block_size() noexcept { return 128; }
+constexpr std::int32_t default_block_size() noexcept { return 128; }
 /// Default stride
-constexpr int32_t default_stride() noexcept { return 1; }
+constexpr std::int32_t default_stride() noexcept { return 1; }
 
 /**
  * @brief Computes the desired 1D grid size with the given parameters
@@ -39,11 +38,11 @@ constexpr int32_t default_stride() noexcept { return 1; }
  * @return The resulting grid size
  */
 constexpr auto grid_size(index_type num,
-                         int32_t cg_size    = 1,
-                         int32_t stride     = default_stride(),
-                         int32_t block_size = default_block_size()) noexcept
+                         std::int32_t cg_size    = 1,
+                         std::int32_t stride     = default_stride(),
+                         std::int32_t block_size = default_block_size()) noexcept
 {
-  return int_div_ceil(cg_size * num, stride * block_size);
+  return (cg_size * num + stride * block_size - 1) / (stride * block_size);
 }
 
 /**
@@ -58,18 +57,18 @@ constexpr auto grid_size(index_type num,
  * @return The grid size that delivers the highest occupancy
  */
 template <typename Kernel>
-constexpr auto max_occupancy_grid_size(int32_t block_size,
+constexpr auto max_occupancy_grid_size(std::int32_t block_size,
                                        Kernel kernel,
                                        std::size_t dynamic_shm_size = 0)
 {
-  int32_t device = 0;
+  std::int32_t device = 0;
   CUCO_CUDA_TRY(cudaGetDevice(&device));
 
-  int32_t num_multiprocessors = -1;
+  std::int32_t num_multiprocessors = -1;
   CUCO_CUDA_TRY(
     cudaDeviceGetAttribute(&num_multiprocessors, cudaDevAttrMultiProcessorCount, device));
 
-  int32_t max_active_blocks_per_multiprocessor;
+  std::int32_t max_active_blocks_per_multiprocessor;
   CUCO_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
     &max_active_blocks_per_multiprocessor, kernel, block_size, dynamic_shm_size));
 

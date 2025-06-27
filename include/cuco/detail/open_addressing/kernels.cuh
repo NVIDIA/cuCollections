@@ -55,8 +55,8 @@ CUCO_SUPPRESS_KERNEL_WARNINGS
  * @param num_successes Number of successful inserted elements
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize,
-          int32_t BlockSize,
+template <::int CGSize,
+          ::int BlockSize,
           typename InputIt,
           typename StencilIt,
           typename Predicate,
@@ -123,8 +123,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(InputIt first,
  * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize,
-          int32_t BlockSize,
+template <::int CGSize,
+          ::int BlockSize,
           typename InputIt,
           typename StencilIt,
           typename Predicate,
@@ -164,7 +164,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(
  * @param n Number of input elements
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
+template <::int CGSize, ::int BlockSize, typename InputIt, typename Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
                                                     cuco::detail::index_type n,
                                                     Ref ref)
@@ -203,7 +203,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
  * @param callback_op Function to call on every matched slot found in the container
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename CallbackOp, typename Ref>
+template <::int CGSize, ::int BlockSize, typename InputIt, typename CallbackOp, typename Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void for_each_n(InputIt first,
                                                          cuco::detail::index_type n,
                                                          CallbackOp callback_op,
@@ -250,8 +250,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void for_each_n(InputIt first,
  * @param output_begin Beginning of the sequence of booleans for the presence of each key
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize,
-          int32_t BlockSize,
+template <::int CGSize,
+          ::int BlockSize,
           typename InputIt,
           typename StencilIt,
           typename Predicate,
@@ -346,8 +346,8 @@ struct find_buffer<Container, cuda::std::void_t<typename Container::mapped_type>
  * @param output_begin Beginning of the sequence of matched payloads retrieved for each key
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize,
-          int32_t BlockSize,
+template <::int CGSize,
+          ::int BlockSize,
           typename InputIt,
           typename StencilIt,
           typename Predicate,
@@ -444,8 +444,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find_if_n(InputIt first,
  * @param inserted_begin Beginning of the sequence of booleans for the presence of each key
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize,
-          int32_t BlockSize,
+template <::int CGSize,
+          ::int BlockSize,
           typename InputIt,
           typename FoundIt,
           typename InsertedIt,
@@ -531,8 +531,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <bool IsOuter,
-          int32_t CGSize,
-          int32_t BlockSize,
+          ::int CGSize,
+          ::int BlockSize,
           typename InputIt,
           typename AtomicT,
           typename Ref>
@@ -595,8 +595,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <bool IsOuter,
-          int32_t CGSize,
-          int32_t BlockSize,
+          ::int CGSize,
+          ::int BlockSize,
           typename InputIt,
           typename OutputIt,
           typename Ref>
@@ -667,7 +667,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <bool IsOuter,
-          int32_t BlockSize,
+          ::int BlockSize,
           class InputProbeIt,
           class OutputProbeIt,
           class OutputMatchIt,
@@ -720,7 +720,7 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
  * @param is_filled Predicate indicating if the given slot is filled
  * @param count Number of filled slots
  */
-template <int32_t BlockSize, typename StorageRef, typename Predicate, typename AtomicT>
+template <::int BlockSize, typename StorageRef, typename Predicate, typename AtomicT>
 CUCO_KERNEL __launch_bounds__(BlockSize) void size(StorageRef storage,
                                                    Predicate is_filled,
                                                    AtomicT* count)
@@ -745,7 +745,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void size(StorageRef storage,
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
-template <int32_t BlockSize, typename ContainerRef, typename Predicate>
+template <::int BlockSize, typename ContainerRef, typename Predicate>
 CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
   typename ContainerRef::storage_ref_type storage_ref,
   ContainerRef container_ref,

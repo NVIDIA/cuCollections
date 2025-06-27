@@ -37,6 +37,7 @@
 #include <thrust/iterator/transform_iterator.h>
 
 #include <cmath>
+#include <cstdint>
 
 namespace cuco {
 namespace detail {
@@ -834,7 +835,7 @@ class open_addressing_impl {
     using temp_allocator_type =
       typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
 
-    cuco::detail::index_type constexpr stride = std::numeric_limits<int32_t>::max();
+    cuco::detail::index_type constexpr stride = std::numeric_limits<std::int32_t>::max();
 
     cuco::detail::index_type h_num_out{0};
     auto temp_allocator = temp_allocator_type{this->allocator()};
@@ -860,7 +861,7 @@ class open_addressing_impl {
                                           begin,
                                           output_begin + h_num_out,
                                           d_num_out,
-                                          static_cast<int32_t>(num_items),
+                                          static_cast<std::int32_t>(num_items),
                                           is_filled,
                                           stream.get()));
 
@@ -872,7 +873,7 @@ class open_addressing_impl {
                                           begin,
                                           output_begin + h_num_out,
                                           d_num_out,
-                                          static_cast<int32_t>(num_items),
+                                          static_cast<std::int32_t>(num_items),
                                           is_filled,
                                           stream.get()));
 
@@ -1276,7 +1277,7 @@ class open_addressing_impl {
     auto counter       = counter_type{this->allocator()};
     counter.reset(stream.get());
 
-    int32_t constexpr block_size = cuco::detail::default_block_size();
+    auto constexpr block_size = cuco::detail::default_block_size();
 
     auto constexpr grid_stride = 1;
     auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,19 @@
 
 #pragma once
 
-#include <cstdint>
+#include <cuda/std/cstdint>
 
 namespace cuco {
 
-template <class Hash, class Word, uint32_t WordsPerBlock>
+template <class Hash, class Word, ::int WordsPerBlock>
 __host__
   __device__ constexpr default_filter_policy<Hash, Word, WordsPerBlock>::default_filter_policy(
-    uint32_t pattern_bits, Hash hash)
+    cuda::std::int32_t pattern_bits, Hash hash)
   : impl_{pattern_bits, hash}
 {
 }
 
-template <class Hash, class Word, uint32_t WordsPerBlock>
+template <class Hash, class Word, ::int WordsPerBlock>
 __device__ constexpr typename default_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type
 default_filter_policy<Hash, Word, WordsPerBlock>::hash(
   typename default_filter_policy<Hash, Word, WordsPerBlock>::hash_argument_type const& key) const
@@ -36,7 +36,7 @@ default_filter_policy<Hash, Word, WordsPerBlock>::hash(
   return impl_.hash(key);
 }
 
-template <class Hash, class Word, uint32_t WordsPerBlock>
+template <class Hash, class Word, ::int WordsPerBlock>
 template <class Extent>
 __device__ constexpr auto default_filter_policy<Hash, Word, WordsPerBlock>::block_index(
   typename default_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type hash,
@@ -45,11 +45,11 @@ __device__ constexpr auto default_filter_policy<Hash, Word, WordsPerBlock>::bloc
   return impl_.block_index(hash, num_blocks);
 }
 
-template <class Hash, class Word, uint32_t WordsPerBlock>
+template <class Hash, class Word, ::int WordsPerBlock>
 __device__ constexpr typename default_filter_policy<Hash, Word, WordsPerBlock>::word_type
 default_filter_policy<Hash, Word, WordsPerBlock>::word_pattern(
   default_filter_policy<Hash, Word, WordsPerBlock>::hash_result_type hash,
-  std::uint32_t word_index) const
+  cuda::std::int32_t word_index) const
 {
   return impl_.word_pattern(hash, word_index);
 }

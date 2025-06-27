@@ -82,7 +82,7 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   auto num_to_insert = cuco::detail::distance(first, last);
   this->reserve(size_ + num_to_insert, stream);
 
-  uint32_t submap_idx = 0;
+  std::int32_t submap_idx = 0;
   while (num_to_insert > 0) {
     auto& cur = submaps_[submap_idx];
 
@@ -114,7 +114,7 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   size_type n, cuda::stream_ref stream)
 {
   size_type num_elements_remaining = n;
-  uint32_t submap_idx              = 0;
+  std::int32_t submap_idx          = 0;
   while (num_elements_remaining > 0) {
     std::size_t submap_capacity;
 
@@ -157,9 +157,9 @@ template <typename InputIt, typename OutputIt>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  auto num_keys         = cuco::detail::distance(first, last);
-  std::size_t traversed = 0;
-  uint32_t submap_idx   = 0;
+  auto num_keys           = cuco::detail::distance(first, last);
+  std::size_t traversed   = 0;
+  std::int32_t submap_idx = 0;
   while (num_keys > 0 && submap_idx < submaps_.size()) {
     const auto& cur       = submaps_[submap_idx];
     const size_t cur_size = cur->size();

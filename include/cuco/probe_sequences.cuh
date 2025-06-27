@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ namespace cuco::legacy {
  * @tparam CGSize Size of CUDA Cooperative Groups
  * @tparam Hash Unary callable type
  */
-template <uint32_t CGSize, typename Hash>
+template <::int CGSize, typename Hash>
 class linear_probing : public detail::probe_sequence_base<CGSize> {
  public:
   using probe_sequence_base_type =
@@ -60,7 +60,7 @@ class linear_probing : public detail::probe_sequence_base<CGSize> {
  * @tparam Hash1 Unary callable type
  * @tparam Hash2 Unary callable type
  */
-template <uint32_t CGSize, typename Hash1, typename Hash2 = Hash1>
+template <::int CGSize, typename Hash1, typename Hash2 = Hash1>
 class double_hashing : public detail::probe_sequence_base<CGSize> {
  public:
   using probe_sequence_base_type =

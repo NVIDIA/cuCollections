@@ -24,6 +24,7 @@
 #include <cuco/probing_scheme.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/std/type_traits>
@@ -36,20 +37,18 @@
 
 #include <cooperative_groups.h>
 
-#include <cstdint>
-
 namespace cuco {
 namespace detail {
 
 /// Three-way insert result enum
-enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+enum class insert_result : cuda::std::int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 
 /**
  * @brief Helper struct to store intermediate bucket probing results.
  */
 struct bucket_probing_results {
-  detail::equal_result state_;  ///< Equal result
-  int32_t intra_bucket_index_;  ///< Intra-bucket index
+  detail::equal_result state_;             ///< Equal result
+  cuda::std::int32_t intra_bucket_index_;  ///< Intra-bucket index
 
   /**
    * @brief Constructs bucket_probing_results.
@@ -58,7 +57,7 @@ struct bucket_probing_results {
    * @param index Intra-bucket index
    */
   __device__ explicit constexpr bucket_probing_results(detail::equal_result state,
-                                                       int32_t index) noexcept
+                                                       cuda::std::int32_t index) noexcept
     : state_{state}, intra_bucket_index_{index}
   {
   }
@@ -966,12 +965,12 @@ class open_addressing_ref_impl {
       size_type count     = 0;
 
       while (true) {
-        auto const bucket_slots     = storage_ref_[*probing_iter];
-        int32_t equals[bucket_size] = {0};
-        bool empty_found            = false;
+        auto const bucket_slots                = storage_ref_[*probing_iter];
+        cuda::std::int32_t equals[bucket_size] = {0};
+        bool empty_found                       = false;
 
 #pragma unroll bucket_size
-        for (int32_t i = 0; i < bucket_size; ++i) {
+        for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
           auto const result =
             predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
           equals[i] = (result == detail::equal_result::EQUAL);
@@ -1011,12 +1010,12 @@ class open_addressing_ref_impl {
     size_type count     = 0;
 
     while (true) {
-      auto const bucket_slots     = storage_ref_[*probing_iter];
-      int32_t equals[bucket_size] = {0};
-      bool empty_found            = false;
+      auto const bucket_slots                = storage_ref_[*probing_iter];
+      cuda::std::int32_t equals[bucket_size] = {0};
+      bool empty_found                       = false;
 
 #pragma unroll bucket_size
-      for (int32_t i = 0; i < bucket_size; ++i) {
+      for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
         auto const result =
           predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
         equals[i] = (result == detail::equal_result::EQUAL);
@@ -1063,7 +1062,7 @@ class open_addressing_ref_impl {
    * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
    * number of output elements
    */
-  template <int32_t BlockSize,
+  template <::int BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
@@ -1112,7 +1111,7 @@ class open_addressing_ref_impl {
    * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
    * number of output elements
    */
-  template <int32_t BlockSize,
+  template <::int BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
@@ -1163,7 +1162,7 @@ class open_addressing_ref_impl {
    * number of output elements
    */
   template <bool IsOuter,
-            int32_t BlockSize,
+            ::int BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
@@ -1201,7 +1200,7 @@ class open_addressing_ref_impl {
     auto idx                    = probing_tile.meta_group_rank();
 
     __shared__ cuco::pair<probe_type, value_type> buffers[num_flushing_tiles][buffer_size];
-    __shared__ int32_t counters[num_flushing_tiles];
+    __shared__ cuda::std::int32_t counters[num_flushing_tiles];
 
     if (flushing_tile.thread_rank() == 0) { counters[flushing_tile_id] = 0; }
     flushing_tile.sync();
@@ -1237,7 +1236,7 @@ class open_addressing_ref_impl {
         [[maybe_unused]] bool found_match = false;
 
         bool equals[bucket_size];
-        uint32_t exists[bucket_size];
+        cuda::std::uint32_t exists[bucket_size];
 
         while (active_flushing_tile.any(running)) {
           if (running) {
@@ -1245,7 +1244,7 @@ class open_addressing_ref_impl {
             auto const bucket_slots = this->storage_ref_[*probing_iter];
 
 #pragma unroll bucket_size
-            for (int32_t i = 0; i < bucket_size; ++i) {
+            for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
               equals[i] = false;
               if (running) {
                 // inspect slot content
@@ -1270,7 +1269,7 @@ class open_addressing_ref_impl {
             probing_tile.sync();
             running = probing_tile.all(running);
 #pragma unroll bucket_size
-            for (int32_t i = 0; i < bucket_size; ++i) {
+            for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
               exists[i] = probing_tile.ballot(equals[i]);
             }
 
@@ -1279,25 +1278,25 @@ class open_addressing_ref_impl {
             if (thrust::any_of(thrust::seq, exists, exists + bucket_size, cuda::std::identity{})) {
               if constexpr (IsOuter) { found_match = true; }
 
-              int32_t num_matches[bucket_size];
+              cuda::std::int32_t num_matches[bucket_size];
 
-              for (int32_t i = 0; i < bucket_size; ++i) {
+              for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
                 num_matches[i] = __popc(exists[i]);
               }
 
-              int32_t output_idx;
+              cuda::std::int32_t output_idx;
               if (lane_id == 0) {
                 auto const total_matches =
                   thrust::reduce(thrust::seq, num_matches, num_matches + bucket_size);
-                auto ref =
-                  cuda::atomic_ref<int32_t, cuda::thread_scope_block>{counters[flushing_tile_id]};
+                auto ref = cuda::atomic_ref<cuda::std::int32_t, cuda::thread_scope_block>{
+                  counters[flushing_tile_id]};
                 output_idx = ref.fetch_add(total_matches, cuda::memory_order_relaxed);
               }
               output_idx = probing_tile.shfl(output_idx, 0);
 
-              int32_t matches_offset = 0;
+              cuda::std::int32_t matches_offset = 0;
 #pragma unroll bucket_size
-              for (int32_t i = 0; i < bucket_size; ++i) {
+              for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
                 if (equals[i]) {
                   auto const lane_offset = detail::count_least_significant_bits(exists[i], lane_id);
                   buffers[flushing_tile_id][output_idx + matches_offset + lane_offset] = {
@@ -1310,8 +1309,8 @@ class open_addressing_ref_impl {
             if constexpr (IsOuter) {
               if (!running) {
                 if (!found_match and lane_id == 0) {
-                  auto ref =
-                    cuda::atomic_ref<int32_t, cuda::thread_scope_block>{counters[flushing_tile_id]};
+                  auto ref = cuda::atomic_ref<cuda::std::int32_t, cuda::thread_scope_block>{
+                    counters[flushing_tile_id]};
                   auto const output_idx = ref.fetch_add(1, cuda::memory_order_relaxed);
                   buffers[flushing_tile_id][output_idx] = {probe_key, this->empty_slot_sentinel()};
                 }
@@ -1369,7 +1368,7 @@ class open_addressing_ref_impl {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-      for (int32_t i = 0; i < bucket_size; ++i) {
+      for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
           key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
@@ -1420,7 +1419,7 @@ class open_addressing_ref_impl {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-      for (int32_t i = 0; i < bucket_size and !empty; ++i) {
+      for (cuda::std::int32_t i = 0; i < bucket_size and !empty; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
           key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
@@ -1485,7 +1484,7 @@ class open_addressing_ref_impl {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-      for (int32_t i = 0; i < bucket_size and !empty; ++i) {
+      for (cuda::std::int32_t i = 0; i < bucket_size and !empty; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
           key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
@@ -1517,7 +1516,7 @@ class open_addressing_ref_impl {
    * @return Pointer to the slot
    */
   __device__ value_type* get_slot_ptr(size_type probing_idx,
-                                      int32_t intra_bucket_idx) const noexcept
+                                      cuda::std::int32_t intra_bucket_idx) const noexcept
   {
     return storage_ref_.data() + probing_idx + intra_bucket_idx;
   }
@@ -1635,7 +1634,8 @@ class open_addressing_ref_impl {
                                                               value_type expected,
                                                               Value desired) noexcept
   {
-    using packed_type = cuda::std::conditional_t<sizeof(value_type) == 4, uint32_t, uint64_t>;
+    using packed_type =
+      cuda::std::conditional_t<sizeof(value_type) == 4, cuda::std::uint32_t, cuda::std::uint64_t>;
 
     auto* slot_ptr     = reinterpret_cast<packed_type*>(address);
     auto* expected_ptr = reinterpret_cast<packed_type*>(&expected);

@@ -26,14 +26,10 @@
 #include <cuda/stream_ref>
 
 #include <cassert>
-#include <cstddef>
-#include <cstdint>
-#include <iterator>
-#include <memory>
 
 namespace cuco {
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __host__ __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_storage_ref(
   Extent size, value_type* slots) noexcept
   : extent_{size}, slots_{slots}
@@ -43,63 +39,63 @@ __host__ __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_
          "Storage must be properly aligned");
 }
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::iterator
 bucket_storage_ref<T, BucketSize, Extent>::end() noexcept
 {
   return iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
 }
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::iterator
 bucket_storage_ref<T, BucketSize, Extent>::end() const noexcept
 {
   return iterator{reinterpret_cast<value_type*>(this->data() + this->capacity())};
 }
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::value_type*
 bucket_storage_ref<T, BucketSize, Extent>::data() noexcept
 {
   return slots_;
 }
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::value_type*
 bucket_storage_ref<T, BucketSize, Extent>::data() const noexcept
 {
   return slots_;
 }
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_type
 bucket_storage_ref<T, BucketSize, Extent>::operator[](size_type index) const noexcept
 {
   return *reinterpret_cast<bucket_type*>(this->data() + index);
 }
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __host__ __device__ constexpr typename bucket_storage_ref<T, BucketSize, Extent>::size_type
 bucket_storage_ref<T, BucketSize, Extent>::num_buckets() const noexcept
 {
   return static_cast<size_type>(extent_) / bucket_size;
 }
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __host__ __device__ constexpr typename bucket_storage_ref<T, BucketSize, Extent>::size_type
 bucket_storage_ref<T, BucketSize, Extent>::capacity() const noexcept
 {
   return static_cast<size_type>(extent_);
 }
 
-template <typename T, int32_t BucketSize, typename Extent>
+template <typename T, ::int BucketSize, typename Extent>
 __host__ __device__ constexpr typename bucket_storage_ref<T, BucketSize, Extent>::extent_type
 bucket_storage_ref<T, BucketSize, Extent>::extent() const noexcept
 {
   return extent_;
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 constexpr bucket_storage<T, BucketSize, Extent, Allocator>::bucket_storage(
   Extent size, Allocator const& allocator)
   : extent_{size},
@@ -108,28 +104,28 @@ constexpr bucket_storage<T, BucketSize, Extent, Allocator>::bucket_storage(
 {
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 constexpr bucket_storage<T, BucketSize, Extent, Allocator>::value_type*
 bucket_storage<T, BucketSize, Extent, Allocator>::data() const noexcept
 {
   return slots_.get();
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 constexpr bucket_storage<T, BucketSize, Extent, Allocator>::allocator_type
 bucket_storage<T, BucketSize, Extent, Allocator>::allocator() const noexcept
 {
   return allocator_;
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 constexpr bucket_storage<T, BucketSize, Extent, Allocator>::ref_type
 bucket_storage<T, BucketSize, Extent, Allocator>::ref() const noexcept
 {
   return ref_type{this->extent(), this->data()};
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 void bucket_storage<T, BucketSize, Extent, Allocator>::initialize(value_type key,
                                                                   cuda::stream_ref stream)
 {
@@ -137,7 +133,7 @@ void bucket_storage<T, BucketSize, Extent, Allocator>::initialize(value_type key
   stream.wait();
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 void bucket_storage<T, BucketSize, Extent, Allocator>::initialize_async(value_type key,
                                                                         cuda::stream_ref stream)
 {
@@ -147,21 +143,21 @@ void bucket_storage<T, BucketSize, Extent, Allocator>::initialize_async(value_ty
   CUCO_CUDA_TRY(cub::DeviceFor::Bulk(this->capacity(), ftor, stream.get()));
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 __host__ __device__ constexpr typename bucket_storage<T, BucketSize, Extent, Allocator>::size_type
 bucket_storage<T, BucketSize, Extent, Allocator>::num_buckets() const noexcept
 {
   return static_cast<size_type>(extent_) / bucket_size;
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 __host__ __device__ constexpr typename bucket_storage<T, BucketSize, Extent, Allocator>::size_type
 bucket_storage<T, BucketSize, Extent, Allocator>::capacity() const noexcept
 {
   return static_cast<size_type>(extent_);
 }
 
-template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+template <typename T, ::int BucketSize, typename Extent, typename Allocator>
 __host__ __device__ constexpr typename bucket_storage<T, BucketSize, Extent, Allocator>::extent_type
 bucket_storage<T, BucketSize, Extent, Allocator>::extent() const noexcept
 {

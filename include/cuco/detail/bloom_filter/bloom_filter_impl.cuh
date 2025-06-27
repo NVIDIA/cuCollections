@@ -29,6 +29,7 @@
 #include <cuda/std/__algorithm/min.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/array>
 #include <cuda/std/bit>
+#include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
@@ -36,8 +37,6 @@
 #include <thrust/iterator/constant_iterator.h>
 
 #include <cooperative_groups.h>
-
-#include <cstdint>
 
 namespace cuco::detail {
 
@@ -138,7 +137,7 @@ class bloom_filter_impl {
   __device__ void add_impl(HashValue const& hash_value, BlockIndex block_index)
   {
 #pragma unroll words_per_block
-    for (uint32_t i = 0; i < words_per_block; ++i) {
+    for (cuda::std::int32_t i = 0; i < words_per_block; ++i) {
       auto const word = policy_.word_pattern(hash_value, i);
       if (word != 0) {
         auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
@@ -200,7 +199,7 @@ class bloom_filter_impl {
           block_index = policy_.block_index(hash_value, num_blocks_);
         }
 
-        for (uint32_t j = 0; (j < num_threads) and (i + j < num_keys); ++j) {
+        for (cuda::std::int32_t j = 0; (j < num_threads) and (i + j < num_keys); ++j) {
           this->add_impl(group, group.shfl(hash_value, j), group.shfl(block_index, j));
         }
       }
@@ -220,7 +219,9 @@ class bloom_filter_impl {
           block_index = policy_.block_index(hash_value, num_blocks_);
         }
 
-        for (uint32_t j = 0; (j < worker_num_threads) and (i + worker_offset + j < num_keys); ++j) {
+        for (cuda::std::int32_t j = 0;
+             (j < worker_num_threads) and (i + worker_offset + j < num_keys);
+             ++j) {
           this->add_impl(
             worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
         }
@@ -318,7 +319,7 @@ class bloom_filter_impl {
       policy_.block_index(hash_value, num_blocks_) * words_per_block);
 
 #pragma unroll words_per_block
-    for (uint32_t i = 0; i < words_per_block; ++i) {
+    for (cuda::std::int32_t i = 0; i < words_per_block; ++i) {
       auto const expected_pattern = policy_.word_pattern(hash_value, i);
       if ((stored_pattern[i] & expected_pattern) != expected_pattern) { return false; }
     }
@@ -342,12 +343,12 @@ class bloom_filter_impl {
       bool success          = true;
 
 #pragma unroll
-      for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
+      for (cuda::std::int32_t i = rank; i < optimal_num_threads; i += num_threads) {
         auto const thread_offset  = i * words_per_thread;
         auto const stored_pattern = this->vec_load_words<words_per_thread>(
           policy_.block_index(hash_value, num_blocks_) * words_per_block + thread_offset);
 #pragma unroll words_per_thread
-        for (uint32_t j = 0; j < words_per_thread; ++j) {
+        for (cuda::std::int32_t j = 0; j < words_per_thread; ++j) {
           auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
           if ((stored_pattern[j] & expected_pattern) != expected_pattern) { success = false; }
         }
@@ -430,25 +431,25 @@ class bloom_filter_impl {
   // TODO
   // [[nodiscard]] __host__ double occupancy() const;
   // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const
-  // [[nodiscard]] __host__ __device__ static uint32_t optimal_pattern_bits(size_t num_blocks)
+  // [[nodiscard]] __host__ __device__ static int32_t optimal_pattern_bits(size_t num_blocks)
   // template <typename CG, cuda::thread_scope NewScope = thread_scope>
   // [[nodiscard]] __device__ constexpr auto make_copy(CG const& group, word_type* const
   // memory_to_use, cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
  private:
-  template <uint32_t NumWords>
+  template <::int NumWords>
   __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {
     return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(__builtin_assume_aligned(
       words_ + index, cuda::std::min(sizeof(word_type) * NumWords, max_vec_bytes())));
   }
 
-  [[nodiscard]] __host__ __device__ static constexpr int32_t add_optimal_cg_size()
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::int32_t add_optimal_cg_size()
   {
     return words_per_block;  // one thread per word so atomic updates can be coalesced
   }
 
-  [[nodiscard]] __host__ __device__ static constexpr int32_t contains_optimal_cg_size()
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::int32_t contains_optimal_cg_size()
   {
     constexpr auto word_bytes  = sizeof(word_type);
     constexpr auto block_bytes = word_bytes * words_per_block;
