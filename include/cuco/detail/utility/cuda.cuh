@@ -78,13 +78,13 @@ struct tile_size;
  * @tparam CGSize The Cooperative Group size
  * @tparam ParentCG The Cooperative Group the tile has been created from
  */
-template <::int CGSize, class ParentCG>
+template <uint32_t CGSize, class ParentCG>
 struct tile_size<cooperative_groups::thread_block_tile<CGSize, ParentCG>> {
-  static constexpr cuda::std::int32_t value = CGSize;  ///< Size of the `thread_block_tile`
+  static constexpr uint32_t value = CGSize;  ///< Size of the `thread_block_tile`
 };
 
 template <typename Tile>
-__device__ constexpr cuda::std::int32_t tile_size_v = tile_size<Tile>::value;
+__device__ constexpr uint32_t tile_size_v = tile_size<Tile>::value;
 
 }  // namespace detail
 }  // namespace cuco

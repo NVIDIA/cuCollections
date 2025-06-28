@@ -36,7 +36,7 @@ namespace cuco::detail {
  *
  * Example:
  * @code{.cpp}
- * template <typename KeyType, ::int NUM_FILTER_BLOCKS>
+ * template <typename KeyType, std::uint32_t NUM_FILTER_BLOCKS>
  * void bulk_insert_and_eval_arrow_policy_bloom_filter(device_vector<KeyType> const& positive_keys,
  *                                                 device_vector<KeyType> const& negative_keys)
  * {
@@ -84,20 +84,18 @@ template <class Key, template <typename> class XXHash64>
 class arrow_filter_policy {
  public:
   using hasher           = XXHash64<Key>;  ///< 64-bit XXHash hasher for Arrow bloom filter policy
-  using word_type        = cuda::std::uint32_t;  ///< uint32_t for Arrow bloom filter policy
-  using key_type         = Key;                  ///< Hash function input type
-  using hash_result_type = cuda::std::uint64_t;  ///< hash function output type
+  using word_type        = std::uint32_t;  ///< uint32_t for Arrow bloom filter policy
+  using key_type         = Key;            ///< Hash function input type
+  using hash_result_type = std::uint64_t;  ///< hash function output type
 
-  static constexpr cuda::std::int32_t bits_set_per_block =
-    8;  ///< hardcoded bits set per Arrow filter block
-  static constexpr cuda::std::int32_t words_per_block =
-    8;  ///< hardcoded words per Arrow filter block
+  static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded bits set per Arrow filter block
+  static constexpr uint32_t words_per_block    = 8;  ///< hardcoded words per Arrow filter block
 
-  static constexpr cuda::std::int32_t bytes_per_filter_block =
+  static constexpr std::uint32_t bytes_per_filter_block =
     32;  ///< Number of bytes in one Arrow filter block
-  static constexpr cuda::std::int32_t max_arrow_filter_bytes =
+  static constexpr std::uint32_t max_arrow_filter_bytes =
     128 * 1024 * 1024;  ///< Max bytes in Arrow bloom filter
-  static constexpr cuda::std::int32_t max_filter_blocks =
+  static constexpr std::uint32_t max_filter_blocks =
     (max_arrow_filter_bytes /
      bytes_per_filter_block);  ///< Max sub-filter blocks allowed in Arrow bloom filter
 
@@ -155,11 +153,10 @@ class arrow_filter_policy {
    *
    * @return The bit pattern for the word/segment in the filter block
    */
-  __device__ constexpr word_type word_pattern(hash_result_type hash,
-                                              cuda::std::int32_t word_index) const
+  __device__ constexpr word_type word_pattern(hash_result_type hash, std::uint32_t word_index) const
   {
     word_type const key = static_cast<word_type>(hash);
-    cuda::std::int32_t salt;
+    std::uint32_t salt;
 
     // Basically a switch (word_index) { case 0-7 ... }
     // First split: 0..3 versus 4..7.

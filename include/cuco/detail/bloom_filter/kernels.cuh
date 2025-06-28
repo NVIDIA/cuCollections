@@ -21,11 +21,13 @@
 
 #include <cooperative_groups.h>
 
+#include <cstdint>
+
 namespace cuco::detail::bloom_filter_ns {
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
-template <::int BlockSize, class InputIt, class Ref>
+template <int32_t BlockSize, class InputIt, class Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void add(InputIt first,
                                                   cuco::detail::index_type n,
                                                   Ref ref)
@@ -47,7 +49,12 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add(InputIt first,
   ref.add(tile, first + tile_start, first + tile_stop);
 }
 
-template <::int CGSize, ::int BlockSize, class InputIt, class StencilIt, class Predicate, class Ref>
+template <int32_t CGSize,
+          int32_t BlockSize,
+          class InputIt,
+          class StencilIt,
+          class Predicate,
+          class Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
@@ -68,8 +75,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   }
 }
 
-template <::int CGSize,
-          ::int BlockSize,
+template <int32_t CGSize,
+          int32_t BlockSize,
           class InputIt,
           class StencilIt,
           class Predicate,

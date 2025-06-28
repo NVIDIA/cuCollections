@@ -36,7 +36,7 @@ namespace cuco {
  *
  * @tparam BucketSize Number of elements per bucket storage
  */
-template <::int BucketSize>
+template <int BucketSize>
 class storage {
  public:
   /// Number of slots per bucket storage

@@ -48,7 +48,7 @@ CUCO_SUPPRESS_KERNEL_WARNINGS
  * @param n Number of input elements
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <::int CGSize, ::int BlockSize, typename InputIt, typename Ref>
+template <int CGSize, int BlockSize, typename InputIt, typename Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
                                                                cuco::detail::index_type n,
                                                                Ref ref)
@@ -97,8 +97,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <bool HasInit,
-          ::int CGSize,
-          ::int BlockSize,
+          int CGSize,
+          int BlockSize,
           typename InputIt,
           typename Init,
           typename Op,
@@ -161,8 +161,8 @@ __global__ void insert_or_apply(
  * @param bucket_extent Bucket Extent used for shared memory map slot storage
  */
 template <bool HasInit,
-          ::int CGSize,
-          ::int BlockSize,
+          int CGSize,
+          int BlockSize,
           class SharedMapRefType,
           class InputIt,
           class Init,

@@ -79,8 +79,8 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStream_t stream)
 {
-  std::int64_t num_elements_remaining = n;
-  std::int32_t submap_idx             = 0;
+  std::size_t num_elements_remaining = n;
+  std::size_t submap_idx             = 0;
   while (num_elements_remaining > 0) {
     std::size_t submap_capacity;
 
@@ -135,7 +135,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
 
   reserve(size_ + num_to_insert, stream);
 
-  std::int32_t submap_idx = 0;
+  std::size_t submap_idx = 0;
   while (num_to_insert > 0) {
     std::size_t capacity_remaining =
       max_load_factor_ * submaps_[submap_idx]->get_capacity() - submaps_[submap_idx]->get_size();
@@ -194,7 +194,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
   // zero out submap success counters
-  for (std::int32_t i = 0; i < submaps_.size(); ++i) {
+  for (std::size_t i = 0; i < submaps_.size(); ++i) {
     CUCO_CUDA_TRY(cudaMemsetAsync(submap_num_successes_[i], 0, sizeof(atomic_ctr_type), stream));
   }
 
@@ -209,7 +209,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(
                                                            hash,
                                                            key_equal);
 
-  for (std::int32_t i = 0; i < submaps_.size(); ++i) {
+  for (std::size_t i = 0; i < submaps_.size(); ++i) {
     std::size_t* h_submap_num_successes;
     CUCO_CUDA_TRY(cudaMallocHost(&h_submap_num_successes, sizeof(std::size_t)));
     CUCO_CUDA_TRY(cudaMemcpyAsync(h_submap_num_successes,

@@ -1062,7 +1062,7 @@ class open_addressing_ref_impl {
    * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
    * number of output elements
    */
-  template <::int BlockSize,
+  template <int BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
@@ -1111,7 +1111,7 @@ class open_addressing_ref_impl {
    * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
    * number of output elements
    */
-  template <::int BlockSize,
+  template <int BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
@@ -1162,7 +1162,7 @@ class open_addressing_ref_impl {
    * number of output elements
    */
   template <bool IsOuter,
-            ::int BlockSize,
+            int BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
