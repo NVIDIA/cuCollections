@@ -379,15 +379,16 @@ class open_addressing_ref_impl {
     auto const val = this->heterogeneous_value(value);
     auto const key = this->extract_key(val);
 
-    auto probing_iter   = probing_scheme_.make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : bucket_slots) {
-        auto const eq_res =
-          this->predicate_.operator()<is_insert::YES>(key, this->extract_key(slot_content));
+        auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
+          key, this->extract_key(slot_content));
 
         if constexpr (not allows_duplicates) {
           // If the key is already in the container, return false
@@ -431,7 +432,7 @@ class open_addressing_ref_impl {
     auto const val = this->heterogeneous_value(value);
     auto const key = this->extract_key(val);
     auto probing_iter =
-      probing_scheme_.make_iterator<bucket_size>(group, key, storage_ref_.extent());
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -439,8 +440,8 @@ class open_addressing_ref_impl {
 
       auto const [state, intra_bucket_index] = [&]() {
         for (auto i = 0; i < bucket_size; ++i) {
-          switch (
-            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]))) {
+          switch (this->predicate_.template operator()<is_insert::YES>(
+            key, this->extract_key(bucket_slots[i]))) {
             case detail::equal_result::AVAILABLE:
               return bucket_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL: {
@@ -789,7 +790,8 @@ class open_addressing_ref_impl {
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter   = probing_scheme_.make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
 
     while (true) {
@@ -797,8 +799,8 @@ class open_addressing_ref_impl {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < bucket_size; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::UNEQUAL: continue;
           case detail::equal_result::EMPTY: return false;
           case detail::equal_result::EQUAL: return true;
@@ -1534,7 +1536,7 @@ class open_addressing_ref_impl {
   template <typename Value>
   [[nodiscard]] __host__ __device__ constexpr auto extract_key(Value const& value) const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return thrust::raw_reference_cast(value).first;
     } else {
       return thrust::raw_reference_cast(value);
@@ -1570,7 +1572,7 @@ class open_addressing_ref_impl {
   template <typename T>
   [[nodiscard]] __device__ constexpr value_type native_value(T const& value) const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return {static_cast<key_type>(this->extract_key(value)), this->extract_payload(value)};
     } else {
       return static_cast<value_type>(value);
@@ -1590,7 +1592,7 @@ class open_addressing_ref_impl {
   template <typename T>
   [[nodiscard]] __device__ constexpr auto heterogeneous_value(T const& value) const noexcept
   {
-    if constexpr (this->has_payload and not cuda::std::is_same_v<T, value_type>) {
+    if constexpr (has_payload and not cuda::std::is_same_v<T, value_type>) {
       using mapped_type = decltype(this->empty_value_sentinel());
       if constexpr (cuco::detail::is_cuda_std_pair_like<T>::value) {
         return cuco::pair{cuda::std::get<0>(value),
@@ -1612,7 +1614,7 @@ class open_addressing_ref_impl {
    */
   [[nodiscard]] __device__ constexpr value_type const erased_slot_sentinel() const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return cuco::pair{this->erased_key_sentinel(), this->empty_value_sentinel()};
     } else {
       return this->erased_key_sentinel();
