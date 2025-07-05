@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
 #include <cuco/detail/error.hpp>
@@ -44,6 +45,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
   static constexpr cuda::std::uint32_t serial_cookie                 = 12347;
   static constexpr cuda::std::uint32_t frozen_cookie                 = 13766;
   static constexpr cuda::std::int32_t no_offset_threshold            = 4;
+  static constexpr cuda::std::uint32_t binary_search_threshold = 8;  // TODO determine optimal value
 
  public:
   static constexpr auto thread_scope = Scope;
@@ -99,20 +101,25 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
     cuda::std::uint16_t upper = value >> 16;
     cuda::std::uint16_t lower = value & 0xFFFF;
 
-    // TODO binary search on key_cards_
-    for (cuda::std::int32_t i = 0; i < num_containers_; i++) {
-      if (key_cards_[i * 2] == upper) {
-        cuda::std::uint32_t card = key_cards_[i * 2 + 1] + 1;
-        cuda::std::uint16_t const* container =
-          reinterpret_cast<cuda::std::uint16_t const*>(data_.data() + this->container_offset(i));
-        if (this->is_run_container(i)) {
-          return this->contains_run_container(container, lower, card);
+    // Binary search on key_cards_ to find container with matching upper key
+    cuda::std::uint32_t left  = 0;
+    cuda::std::uint32_t right = num_containers_;
+
+    if (num_containers_ < binary_search_threshold) {
+      for (cuda::std::uint32_t i = 0; i < num_containers_; i++) {
+        if (key_cards_[i * 2] == upper) { return this->contains_container(lower, i); }
+      }
+    } else {
+      while (left < right) {
+        cuda::std::uint32_t mid     = left + (right - left) / 2;
+        cuda::std::uint16_t mid_key = key_cards_[mid * 2];
+
+        if (mid_key == upper) {
+          return this->contains_container(lower, mid);
+        } else if (mid_key < upper) {
+          left = mid + 1;
         } else {
-          if (card <= 4096) {  // TODO check if this is correct
-            return this->contains_array_container(container, lower, card);
-          } else {
-            return this->contains_bitset_container(container, lower, card);
-          }
+          right = mid;
         }
       }
     }
@@ -135,16 +142,48 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
     return run_container_bitmap_[i / 8] & (1 << (i % 8));
   }
 
+  __device__ bool contains_container(cuda::std::uint16_t lower, cuda::std::uint32_t index) const
+  {
+    cuda::std::uint32_t card = key_cards_[index * 2 + 1] + 1;
+    cuda::std::uint16_t const* container =
+      reinterpret_cast<cuda::std::uint16_t const*>(data_.data() + this->container_offset(index));
+    if (this->is_run_container(index)) {
+      return this->contains_run_container(container, lower, card);
+    } else {
+      if (card <= 4096) {  // TODO check if this is correct
+        return this->contains_array_container(container, lower, card);
+      } else {
+        return this->contains_bitset_container(container, lower, card);
+      }
+    }
+  }
+
   __device__ bool contains_array_container(cuda::std::uint16_t const* container,
                                            cuda::std::uint16_t lower,
                                            cuda::std::uint32_t card) const
   {
-    // TODO binary search on container
-    // if (card < 256) -> linear search
-    for (cuda::std::uint32_t i = 0; i < card; i++) {
-      if (container[i] == lower) { return true; }
+    // Use linear search for small arrays, binary search for larger ones
+    if (card < binary_search_threshold) {
+      for (cuda::std::uint32_t i = 0; i < card; i++) {
+        if (container[i] == lower) { return true; }
+      }
+      return false;
+    } else {
+      cuda::std::uint32_t left  = 0;
+      cuda::std::uint32_t right = card;
+
+      while (left < right) {
+        cuda::std::uint32_t mid = left + (right - left) / 2;
+        if (container[mid] == lower) {
+          return true;
+        } else if (container[mid] < lower) {
+          left = mid + 1;
+        } else {
+          right = mid;
+        }
+      }
+      return false;
     }
-    return false;
   }
 
   __device__ bool contains_bitset_container(cuda::std::uint16_t const* container,
@@ -166,8 +205,13 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
   __device__ cuda::std::uint32_t container_offset(cuda::std::int32_t i) const
   {
     cuda::std::uint32_t offset;
-    cuda::std::memcpy(
-      &offset, offsets_ + i * sizeof(cuda::std::uint32_t), sizeof(cuda::std::uint32_t));
+    if (offsets_aligned_) {
+      offset =
+        *reinterpret_cast<cuda::std::uint32_t const*>(offsets_ + i * sizeof(cuda::std::uint32_t));
+    } else {
+      cuda::std::memcpy(
+        &offset, offsets_ + i * sizeof(cuda::std::uint32_t), sizeof(cuda::std::uint32_t));
+    }
     return offset;
   }
 
@@ -241,6 +285,8 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
         return false;
       }
       offsets_ = buf;
+      offsets_aligned_ =
+        (reinterpret_cast<cuda::std::uintptr_t>(offsets_) % sizeof(cuda::std::uint32_t)) == 0;
       buf += num_containers_ * 4;
     }
 
@@ -267,6 +313,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
   cuda::std::uint8_t const* run_container_bitmap_;
   cuda::std::uint16_t const* key_cards_;
   cuda::std::byte const* offsets_;
+  bool offsets_aligned_;
   bool has_run_;
 };
 

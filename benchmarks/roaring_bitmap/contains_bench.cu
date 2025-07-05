@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <benchmark_defaults.hpp>
 #include <benchmark_utils.hpp>
 
@@ -38,7 +39,6 @@ void roaring_bitmap_contains(nvbench::state& state)
   fs::path path      = source_dir / "../../examples/roaring_bitmap/bitmapwithoutruns.bin";
   fs::path full_path = path.lexically_normal();
 
-  // Open file
   std::ifstream file(full_path, std::ios::binary);
   if (!file.is_open()) { state.skip("Failed to open bitmap file"); }
 
@@ -47,11 +47,9 @@ void roaring_bitmap_contains(nvbench::state& state)
   std::streamsize file_size = file.tellg();
   file.seekg(0, std::ios::beg);
 
-  // Allocate pinned host memory using cudaMallocHost
   char* buffer;
   CUCO_CUDA_TRY(cudaMallocHost(&buffer, file_size));
 
-  // Read file into memory
   file.read(buffer, file_size);
   file.close();
 
@@ -70,7 +68,7 @@ void roaring_bitmap_contains(nvbench::state& state)
     keys.push_back(k);
   }
 
-  // multiply the keys for the benchmark
+  // multiply the keys for more accurate benchmark numbers
   for (int i = 0; i < 13; i++) {
     keys.insert(keys.end(), keys.begin(), keys.end());
   }
