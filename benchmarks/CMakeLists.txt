@@ -100,3 +100,8 @@ ConfigureBench(HYPERLOGLOG_BENCH
 ConfigureBench(BLOOM_FILTER_BENCH
   bloom_filter/add_bench.cu
   bloom_filter/contains_bench.cu)
+
+###################################################################################################
+# - roaring_bitmap benchmarks ---------------------------------------------------------------------
+ConfigureBench(ROARING_BITMAP_BENCH
+  roaring_bitmap/contains_bench.cu)
