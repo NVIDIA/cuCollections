@@ -40,7 +40,7 @@ class roaring_bitmap {
   template <cuda::thread_scope NewScope = thread_scope>
   using ref_type = roaring_bitmap_ref<T, NewScope>;
 
-  __host__ roaring_bitmap(cuda::std::span<const cuda::std::byte> compressed_bitmap,
+  __host__ roaring_bitmap(cuda::std::byte const* bitmap,
                           cuda_thread_scope<Scope> scope = {},
                           Allocator const& alloc         = {},
                           cuda::stream_ref stream        = {});
@@ -76,6 +76,7 @@ class roaring_bitmap {
 
  private:
   allocator_type allocator_;
+  typename ref_type<>::metadata_type metadata_;
   std::unique_ptr<cuda::std::byte, detail::custom_deleter<cuda::std::size_t, allocator_type>> data_;
   ref_type<> ref_;
 };

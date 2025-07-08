@@ -26,25 +26,20 @@
 namespace cuco {
 
 template <class T, cuda::thread_scope Scope, class Allocator>
-__host__ roaring_bitmap<T, Scope, Allocator>::roaring_bitmap(
-  cuda::std::span<cuda::std::byte const> compressed_bitmap,
-  cuda_thread_scope<Scope> scope,
-  Allocator const& alloc,
-  cuda::stream_ref stream)
+__host__ roaring_bitmap<T, Scope, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
+                                                             cuda_thread_scope<Scope> scope,
+                                                             Allocator const& alloc,
+                                                             cuda::stream_ref stream)
   : allocator_{alloc},
-    data_{allocator_.allocate(compressed_bitmap.size()),
-          detail::custom_deleter<cuda::std::size_t, allocator_type>{compressed_bitmap.size(),
-                                                                    allocator_}},
-    ref_{compressed_bitmap,
-         cuda::std::span<cuda::std::byte const>(data_.get(), compressed_bitmap.size()),
-         scope}  // TODO move after memcpy?
+    metadata_{ref_type<>::read_metadata(bitmap)},
+    data_{
+      allocator_.allocate(metadata_.size_bytes),
+      detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes, allocator_}},
+    ref_{data_.get(), metadata_, scope}
 {
-  CUCO_CUDA_TRY(cudaMemcpyAsync(data_.get(),
-                                compressed_bitmap.data(),
-                                compressed_bitmap.size(),
-                                cudaMemcpyHostToDevice,
-                                stream.get()));
-  stream.wait();  // TODO check if this is necessary
+  CUCO_CUDA_TRY(cudaMemcpyAsync(
+    data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
+  // stream.wait();  // TODO check if this is necessary
 }
 
 template <class T, cuda::thread_scope Scope, class Allocator>

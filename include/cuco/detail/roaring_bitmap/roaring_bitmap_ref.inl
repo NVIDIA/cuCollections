@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <cuco/detail/roaring_bitmap/roaring_bitmap_impl.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/cstddef>
@@ -24,18 +25,17 @@
 namespace cuco {
 
 template <class T, cuda::thread_scope Scope>
-__host__ roaring_bitmap_ref<T, Scope>::roaring_bitmap_ref(
-  cuda::std::span<cuda::std::byte const> compressed_bitmap_h,
-  cuda::std::span<cuda::std::byte const> compressed_bitmap_d,
-  cuda_thread_scope<Scope> scope)
-  : impl_{compressed_bitmap_h, compressed_bitmap_d, scope}
+__host__ __device__ roaring_bitmap_ref<T, Scope>::roaring_bitmap_ref(cuda::std::byte const* bitmap,
+                                                                     metadata_type const metadata,
+                                                                     cuda_thread_scope<Scope> scope)
+  : impl_{bitmap, metadata, scope}
 {
 }
 
 template <class T, cuda::thread_scope Scope>
-__device__ roaring_bitmap_ref<T, Scope>::roaring_bitmap_ref(
-  cuda::std::span<cuda::std::byte const> compressed_bitmap, cuda_thread_scope<Scope> scope)
-  : impl_{compressed_bitmap, scope}
+__device__ roaring_bitmap_ref<T, Scope>::roaring_bitmap_ref(cuda::std::byte const* bitmap,
+                                                            cuda_thread_scope<Scope> scope)
+  : impl_{bitmap, scope}
 {
 }
 
@@ -77,4 +77,12 @@ __host__ __device__ cuda::std::span<cuda::std::byte const> roaring_bitmap_ref<T,
 {
   return impl_.data();
 }
+
+template <class T, cuda::thread_scope Scope>
+__host__ __device__ typename roaring_bitmap_ref<T, Scope>::metadata_type const
+roaring_bitmap_ref<T, Scope>::read_metadata(cuda::std::byte const* bitmap) noexcept
+{
+  return impl_type::read_metadata(bitmap);
+}
+
 }  // namespace cuco

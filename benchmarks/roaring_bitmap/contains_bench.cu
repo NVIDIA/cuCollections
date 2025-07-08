@@ -53,9 +53,8 @@ void roaring_bitmap_contains(nvbench::state& state)
   file.read(buffer, file_size);
   file.close();
 
-  cuda::std::span<cuda::std::byte const> bitmap(reinterpret_cast<cuda::std::byte const*>(buffer),
-                                                file_size);
-  cuco::roaring_bitmap<cuda::std::uint32_t> roaring_bitmap(bitmap);
+  cuco::roaring_bitmap<cuda::std::uint32_t> roaring_bitmap(
+    reinterpret_cast<cuda::std::byte const*>(buffer));
 
   std::vector<cuda::std::uint32_t> keys;
   for (cuda::std::uint32_t k = 0; k < 100000; k += 1000) {

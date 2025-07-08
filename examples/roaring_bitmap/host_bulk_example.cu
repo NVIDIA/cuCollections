@@ -38,9 +38,8 @@ int main(int argc, char* argv[])
   file.read(buffer, file_size);
   file.close();
 
-  cuda::std::span<cuda::std::byte const> bitmap(reinterpret_cast<cuda::std::byte const*>(buffer),
-                                                file_size);
-  cuco::roaring_bitmap<cuda::std::uint32_t> roaring_bitmap(bitmap);
+  cuco::roaring_bitmap<cuda::std::uint32_t> roaring_bitmap(
+    reinterpret_cast<cuda::std::byte const*>(buffer));
 
   std::vector<cuda::std::uint32_t> keys;
   for (cuda::std::uint32_t k = 0; k < 100000; k += 1000) {
@@ -58,13 +57,18 @@ int main(int argc, char* argv[])
 
   roaring_bitmap.contains(keys_d.begin(), keys_d.end(), contained.begin());
 
+  size_t num_errors = 0;
   for (size_t i = 0; i < keys.size(); i++) {
     if (not contained[i]) {
-      std::cout << "Error: " << keys_d[i] << " is not contained" << std::endl;
+      if (num_errors <= 10) {
+        std::cout << "Error: " << keys_d[i] << " is not contained" << std::endl;
+      }
+      num_errors++;
     }
   }
+  if (num_errors > 0) { std::cout << "num_errors: " << num_errors << std::endl; }
 
-  // check if all elements are contained
+  // check if all elements are contained and written to output
   bool all_contained = thrust::all_of(contained.begin(), contained.end(), ::cuda::std::identity{});
   std::cout << "all_contained: " << all_contained << std::endl;
 
