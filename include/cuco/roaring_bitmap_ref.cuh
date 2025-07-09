@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
 #include <cuco/detail/roaring_bitmap/roaring_bitmap_impl.cuh>
@@ -32,8 +33,8 @@ class roaring_bitmap_ref {
   __host__ __device__ roaring_bitmap_ref(cuda::std::byte const* bitmap,
                                          metadata_type const& metadata);
 
-  template <typename U = T,
-            typename   = cuda::std::enable_if_t<cuda::std::is_same_v<U, cuda::std::uint32_t>>>
+  template <class U = T,
+            class   = cuda::std::enable_if_t<cuda::std::is_same_v<U, cuda::std::uint32_t>>>
   __device__ roaring_bitmap_ref(cuda::std::byte const* bitmap);
 
   template <class InputIt, class OutputIt>
@@ -51,6 +52,8 @@ class roaring_bitmap_ref {
   __device__ bool contains(T value) const;
 
   [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept;
+
+  [[nodiscard]] __host__ __device__ bool empty() const noexcept;
 
   [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept;
 

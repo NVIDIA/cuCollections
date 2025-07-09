@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
 #include <cuco/detail/error.hpp>
@@ -25,9 +26,9 @@
 namespace cuco {
 
 template <class T, class Allocator>
-__host__ roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
-                                                      Allocator const& alloc,
-                                                      cuda::stream_ref stream)
+roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
+                                             Allocator const& alloc,
+                                             cuda::stream_ref stream)
   : allocator_{alloc},
     metadata_{ref_type::read_metadata(bitmap)},
     data_{
@@ -42,52 +43,57 @@ __host__ roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::byte const* bit
 
 template <class T, class Allocator>
 template <class InputIt, class OutputIt>
-__host__ void roaring_bitmap<T, Allocator>::contains(InputIt first,
-                                                     InputIt last,
-                                                     OutputIt output,
-                                                     cuda::stream_ref stream) const
+void roaring_bitmap<T, Allocator>::contains(InputIt first,
+                                            InputIt last,
+                                            OutputIt output,
+                                            cuda::stream_ref stream) const
 {
   ref_.contains(first, last, output, stream);
 }
 
 template <class T, class Allocator>
 template <class InputIt, class OutputIt>
-__host__ void roaring_bitmap<T, Allocator>::contains_async(InputIt first,
-                                                           InputIt last,
-                                                           OutputIt output,
-                                                           cuda::stream_ref stream) const noexcept
+void roaring_bitmap<T, Allocator>::contains_async(InputIt first,
+                                                  InputIt last,
+                                                  OutputIt output,
+                                                  cuda::stream_ref stream) const noexcept
 {
   ref_.contains_async(first, last, output, stream);
 }
 
 template <class T, class Allocator>
-__host__ cuda::std::size_t roaring_bitmap<T, Allocator>::size() const noexcept
+cuda::std::size_t roaring_bitmap<T, Allocator>::size() const noexcept
 {
   return ref_.size();
 }
 
 template <class T, class Allocator>
-__host__ cuda::std::byte const* roaring_bitmap<T, Allocator>::data() const noexcept
+bool roaring_bitmap<T, Allocator>::empty() const noexcept
+{
+  return ref_.empty();
+}
+
+template <class T, class Allocator>
+cuda::std::byte const* roaring_bitmap<T, Allocator>::data() const noexcept
 {
   return ref_.data();
 }
 
 template <class T, class Allocator>
-__host__ cuda::std::size_t roaring_bitmap<T, Allocator>::size_bytes() const noexcept
+cuda::std::size_t roaring_bitmap<T, Allocator>::size_bytes() const noexcept
 {
   return ref_.size_bytes();
 }
 
 template <class T, class Allocator>
-__host__ typename roaring_bitmap<T, Allocator>::allocator_type
-roaring_bitmap<T, Allocator>::allocator() const noexcept
+typename roaring_bitmap<T, Allocator>::allocator_type roaring_bitmap<T, Allocator>::allocator()
+  const noexcept
 {
   return allocator_;
 }
 
 template <class T, class Allocator>
-__host__ typename roaring_bitmap<T, Allocator>::ref_type roaring_bitmap<T, Allocator>::ref()
-  const noexcept
+typename roaring_bitmap<T, Allocator>::ref_type roaring_bitmap<T, Allocator>::ref() const noexcept
 {
   return ref_;
 }

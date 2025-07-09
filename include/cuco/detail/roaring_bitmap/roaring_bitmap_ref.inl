@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
 #include <cuco/detail/roaring_bitmap/roaring_bitmap_impl.cuh>
@@ -67,6 +68,12 @@ template <class T>
 __host__ __device__ cuda::std::size_t roaring_bitmap_ref<T>::size() const noexcept
 {
   return impl_.size();
+}
+
+template <class T>
+__host__ __device__ bool roaring_bitmap_ref<T>::empty() const noexcept
+{
+  return impl_.empty();
 }
 
 template <class T>

@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #pragma once
 
 #include <cuco/detail/storage/storage_base.cuh>
@@ -33,9 +34,9 @@ class roaring_bitmap {
 
   using ref_type = roaring_bitmap_ref<T>;
 
-  __host__ roaring_bitmap(cuda::std::byte const* bitmap,
-                          Allocator const& alloc  = {},
-                          cuda::stream_ref stream = {});
+  roaring_bitmap(cuda::std::byte const* bitmap,
+                 Allocator const& alloc  = {},
+                 cuda::stream_ref stream = {});
 
   roaring_bitmap(roaring_bitmap const& other)            = default;
   roaring_bitmap(roaring_bitmap&& other)                 = default;
@@ -45,28 +46,30 @@ class roaring_bitmap {
   ~roaring_bitmap() = default;
 
   template <class InputIt, class OutputIt>
-  __host__ void contains(InputIt first,
-                         InputIt last,
-                         OutputIt contained,
-                         cuda::stream_ref stream = {}) const;
+  void contains(InputIt first,
+                InputIt last,
+                OutputIt contained,
+                cuda::stream_ref stream = {}) const;
 
   template <class InputIt, class OutputIt>
-  __host__ void contains_async(InputIt first,
-                               InputIt last,
-                               OutputIt contained,
-                               cuda::stream_ref stream = {}) const noexcept;
+  void contains_async(InputIt first,
+                      InputIt last,
+                      OutputIt contained,
+                      cuda::stream_ref stream = {}) const noexcept;
 
   // TODO contains_if, contains_if_async, empty
 
-  [[nodiscard]] __host__ cuda::std::size_t size() const noexcept;
+  [[nodiscard]] cuda::std::size_t size() const noexcept;
 
-  [[nodiscard]] __host__ cuda::std::byte const* data() const noexcept;
+  [[nodiscard]] bool empty() const noexcept;
 
-  [[nodiscard]] __host__ cuda::std::size_t size_bytes() const noexcept;
+  [[nodiscard]] cuda::std::byte const* data() const noexcept;
 
-  [[nodiscard]] __host__ allocator_type allocator() const noexcept;
+  [[nodiscard]] cuda::std::size_t size_bytes() const noexcept;
 
-  [[nodiscard]] __host__ ref_type ref() const noexcept;
+  [[nodiscard]] allocator_type allocator() const noexcept;
+
+  [[nodiscard]] ref_type ref() const noexcept;
 
  private:
   allocator_type allocator_;
