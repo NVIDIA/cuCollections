@@ -16,11 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/error.hpp>
-#include <cuco/detail/storage/storage_base.cuh>
-
 #include <cuda/std/cstddef>
-#include <cuda/std/type_traits>
 #include <cuda/stream_ref>
 
 namespace cuco {
@@ -29,16 +25,8 @@ template <class T, class Allocator>
 roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
                                              Allocator const& alloc,
                                              cuda::stream_ref stream)
-  : allocator_{alloc},
-    metadata_{ref_type::read_metadata(bitmap)},
-    data_{
-      allocator_.allocate(metadata_.size_bytes),
-      detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes, allocator_}},
-    ref_{data_.get(), metadata_}
+  : storage_{bitmap, alloc, stream}, ref_{storage_.ref()}
 {
-  CUCO_CUDA_TRY(cudaMemcpyAsync(
-    data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
-  // stream.wait();  // TODO check if this is necessary
 }
 
 template <class T, class Allocator>
@@ -89,7 +77,7 @@ template <class T, class Allocator>
 typename roaring_bitmap<T, Allocator>::allocator_type roaring_bitmap<T, Allocator>::allocator()
   const noexcept
 {
-  return allocator_;
+  return storage_.allocator();
 }
 
 template <class T, class Allocator>

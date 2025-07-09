@@ -17,6 +17,8 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/roaring_bitmap/roaring_bitmap_storage.cuh>
+#include <cuco/detail/roaring_bitmap/util.cuh>
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/std/cstddef>
@@ -28,29 +30,7 @@
 #include <thrust/fill.h>
 #include <thrust/transform.h>
 
-#include <nv/target>
-
 namespace cuco::detail {
-
-template <class T>
-struct roaring_bitmap_metadata {
-  static_assert(cuco::dependent_false<T>, "T must be either uint32_t or uint64_t");
-};
-
-template <>
-struct roaring_bitmap_metadata<cuda::std::uint32_t> {
-  cuda::std::size_t size_bytes           = 0;
-  cuda::std::size_t num_keys             = 0;
-  cuda::std::size_t run_container_bitmap = 0;
-  cuda::std::size_t key_cards            = 0;
-  cuda::std::size_t container_offsets    = 0;
-  cuda::std::int32_t num_containers      = 0;
-  bool has_run                           = false;
-  bool offsets_aligned                   = false;
-  bool valid                             = false;
-};
-
-// TODO implement roaring_bitmap_metadata<cuda::std::uint64_t>
 
 // primary template
 template <class T>
@@ -60,39 +40,32 @@ class roaring_bitmap_impl {
 
 template <>
 class roaring_bitmap_impl<cuda::std::uint32_t> {
-  // Constants from the Roaring format spec
-  static constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
-  static constexpr cuda::std::uint32_t serial_cookie                 = 12347;
-  static constexpr cuda::std::uint32_t frozen_cookie                 = 13766;
-  static constexpr cuda::std::int32_t no_offset_threshold            = 4;
+ public:
+  using storage_ref_type = roaring_bitmap_storage_ref<cuda::std::uint32_t>;
+
   static constexpr cuda::std::uint32_t binary_search_threshold = 8;  // TODO determine optimal value
 
- public:
-  using metadata_type = roaring_bitmap_metadata<cuda::std::uint32_t>;
-
-  __host__ __device__ roaring_bitmap_impl(cuda::std::byte const* bitmap,
-                                          metadata_type const& metadata)
+  __host__ __device__ roaring_bitmap_impl(storage_ref_type const& storage_ref)
   {
-    NV_IF_TARGET(
-      NV_IS_HOST,
-      CUCO_EXPECTS(metadata.valid, "Invalid bitmap format");)  // TODO device error handling
-
-    if (metadata.valid) {
-      data_           = bitmap;
-      size_bytes_     = metadata.size_bytes;
-      size_           = metadata.num_keys;
-      num_containers_ = metadata.num_containers;
+    auto const& meta = storage_ref.metadata();
+    if (meta.valid) {
+      data_           = storage_ref.data();
+      size_bytes_     = meta.size_bytes;
+      size_           = meta.num_keys;
+      num_containers_ = meta.num_containers;
       run_container_bitmap_ =
-        reinterpret_cast<cuda::std::uint8_t const*>(bitmap + metadata.run_container_bitmap);
-      key_cards_ = reinterpret_cast<cuda::std::uint16_t const*>(bitmap + metadata.key_cards);
-      offsets_   = reinterpret_cast<cuda::std::byte const*>(bitmap + metadata.container_offsets);
-      offsets_aligned_ = metadata.offsets_aligned;
-      has_run_         = metadata.has_run;
+        reinterpret_cast<cuda::std::uint8_t const*>(storage_ref.data() + meta.run_container_bitmap);
+      key_cards_ =
+        reinterpret_cast<cuda::std::uint16_t const*>(storage_ref.data() + meta.key_cards);
+      offsets_ =
+        reinterpret_cast<cuda::std::byte const*>(storage_ref.data() + meta.container_offsets);
+      offsets_aligned_ = meta.offsets_aligned;
+      has_run_         = meta.has_run;
     }
   }
 
   __device__ roaring_bitmap_impl(cuda::std::byte const* bitmap)
-    : roaring_bitmap_impl{bitmap, read_metadata(bitmap)}
+    : roaring_bitmap_impl{storage_ref_type{bitmap}}
   {
   }
 
@@ -128,18 +101,21 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
 
   __device__ bool contains(cuda::std::uint32_t value) const
   {
-    cuda::std::uint16_t upper = value >> 16;
-    cuda::std::uint16_t lower = value & 0xFFFF;
-
-    // Binary search on key_cards_ to find container with matching upper key
-    cuda::std::uint32_t left  = 0;
-    cuda::std::uint32_t right = num_containers_;
+    cuda::std::uint16_t const upper = value >> 16;
+    cuda::std::uint16_t const lower = value & 0xFFFF;
 
     if (num_containers_ < binary_search_threshold) {
+// linear search
+#pragma unroll
       for (cuda::std::uint32_t i = 0; i < num_containers_; i++) {
-        if (key_cards_[i * 2] == upper) { return this->contains_container(lower, i); }
+        cuda::std::uint16_t const key = key_cards_[i * 2];
+        if (key == upper) { return this->contains_container(lower, i); }
+        if (key > upper) { return false; }
       }
     } else {
+      // binary search
+      cuda::std::uint32_t left  = 0;
+      cuda::std::uint32_t right = num_containers_;
       while (left < right) {
         cuda::std::uint32_t mid     = left + (right - left) / 2;
         cuda::std::uint16_t mid_key = key_cards_[mid * 2];
@@ -167,96 +143,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
     return size_bytes_;
   }
 
-  __host__ __device__ static metadata_type const read_metadata(
-    cuda::std::byte const* bitmap) noexcept
-  {
-    cuda::std::byte const* buf = bitmap;
-    metadata_type metadata;
-
-    cuda::std::uint32_t cookie;
-    cuda::std::memcpy(&cookie, buf, sizeof(cuda::std::uint32_t));
-    buf += sizeof(cuda::std::uint32_t);
-    if ((cookie & 0xFFFF) != serial_cookie && cookie != serial_cookie_no_runcontainer) {
-      metadata.valid = false;
-      return metadata;
-    }
-
-    if ((cookie & 0xFFFF) == serial_cookie)
-      metadata.num_containers = (cookie >> 16) + 1;
-    else {
-      cuda::std::memcpy(&metadata.num_containers, buf, sizeof(cuda::std::uint32_t));
-      buf += sizeof(cuda::std::uint32_t);
-    }
-    if (metadata.num_containers < 0) {
-      metadata.valid = false;
-      return metadata;
-    }
-    if (metadata.num_containers > (1 << 16)) {
-      metadata.valid = false;
-      return metadata;
-    }
-
-    metadata.has_run = (cookie & 0xFFFF) == serial_cookie;
-    if (metadata.has_run) {
-      metadata.valid = false;
-      return metadata;  // TODO run container bitmap is not supported yet
-      cuda::std::size_t s           = (metadata.num_containers + 7) / 8;
-      metadata.run_container_bitmap = cuda::std::distance(bitmap, buf);
-      buf += s;
-    }
-
-    metadata.key_cards = cuda::std::distance(bitmap, buf);
-    buf += metadata.num_containers * 2 * sizeof(cuda::std::uint16_t);
-
-    if ((!metadata.has_run) || (metadata.num_containers >= no_offset_threshold)) {
-      metadata.container_offsets = cuda::std::distance(bitmap, buf);
-      metadata.offsets_aligned =
-        (reinterpret_cast<cuda::std::uintptr_t>(bitmap + metadata.container_offsets) %
-         sizeof(cuda::std::uint32_t)) == 0;
-      buf += metadata.num_containers * 4;
-    }
-
-    metadata.num_keys = 0;
-    cuda::std::uint16_t const* key_cards =
-      reinterpret_cast<cuda::std::uint16_t const*>(bitmap + metadata.key_cards);
-    cuda::std::uint32_t card = 0;
-    for (cuda::std::int32_t i = 0; i < metadata.num_containers; i++) {
-      // cuda::std::uint16_t key  = key_cards[i * 2];
-      card = key_cards[i * 2 + 1] + 1;
-      metadata.num_keys += card;
-    }
-
-    // find end of roaring bitmap
-    cuda::std::byte const* end = bitmap + container_offset(bitmap + metadata.container_offsets,
-                                                           metadata.offsets_aligned,
-                                                           metadata.num_containers - 1);
-    if (is_run_container(
-          reinterpret_cast<cuda::std::uint8_t const*>(bitmap + metadata.run_container_bitmap),
-          metadata.has_run,
-          metadata.num_containers - 1)) {
-      // TODO implement
-    } else {
-      if (card <= 4096) {  // TODO check if this is correct
-        end += card * sizeof(cuda::std::uint16_t);
-      } else {
-        end += 8192;  // fixed size bitset container
-      }
-    }
-
-    metadata.size_bytes = static_cast<cuda::std::size_t>(cuda::std::distance(bitmap, end));
-    metadata.valid      = true;
-    return metadata;
-  }
-
  private:
-  __host__ __device__ static bool is_run_container(cuda::std::uint8_t const* run_container_bitmap,
-                                                   bool has_run,
-                                                   cuda::std::int32_t i)
-  {
-    if (not has_run) return false;
-    return run_container_bitmap[i / 8] & (1 << (i % 8));
-  }
-
   __device__ bool contains_container(cuda::std::uint16_t lower, cuda::std::uint32_t index) const
   {
     cuda::std::uint32_t card             = key_cards_[index * 2 + 1] + 1;
@@ -313,23 +200,8 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
                                          cuda::std::uint16_t lower,
                                          cuda::std::uint32_t card) const
   {
-    // TODO implement
+    // TODO implement linear search
     return false;
-  }
-
-  __host__ __device__ static cuda::std::uint32_t container_offset(cuda::std::byte const* offsets,
-                                                                  bool offsets_aligned,
-                                                                  cuda::std::int32_t i)
-  {
-    cuda::std::uint32_t offset = 0;
-    if (offsets_aligned) {
-      offset =
-        *reinterpret_cast<cuda::std::uint32_t const*>(offsets + i * sizeof(cuda::std::uint32_t));
-    } else {
-      cuda::std::memcpy(
-        &offset, offsets + i * sizeof(cuda::std::uint32_t), sizeof(cuda::std::uint32_t));
-    }
-    return offset;
   }
 
   cuda::std::byte const* data_;

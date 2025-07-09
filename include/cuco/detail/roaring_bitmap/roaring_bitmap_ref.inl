@@ -25,9 +25,8 @@
 namespace cuco {
 
 template <class T>
-__host__ __device__ roaring_bitmap_ref<T>::roaring_bitmap_ref(cuda::std::byte const* bitmap,
-                                                              metadata_type const& metadata)
-  : impl_{bitmap, metadata}
+__host__ __device__ roaring_bitmap_ref<T>::roaring_bitmap_ref(storage_ref_type const& storage_ref)
+  : impl_{storage_ref}
 {
 }
 
@@ -86,13 +85,6 @@ template <class T>
 __host__ __device__ cuda::std::size_t roaring_bitmap_ref<T>::size_bytes() const noexcept
 {
   return impl_.size_bytes();
-}
-
-template <class T>
-__host__ __device__ typename roaring_bitmap_ref<T>::metadata_type const
-roaring_bitmap_ref<T>::read_metadata(cuda::std::byte const* bitmap) noexcept
-{
-  return impl_type::read_metadata(bitmap);
 }
 
 }  // namespace cuco

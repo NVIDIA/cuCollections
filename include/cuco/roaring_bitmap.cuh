@@ -16,23 +16,21 @@
 
 #pragma once
 
-#include <cuco/detail/storage/storage_base.cuh>
+#include <cuco/detail/roaring_bitmap/roaring_bitmap_storage.cuh>
 #include <cuco/roaring_bitmap_ref.cuh>
 #include <cuco/utility/allocator.hpp>
 
 #include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
-#include <memory>
-
 namespace cuco {
 
 template <class T, class Allocator = cuco::cuda_allocator<cuda::std::byte>>
 class roaring_bitmap {
  public:
-  using allocator_type = Allocator;
-
-  using ref_type = roaring_bitmap_ref<T>;
+  using storage_type   = detail::roaring_bitmap_storage<T, Allocator>;
+  using allocator_type = typename storage_type::allocator_type;
+  using ref_type       = roaring_bitmap_ref<T>;
 
   roaring_bitmap(cuda::std::byte const* bitmap,
                  Allocator const& alloc  = {},
@@ -72,9 +70,7 @@ class roaring_bitmap {
   [[nodiscard]] ref_type ref() const noexcept;
 
  private:
-  allocator_type allocator_;
-  typename ref_type::metadata_type metadata_;
-  std::unique_ptr<cuda::std::byte, detail::custom_deleter<cuda::std::size_t, allocator_type>> data_;
+  storage_type storage_;
   ref_type ref_;
 };
 

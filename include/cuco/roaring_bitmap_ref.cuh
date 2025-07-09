@@ -28,10 +28,9 @@ class roaring_bitmap_ref {
   using impl_type = detail::roaring_bitmap_impl<T>;
 
  public:
-  using metadata_type = typename impl_type::metadata_type;
+  using storage_ref_type = typename impl_type::storage_ref_type;
 
-  __host__ __device__ roaring_bitmap_ref(cuda::std::byte const* bitmap,
-                                         metadata_type const& metadata);
+  __host__ __device__ roaring_bitmap_ref(storage_ref_type const& storage_ref);
 
   template <class U = T,
             class   = cuda::std::enable_if_t<cuda::std::is_same_v<U, cuda::std::uint32_t>>>
@@ -58,9 +57,6 @@ class roaring_bitmap_ref {
   [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept;
 
   [[nodiscard]] __host__ __device__ cuda::std::size_t size_bytes() const noexcept;
-
-  [[nodiscard]] __host__ __device__ static metadata_type const read_metadata(
-    cuda::std::byte const* bitmap) noexcept;
 
  private:
   impl_type impl_;
