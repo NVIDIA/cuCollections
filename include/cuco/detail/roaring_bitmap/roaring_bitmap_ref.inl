@@ -16,71 +16,74 @@
 #pragma once
 
 #include <cuco/detail/roaring_bitmap/roaring_bitmap_impl.cuh>
-#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/cstddef>
-#include <cuda/std/span>
+#include <cuda/std/type_traits>
 #include <cuda/stream_ref>
 
 namespace cuco {
 
-template <class T, cuda::thread_scope Scope>
-__host__ __device__ roaring_bitmap_ref<T, Scope>::roaring_bitmap_ref(cuda::std::byte const* bitmap,
-                                                                     metadata_type const metadata,
-                                                                     cuda_thread_scope<Scope> scope)
-  : impl_{bitmap, metadata, scope}
+template <class T>
+__host__ __device__ roaring_bitmap_ref<T>::roaring_bitmap_ref(cuda::std::byte const* bitmap,
+                                                              metadata_type const& metadata)
+  : impl_{bitmap, metadata}
 {
 }
 
-template <class T, cuda::thread_scope Scope>
-__device__ roaring_bitmap_ref<T, Scope>::roaring_bitmap_ref(cuda::std::byte const* bitmap,
-                                                            cuda_thread_scope<Scope> scope)
-  : impl_{bitmap, scope}
+template <class T>
+template <class U /* = T */,
+          class /* = cuda::std::enable_if_t<cuda::std::is_same_v<U, cuda::std::uint32_t>> */>
+__device__ roaring_bitmap_ref<T>::roaring_bitmap_ref(cuda::std::byte const* bitmap) : impl_{bitmap}
 {
 }
 
-template <class T, cuda::thread_scope Scope>
+template <class T>
 template <class InputIt, class OutputIt>
-__host__ void roaring_bitmap_ref<T, Scope>::contains(InputIt first,
-                                                     InputIt last,
-                                                     OutputIt output,
-                                                     cuda::stream_ref stream) const
+__host__ void roaring_bitmap_ref<T>::contains(InputIt first,
+                                              InputIt last,
+                                              OutputIt output,
+                                              cuda::stream_ref stream) const
 {
   impl_.contains(first, last, output, stream);
 }
 
-template <class T, cuda::thread_scope Scope>
+template <class T>
 template <class InputIt, class OutputIt>
-__host__ void roaring_bitmap_ref<T, Scope>::contains_async(InputIt first,
-                                                           InputIt last,
-                                                           OutputIt output,
-                                                           cuda::stream_ref stream) const noexcept
+__host__ void roaring_bitmap_ref<T>::contains_async(InputIt first,
+                                                    InputIt last,
+                                                    OutputIt output,
+                                                    cuda::stream_ref stream) const noexcept
 {
   impl_.contains_async(first, last, output, stream);
 }
 
-template <class T, cuda::thread_scope Scope>
-__device__ bool roaring_bitmap_ref<T, Scope>::contains(T value) const
+template <class T>
+__device__ bool roaring_bitmap_ref<T>::contains(T value) const
 {
   return impl_.contains(value);
 }
 
-template <class T, cuda::thread_scope Scope>
-__host__ __device__ cuda::std::size_t roaring_bitmap_ref<T, Scope>::size() const noexcept
+template <class T>
+__host__ __device__ cuda::std::size_t roaring_bitmap_ref<T>::size() const noexcept
 {
   return impl_.size();
 }
 
-template <class T, cuda::thread_scope Scope>
-__host__ __device__ cuda::std::span<cuda::std::byte const> roaring_bitmap_ref<T, Scope>::data()
-  const noexcept
+template <class T>
+__host__ __device__ cuda::std::byte const* roaring_bitmap_ref<T>::data() const noexcept
 {
   return impl_.data();
 }
 
-template <class T, cuda::thread_scope Scope>
-__host__ __device__ typename roaring_bitmap_ref<T, Scope>::metadata_type const
-roaring_bitmap_ref<T, Scope>::read_metadata(cuda::std::byte const* bitmap) noexcept
+template <class T>
+__host__ __device__ cuda::std::size_t roaring_bitmap_ref<T>::size_bytes() const noexcept
+{
+  return impl_.size_bytes();
+}
+
+template <class T>
+__host__ __device__ typename roaring_bitmap_ref<T>::metadata_type const
+roaring_bitmap_ref<T>::read_metadata(cuda::std::byte const* bitmap) noexcept
 {
   return impl_type::read_metadata(bitmap);
 }

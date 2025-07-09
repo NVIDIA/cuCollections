@@ -16,28 +16,25 @@
 #pragma once
 
 #include <cuco/detail/roaring_bitmap/roaring_bitmap_impl.cuh>
-#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/cstddef>
-#include <cuda/std/span>
 #include <cuda/stream_ref>
 
 namespace cuco {
 
-template <class T, cuda::thread_scope Scope = cuda::thread_scope_device>
+template <class T>
 class roaring_bitmap_ref {
-  using impl_type = detail::roaring_bitmap_impl<T, Scope>;
+  using impl_type = detail::roaring_bitmap_impl<T>;
 
  public:
-  using metadata_type                = typename impl_type::metadata_type;
-  static constexpr auto thread_scope = impl_type::thread_scope;
+  using metadata_type = typename impl_type::metadata_type;
 
-  // This is tricky as it is not clear if compressed_bitmap resides in host or device memory.
   __host__ __device__ roaring_bitmap_ref(cuda::std::byte const* bitmap,
-                                         metadata_type const metadata,
-                                         cuda_thread_scope<Scope> scope = {});
+                                         metadata_type const& metadata);
 
-  __device__ roaring_bitmap_ref(cuda::std::byte const* bitmap, cuda_thread_scope<Scope> scope = {});
+  template <typename U = T,
+            typename   = cuda::std::enable_if_t<cuda::std::is_same_v<U, cuda::std::uint32_t>>>
+  __device__ roaring_bitmap_ref(cuda::std::byte const* bitmap);
 
   template <class InputIt, class OutputIt>
   __host__ void contains(InputIt first,
@@ -55,7 +52,9 @@ class roaring_bitmap_ref {
 
   [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept;
 
-  [[nodiscard]] __host__ __device__ cuda::std::span<cuda::std::byte const> data() const noexcept;
+  [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept;
+
+  [[nodiscard]] __host__ __device__ cuda::std::size_t size_bytes() const noexcept;
 
   [[nodiscard]] __host__ __device__ static metadata_type const read_metadata(
     cuda::std::byte const* bitmap) noexcept;

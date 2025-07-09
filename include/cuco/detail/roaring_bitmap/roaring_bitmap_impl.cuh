@@ -17,14 +17,12 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
-#include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
-#include <cuda/std/span>
 #include <cuda/stream_ref>
 #include <thrust/execution_policy.h>
 #include <thrust/fill.h>
@@ -55,13 +53,13 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
 // TODO implement roaring_bitmap_metadata<cuda::std::uint64_t>
 
 // primary template
-template <class T, cuda::thread_scope Scope>
+template <class T>
 class roaring_bitmap_impl {
   static_assert(cuco::dependent_false<T>, "T must be either uint32_t or uint64_t");
 };
 
-template <cuda::thread_scope Scope>
-class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
+template <>
+class roaring_bitmap_impl<cuda::std::uint32_t> {
   // Constants from the Roaring format spec
   static constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
   static constexpr cuda::std::uint32_t serial_cookie                 = 12347;
@@ -70,19 +68,18 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
   static constexpr cuda::std::uint32_t binary_search_threshold = 8;  // TODO determine optimal value
 
  public:
-  using metadata_type                = roaring_bitmap_metadata<cuda::std::uint32_t>;
-  static constexpr auto thread_scope = Scope;
+  using metadata_type = roaring_bitmap_metadata<cuda::std::uint32_t>;
 
   __host__ __device__ roaring_bitmap_impl(cuda::std::byte const* bitmap,
-                                          metadata_type metadata,
-                                          cuda_thread_scope<Scope> /* scope */)
+                                          metadata_type const& metadata)
   {
     NV_IF_TARGET(
       NV_IS_HOST,
       CUCO_EXPECTS(metadata.valid, "Invalid bitmap format");)  // TODO device error handling
 
     if (metadata.valid) {
-      data_           = cuda::std::span<cuda::std::byte const>{bitmap, metadata.size_bytes};
+      data_           = bitmap;
+      size_bytes_     = metadata.size_bytes;
       size_           = metadata.num_keys;
       num_containers_ = metadata.num_containers;
       run_container_bitmap_ =
@@ -94,8 +91,8 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
     }
   }
 
-  __device__ roaring_bitmap_impl(cuda::std::byte const* bitmap, cuda_thread_scope<Scope> scope)
-    : roaring_bitmap_impl(bitmap, read_metadata(bitmap), scope)
+  __device__ roaring_bitmap_impl(cuda::std::byte const* bitmap)
+    : roaring_bitmap_impl{bitmap, read_metadata(bitmap)}
   {
   }
 
@@ -163,9 +160,11 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
 
   [[nodiscard]] __host__ __device__ bool empty() const noexcept { return size_ == 0; }
 
-  [[nodiscard]] __host__ __device__ cuda::std::span<cuda::std::byte const> data() const noexcept
+  [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept { return data_; }
+
+  [[nodiscard]] __host__ __device__ cuda::std::size_t size_bytes() const noexcept
   {
-    return data_;
+    return size_bytes_;
   }
 
   __host__ __device__ static metadata_type const read_metadata(
@@ -262,7 +261,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
   {
     cuda::std::uint32_t card             = key_cards_[index * 2 + 1] + 1;
     cuda::std::uint16_t const* container = reinterpret_cast<cuda::std::uint16_t const*>(
-      data_.data() + container_offset(offsets_, offsets_aligned_, index));
+      data_ + container_offset(offsets_, offsets_aligned_, index));
     if (is_run_container(run_container_bitmap_, has_run_, index)) {
       return this->contains_run_container(container, lower, card);
     } else {
@@ -333,7 +332,8 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
     return offset;
   }
 
-  cuda::std::span<cuda::std::byte const> data_;
+  cuda::std::byte const* data_;
+  cuda::std::size_t size_bytes_;
   cuda::std::size_t size_;
   cuda::std::int32_t num_containers_;
   cuda::std::uint8_t const* run_container_bitmap_;
@@ -343,9 +343,9 @@ class roaring_bitmap_impl<cuda::std::uint32_t, Scope> {
   bool has_run_;
 };
 
-template <cuda::thread_scope Scope>
-class roaring_bitmap_impl<cuda::std::uint64_t, Scope> {
-  using bucket_type = roaring_bitmap_impl<cuda::std::uint32_t, Scope>;
+template <>
+class roaring_bitmap_impl<cuda::std::uint64_t> {
+  using bucket_type = roaring_bitmap_impl<cuda::std::uint32_t>;
   // TODO implement
 };
 

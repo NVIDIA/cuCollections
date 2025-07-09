@@ -17,72 +17,77 @@
 
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/storage/storage_base.cuh>
-#include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/cstddef>
-#include <cuda/std/span>
+#include <cuda/std/type_traits>
 #include <cuda/stream_ref>
 
 namespace cuco {
 
-template <class T, cuda::thread_scope Scope, class Allocator>
-__host__ roaring_bitmap<T, Scope, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
-                                                             cuda_thread_scope<Scope> scope,
-                                                             Allocator const& alloc,
-                                                             cuda::stream_ref stream)
+template <class T, class Allocator>
+__host__ roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
+                                                      Allocator const& alloc,
+                                                      cuda::stream_ref stream)
   : allocator_{alloc},
-    metadata_{ref_type<>::read_metadata(bitmap)},
+    metadata_{ref_type::read_metadata(bitmap)},
     data_{
       allocator_.allocate(metadata_.size_bytes),
       detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes, allocator_}},
-    ref_{data_.get(), metadata_, scope}
+    ref_{data_.get(), metadata_}
 {
   CUCO_CUDA_TRY(cudaMemcpyAsync(
     data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
   // stream.wait();  // TODO check if this is necessary
 }
 
-template <class T, cuda::thread_scope Scope, class Allocator>
+template <class T, class Allocator>
 template <class InputIt, class OutputIt>
-__host__ void roaring_bitmap<T, Scope, Allocator>::contains(InputIt first,
-                                                            InputIt last,
-                                                            OutputIt output,
-                                                            cuda::stream_ref stream) const
+__host__ void roaring_bitmap<T, Allocator>::contains(InputIt first,
+                                                     InputIt last,
+                                                     OutputIt output,
+                                                     cuda::stream_ref stream) const
 {
   ref_.contains(first, last, output, stream);
 }
 
-template <class T, cuda::thread_scope Scope, class Allocator>
+template <class T, class Allocator>
 template <class InputIt, class OutputIt>
-__host__ void roaring_bitmap<T, Scope, Allocator>::contains_async(
-  InputIt first, InputIt last, OutputIt output, cuda::stream_ref stream) const noexcept
+__host__ void roaring_bitmap<T, Allocator>::contains_async(InputIt first,
+                                                           InputIt last,
+                                                           OutputIt output,
+                                                           cuda::stream_ref stream) const noexcept
 {
   ref_.contains_async(first, last, output, stream);
 }
 
-template <class T, cuda::thread_scope Scope, class Allocator>
-__host__ cuda::std::size_t roaring_bitmap<T, Scope, Allocator>::size() const noexcept
+template <class T, class Allocator>
+__host__ cuda::std::size_t roaring_bitmap<T, Allocator>::size() const noexcept
 {
   return ref_.size();
 }
 
-template <class T, cuda::thread_scope Scope, class Allocator>
-__host__ cuda::std::span<cuda::std::byte const> roaring_bitmap<T, Scope, Allocator>::data()
-  const noexcept
+template <class T, class Allocator>
+__host__ cuda::std::byte const* roaring_bitmap<T, Allocator>::data() const noexcept
 {
   return ref_.data();
 }
 
-template <class T, cuda::thread_scope Scope, class Allocator>
-__host__ typename roaring_bitmap<T, Scope, Allocator>::allocator_type
-roaring_bitmap<T, Scope, Allocator>::allocator() const noexcept
+template <class T, class Allocator>
+__host__ cuda::std::size_t roaring_bitmap<T, Allocator>::size_bytes() const noexcept
+{
+  return ref_.size_bytes();
+}
+
+template <class T, class Allocator>
+__host__ typename roaring_bitmap<T, Allocator>::allocator_type
+roaring_bitmap<T, Allocator>::allocator() const noexcept
 {
   return allocator_;
 }
 
-template <class T, cuda::thread_scope Scope, class Allocator>
-__host__ typename roaring_bitmap<T, Scope, Allocator>::ref_type<>
-roaring_bitmap<T, Scope, Allocator>::ref() const noexcept
+template <class T, class Allocator>
+__host__ typename roaring_bitmap<T, Allocator>::ref_type roaring_bitmap<T, Allocator>::ref()
+  const noexcept
 {
   return ref_;
 }
