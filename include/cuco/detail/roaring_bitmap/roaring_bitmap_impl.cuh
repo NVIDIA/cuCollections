@@ -49,16 +49,16 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   {
     auto const& meta = storage_ref.metadata();
     if (meta.valid) {
-      data_           = storage_ref.data();
-      size_bytes_     = meta.size_bytes;
-      size_           = meta.num_keys;
-      num_containers_ = meta.num_containers;
+      data_       = storage_ref.data();
+      size_bytes_ = meta.size_bytes;
+      size_       = meta.num_keys;
       run_container_bitmap_ =
         reinterpret_cast<cuda::std::uint8_t const*>(storage_ref.data() + meta.run_container_bitmap);
       key_cards_ =
         reinterpret_cast<cuda::std::uint16_t const*>(storage_ref.data() + meta.key_cards);
       offsets_ =
         reinterpret_cast<cuda::std::byte const*>(storage_ref.data() + meta.container_offsets);
+      num_containers_  = meta.num_containers;
       offsets_aligned_ = meta.offsets_aligned;
       has_run_         = meta.has_run;
     }
@@ -207,10 +207,10 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   cuda::std::byte const* data_;
   cuda::std::size_t size_bytes_;
   cuda::std::size_t size_;
-  cuda::std::int32_t num_containers_;
   cuda::std::uint8_t const* run_container_bitmap_;
   cuda::std::uint16_t const* key_cards_;  // TODO uint8?
   cuda::std::byte const* offsets_;
+  cuda::std::int32_t num_containers_;
   bool offsets_aligned_;
   bool has_run_;
 };
