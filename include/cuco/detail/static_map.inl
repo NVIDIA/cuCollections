@@ -104,19 +104,16 @@ void static_map<Key, Value, Scope, Allocator>::insert(
   // TODO: memset an atomic variable is unsafe
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
-
-  std::size_t* h_num_successes;
-  CUCO_CUDA_TRY(cudaMallocHost(&h_num_successes, sizeof(std::size_t)));
+  std::size_t h_num_successes;
 
   detail::insert<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
 
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 
-  size_ += *h_num_successes;
-  CUCO_CUDA_TRY(cudaFreeHost(h_num_successes));
+  size_ += h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -145,18 +142,15 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
   // TODO: memset an atomic variable is unsafe
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
-
-  std::size_t* h_num_successes;
-  CUCO_CUDA_TRY(cudaMallocHost(&h_num_successes, sizeof(std::size_t)));
+  std::size_t h_num_successes;
 
   detail::insert_if_n<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
     first, num_keys, num_successes_, view, stencil, pred, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
-  size_ += *h_num_successes;
-  CUCO_CUDA_TRY(cudaFreeHost(h_num_successes));
+  size_ += h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -180,19 +174,16 @@ void static_map<Key, Value, Scope, Allocator>::erase(
   // TODO: memset an atomic variable is unsafe
   static_assert(sizeof(std::size_t) == sizeof(atomic_ctr_type));
   CUCO_CUDA_TRY(cudaMemsetAsync(num_successes_, 0, sizeof(atomic_ctr_type), stream));
-
-  std::size_t* h_num_successes;
-  CUCO_CUDA_TRY(cudaMallocHost(&h_num_successes, sizeof(std::size_t)));
+  std::size_t h_num_successes;
 
   detail::erase<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, num_keys, num_successes_, view, hash, key_equal);
   CUCO_CUDA_TRY(cudaMemcpyAsync(
-    h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
 
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 
-  size_ -= *h_num_successes;
-  CUCO_CUDA_TRY(cudaFreeHost(h_num_successes));
+  size_ -= h_num_successes;
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -258,21 +249,16 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
                         filled,
                         stream);
 
-  std::size_t* h_num_out;
-  CUCO_CUDA_TRY(cudaMallocHost(&h_num_out, sizeof(std::size_t)));
+  std::size_t h_num_out;
   CUCO_CUDA_TRY(
-    cudaMemcpyAsync(h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
+    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
-
-  auto result = std::make_pair(keys_out + *h_num_out, values_out + *h_num_out);
-
-  CUCO_CUDA_TRY(cudaFreeHost(h_num_out));
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(std::size_t));
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, d_temp_storage, temp_storage_bytes);
 
-  return result;
+  return std::make_pair(keys_out + h_num_out, values_out + h_num_out);
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
