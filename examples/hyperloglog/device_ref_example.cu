@@ -34,7 +34,7 @@ template <class RefType, class InputIt>
 __global__ void fused_kernel(RefType ref, InputIt first, std::size_t n)
 {
   // Transform the reference type (with device scope) to a reference type with block scope
-  using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
+  using local_ref_type = typename RefType::template with_scope<cuda::thread_scope_block>;
 
   // Shared memory storage for the block-local estimator
   extern __shared__ cuda::std::byte local_sketch[];

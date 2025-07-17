@@ -156,7 +156,7 @@ class arrow_filter_policy {
   __device__ constexpr word_type word_pattern(hash_result_type hash, std::uint32_t word_index) const
   {
     word_type const key = static_cast<word_type>(hash);
-    std::uint32_t salt;
+    std::uint32_t salt{};
 
     // Basically a switch (word_index) { case 0-7 ... }
     // First split: 0..3 versus 4..7.

@@ -114,7 +114,7 @@ struct XXHash_32 {
                                                          Extent size) const noexcept
   {
     std::size_t offset = 0;
-    std::uint32_t h32;
+    std::uint32_t h32{};
 
     // data can be processed in 16-byte chunks
     if (size >= 16) {
@@ -297,7 +297,7 @@ struct XXHash_64 {
                                                          Extent size) const noexcept
   {
     std::size_t offset = 0;
-    std::uint64_t h64;
+    std::uint64_t h64{};
 
     // data can be processed in 32-byte chunks
     if (size >= 32) {

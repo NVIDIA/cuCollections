@@ -39,7 +39,11 @@ function(ConfigureTest TEST_NAME)
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      -Wno-deprecated-gpu-targets --expt-extended-lambda -Xcompiler -Wno-subobject-linkage)
+      -Wno-deprecated-gpu-targets --expt-extended-lambda)
+    # Add GCC-specific warning suppression only for GCC
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      target_compile_options(${TEST_NAME} PRIVATE -Xcompiler -Wno-subobject-linkage)
+    endif()
     catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
