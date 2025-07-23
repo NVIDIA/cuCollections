@@ -96,10 +96,55 @@ jobs:
       - ci
       - verify-devcontainers
     steps:
+      - name: Debug - Print all job results
+        run: |
+          echo "=== Job Results Debug ==="
+          echo "doxygen-check result: ${{ needs.doxygen-check.result }}"
+          echo "ci result: ${{ needs.ci.result }}"
+          echo "verify-devcontainers result: ${{ needs.verify-devcontainers.result }}"
+          echo "=========================="
+          
+          echo "=== Checking for failures ==="
+          if [[ "${{ needs.doxygen-check.result }}" == "failure" ]]; then
+            echo "❌ doxygen-check FAILED"
+          else
+            echo "✅ doxygen-check: ${{ needs.doxygen-check.result }}"
+          fi
+          
+          if [[ "${{ needs.ci.result }}" == "failure" ]]; then
+            echo "❌ ci FAILED"
+          else
+            echo "✅ ci: ${{ needs.ci.result }}"
+          fi
+          
+          if [[ "${{ needs.verify-devcontainers.result }}" == "failure" ]]; then
+            echo "❌ verify-devcontainers FAILED"
+          else
+            echo "✅ verify-devcontainers: ${{ needs.verify-devcontainers.result }}"
+          fi
+          
+          echo "=== Checking for cancelled ==="
+          if [[ "${{ needs.doxygen-check.result }}" == "cancelled" ]]; then
+            echo "🚫 doxygen-check CANCELLED"
+          fi
+          
+          if [[ "${{ needs.ci.result }}" == "cancelled" ]]; then
+            echo "🚫 ci CANCELLED"
+          fi
+          
+          if [[ "${{ needs.verify-devcontainers.result }}" == "cancelled" ]]; then
+            echo "🚫 verify-devcontainers CANCELLED"
+          fi
+          
+          echo "=== Final Status Check ==="
+          
       - name: Check status of all precursor jobs
         if: >-
           ${{
                contains(needs.*.result, 'failure')
             || contains(needs.*.result, 'cancelled')
           }}
-        run: exit 1
+        run: |
+          echo "❌ CI FAILED: One or more prerequisite jobs failed or were cancelled"
+          echo "Check the debug output above to see which job(s) caused the failure"
+          exit 1
