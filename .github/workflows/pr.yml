@@ -92,6 +92,7 @@ jobs:
     name: CI success
     if: ${{ always() }} # need to use always() instead of !cancelled() because skipped jobs count as success
     needs:
+      - doxygen-check
       - ci
       - verify-devcontainers
     steps:
@@ -100,5 +101,6 @@ jobs:
           ${{
                contains(needs.*.result, 'failure')
             || contains(needs.*.result, 'cancelled')
+            || contains(needs.*.result, 'skipped')
           }}
         run: exit 1
