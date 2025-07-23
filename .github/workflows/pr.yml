@@ -104,6 +104,14 @@ jobs:
           echo "verify-devcontainers result: ${{ needs.verify-devcontainers.result }}"
           echo "=========================="
           
+          echo "=== CI Matrix Job Details ==="
+          echo "CI job outputs (this shows individual matrix job results):"
+          echo '${{ toJSON(needs.ci.outputs) }}'
+          echo ""
+          echo "CI job result object:"
+          echo '${{ toJSON(needs.ci) }}'
+          echo "=========================="
+          
           echo "=== Checking for failures ==="
           if [[ "${{ needs.doxygen-check.result }}" == "failure" ]]; then
             echo "❌ doxygen-check FAILED"
@@ -112,7 +120,8 @@ jobs:
           fi
           
           if [[ "${{ needs.ci.result }}" == "failure" ]]; then
-            echo "❌ ci FAILED"
+            echo "❌ ci FAILED (one or more matrix jobs failed)"
+            echo "   Check the 'CI Matrix Job Details' section above to see which specific matrix jobs failed"
           else
             echo "✅ ci: ${{ needs.ci.result }}"
           fi
