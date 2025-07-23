@@ -2,12 +2,17 @@
   "shutdownAction": "stopContainer",
   "image": "rapidsai/devcontainers:25.08-cpp-llvm16-cuda12.8-ubuntu22.04",
   "hostRequirements": {
-    "gpu": true
+    "gpu": "optional"
   },
   "initializeCommand": [
     "/bin/bash",
     "-c",
-    "mkdir -m 0755 -p ${localWorkspaceFolder}/.{aws,cache,config}"
+    "mkdir -m 0755 -p ${localWorkspaceFolder}/.{aws,cache,config}; mkdir -m 0755 -p ${localWorkspaceFolder}/build; if test -z ${localEnv:WSLENV}; then docker volume create --driver local --opt type=none --opt device=${localWorkspaceFolder}/build --opt o=bind cuco-build; else docker volume create cuco-build; fi;"
+  ],
+  "postAttachCommand": [
+    "/bin/bash",
+    "-c",
+    "if [ ${CODESPACES:-false} = 'true' ]; then . devcontainer-utils-post-attach-command; fi"
   ],
   "containerEnv": {
     "SCCACHE_REGION": "us-east-2",
@@ -17,24 +22,36 @@
     "DEVCONTAINER_NAME": "cuda12.8-llvm16",
     "CUCO_CUDA_VERSION": "12.8",
     "CUCO_HOST_COMPILER": "llvm",
-    "CUCO_HOST_COMPILER_VERSION": "16"
+    "CUCO_HOST_COMPILER_VERSION": "16",
+    "CUCO_BUILD_INFIX": "cuda12.8-llvm16",
+    "HOST_WORKSPACE": "${localWorkspaceFolder}"
   },
   "workspaceFolder": "/home/coder/${localWorkspaceFolderBasename}",
   "workspaceMount": "source=${localWorkspaceFolder},target=/home/coder/${localWorkspaceFolderBasename},type=bind,consistency=consistent",
   "mounts": [
     "source=${localWorkspaceFolder}/.aws,target=/home/coder/.aws,type=bind,consistency=consistent",
     "source=${localWorkspaceFolder}/.cache,target=/home/coder/.cache,type=bind,consistency=consistent",
-    "source=${localWorkspaceFolder}/.config,target=/home/coder/.config,type=bind,consistency=consistent"
+    "source=${localWorkspaceFolder}/.config,target=/home/coder/.config,type=bind,consistency=consistent",
+    "source=cuco-build,target=/home/coder/cuCollections/build"
   ],
   "customizations": {
     "vscode": {
       "extensions": [
-        "llvm-vs-code-extensions.vscode-clangd"
+        "llvm-vs-code-extensions.vscode-clangd",
+        "seaube.clangformat",
+        "nvidia.nsight-vscode-edition",
+        "ms-vscode.cmake-tools"
       ],
       "settings": {
+        "editor.defaultFormatter": "seaube.clangformat",
+        "editor.formatOnSave": true,
+        "clang-format.executable": "/usr/bin/clang-format",
         "clangd.arguments": [
+          "--header-insertion=never",
           "--compile-commands-dir=${workspaceFolder}/build/latest"
-        ]
+        ],
+        "files.eol": "\n",
+        "files.trimTrailingWhitespace": true
       }
     }
   },
