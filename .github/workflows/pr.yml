@@ -65,7 +65,17 @@ jobs:
       - name: Compute matrix outputs
         id: set-outputs
         run: |
-          .github/actions/compute-matrix/compute-matrix.sh ci/matrix.yml pull_request
+          echo "=== Compute Matrix Debug ==="
+          echo "yq version:"
+          yq --version
+          echo "matrix.yml contents:"
+          cat ci/matrix.yml
+          echo "=== Running compute-matrix script ==="
+          .github/actions/compute-matrix/compute-matrix.sh -v ci/matrix.yml pull_request
+          echo "=== Script completed, checking outputs ==="
+          echo "CUDA_VERSIONS: ${CUDA_VERSIONS:-UNSET}"
+          echo "HOST_COMPILERS: ${HOST_COMPILERS:-UNSET}"
+          echo "PER_CUDA_COMPILER_MATRIX: ${PER_CUDA_COMPILER_MATRIX:-UNSET}"
 
   ci:
     name: CUDA${{ matrix.cuda_version }} ${{ matrix.compiler }}
