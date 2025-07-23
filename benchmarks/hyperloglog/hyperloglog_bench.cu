@@ -58,7 +58,7 @@ template <class Estimator, class Dist>
 
   thrust::device_vector<T> items(num_items);
 
-  key_generator gen;
+  key_generator gen{};
   Estimator estimator{cuco::sketch_size_kb(sketch_size_kb)};
   double error_sum = 0;
   for (std::size_t i = 0; i < num_samples; ++i) {
@@ -97,7 +97,7 @@ void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 
   thrust::device_vector<T> items(num_items);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), items.begin(), items.end());
 
   estimator_type estimator{cuco::sketch_size_kb(sketch_size_kb)};
@@ -126,7 +126,7 @@ void hyperloglog_add(nvbench::state& state, nvbench::type_list<T, Dist>)
 
   thrust::device_vector<T> items(num_items);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), items.begin(), items.end());
 
   state.add_element_count(num_items);

@@ -42,7 +42,7 @@ void static_multiset_count(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   auto map = cuco::static_multiset{size, cuco::empty_key<Key>{-1}};

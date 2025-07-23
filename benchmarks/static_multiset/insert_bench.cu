@@ -40,7 +40,7 @@ void static_multiset_insert(nvbench::state& state, nvbench::type_list<Key, Dist>
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   state.add_element_count(num_keys);

@@ -42,7 +42,7 @@ void static_multiset_retrieve(nvbench::state& state, nvbench::type_list<Key, Dis
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);

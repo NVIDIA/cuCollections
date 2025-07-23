@@ -40,7 +40,7 @@ void static_set_rehash(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   thrust::device_vector<Key> keys(num_keys);  // slots per second
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   state.add_element_count(capacity);
