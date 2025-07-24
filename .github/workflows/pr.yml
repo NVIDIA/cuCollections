@@ -65,20 +65,7 @@ jobs:
       - name: Compute matrix outputs
         id: set-outputs
         run: |
-          echo "=== Debug Info ==="
-          echo "yq version: $(yq --version)"
-          echo "jq version: $(jq --version)"
-          echo ""
-          echo "=== Matrix File Content ==="
-          cat ci/matrix.yml
-          echo ""
-          echo "=== Running compute-matrix script ==="
           .github/actions/compute-matrix/compute-matrix.sh ci/matrix.yml pull_request
-          echo ""
-          echo "=== Output Variables ==="
-          echo "CUDA_VERSIONS: ${{ steps.set-outputs.outputs.CUDA_VERSIONS }}"
-          echo "HOST_COMPILERS: ${{ steps.set-outputs.outputs.HOST_COMPILERS }}"
-          echo "PER_CUDA_COMPILER_MATRIX: ${{ steps.set-outputs.outputs.PER_CUDA_COMPILER_MATRIX }}"
 
   ci:
     name: CUDA${{ matrix.cuda_version }} ${{ matrix.compiler }}
@@ -109,19 +96,11 @@ jobs:
       - ci
       - verify-devcontainers
     steps:
-      - name: Debug - Print all job results
-        run: |
-          echo "=== Job Results Debug ==="
-          echo "doxygen-check result: ${{ needs.doxygen-check.result }}"
-          echo "ci result: ${{ needs.ci.result }}"
-          echo "verify-devcontainers result: ${{ needs.verify-devcontainers.result }}"
-          echo "=========================="
       - name: Check status of all precursor jobs
         if: >-
           ${{
                contains(needs.*.result, 'failure')
             || contains(needs.*.result, 'cancelled')
+            || contains(needs.*.result, 'skipped')
           }}
-        run: |
-          echo "❌ CI FAILED: One or more prerequisite jobs failed or were cancelled"
-          exit 1
+        run: exit 1
