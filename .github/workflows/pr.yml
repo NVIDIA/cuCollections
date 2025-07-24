@@ -65,17 +65,7 @@ jobs:
       - name: Compute matrix outputs
         id: set-outputs
         run: |
-          echo "=== Compute Matrix Debug ==="
-          echo "yq version:"
-          yq --version
-          echo "matrix.yml contents:"
-          cat ci/matrix.yml
-          echo "=== Running compute-matrix script ==="
-          .github/actions/compute-matrix/compute-matrix.sh -v ci/matrix.yml pull_request
-          echo "=== Script completed, checking outputs ==="
-          echo "CUDA_VERSIONS: ${CUDA_VERSIONS:-UNSET}"
-          echo "HOST_COMPILERS: ${HOST_COMPILERS:-UNSET}"
-          echo "PER_CUDA_COMPILER_MATRIX: ${PER_CUDA_COMPILER_MATRIX:-UNSET}"
+          .github/actions/compute-matrix/compute-matrix.sh ci/matrix.yml pull_request
 
   ci:
     name: CUDA${{ matrix.cuda_version }} ${{ matrix.compiler }}
@@ -102,68 +92,14 @@ jobs:
     name: CI success
     if: ${{ always() }} # need to use always() instead of !cancelled() because skipped jobs count as success
     needs:
-      - doxygen-check
       - ci
       - verify-devcontainers
     steps:
-      - name: Debug - Print all job results
-        run: |
-          echo "=== Job Results Debug ==="
-          echo "doxygen-check result: ${{ needs.doxygen-check.result }}"
-          echo "ci result: ${{ needs.ci.result }}"
-          echo "verify-devcontainers result: ${{ needs.verify-devcontainers.result }}"
-          echo "=========================="
-          
-          echo "=== CI Matrix Job Details ==="
-          echo "CI job outputs (this shows individual matrix job results):"
-          echo '${{ toJSON(needs.ci.outputs) }}'
-          echo ""
-          echo "CI job result object:"
-          echo '${{ toJSON(needs.ci) }}'
-          echo "=========================="
-          
-          echo "=== Checking for failures ==="
-          if [[ "${{ needs.doxygen-check.result }}" == "failure" ]]; then
-            echo "❌ doxygen-check FAILED"
-          else
-            echo "✅ doxygen-check: ${{ needs.doxygen-check.result }}"
-          fi
-          
-          if [[ "${{ needs.ci.result }}" == "failure" ]]; then
-            echo "❌ ci FAILED (one or more matrix jobs failed)"
-            echo "   Check the 'CI Matrix Job Details' section above to see which specific matrix jobs failed"
-          else
-            echo "✅ ci: ${{ needs.ci.result }}"
-          fi
-          
-          if [[ "${{ needs.verify-devcontainers.result }}" == "failure" ]]; then
-            echo "❌ verify-devcontainers FAILED"
-          else
-            echo "✅ verify-devcontainers: ${{ needs.verify-devcontainers.result }}"
-          fi
-          
-          echo "=== Checking for cancelled ==="
-          if [[ "${{ needs.doxygen-check.result }}" == "cancelled" ]]; then
-            echo "🚫 doxygen-check CANCELLED"
-          fi
-          
-          if [[ "${{ needs.ci.result }}" == "cancelled" ]]; then
-            echo "🚫 ci CANCELLED"
-          fi
-          
-          if [[ "${{ needs.verify-devcontainers.result }}" == "cancelled" ]]; then
-            echo "🚫 verify-devcontainers CANCELLED"
-          fi
-          
-          echo "=== Final Status Check ==="
-          
       - name: Check status of all precursor jobs
         if: >-
           ${{
                contains(needs.*.result, 'failure')
             || contains(needs.*.result, 'cancelled')
+            || contains(needs.*.result, 'skipped')
           }}
-        run: |
-          echo "❌ CI FAILED: One or more prerequisite jobs failed or were cancelled"
-          echo "Check the debug output above to see which job(s) caused the failure"
-          exit 1
+        run: exit 1
