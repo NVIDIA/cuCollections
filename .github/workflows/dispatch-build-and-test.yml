@@ -22,12 +22,30 @@ on:
       devcontainer_version: {type: string, required: true}
 
 jobs:
+  # Debug job to print the per_cuda_compiler_matrix value
+  debug-matrix:
+    name: Debug matrix values
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print per_cuda_compiler_matrix input
+        run: |
+          echo "=== Debug per_cuda_compiler_matrix ==="
+          echo "Raw input value:"
+          echo '${{ inputs.per_cuda_compiler_matrix }}'
+          echo ""
+          echo "Parsed JSON value:"
+          echo '${{ fromJSON(inputs.per_cuda_compiler_matrix) }}'
+          echo ""
+          echo "Type and length info:"
+          echo '${{ inputs.per_cuda_compiler_matrix }}' | jq 'type, length'
+
   # Using a matrix to dispatch to the build-and-test reusable workflow for each build configuration
   # ensures that the build/test steps can overlap across different configurations. For example,
   # the build step for CUDA 12.1 + gcc 9.3 can run at the same time as the test step for CUDA 11.0 + clang 11.
   build_and_test:
     name: ${{matrix.cpu}}
     uses: ./.github/workflows/build-and-test.yml
+    needs: debug-matrix
     strategy:
       fail-fast: false
       matrix:
