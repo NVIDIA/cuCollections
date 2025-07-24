@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,15 +68,16 @@ jobs:
           .github/actions/compute-matrix/compute-matrix.sh ci/matrix.yml pull_request
 
   ci:
-    name: CUDA${{ matrix.cuda }} ${{ matrix.compiler.name }}${{ matrix.compiler.version }}
+    name: CUDA${{ matrix.cuda_version }} ${{ matrix.compiler }}
     needs: compute-matrix
     uses: ./.github/workflows/dispatch-build-and-test.yml
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(needs.compute-matrix.outputs.NVCC_FULL_MATRIX) }}
+        cuda_version: ${{ fromJSON(needs.compute-matrix.outputs.CUDA_VERSIONS) }}
+        compiler: ${{ fromJSON(needs.compute-matrix.outputs.HOST_COMPILERS) }}
     with:
-      per_cuda_compiler_matrix: ${{ toJSON([matrix]) }}
+      per_cuda_compiler_matrix: ${{ toJSON(fromJSON(needs.compute-matrix.outputs.PER_CUDA_COMPILER_MATRIX)[ format('{0}-{1}', matrix.cuda_version, matrix.compiler) ]) }}
       devcontainer_version: ${{ needs.compute-matrix.outputs.DEVCONTAINER_VERSION }}
 
   verify-devcontainers:
@@ -91,7 +92,6 @@ jobs:
     name: CI success
     if: ${{ always() }} # need to use always() instead of !cancelled() because skipped jobs count as success
     needs:
-      - doxygen-check
       - ci
       - verify-devcontainers
     steps:
