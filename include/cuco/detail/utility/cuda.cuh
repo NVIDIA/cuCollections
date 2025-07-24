@@ -48,7 +48,7 @@ __device__ constexpr int32_t warp_size() noexcept { return 32; }
  *
  * @return The global thread index
  */
-[[maybe_unused]] __device__ static index_type global_thread_id() noexcept
+__device__ constexpr index_type global_thread_id() noexcept
 {
   return index_type{threadIdx.x} + index_type{blockDim.x} * index_type{blockIdx.x};
 }
@@ -58,7 +58,7 @@ __device__ constexpr int32_t warp_size() noexcept { return 32; }
  *
  * @return The grid stride
  */
-[[maybe_unused]] __device__ static index_type grid_stride() noexcept
+__device__ constexpr index_type grid_stride() noexcept
 {
   return index_type{gridDim.x} * index_type{blockDim.x};
 }
