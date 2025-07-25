@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,7 @@ template <class RefType, class InputIt>
 __global__ void fused_kernel(RefType ref, InputIt first, std::size_t n)
 {
   // Transform the reference type (with device scope) to a reference type with block scope
-  using local_ref_type = typename RefType::with_scope<cuda::thread_scope_block>;
+  using local_ref_type = typename RefType::template with_scope<cuda::thread_scope_block>;
 
   // Shared memory storage for the block-local estimator
   extern __shared__ cuda::std::byte local_sketch[];
