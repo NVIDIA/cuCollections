@@ -1555,7 +1555,8 @@ class open_addressing_ref_impl {
    * @return The payload
    */
   template <typename Value, typename Enable = cuda::std::enable_if_t<has_payload and sizeof(Value)>>
-  [[nodiscard]] __device__ constexpr auto extract_payload(Value const& value) const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto extract_payload(
+    Value const& value) const noexcept
   {
     return thrust::raw_reference_cast(value).second;
   }

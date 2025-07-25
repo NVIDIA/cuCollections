@@ -69,7 +69,7 @@ class bucket_storage_ref {
    *
    * @return An iterator to one past the last slot
    */
-  [[nodiscard]] __device__ constexpr iterator end() noexcept;
+  [[nodiscard]] __host__ __device__ constexpr iterator end() noexcept;
 
   /**
    * @brief Returns a const_iterator to one past the last slot.
@@ -79,21 +79,21 @@ class bucket_storage_ref {
    *
    * @return A const_iterator to one past the last slot
    */
-  [[nodiscard]] __device__ constexpr iterator end() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr iterator end() const noexcept;
 
   /**
    * @brief Gets slots array.
    *
    * @return Pointer to the first slot
    */
-  [[nodiscard]] __device__ constexpr value_type* data() noexcept;
+  [[nodiscard]] __host__ __device__ constexpr value_type* data() noexcept;
 
   /**
    * @brief Gets slots array.
    *
    * @return Pointer to the first slot
    */
-  [[nodiscard]] __device__ constexpr value_type* data() const noexcept;
+  [[nodiscard]] __host__ __device__ constexpr value_type* data() const noexcept;
 
   /**
    * @brief Returns an array of slots (or a bucket) for a given index.
