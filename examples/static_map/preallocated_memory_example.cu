@@ -17,6 +17,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/std/array>
+#include <cuda/std/limits>
 
 #include <cooperative_groups.h>
 
@@ -36,12 +37,12 @@
  */
 
 // Basic types
-using Key   = int;
 using Value = uint32_t;
+using Key   = int;
 
 // Sentinel values for empty slots
 Key constexpr empty_key_sentinel     = -1;
-Value constexpr empty_value_sentinel = 0xffffffff;
+Value constexpr empty_value_sentinel = cuda::std::numeric_limits<Value>::min();
 
 // Map configuration
 std::size_t constexpr capacity = 100'000;
@@ -126,18 +127,18 @@ int main()
 {
   // Step 1: Initialize the pre-allocated storage
   init_kernel<<<1, 128>>>();
-  cudaDeviceSynchronize();
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   // Step 2: Insert some key-value pairs
   insert_kernel<<<2, 32>>>();
-  cudaDeviceSynchronize();
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   // Step 3: Find and verify the inserted pairs
   find_kernel<<<2, 32>>>();
 
   // Check results - expect to find all 64 keys (2 blocks * 32 threads)
   int host_found_count;
-  cudaMemcpyFromSymbol(&host_found_count, found_count, sizeof(int));
+  CUCO_CUDA_TRY(cudaMemcpyFromSymbol(&host_found_count, found_count, sizeof(int)));
   int expected_count = 2 * 32;  // Total number of keys inserted and queried
 
   if (host_found_count == expected_count) {
