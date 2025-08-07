@@ -691,14 +691,14 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
                                              input_probe + block_end_offset,
                                              output_probe,
                                              output_match,
-                                             atomic_counter);
+                                             *atomic_counter);
     } else {
       ref.template retrieve<BlockSize>(block,
                                        input_probe + block_begin_offset,
                                        input_probe + block_end_offset,
                                        output_probe,
                                        output_match,
-                                       atomic_counter);
+                                       *atomic_counter);
     }
   }
 }

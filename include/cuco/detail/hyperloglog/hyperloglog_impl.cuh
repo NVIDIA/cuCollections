@@ -405,10 +405,10 @@ class hyperloglog_impl {
   [[nodiscard]] __host__ size_t estimate(cuda::stream_ref stream) const
   {
     auto const num_regs = 1ull << this->precision_;
-    register_type* host_sketch;
-    CUCO_CUDA_TRY(cudaMallocHost(&host_sketch, sizeof(register_type) * num_regs));
+    std::vector<register_type> host_sketch(num_regs);
 
-    CUCO_CUDA_TRY(cudaMemcpyAsync(host_sketch,
+    // TODO check if storage is host accessible
+    CUCO_CUDA_TRY(cudaMemcpyAsync(host_sketch.data(),
                                   this->sketch_.data(),
                                   sizeof(register_type) * num_regs,
                                   cudaMemcpyDefault,
@@ -419,13 +419,10 @@ class hyperloglog_impl {
     int zeroes  = 0;
 
     // geometric mean computation + count registers with 0s
-    for (size_t i = 0; i < num_regs; i++) {
-      auto const reg = host_sketch[i];
+    for (auto const reg : host_sketch) {
       sum += fp_type{1} / static_cast<fp_type>(1ull << reg);
       zeroes += reg == 0;
     }
-
-    CUCO_CUDA_TRY(cudaFreeHost(host_sketch));
 
     auto const finalize = cuco::hyperloglog_ns::detail::finalizer(this->precision_);
 
