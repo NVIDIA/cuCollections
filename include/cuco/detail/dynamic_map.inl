@@ -79,42 +79,52 @@ dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capac
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 void dynamic_map<Key, Value, Scope, Allocator>::reserve(std::size_t n, cudaStream_t stream)
 {
-  std::size_t num_elements_remaining = n;
-  std::size_t submap_idx             = 0;
-  while (num_elements_remaining > 0) {
-    std::size_t submap_capacity;
-
-    // if the submap already exists
-    if (submap_idx < submaps_.size()) {
-      submap_capacity = submaps_[submap_idx]->get_capacity();
+  // Calculate current total available capacity across all submaps
+  std::size_t total_available_capacity = 0;
+  for (std::size_t i = 0; i < submaps_.size(); ++i) {
+    std::size_t submap_usable_capacity =
+      static_cast<std::size_t>(max_load_factor_ * submaps_[i]->get_capacity());
+    // Only count capacity above the minimum insert threshold
+    if (submap_usable_capacity >= min_insert_size_) {
+      total_available_capacity += submap_usable_capacity - min_insert_size_;
     }
-    // if the submap does not exist yet, create it
-    else {
-      submap_capacity = capacity_;
-      if (erased_key_sentinel_ != empty_key_sentinel_) {
-        submaps_.push_back(std::make_unique<cuco::legacy::static_map<Key, Value, Scope, Allocator>>(
-          submap_capacity,
-          empty_key<Key>{empty_key_sentinel_},
-          empty_value<Value>{empty_value_sentinel_},
-          erased_key<Key>{erased_key_sentinel_},
-          alloc_,
-          stream));
-      } else {
-        submaps_.push_back(std::make_unique<cuco::legacy::static_map<Key, Value, Scope, Allocator>>(
-          submap_capacity,
-          empty_key<Key>{empty_key_sentinel_},
-          empty_value<Value>{empty_value_sentinel_},
-          alloc_,
-          stream));
-      }
-      submap_num_successes_.push_back(submaps_[submap_idx]->num_successes_);
-      submap_views_.push_back(submaps_[submap_idx]->get_device_view());
-      submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
-      capacity_ *= 2;
+  }
+
+  // Create new submaps until we have enough capacity
+  while (total_available_capacity < n) {
+    std::size_t new_submap_capacity = capacity_;
+
+    if (erased_key_sentinel_ != empty_key_sentinel_) {
+      submaps_.push_back(std::make_unique<cuco::legacy::static_map<Key, Value, Scope, Allocator>>(
+        new_submap_capacity,
+        empty_key<Key>{empty_key_sentinel_},
+        empty_value<Value>{empty_value_sentinel_},
+        erased_key<Key>{erased_key_sentinel_},
+        alloc_,
+        stream));
+    } else {
+      submaps_.push_back(std::make_unique<cuco::legacy::static_map<Key, Value, Scope, Allocator>>(
+        new_submap_capacity,
+        empty_key<Key>{empty_key_sentinel_},
+        empty_value<Value>{empty_value_sentinel_},
+        alloc_,
+        stream));
     }
 
-    num_elements_remaining -= max_load_factor_ * submap_capacity - min_insert_size_;
-    submap_idx++;
+    std::size_t submap_idx = submaps_.size() - 1;
+    submap_num_successes_.push_back(submaps_[submap_idx]->num_successes_);
+    submap_views_.push_back(submaps_[submap_idx]->get_device_view());
+    submap_mutable_views_.push_back(submaps_[submap_idx]->get_device_mutable_view());
+
+    // Add the new submap's usable capacity
+    std::size_t new_usable_capacity =
+      static_cast<std::size_t>(max_load_factor_ * new_submap_capacity);
+    if (new_usable_capacity >= min_insert_size_) {
+      total_available_capacity += new_usable_capacity - min_insert_size_;
+    }
+
+    // Update capacity for next submap (double the size)
+    capacity_ *= 2;
   }
 }
 
