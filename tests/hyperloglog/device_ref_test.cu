@@ -86,7 +86,7 @@ TEMPLATE_TEST_CASE_SIG("hyperloglog: device ref",
   auto const host_estimate = estimator.estimate();
 
   thrust::device_vector<std::size_t> device_estimate(1);
-  estimate_kernel<typename estimator_type::ref_type<cuda::thread_scope_block>>
+  estimate_kernel<typename estimator_type::template ref_type<cuda::thread_scope_block>>
     <<<1, 512, estimator.sketch_bytes()>>>(
       cuco::sketch_size_kb(sketch_size_kb), items.begin(), num_items, device_estimate.begin());
 

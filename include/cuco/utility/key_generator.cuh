@@ -158,7 +158,7 @@ struct generate_gaussian_fn {
    *
    * @return A resulting random number
    */
-  __host__ __device__ constexpr T operator()(std::size_t seed) const noexcept
+  __host__ __device__ T operator()(std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::normal_distribution<> normal_dist(static_cast<double>(num_ / 2), num_ * dist_.value);
@@ -199,7 +199,7 @@ struct dropout_fn {
    *
    * @return A resulting random number
    */
-  __host__ __device__ constexpr T operator()(std::size_t seed) const noexcept
+  __host__ __device__ T operator()(std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::uniform_int_distribution<T> non_match_dist{static_cast<T>(num_),
@@ -232,7 +232,7 @@ struct dropout_pred {
    *
    * @return A random boolean value
    */
-  __host__ __device__ constexpr bool operator()(std::size_t seed) const noexcept
+  __host__ __device__ bool operator()(std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::uniform_real_distribution<double> rate_dist{0.0, 1.0};

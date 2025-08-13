@@ -157,17 +157,14 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
                                                hash,
                                                key_equal);
 
-      std::size_t* h_num_successes;
-      CUCO_CUDA_TRY(cudaMallocHost(&h_num_successes, sizeof(std::size_t)));
-      CUCO_CUDA_TRY(cudaMemcpyAsync(h_num_successes,
+      std::size_t h_num_successes;
+      CUCO_CUDA_TRY(cudaMemcpyAsync(&h_num_successes,
                                     submap_num_successes_[submap_idx],
                                     sizeof(atomic_ctr_type),
                                     cudaMemcpyDeviceToHost,
                                     stream));
-      CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
-      submaps_[submap_idx]->size_ += *h_num_successes;
-      size_ += *h_num_successes;
-      CUCO_CUDA_TRY(cudaFreeHost(h_num_successes));
+      submaps_[submap_idx]->size_ += h_num_successes;
+      size_ += h_num_successes;
       first += n;
       num_to_insert -= n;
     }
@@ -208,17 +205,14 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(
                                                            key_equal);
 
   for (uint32_t i = 0; i < submaps_.size(); ++i) {
-    std::size_t* h_submap_num_successes;
-    CUCO_CUDA_TRY(cudaMallocHost(&h_submap_num_successes, sizeof(std::size_t)));
-    CUCO_CUDA_TRY(cudaMemcpyAsync(h_submap_num_successes,
+    std::size_t h_submap_num_successes;
+    CUCO_CUDA_TRY(cudaMemcpyAsync(&h_submap_num_successes,
                                   submap_num_successes_[i],
                                   sizeof(atomic_ctr_type),
                                   cudaMemcpyDeviceToHost,
                                   stream));
-    CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
-    submaps_[i]->size_ -= *h_submap_num_successes;
-    size_ -= *h_submap_num_successes;
-    CUCO_CUDA_TRY(cudaFreeHost(h_submap_num_successes));
+    submaps_[i]->size_ -= h_submap_num_successes;
+    size_ -= h_submap_num_successes;
   }
 }
 

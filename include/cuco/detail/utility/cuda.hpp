@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -69,7 +69,7 @@ constexpr auto max_occupancy_grid_size(int32_t block_size,
   CUCO_CUDA_TRY(
     cudaDeviceGetAttribute(&num_multiprocessors, cudaDevAttrMultiProcessorCount, device));
 
-  int32_t max_active_blocks_per_multiprocessor;
+  int32_t max_active_blocks_per_multiprocessor{};
   CUCO_CUDA_TRY(cudaOccupancyMaxActiveBlocksPerMultiprocessor(
     &max_active_blocks_per_multiprocessor, kernel, block_size, dynamic_shm_size));
 

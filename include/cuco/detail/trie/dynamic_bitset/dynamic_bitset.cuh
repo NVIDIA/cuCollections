@@ -85,7 +85,8 @@ class dynamic_bitset {
   using size_type = std::size_t;  ///< size type to specify bit index
   using word_type = uint64_t;     ///< word type
   /// Type of the allocator to (de)allocate words
-  using allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<word_type>;
+  using allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<word_type>;
 
   /// Number of bits per block. Note this is a tradeoff between space efficiency and perf.
   static constexpr size_type words_per_block = 4;
@@ -326,9 +327,11 @@ class dynamic_bitset {
 
  private:
   /// Type of the allocator to (de)allocate ranks
-  using rank_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<rank_type>;
+  using rank_allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<rank_type>;
   /// Type of the allocator to (de)allocate indices
-  using size_allocator_type = typename std::allocator_traits<Allocator>::rebind_alloc<size_type>;
+  using size_allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<size_type>;
 
   allocator_type allocator_;  ///< Words allocator
   size_type n_bits_;          ///< Number of bits dynamic_bitset currently holds

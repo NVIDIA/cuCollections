@@ -471,9 +471,9 @@ class operator_impl<
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
-      return ref_.impl_.insert<true>(group, value);
+      return ref_.impl_.template insert<true>(group, value);
     } else {
-      return ref_.impl_.insert<false>(group, value);
+      return ref_.impl_.template insert<false>(group, value);
     }
   }
 };
@@ -1521,7 +1521,7 @@ class operator_impl<
                            InputProbeIt input_probe_end,
                            OutputProbeIt output_probe,
                            OutputMatchIt output_match,
-                           AtomicCounter* atomic_counter) const
+                           AtomicCounter& atomic_counter) const
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     ref_.impl_.template retrieve<BlockSize>(

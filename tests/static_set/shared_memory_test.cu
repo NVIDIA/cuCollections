@@ -93,7 +93,7 @@ TEMPLATE_TEST_CASE_SIG(
   thrust::device_vector<bool> d_keys_exist(number_of_sets * elements_in_set);
   thrust::device_vector<bool> d_keys_correct(number_of_sets * elements_in_set);
 
-  using ref_type = typename set_type::ref_type<cuco::op::insert_tag>;
+  using ref_type = typename set_type::template ref_type<cuco::op::insert_tag>;
 
   SECTION("Keys are all found after insertion.")
   {

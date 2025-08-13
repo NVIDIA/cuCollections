@@ -876,13 +876,11 @@ class open_addressing_impl {
                                           is_filled,
                                           stream.get()));
 
-      size_type* temp_count;
-      CUCO_CUDA_TRY(cudaMallocHost(&temp_count, sizeof(size_type)));
+      size_type temp_count;
       CUCO_CUDA_TRY(cudaMemcpyAsync(
-        temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
       stream.wait();
-      h_num_out += *temp_count;
-      CUCO_CUDA_TRY(cudaFreeHost(temp_count));
+      h_num_out += temp_count;
       temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
     }
 
@@ -1299,7 +1297,7 @@ class open_addressing_impl {
    */
   [[nodiscard]] constexpr key_type const& extract_key(value_type const& slot) const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return slot.first;
     } else {
       return slot;
