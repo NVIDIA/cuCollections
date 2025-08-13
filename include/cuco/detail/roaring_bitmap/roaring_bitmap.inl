@@ -25,7 +25,7 @@ template <class T, class Allocator>
 roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
                                              Allocator const& alloc,
                                              cuda::stream_ref stream)
-  : storage_{bitmap, alloc, stream}, ref_{storage_.ref()}
+  : storage_{bitmap, alloc, stream}
 {
 }
 
@@ -36,7 +36,7 @@ void roaring_bitmap<T, Allocator>::contains(InputIt first,
                                             OutputIt output,
                                             cuda::stream_ref stream) const
 {
-  ref_.contains(first, last, output, stream);
+  ref_type{storage_.ref()}.contains(first, last, output, stream);
 }
 
 template <class T, class Allocator>
@@ -46,31 +46,31 @@ void roaring_bitmap<T, Allocator>::contains_async(InputIt first,
                                                   OutputIt output,
                                                   cuda::stream_ref stream) const noexcept
 {
-  ref_.contains_async(first, last, output, stream);
+  ref_type{storage_.ref()}.contains_async(first, last, output, stream);
 }
 
 template <class T, class Allocator>
 cuda::std::size_t roaring_bitmap<T, Allocator>::size() const noexcept
 {
-  return ref_.size();
+  return ref_type{storage_.ref()}.size();
 }
 
 template <class T, class Allocator>
 bool roaring_bitmap<T, Allocator>::empty() const noexcept
 {
-  return ref_.empty();
+  return ref_type{storage_.ref()}.empty();
 }
 
 template <class T, class Allocator>
 cuda::std::byte const* roaring_bitmap<T, Allocator>::data() const noexcept
 {
-  return ref_.data();
+  return ref_type{storage_.ref()}.data();
 }
 
 template <class T, class Allocator>
 cuda::std::size_t roaring_bitmap<T, Allocator>::size_bytes() const noexcept
 {
-  return ref_.size_bytes();
+  return ref_type{storage_.ref()}.size_bytes();
 }
 
 template <class T, class Allocator>
@@ -83,6 +83,6 @@ typename roaring_bitmap<T, Allocator>::allocator_type roaring_bitmap<T, Allocato
 template <class T, class Allocator>
 typename roaring_bitmap<T, Allocator>::ref_type roaring_bitmap<T, Allocator>::ref() const noexcept
 {
-  return ref_;
+  return ref_type{storage_.ref()};
 }
 }  // namespace cuco

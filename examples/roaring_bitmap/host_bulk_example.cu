@@ -1,28 +1,92 @@
-#include <cuco/detail/error.hpp>
+/*
+ * Copyright (c) 2025 NVIDIA CORPORATION.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 #include <cuco/roaring_bitmap.cuh>
+#include <cuco/utility/traits.hpp>
 
-#include <cuda/std/span>
+#include <cuda/std/type_traits>
+#include <thrust/device_vector.h>
 #include <thrust/logical.h>
 #include <thrust/universal_vector.h>
 
-#include <cuda_runtime.h>
-
 #include <fstream>
 #include <iostream>
+#include <string>
 #include <vector>
 
-int main(int argc, char* argv[])
+/**
+ * @file host_bulk_example.cu
+ * @brief Demonstrates usage of the roaring_bitmap "bulk" lookup host APIs.
+ *
+ * In this example we load two 32-bit bitmaps and one 64-bit bitmap (portable format) from the
+ * [RoaringBitmapFormatSpec](https://github.com/RoaringBitmap/RoaringFormatSpec) repository and
+ * check if the bulk lookup API returns the correct results. Namely, we test the following files:
+ * -
+ * [examples/roaring_bitmap/bitmapwithoutruns.bin](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata/bitmapwithoutruns.bin)
+ * -
+ * [examples/roaring_bitmap/bitmapwithruns.bin](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata/bitmapwithruns.bin)
+ * -
+ * [examples/roaring_bitmap/portable_bitmap64.bin](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata64/portable_bitmap64.bin)
+ *
+ */
+
+template <typename KeyType>
+bool check(std::string const& bitmap_file_path)
 {
-  if (argc != 2) {
-    std::cerr << "Usage: " << argv[0] << " <bitmap_file_path>" << std::endl;
-    return -1;
-  }
+  auto generate_keys = []() -> thrust::device_vector<KeyType> {
+    if constexpr (cuda::std::is_same_v<KeyType, cuda::std::uint32_t>) {
+      // reference:
+      // https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata/README.md#test-data
+      std::vector<cuda::std::uint32_t> keys;
+      for (cuda::std::uint32_t k = 0; k < 100000; k += 1000) {
+        keys.push_back(k);
+      }
+      for (int k = 100000; k < 200000; ++k) {
+        keys.push_back(3 * k);
+      }
+      for (int k = 700000; k < 800000; ++k) {
+        keys.push_back(k);
+      }
+      return thrust::device_vector<cuda::std::uint32_t>(keys.begin(), keys.end());
+    } else if constexpr (cuda::std::is_same_v<KeyType, cuda::std::uint64_t>) {
+      // reference:
+      // https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata64/README.md#portable_bitmap64bin
+      std::vector<cuda::std::uint64_t> keys;
+      for (cuda::std::uint64_t k = 0x00000ull; k < 0x09000ull; ++k) {
+        keys.push_back(k);
+      }
+      for (cuda::std::uint64_t k = 0x0A000ull; k < 0x10000ull; ++k) {
+        keys.push_back(k);
+      }
+      keys.push_back(0x20000ull);
+      keys.push_back(0x20005ull);
+      for (cuda::std::uint64_t i = 0; i < 0x10000ull; i += 2ull) {
+        keys.push_back(0x80000ull + i);
+      }
+      return thrust::device_vector<cuda::std::uint64_t>(keys.begin(), keys.end());
+    } else {
+      static_assert(cuco::dependent_false<KeyType>, "KeyType must be uint32_t or uint64_t");
+      return {};
+    }
+  };
 
   // Open file
-  std::ifstream file(argv[1], std::ios::binary);
+  std::ifstream file(bitmap_file_path, std::ios::binary);
   if (!file.is_open()) {
-    std::cerr << "Failed to open " << argv[1] << std::endl;
-    return -1;
+    std::cerr << "Failed to open " << bitmap_file_path << std::endl;
+    return false;
   }
 
   // Get file size
@@ -30,50 +94,36 @@ int main(int argc, char* argv[])
   std::streamsize file_size = file.tellg();
   file.seekg(0, std::ios::beg);
 
-  // Allocate pinned host memory using cudaMallocHost
-  char* buffer;
-  CUCO_CUDA_TRY(cudaMallocHost(&buffer, file_size));
+  thrust::universal_host_pinned_vector<cuda::std::byte> buffer(file_size);
 
   // Read file into memory
-  file.read(buffer, file_size);
+  file.read(reinterpret_cast<char*>(thrust::raw_pointer_cast(buffer.data())), file_size);
   file.close();
 
-  cuco::roaring_bitmap<cuda::std::uint32_t> roaring_bitmap(
-    reinterpret_cast<cuda::std::byte const*>(buffer));
+  cuco::roaring_bitmap<KeyType> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
 
-  std::vector<cuda::std::uint32_t> keys;
-  for (cuda::std::uint32_t k = 0; k < 100000; k += 1000) {
-    keys.push_back(k);
-  }
-  for (int k = 100000; k < 200000; ++k) {
-    keys.push_back(3 * k);
-  }
-  for (int k = 700000; k < 800000; ++k) {
-    keys.push_back(k);
-  }
+  auto keys = generate_keys();
+  thrust::device_vector<bool> contained(keys.size(), false);
 
-  thrust::universal_vector<cuda::std::uint32_t> keys_d(keys.begin(), keys.end());
-  thrust::universal_vector<bool> contained(keys.size(), false);
+  roaring_bitmap.contains(keys.begin(), keys.end(), contained.begin());
 
-  roaring_bitmap.contains(keys_d.begin(), keys_d.end(), contained.begin());
-
-  size_t num_errors = 0;
-  for (size_t i = 0; i < keys.size(); i++) {
-    if (not contained[i]) {
-      if (num_errors <= 10) {
-        std::cout << "Error: " << keys_d[i] << " is not contained" << std::endl;
-      }
-      num_errors++;
-    }
-  }
-  if (num_errors > 0) { std::cout << "num_errors: " << num_errors << std::endl; }
-
-  // check if all elements are contained and written to output
   bool all_contained = thrust::all_of(contained.begin(), contained.end(), ::cuda::std::identity{});
-  std::cout << "all_contained: " << all_contained << std::endl;
+  return all_contained;
+}
 
-  // Free the allocated memory
-  CUCO_CUDA_TRY(cudaFreeHost(buffer));
+int main()
+{
+  auto data_dir_prefix = []() -> std::string {
+    std::string source_path = __FILE__;
+    auto pos                = source_path.find_last_of("/\\");
+    return (pos == std::string::npos) ? std::string(".") : source_path.substr(0, pos);
+  };
 
-  return 0;
+  bool success = check<cuda::std::uint32_t>(data_dir_prefix() + "/bitmapwithoutruns.bin");
+  success &= check<cuda::std::uint32_t>(data_dir_prefix() + "/bitmapwithruns.bin");
+  success &= check<cuda::std::uint64_t>(data_dir_prefix() + "/portable_bitmap64.bin");
+
+  std::cout << "success: " << (success ? "true" : "false") << std::endl;
+
+  return success ? 0 : 1;
 }

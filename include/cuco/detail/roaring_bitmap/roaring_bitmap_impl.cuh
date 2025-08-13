@@ -46,26 +46,15 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   static constexpr cuda::std::uint32_t binary_search_threshold = 8;  // TODO determine optimal value
 
   __host__ __device__ roaring_bitmap_impl(storage_ref_type const& storage_ref)
-  {
-    auto const& meta = storage_ref.metadata();
-    if (meta.valid) {
-      data_       = storage_ref.data();
-      size_bytes_ = meta.size_bytes;
-      size_       = meta.num_keys;
-      run_container_bitmap_ =
-        reinterpret_cast<cuda::std::uint8_t const*>(storage_ref.data() + meta.run_container_bitmap);
-      key_cards_ =
-        reinterpret_cast<cuda::std::uint16_t const*>(storage_ref.data() + meta.key_cards);
-      offsets_ =
-        reinterpret_cast<cuda::std::byte const*>(storage_ref.data() + meta.container_offsets);
-      num_containers_  = meta.num_containers;
-      offsets_aligned_ = meta.offsets_aligned;
-      has_run_         = meta.has_run;
-    }
-  }
-
-  __device__ roaring_bitmap_impl(cuda::std::byte const* bitmap)
-    : roaring_bitmap_impl{storage_ref_type{bitmap}}
+    : storage_ref_{storage_ref},
+      offsets_aligned_{(reinterpret_cast<cuda::std::uintptr_t>(
+                         storage_ref_.data() + storage_ref_.metadata().container_offsets)) %
+                         sizeof(cuda::std::uint32_t) ==
+                       0},
+      aligned_16_{(reinterpret_cast<cuda::std::uintptr_t>(storage_ref_.data() +
+                                                          storage_ref_.metadata().key_cards)) %
+                    sizeof(cuda::std::uint16_t) ==
+                  0}  // if base address of key_cards is aligned, then all containers are aligned
   {
   }
 
@@ -101,28 +90,53 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
 
   __device__ bool contains(cuda::std::uint32_t value) const
   {
+    if (storage_ref_.metadata().num_keys == 0) { return false; }
+
+    if (aligned_16_) {
+      return this->dispatch_contains<true>(value);
+    } else {
+      return this->dispatch_contains<false>(value);
+    }
+  }
+
+  template <bool Aligned>
+  __device__ bool dispatch_contains(cuda::std::uint32_t value) const
+  {
     cuda::std::uint16_t const upper = value >> 16;
     cuda::std::uint16_t const lower = value & 0xFFFF;
+    cuda::std::uint16_t key;
 
-    if (num_containers_ < binary_search_threshold) {
+    if (storage_ref_.metadata().num_containers < binary_search_threshold) {
 // linear search
 #pragma unroll
-      for (cuda::std::uint32_t i = 0; i < num_containers_; i++) {
-        cuda::std::uint16_t const key = key_cards_[i * 2];
-        if (key == upper) { return this->contains_container(lower, i); }
+      for (cuda::std::uint32_t i = 0; i < storage_ref_.metadata().num_containers; i++) {
+        if constexpr (Aligned) {
+          key = aligned_load<cuda::std::uint16_t>(storage_ref_.key_cards() +
+                                                  (i * 2) * sizeof(cuda::std::uint16_t));
+        } else {
+          key = misaligned_load<cuda::std::uint16_t>(storage_ref_.key_cards() +
+                                                     (i * 2) * sizeof(cuda::std::uint16_t));
+        }
+        if (key == upper) { return this->contains_container<Aligned>(lower, i); }
         if (key > upper) { return false; }
       }
     } else {
       // binary search
       cuda::std::uint32_t left  = 0;
-      cuda::std::uint32_t right = num_containers_;
+      cuda::std::uint32_t right = storage_ref_.metadata().num_containers;
       while (left < right) {
-        cuda::std::uint32_t mid     = left + (right - left) / 2;
-        cuda::std::uint16_t mid_key = key_cards_[mid * 2];
+        cuda::std::uint32_t mid = left + (right - left) / 2;
+        if constexpr (Aligned) {
+          key = aligned_load<cuda::std::uint16_t>(storage_ref_.key_cards() +
+                                                  (mid * 2) * sizeof(cuda::std::uint16_t));
+        } else {
+          key = misaligned_load<cuda::std::uint16_t>(storage_ref_.key_cards() +
+                                                     (mid * 2) * sizeof(cuda::std::uint16_t));
+        }
 
-        if (mid_key == upper) {
-          return this->contains_container(lower, mid);
-        } else if (mid_key < upper) {
+        if (key == upper) {
+          return this->contains_container<Aligned>(lower, mid);
+        } else if (key < upper) {
           left = mid + 1;
         } else {
           right = mid;
@@ -132,42 +146,70 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
     return false;
   }
 
-  [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept { return size_; }
+  [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept
+  {
+    return storage_ref_.metadata().num_keys;
+  }
 
-  [[nodiscard]] __host__ __device__ bool empty() const noexcept { return size_ == 0; }
+  [[nodiscard]] __host__ __device__ bool empty() const noexcept { return this->size() == 0; }
 
-  [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept { return data_; }
+  [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept
+  {
+    return storage_ref_.data();
+  }
 
   [[nodiscard]] __host__ __device__ cuda::std::size_t size_bytes() const noexcept
   {
-    return size_bytes_;
+    return storage_ref_.metadata().size_bytes;
   }
 
- private:
+  template <bool Aligned>
   __device__ bool contains_container(cuda::std::uint16_t lower, cuda::std::uint32_t index) const
   {
-    cuda::std::uint32_t card             = key_cards_[index * 2 + 1] + 1;
-    cuda::std::uint16_t const* container = reinterpret_cast<cuda::std::uint16_t const*>(
-      data_ + container_offset(offsets_, offsets_aligned_, index));
-    if (is_run_container(run_container_bitmap_, has_run_, index)) {
-      return this->contains_run_container(container, lower, card);
+    cuda::std::uint32_t offset;
+    if (offsets_aligned_) {
+      offset = aligned_load<cuda::std::uint32_t>(storage_ref_.container_offsets() +
+                                                 index * sizeof(cuda::std::uint32_t));
     } else {
-      if (card <= 4096) {  // TODO check if this is correct
-        return this->contains_array_container(container, lower, card);
+      offset = misaligned_load<cuda::std::uint32_t>(storage_ref_.container_offsets() +
+                                                    index * sizeof(cuda::std::uint32_t));
+    }
+    cuda::std::byte const* container = storage_ref_.data() + offset;
+    if (storage_ref_.metadata().has_run and
+        (storage_ref_.run_container_bitmap()[index / 8] & (1 << (index % 8)))) {
+      return this->contains_run_container<Aligned>(container, lower);
+    } else {
+      cuda::std::uint32_t card;
+      if constexpr (Aligned) {
+        card = 1u + aligned_load<cuda::std::uint16_t>(
+                      storage_ref_.key_cards() + (index * 2 + 1) * sizeof(cuda::std::uint16_t));
+      } else {
+        card = 1u + misaligned_load<cuda::std::uint16_t>(
+                      storage_ref_.key_cards() + (index * 2 + 1) * sizeof(cuda::std::uint16_t));
+      }
+      if (card <= 4096) {
+        return this->contains_array_container<Aligned>(container, lower, card);
       } else {
         return this->contains_bitset_container(container, lower, card);
       }
     }
   }
 
-  __device__ bool contains_array_container(cuda::std::uint16_t const* container,
+  template <bool Aligned>
+  __device__ bool contains_array_container(cuda::std::byte const* container,
                                            cuda::std::uint16_t lower,
                                            cuda::std::uint32_t card) const
   {
+    cuda::std::uint16_t elem;
     // Use linear search for small arrays, binary search for larger ones
     if (card < binary_search_threshold) {
       for (cuda::std::uint32_t i = 0; i < card; i++) {
-        if (container[i] == lower) { return true; }
+        if constexpr (Aligned) {
+          elem = aligned_load<cuda::std::uint16_t>(container + i * sizeof(cuda::std::uint16_t));
+        } else {
+          elem = misaligned_load<cuda::std::uint16_t>(container + i * sizeof(cuda::std::uint16_t));
+        }
+        if (elem == lower) { return true; }
       }
       return false;
     } else {
@@ -176,9 +218,15 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
 
       while (left < right) {
         cuda::std::uint32_t mid = left + (right - left) / 2;
-        if (container[mid] == lower) {
+        if constexpr (Aligned) {
+          elem = aligned_load<cuda::std::uint16_t>(container + mid * sizeof(cuda::std::uint16_t));
+        } else {
+          elem =
+            misaligned_load<cuda::std::uint16_t>(container + mid * sizeof(cuda::std::uint16_t));
+        }
+        if (elem == lower) {
           return true;
-        } else if (container[mid] < lower) {
+        } else if (elem < lower) {
           left = mid + 1;
         } else {
           right = mid;
@@ -188,37 +236,136 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
     }
   }
 
-  __device__ bool contains_bitset_container(cuda::std::uint16_t const* container,
+  __device__ bool contains_bitset_container(cuda::std::byte const* container,
                                             cuda::std::uint16_t lower,
                                             cuda::std::uint32_t card) const
   {
-    // check if bit at position lower is set
-    return container[lower / 16] & (1 << (lower % 16));
+    return static_cast<cuda::std::uint8_t>(container[lower / 8]) &
+           (cuda::std::uint8_t(1) << (lower % 8));
   }
 
-  __device__ bool contains_run_container(cuda::std::uint16_t const* container,
-                                         cuda::std::uint16_t lower,
-                                         cuda::std::uint32_t card) const
+  template <bool Aligned>
+  __device__ bool contains_run_container(cuda::std::byte const* container,
+                                         cuda::std::uint16_t lower) const
   {
-    // TODO implement linear search
+    // TODO implement binary search
+    cuda::std::uint16_t num_runs;
+    if constexpr (Aligned) {
+      num_runs = aligned_load<cuda::std::uint16_t>(container);
+    } else {
+      num_runs = misaligned_load<cuda::std::uint16_t>(container);
+    }
+
+    cuda::std::uint16_t start;
+    cuda::std::uint32_t end;
+
+    for (cuda::std::uint32_t i = 0; i < num_runs; i++) {
+      // TODO load start+end in one instruction
+      if constexpr (Aligned) {
+        start =
+          aligned_load<cuda::std::uint16_t>(container + (i * 2 + 1) * sizeof(cuda::std::uint16_t));
+        end =
+          static_cast<cuda::std::uint32_t>(start) +
+          aligned_load<cuda::std::uint16_t>(container + (i * 2 + 2) * sizeof(cuda::std::uint16_t));
+      } else {
+        start = misaligned_load<cuda::std::uint16_t>(container +
+                                                     (i * 2 + 1) * sizeof(cuda::std::uint16_t));
+        end   = static_cast<cuda::std::uint32_t>(start) +
+              misaligned_load<cuda::std::uint16_t>(container +
+                                                   (i * 2 + 2) * sizeof(cuda::std::uint16_t));
+      }
+      if (start <= lower && end >= lower) { return true; }
+      if (start > lower) { break; }
+    }
     return false;
   }
 
-  cuda::std::byte const* data_;
-  cuda::std::size_t size_bytes_;
-  cuda::std::size_t size_;
-  cuda::std::uint8_t const* run_container_bitmap_;
-  cuda::std::uint16_t const* key_cards_;  // TODO uint8?
-  cuda::std::byte const* offsets_;
-  cuda::std::int32_t num_containers_;
+  storage_ref_type storage_ref_;
   bool offsets_aligned_;
-  bool has_run_;
+  bool aligned_16_;
 };
 
 template <>
 class roaring_bitmap_impl<cuda::std::uint64_t> {
-  using bucket_type = roaring_bitmap_impl<cuda::std::uint32_t>;
-  // TODO implement
+ public:
+  using bucket_type      = roaring_bitmap_impl<cuda::std::uint32_t>;
+  using storage_ref_type = roaring_bitmap_storage_ref<cuda::std::uint64_t>;
+
+  __host__ __device__ roaring_bitmap_impl(storage_ref_type const& storage_ref)
+    : storage_ref_{storage_ref}
+  {
+  }
+
+  template <class InputIt, class OutputIt>
+  __host__ void contains(InputIt first,
+                         InputIt last,
+                         OutputIt contained,
+                         cuda::stream_ref stream = {}) const
+  {
+    this->contains_async(first, last, contained, stream);
+    stream.wait();
+  }
+
+  template <class InputIt, class OutputIt>
+  __host__ void contains_async(InputIt first,
+                               InputIt last,
+                               OutputIt contained,
+                               cuda::stream_ref stream = {}) const noexcept
+  {
+    auto nosync_exec_policy = thrust::cuda::par_nosync.on(stream.get());
+    if (this->empty()) {
+      thrust::fill(
+        nosync_exec_policy, contained, contained + cuda::std::distance(first, last), false);
+    } else {
+      thrust::transform(nosync_exec_policy,
+                        first,
+                        last,
+                        contained,
+                        cuda::proclaim_return_type<bool>(
+                          [*this] __device__(auto key) { return this->contains(key); }));
+    }
+  }
+
+  __device__ bool contains(cuda::std::uint64_t value) const
+  {
+    cuda::std::uint32_t bucket_key   = value >> 32;
+    cuda::std::uint32_t bucket_value = value & 0xFFFFFFFF;
+
+    // binary search in storage_ref_.buckets()
+    cuda::std::uint32_t left  = 0;
+    cuda::std::uint32_t right = storage_ref_.metadata().num_buckets;
+    while (left < right) {
+      cuda::std::uint32_t mid = left + (right - left) / 2;
+      if (storage_ref_.buckets()[mid].first == bucket_key) {
+        return bucket_type{storage_ref_.buckets()[mid].second}.contains(
+          bucket_value);  // TODO is constructing the ref in-place a bad idea?
+      } else if (storage_ref_.buckets()[mid].first < bucket_key) {
+        left = mid + 1;
+      } else {
+        right = mid;
+      }
+    }
+    return false;
+  }
+
+  [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept
+  {
+    return storage_ref_.metadata().num_keys;
+  }
+
+  [[nodiscard]] __host__ __device__ bool empty() const noexcept { return this->size() == 0; }
+
+  [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept
+  {
+    return storage_ref_.data();
+  }
+
+  [[nodiscard]] __host__ __device__ cuda::std::size_t size_bytes() const noexcept
+  {
+    return storage_ref_.metadata().size_bytes;
+  }
+
+  storage_ref_type storage_ref_;
 };
 
 }  // namespace cuco::detail

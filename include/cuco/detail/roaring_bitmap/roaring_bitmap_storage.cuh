@@ -27,6 +27,8 @@
 
 #include <memory>
 #include <nv/target>
+#include <utility>
+#include <vector>
 
 namespace cuco::detail {
 
@@ -41,12 +43,18 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
   using metadata_type = roaring_bitmap_metadata<cuda::std::uint32_t>;
   __host__ __device__ roaring_bitmap_storage_ref(cuda::std::byte const* bitmap,
                                                  metadata_type const& metadata)
-    : data_{bitmap}, metadata_{metadata}
+    : metadata_{metadata},
+      data_{bitmap},
+      run_container_bitmap_{
+        reinterpret_cast<cuda::std::uint8_t const*>(bitmap + metadata.run_container_bitmap)},
+      key_cards_{bitmap + metadata.key_cards},
+      container_offsets_{bitmap + metadata.container_offsets}
   {
+    assert(metadata.valid);
   }
 
   __device__ roaring_bitmap_storage_ref(cuda::std::byte const* bitmap)
-    : data_{bitmap}, metadata_{metadata_type{bitmap}}
+    : roaring_bitmap_storage_ref{bitmap, metadata_type{bitmap}}
   {
   }
 
@@ -54,9 +62,58 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
 
   __host__ __device__ cuda::std::byte const* data() const noexcept { return data_; }
 
+  __host__ __device__ cuda::std::size_t size_bytes() const noexcept { return metadata_.size_bytes; }
+
+  __host__ __device__ cuda::std::uint8_t const* run_container_bitmap() const noexcept
+  {
+    return run_container_bitmap_;
+  }
+
+  __host__ __device__ cuda::std::byte const* key_cards() const noexcept { return key_cards_; }
+
+  __host__ __device__ cuda::std::byte const* container_offsets() const noexcept
+  {
+    return container_offsets_;
+  }
+
  private:
-  cuda::std::byte const* data_;
   metadata_type metadata_;
+  cuda::std::byte const* data_;
+  cuda::std::uint8_t const* run_container_bitmap_;
+  cuda::std::byte const* key_cards_;
+  cuda::std::byte const* container_offsets_;
+};
+
+template <>
+class roaring_bitmap_storage_ref<cuda::std::uint64_t> {
+ public:
+  using metadata_type = roaring_bitmap_metadata<cuda::std::uint64_t>;
+
+  __host__ __device__ roaring_bitmap_storage_ref(
+    cuda::std::byte const* bitmap,
+    metadata_type const& metadata,
+    cuda::std::pair<cuda::std::uint32_t, roaring_bitmap_storage_ref<cuda::std::uint32_t>>* buckets)
+    : metadata_{metadata}, data_{bitmap}, buckets_{buckets}
+  {
+  }
+
+  __host__ __device__ metadata_type const& metadata() const noexcept { return metadata_; }
+
+  __host__ __device__ cuda::std::byte const* data() const noexcept { return data_; }
+
+  __host__ __device__ cuda::std::size_t size_bytes() const noexcept { return metadata_.size_bytes; }
+
+  __host__ __device__
+    cuda::std::pair<cuda::std::uint32_t, roaring_bitmap_storage_ref<cuda::std::uint32_t>>*
+    buckets() const noexcept
+  {
+    return buckets_;
+  }
+
+ private:
+  metadata_type metadata_;
+  cuda::std::byte const* data_;
+  cuda::std::pair<cuda::std::uint32_t, roaring_bitmap_storage_ref<cuda::std::uint32_t>>* buckets_;
 };
 
 template <class T, class Allocator>
@@ -90,7 +147,6 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
   {
     CUCO_CUDA_TRY(cudaMemcpyAsync(
       data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
-    // stream.wait();  // TODO check if this is necessary
   }
 
   ref_type ref() const noexcept { return ref_; }
@@ -102,6 +158,75 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
   ref_type ref_;
 };
 
-// TODO implement roaring_bitmap_metadata<cuda::std::uint64_t>
+template <class Allocator>
+class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
+ public:
+  using allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<cuda::std::byte>;
+  using ref_type              = roaring_bitmap_storage_ref<cuda::std::uint64_t>;
+  using bucket_ref_type       = roaring_bitmap_storage_ref<cuda::std::uint32_t>;
+  using bucket_allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
+    cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>>;
+
+  roaring_bitmap_storage(roaring_bitmap_storage const& other)            = default;
+  roaring_bitmap_storage(roaring_bitmap_storage&& other)                 = default;
+  roaring_bitmap_storage& operator=(roaring_bitmap_storage const& other) = default;
+  roaring_bitmap_storage& operator=(roaring_bitmap_storage&& other)      = default;
+
+  ~roaring_bitmap_storage() = default;
+
+  roaring_bitmap_storage(cuda::std::byte const* bitmap,
+                         Allocator const& alloc,
+                         cuda::stream_ref stream)
+    : allocator_{alloc},
+      bucket_allocator_{alloc},
+      bucket_metadata_{},
+      buckets_h_{},
+      metadata_{
+        [bitmap](std::vector<typename ref_type::metadata_type::bucket_metadata>& bucket_metadata) {
+          return typename ref_type::metadata_type{bitmap, bucket_metadata};
+        }(bucket_metadata_)},
+      data_{allocator_.allocate(metadata_.size_bytes),
+            detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes,
+                                                                      allocator_}},
+      buckets_{bucket_allocator_.allocate(metadata_.num_buckets),
+               detail::custom_deleter<cuda::std::size_t, bucket_allocator_type>{
+                 metadata_.num_buckets, bucket_allocator_}},
+      ref_{data_.get(), metadata_, buckets_.get()}
+  {
+    assert(metadata_.valid);
+    buckets_h_.reserve(bucket_metadata_.size());
+    for (auto const& meta : bucket_metadata_) {
+      buckets_h_.emplace_back(meta.key,
+                              bucket_ref_type{data_.get() + meta.byte_offset, meta.metadata});
+    }
+    CUCO_CUDA_TRY(cudaMemcpyAsync(
+      data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
+    CUCO_CUDA_TRY(cudaMemcpyAsync(
+      buckets_.get(),
+      buckets_h_.data(),
+      metadata_.num_buckets * sizeof(cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>),
+      cudaMemcpyHostToDevice,
+      stream.get()));
+    // stream.wait();
+    // clear intermediate data
+    // bucket_metadata.clear();
+    // buckets_h.clear();
+  }
+
+  ref_type ref() const noexcept { return ref_; }
+
+ private:
+  allocator_type allocator_;
+  bucket_allocator_type bucket_allocator_;
+  std::vector<typename ref_type::metadata_type::bucket_metadata> bucket_metadata_;
+  std::vector<cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>> buckets_h_;
+  typename ref_type::metadata_type metadata_;
+  std::unique_ptr<cuda::std::byte, custom_deleter<cuda::std::size_t, allocator_type>> data_;
+  std::unique_ptr<cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>,
+                  custom_deleter<cuda::std::size_t, bucket_allocator_type>>
+    buckets_;
+  ref_type ref_;
+};
 
 }  // namespace cuco::detail

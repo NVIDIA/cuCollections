@@ -21,32 +21,25 @@
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
 #include <cuda/std/iterator>
+#include <cuda/std/memory>
 
 #include <nv/target>
+#include <vector>
 
 namespace cuco::detail {
 
-__host__ __device__ cuda::std::uint32_t container_offset(cuda::std::byte const* offsets,
-                                                         bool offsets_aligned,
-                                                         cuda::std::int32_t i)
+template <class T>
+__host__ __device__ __forceinline__ T aligned_load(cuda::std::byte const* ptr)
 {
-  cuda::std::uint32_t offset = 0;
-  if (offsets_aligned) {
-    offset =
-      *reinterpret_cast<cuda::std::uint32_t const*>(offsets + i * sizeof(cuda::std::uint32_t));
-  } else {
-    cuda::std::memcpy(
-      &offset, offsets + i * sizeof(cuda::std::uint32_t), sizeof(cuda::std::uint32_t));
-  }
-  return offset;
+  return *reinterpret_cast<T const*>(cuda::std::assume_aligned<alignof(T)>(ptr));
 }
 
-__host__ __device__ bool is_run_container(cuda::std::uint8_t const* run_container_bitmap,
-                                          bool has_run,
-                                          cuda::std::int32_t i)
+template <class T>
+__host__ __device__ __forceinline__ T misaligned_load(cuda::std::byte const* ptr)
 {
-  if (not has_run) return false;
-  return run_container_bitmap[i / 8] & (1 << (i % 8));
+  T value;
+  cuda::std::memcpy(&value, ptr, sizeof(T));
+  return value;
 }
 
 template <class T>
@@ -56,21 +49,20 @@ struct roaring_bitmap_metadata {
 
 template <>
 struct roaring_bitmap_metadata<cuda::std::uint32_t> {
-  cuda::std::size_t size_bytes           = 0;
-  cuda::std::size_t num_keys             = 0;
-  cuda::std::size_t run_container_bitmap = 0;
-  cuda::std::size_t key_cards            = 0;
-  cuda::std::size_t container_offsets    = 0;
-  cuda::std::int32_t num_containers      = 0;
-  bool has_run                           = false;
-  bool offsets_aligned                   = false;
-  bool valid                             = false;
+  cuda::std::size_t size_bytes             = 0;
+  cuda::std::uint32_t num_keys             = 0;
+  cuda::std::uint32_t run_container_bitmap = 0;
+  cuda::std::uint32_t key_cards            = 0;
+  cuda::std::uint32_t container_offsets    = 0;
+  cuda::std::int32_t num_containers        = 0;
+  bool has_run                             = false;
+  bool valid                               = false;
 
   __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
   {
     constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
     constexpr cuda::std::uint32_t serial_cookie                 = 12347;
-    // constexpr cuda::std::uint32_t frozen_cookie                 = 13766;
+    // constexpr cuda::std::uint32_t frozen_cookie                 = 13766; // not implemented
     constexpr cuda::std::int32_t no_offset_threshold = 4;
 
     cuda::std::byte const* buf = bitmap;
@@ -80,8 +72,11 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     buf += sizeof(cuda::std::uint32_t);
     if ((cookie & 0xFFFF) != serial_cookie && cookie != serial_cookie_no_runcontainer) {
       valid = false;
-      NV_IF_TARGET(NV_IS_HOST,
-                   CUCO_FAIL("Invalid bitmap format");)  // TODO device error handling
+      NV_IF_TARGET(
+        NV_IS_HOST,
+        CUCO_FAIL(
+          "Invalid bitmap format: cookie type invalid or not supported");)  // TODO device error
+                                                                            // handling
       return;
     }
 
@@ -91,57 +86,61 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
       cuda::std::memcpy(&num_containers, buf, sizeof(cuda::std::uint32_t));
       buf += sizeof(cuda::std::uint32_t);
     }
-    if (num_containers < 0) {
+    if (num_containers < 0 or num_containers > (1 << 16)) {
       valid = false;
-      NV_IF_TARGET(NV_IS_HOST,
-                   CUCO_FAIL("Invalid bitmap format");)  // TODO device error handling
-      return;
-    }
-    if (num_containers > (1 << 16)) {
-      valid = false;
-      NV_IF_TARGET(NV_IS_HOST,
-                   CUCO_FAIL("Invalid bitmap format");)  // TODO device error handling
+      NV_IF_TARGET(
+        NV_IS_HOST,
+        CUCO_FAIL(
+          "Invalid bitmap format: num_containers out of range");)  // TODO device error handling
       return;
     }
 
     has_run = (cookie & 0xFFFF) == serial_cookie;
     if (has_run) {
-      valid = false;  // TODO run container bitmap is not supported yet
-      NV_IF_TARGET(NV_IS_HOST,
-                   CUCO_FAIL("Invalid bitmap format");)  // TODO device error handling
-      return;
       cuda::std::size_t s  = (num_containers + 7) / 8;
       run_container_bitmap = cuda::std::distance(bitmap, buf);
       buf += s;
     }
 
-    key_cards = cuda::std::distance(bitmap, buf);
+    key_cards             = cuda::std::distance(bitmap, buf);
+    bool const aligned_16 = (reinterpret_cast<cuda::std::uintptr_t>(bitmap + key_cards) %
+                             sizeof(cuda::std::uint16_t)) == 0;
     buf += num_containers * 2 * sizeof(cuda::std::uint16_t);
 
     if ((!has_run) || (num_containers >= no_offset_threshold)) {
       container_offsets = cuda::std::distance(bitmap, buf);
-      offsets_aligned   = (reinterpret_cast<cuda::std::uintptr_t>(bitmap + container_offsets) %
-                         sizeof(cuda::std::uint32_t)) == 0;
-      buf += num_containers * 4;
+      buf += num_containers * sizeof(cuda::std::uint32_t);
+    } else {
+      valid = false;
+      NV_IF_TARGET(
+        NV_IS_HOST,
+        CUCO_FAIL("Invalid bitmap format: not implemented");)  // TODO device error handling
+      return;
     }
 
-    num_keys = 0;
-    cuda::std::uint16_t const* cards =
-      reinterpret_cast<cuda::std::uint16_t const*>(bitmap + key_cards);
     cuda::std::uint32_t card = 0;
     for (cuda::std::int32_t i = 0; i < num_containers; i++) {
-      // cuda::std::uint16_t key  = key_cards[i * 2];
-      card = cards[i * 2 + 1] + 1;
+      if (aligned_16) {
+        card = aligned_load<cuda::std::uint16_t>(bitmap + key_cards +
+                                                 (i * 2 + 1) * sizeof(cuda::std::uint16_t)) +
+               1u;
+      } else {
+        card = misaligned_load<cuda::std::uint16_t>(bitmap + key_cards +
+                                                    (i * 2 + 1) * sizeof(cuda::std::uint16_t)) +
+               1u;
+      }
       num_keys += card;
     }
 
-    // find end of roaring bitmap
+    // find end of roaring bitmap (re-use card from last container)
     cuda::std::byte const* end =
-      bitmap + container_offset(bitmap + container_offsets, offsets_aligned, num_containers - 1);
-    if (is_run_container(reinterpret_cast<cuda::std::uint8_t const*>(bitmap + run_container_bitmap),
-                         has_run,
-                         num_containers - 1)) {
-      // TODO implement
+      bitmap + misaligned_load<cuda::std::uint32_t>(
+                 bitmap + container_offsets + (num_containers - 1) * sizeof(cuda::std::uint32_t));
+    if (has_run and (static_cast<cuda::std::uint8_t>(
+                       (bitmap + run_container_bitmap)[(num_containers - 1) / 8]) &
+                     (cuda::std::uint8_t(1) << ((num_containers - 1) % 8)))) {
+      cuda::std::uint16_t const num_runs = misaligned_load<cuda::std::uint16_t>(end);
+      end += sizeof(cuda::std::uint16_t) + num_runs * 2 * sizeof(cuda::std::uint16_t);
     } else {
       if (card <= 4096) {  // TODO check if this is correct
         end += card * sizeof(cuda::std::uint16_t);
@@ -155,6 +154,73 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
   }
 };
 
-// TODO implement roaring_bitmap_metadata<cuda::std::uint64_t>
+template <>
+struct roaring_bitmap_metadata<cuda::std::uint64_t> {
+  cuda::std::size_t num_buckets = 0;
+  cuda::std::size_t size_bytes  = 0;
+  cuda::std::size_t num_keys    = 0;
+  bool valid                    = false;
 
+  struct bucket_metadata {
+    cuda::std::size_t byte_offset;
+    cuda::std::uint32_t key;
+    roaring_bitmap_metadata<cuda::std::uint32_t> metadata;
+
+    bucket_metadata(cuda::std::size_t offset,
+                    cuda::std::uint32_t k,
+                    roaring_bitmap_metadata<cuda::std::uint32_t> const& meta)
+      : byte_offset{offset}, key{k}, metadata{meta}
+    {
+    }
+  };
+
+  __host__ roaring_bitmap_metadata(cuda::std::byte const* bitmap,
+                                   std::vector<bucket_metadata>& bucket_metadata)
+  {
+    cuda::std::size_t byte_offset     = 0;
+    cuda::std::byte const* bitmap_ptr = bitmap;
+    cuda::std::memcpy(&num_buckets, bitmap_ptr, sizeof(cuda::std::uint64_t));
+    byte_offset += sizeof(cuda::std::uint64_t);  // skip num_buckets
+
+    bucket_metadata.clear();
+    bucket_metadata.reserve(num_buckets);
+
+    for (cuda::std::size_t i = 0; i < num_buckets; ++i) {
+      cuda::std::uint32_t bucket_key;
+      cuda::std::memcpy(&bucket_key, bitmap_ptr + byte_offset, sizeof(cuda::std::uint32_t));
+      byte_offset += sizeof(cuda::std::uint32_t);  // skip bucket key
+      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap_ptr + byte_offset};
+      if (!bucket_meta.valid) {
+        valid = false;
+        return;
+      }
+      bucket_metadata.emplace_back(byte_offset, bucket_key, bucket_meta);
+      num_keys += bucket_meta.num_keys;
+      byte_offset += bucket_meta.size_bytes;  // skip bucket
+    }
+    size_bytes = byte_offset;
+    valid      = true;
+  }
+
+  __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
+  {
+    cuda::std::size_t byte_offset     = 0;
+    cuda::std::byte const* bitmap_ptr = bitmap;
+    cuda::std::memcpy(&num_buckets, bitmap_ptr, sizeof(cuda::std::uint64_t));
+    byte_offset += sizeof(cuda::std::uint64_t);  // skip num_buckets
+
+    for (cuda::std::size_t i = 0; i < num_buckets; ++i) {
+      byte_offset += sizeof(cuda::std::uint32_t);  // skip bucket key
+      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap_ptr + byte_offset};
+      if (!bucket_meta.valid) {
+        valid = false;
+        return;
+      }
+      num_keys += bucket_meta.num_keys;
+      byte_offset += bucket_meta.size_bytes;  // skip bucket
+    }
+    size_bytes = byte_offset;
+    valid      = true;
+  }
+};
 }  // namespace cuco::detail
