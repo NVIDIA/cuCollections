@@ -51,6 +51,8 @@ HOST_COMPILER=${CXX:-g++} # $CXX if set, otherwise `g++`
 CUDA_ARCHS=native # detect system's GPU architectures
 CXX_STANDARD=17
 
+EXTRA_CMAKE_OPTIONS=()
+
 function usage {
     echo "cuCollections build script"
     echo "Usage: $0 [OPTIONS]"
@@ -62,9 +64,9 @@ function usage {
     echo "  --prefix: Build directory prefix (Defaults to <repo_root>/build)"
     echo "  -i/--infix: Build directory infix (Defaults to local)"
     echo "  -d/--debug: Debug build"
-    echo "  -p/--parallel: Build parallelism (Defaults to \$PARALLEL_LEVEL if set, otherwise the system's number of CPU cores)"
-    echo "  --cuda: CUDA compiler (Defaults to \$CUDACXX if set, otherwise nvcc)"
-    echo "  --cxx: Host compiler (Defaults to \$CXX if set, otherwise g++)"
+    echo "  -p/--parallel: Build parallelism (Defaults to $PARALLEL_LEVEL if set, otherwise the system's number of CPU cores)"
+    echo "  --cuda: CUDA compiler (Defaults to $CUDACXX if set, otherwise nvcc)"
+    echo "  --cxx: Host compiler (Defaults to $CXX if set, otherwise g++)"
     echo "  --arch: Target CUDA arches, e.g. \"60-real;70;80-virtual\" (Defaults to the system's native GPU archs)"
     echo "  --std: CUDA/C++ standard (Defaults to 17)"
     echo "  -v/-verbose/--verbose: Enable shell echo for debugging"
@@ -103,6 +105,9 @@ function usage {
     echo "    Enables verbose mode for detailed output and builds with C++17 standard."
     echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
     echo
+    echo "Pass-through:"
+    echo "  -- [CMake args...]  Anything after -- is forwarded to CMake"
+    echo
     exit 1
 }
 
@@ -126,6 +131,7 @@ while [ "${#args[@]}" -ne 0 ]; do
     --arch) CUDA_ARCHS="${args[1]}";    args=("${args[@]:2}");;
     --std)  CXX_STANDARD="${args[1]}";  args=("${args[@]:2}");;
     -v | -verbose | --verbose) VERBOSE=1; args=("${args[@]:1}");;
+    --) EXTRA_CMAKE_OPTIONS+=("${args[@]:1}"); break;;
     -h | -help | --help) usage ;;
     *) echo "Unrecognized option: ${args[0]}"; usage ;;
     esac
@@ -200,8 +206,14 @@ echo "-- BUILD_TESTS: ${BUILD_TESTS}"
 echo "-- BUILD_EXAMPLES: ${BUILD_EXAMPLES}"
 echo "-- BUILD_BENCHMARKS: ${BUILD_BENCHMARKS}"
 
+if [ ${#EXTRA_CMAKE_OPTIONS[@]} -gt 0 ]; then
+    echo "-- EXTRA_CMAKE_OPTIONS: ${EXTRA_CMAKE_OPTIONS[*]}"
+else
+    echo "-- EXTRA_CMAKE_OPTIONS: (none)"
+fi
+
 # configure
-cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
+cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS "${EXTRA_CMAKE_OPTIONS[@]}"
 echo "========================================"
 
 if command -v sccache >/dev/null; then
