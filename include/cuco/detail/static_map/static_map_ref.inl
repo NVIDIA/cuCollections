@@ -387,7 +387,7 @@ template <typename Key,
 template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
-  CG const& tile,
+  CG tile,
   typename StorageRef::value_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
@@ -412,7 +412,7 @@ template <typename Key,
 template <typename CG>
 __device__ constexpr void
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
-  CG const& tile) noexcept
+  CG tile) noexcept
 {
   this->impl_.initialize(tile);
 }
@@ -465,8 +465,8 @@ class operator_impl<
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
-  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename Value, typename ParentCG>
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
@@ -556,8 +556,8 @@ class operator_impl<
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    */
-  template <typename Value>
-  __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename Value, typename ParentCG>
+  __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                                    Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
@@ -753,8 +753,8 @@ class operator_impl<
    * @return Returns `true` if the given `value` is inserted successfully.
    */
 
-  template <typename Value, typename Op>
-  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename Value, typename Op, typename ParentCG>
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                                   Value const& value,
                                   Op op)
   {
@@ -785,8 +785,8 @@ class operator_impl<
    *
    * @return Returns `true` if the given `value` is inserted successfully.
    */
-  template <typename Value, typename Init, typename Op>
-  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename Value, typename Init, typename Op, typename ParentCG>
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                                   Value const& value,
                                   Init init,
                                   Op op)
@@ -843,9 +843,9 @@ class operator_impl<
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
    */
-  template <typename Value, typename Init, typename Op>
+  template <typename Value, typename Init, typename Op, typename ParentCG>
   __device__ bool dispatch_insert_or_apply(
-    cooperative_groups::thread_block_tile<cg_size> const& group,
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
     Value const& value,
     Init init,
     Op op)
@@ -953,10 +953,9 @@ class operator_impl<
    *
    * @return Returns `true` if the given `value` is inserted successfully.
    */
-  template <bool UseDirectApply, typename Value, typename Op>
-  __device__ bool insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                       Value const& value,
-                                       Op op)
+  template <bool UseDirectApply, typename Value, typename Op, typename ParentCG>
+  __device__ bool insert_or_apply_impl(
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value const& value, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
@@ -1149,9 +1148,9 @@ class operator_impl<
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value>
+  template <typename Value, typename ParentCG>
   __device__ cuda::std::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);
@@ -1203,8 +1202,8 @@ class operator_impl<
    *
    * @return True if the given element is successfully erased
    */
-  template <typename ProbeKey>
-  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename ProbeKey, typename ParentCG>
+  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                         ProbeKey const& key) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
@@ -1264,9 +1263,10 @@ class operator_impl<
    *
    * @return A boolean indicating whether the probe key is present
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+    ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.contains(group, key);
@@ -1327,9 +1327,10 @@ class operator_impl<
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
-  template <typename ProbeKey>
-  [[nodiscard]] __device__ iterator find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  template <typename ProbeKey, typename ParentCG>
+  [[nodiscard]] __device__ iterator
+  find(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+       ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.find(group, key);
@@ -1395,8 +1396,8 @@ class operator_impl<
    * @param key The key to search for
    * @param callback_op Function to apply to the copy of the matched key-value pair
    */
-  template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <class ProbeKey, class CallbackOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                            ProbeKey const& key,
                            CallbackOp&& callback_op) const noexcept
   {
@@ -1452,8 +1453,8 @@ class operator_impl<
    *
    * @return Number of occurrences found by the current thread
    */
-  template <typename ProbeKey>
-  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename ProbeKey, typename ParentCG>
+  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                              ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -1516,7 +1517,7 @@ class operator_impl<
             class OutputProbeIt,
             class OutputMatchIt,
             class AtomicCounter>
-  __device__ void retrieve(cooperative_groups::thread_block const& block,
+  __device__ void retrieve(cooperative_groups::thread_block block,
                            InputProbeIt input_probe_begin,
                            InputProbeIt input_probe_end,
                            OutputProbeIt output_probe,

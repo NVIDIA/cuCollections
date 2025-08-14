@@ -61,7 +61,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
       ref.insert_or_assign(insert_pair);
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       ref.insert_or_assign(tile, insert_pair);
     }
     idx += loop_stride;
@@ -119,7 +120,8 @@ __global__ void insert_or_apply(
       }
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       if constexpr (HasInit) {
         ref.insert_or_apply(tile, insert_pair, init, op);
       } else {
@@ -186,7 +188,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
-  auto warp                  = cg::tiled_partition<32>(block);
+  auto warp                  = cg::tiled_partition<32, cg::thread_block>(block);
   auto const warp_thread_idx = warp.thread_rank();
 
   // Shared map initialization

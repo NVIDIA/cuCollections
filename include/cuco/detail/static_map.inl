@@ -522,7 +522,7 @@ __device__
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::insert(
-  CG const& g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
+  CG g, value_type const& insert_pair, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = this->initial_slot(g, insert_pair.first, hash);
 
@@ -634,7 +634,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::erase(
-  CG const& g, key_type const& k, Hash hash, KeyEqual key_equal) noexcept
+  CG g, key_type const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = this->initial_slot(g, k, hash);
   value_type const insert_pair =
@@ -834,7 +834,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 template <typename CG, typename ProbeKey, typename Hash, typename KeyEqual>
 __device__ cuda::std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool>
-static_map<Key, Value, Scope, Allocator>::device_view::contains(CG const& g,
+static_map<Key, Value, Scope, Allocator>::device_view::contains(CG g,
                                                                 ProbeKey const& k,
                                                                 Hash hash,
                                                                 KeyEqual key_equal) const noexcept

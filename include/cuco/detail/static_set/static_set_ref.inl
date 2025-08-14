@@ -331,7 +331,7 @@ template <typename Key,
 template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
-  CG const& tile,
+  CG tile,
   typename StorageRef::value_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
@@ -354,7 +354,7 @@ template <typename Key,
 template <typename CG>
 __device__ constexpr void
 static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
-  CG const& tile) noexcept
+  CG tile) noexcept
 {
   this->impl_.initialize(tile);
 }
@@ -404,8 +404,8 @@ class operator_impl<op::insert_tag,
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
-  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename Value, typename ParentCG>
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                          Value const& value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
@@ -472,9 +472,9 @@ class operator_impl<op::insert_and_find_tag,
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value>
+  template <typename Value, typename ParentCG>
   __device__ cuda::std::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value const& value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);
@@ -524,8 +524,8 @@ class operator_impl<op::erase_tag,
    *
    * @return True if the given element is successfully erased
    */
-  template <typename ProbeKey>
-  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename ProbeKey, typename ParentCG>
+  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                         ProbeKey const& key) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
@@ -582,9 +582,10 @@ class operator_impl<op::contains_tag,
    *
    * @return A boolean indicating whether the probe key is present
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+    ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.contains(group, key);
@@ -643,9 +644,10 @@ class operator_impl<op::find_tag,
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
-  template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  template <typename ProbeKey, typename ParentCG>
+  [[nodiscard]] __device__ const_iterator
+  find(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+       ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.find(group, key);
@@ -709,8 +711,8 @@ class operator_impl<op::for_each_tag,
    * @param key The key to search for
    * @param callback_op Function to apply to the copy of the matched slot
    */
-  template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <class ProbeKey, class CallbackOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                            ProbeKey const& key,
                            CallbackOp&& callback_op) const noexcept
   {
@@ -764,8 +766,8 @@ class operator_impl<op::count_tag,
    *
    * @return Number of occurrences found by the current thread
    */
-  template <typename ProbeKey>
-  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename ProbeKey, typename ParentCG>
+  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                              ProbeKey const& key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);

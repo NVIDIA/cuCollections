@@ -206,9 +206,9 @@ class linear_probing_impl
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename ProbeKey>
-  __device__ __forceinline__ iterator
-  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
+  template <typename ProbeKey, typename ParentCG>
+  __device__ __forceinline__ iterator initial_slot(
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> g, ProbeKey const& k) noexcept
   {
     return const_cast<iterator>(cuda::std::as_const(*this).initial_slot(g, k));
   }
@@ -224,9 +224,9 @@ class linear_probing_impl
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   __device__ __forceinline__ const_iterator initial_slot(
-    cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) const noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> g, ProbeKey const& k) const noexcept
   {
     auto const hash_value = [&]() {
       auto const tmp = hash_(k);
@@ -360,9 +360,9 @@ class double_hashing_impl
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename ProbeKey>
-  __device__ __forceinline__ iterator
-  initial_slot(cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) noexcept
+  template <typename ProbeKey, typename ParentCG>
+  __device__ __forceinline__ iterator initial_slot(
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> g, ProbeKey const& k) noexcept
   {
     return const_cast<iterator>(cuda::std::as_const(*this).initial_slot(g, k));
   }
@@ -379,9 +379,9 @@ class double_hashing_impl
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   __device__ __forceinline__ const_iterator initial_slot(
-    cooperative_groups::thread_block_tile<cg_size> const& g, ProbeKey const& k) const noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> g, ProbeKey const& k) const noexcept
   {
     std::size_t index;
     auto const hash_value = hash1_(k);

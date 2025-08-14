@@ -92,9 +92,9 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <int32_t BucketSize, typename ProbeKey, typename Extent>
+  template <int32_t BucketSize, typename ProbeKey, typename Extent, typename ParentCG>
   __host__ __device__ constexpr auto make_iterator(
-    cooperative_groups::thread_block_tile<cg_size> const& g,
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> g,
     ProbeKey const& probe_key,
     Extent upper_bound) const noexcept;
 
@@ -189,9 +189,9 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <int32_t BucketSize, typename ProbeKey, typename Extent>
+  template <int32_t BucketSize, typename ProbeKey, typename Extent, typename ParentCG>
   __host__ __device__ constexpr auto make_iterator(
-    cooperative_groups::thread_block_tile<cg_size> const& g,
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> g,
     ProbeKey const& probe_key,
     Extent upper_bound) const noexcept;
 
