@@ -21,6 +21,7 @@
 #include <cuco/detail/roaring_bitmap/util.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cub/device/device_transform.cuh>
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
@@ -28,7 +29,6 @@
 #include <cuda/stream_ref>
 #include <thrust/execution_policy.h>
 #include <thrust/fill.h>
-#include <thrust/transform.h>
 
 namespace cuco::detail {
 
@@ -74,17 +74,18 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
                                OutputIt contained,
                                cuda::stream_ref stream = {}) const noexcept
   {
-    auto nosync_exec_policy = thrust::cuda::par_nosync.on(stream.get());
     if (this->empty()) {
+      auto nosync_exec_policy = thrust::cuda::par_nosync.on(stream.get());
       thrust::fill(
         nosync_exec_policy, contained, contained + cuda::std::distance(first, last), false);
     } else {
-      thrust::transform(nosync_exec_policy,
-                        first,
-                        last,
-                        contained,
-                        cuda::proclaim_return_type<bool>(
-                          [*this] __device__(auto key) { return this->contains(key); }));
+      cub::DeviceTransform::Transform(
+        first,
+        contained,
+        cuda::std::distance(first, last),
+        cuda::proclaim_return_type<bool>(
+          [*this] __device__(auto key) { return this->contains(key); }),
+        stream.get());
     }
   }
 
