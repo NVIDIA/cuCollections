@@ -398,6 +398,7 @@ class operator_impl<op::insert_tag,
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -465,6 +466,7 @@ class operator_impl<op::insert_and_find_tag,
    * not.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -518,6 +520,7 @@ class operator_impl<op::erase_tag,
    * @brief Erases an element.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group erase
    * @param value The element to erase
@@ -576,6 +579,7 @@ class operator_impl<op::contains_tag,
    * false.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -638,6 +642,7 @@ class operator_impl<op::find_tag,
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -706,6 +711,7 @@ class operator_impl<op::for_each_tag,
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -760,6 +766,7 @@ class operator_impl<op::count_tag,
    * @brief Counts the occurrence of a given key contained in set
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for

@@ -1584,6 +1584,8 @@ class static_multimap {
     /**
      * @brief Inserts the specified key/value pair into the map.
      *
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param g The Cooperative Group that performs the insert
      * @param insert_pair The pair to insert
      */
@@ -1726,6 +1728,7 @@ class static_multimap {
      *
      * @tparam ProbeKey Probe key type
      * @tparam KeyEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
      *
      * @param g The Cooperative Group used to perform the contains operation
      * @param k The key to search for
@@ -1759,6 +1762,7 @@ class static_multimap {
      *
      * @tparam ProbePair Probe pair type
      * @tparam PairEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
      *
      * @param g The Cooperative Group used to perform the contains operation
      * @param p The pair to search for
@@ -1779,6 +1783,8 @@ class static_multimap {
      * returns the sum of all matches for `k`.
      *
      * @tparam KeyEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
      * @param key_equal The binary callable used to compare two keys
@@ -1799,6 +1805,8 @@ class static_multimap {
      * returns the sum of all matches for `k`. If `k` does not have any matches, returns 1.
      *
      * @tparam KeyEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param g The Cooperative Group used to perform the count operation
      * @param k The key to search for
      * @param key_equal The binary callable used to compare two keys
@@ -1818,6 +1826,8 @@ class static_multimap {
      * and returns the sum of all matches for `p`.
      *
      * @tparam PairEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
      * @param pair_equal The binary callable used to compare two pairs
@@ -1838,6 +1848,8 @@ class static_multimap {
      * and returns the sum of all matches for `p`. If `p` does not have any matches, returns 1.
      *
      * @tparam PairEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param g The Cooperative Group used to perform the pair_count operation
      * @param pair The pair to search for
      * @param pair_equal The binary callable used to compare two pairs
@@ -1863,6 +1875,8 @@ class static_multimap {
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * constructible from the map's `value_type`
      * @tparam KeyEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param flushing_cg The Cooperative Group used to flush output buffer
      * @param probing_cg The Cooperative Group used to retrieve
      * @param k The key to search for
@@ -1903,6 +1917,7 @@ class static_multimap {
      * @tparam OutputIt Device accessible output iterator whose `value_type` is
      * constructible from the map's `value_type`
      * @tparam KeyEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
      *
      * @param flushing_cg The Cooperative Group used to flush output buffer
      * @param probing_cg The Cooperative Group used to retrieve
@@ -1951,6 +1966,8 @@ class static_multimap {
      * @tparam OutputIt4 Device accessible output iterator whose `value_type` is constructible from
      * the map's `mapped_type`.
      * @tparam PairEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param probing_cg The Cooperative Group used to retrieve
      * @param pair The pair to search for
      * @param probe_key_begin Beginning of the output sequence of the matched probe keys
@@ -1990,6 +2007,7 @@ class static_multimap {
      * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
      * the map's `value_type`.
      * @tparam PairEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
      *
      * @param flushing_cg The Cooperative Group used to flush output buffer
      * @param probing_cg The Cooperative Group used to retrieve
@@ -2045,6 +2063,8 @@ class static_multimap {
      * @tparam OutputIt4 Device accessible output iterator whose `value_type` is constructible from
      * the map's `mapped_type`.
      * @tparam PairEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param probing_cg The Cooperative Group used to retrieve
      * @param pair The pair to search for
      * @param probe_key_begin Beginning of the output sequence of the matched probe keys
@@ -2085,6 +2105,8 @@ class static_multimap {
      * @tparam OutputIt2 Device accessible output iterator whose `value_type` is constructible from
      * the map's `value_type`.
      * @tparam PairEqual Binary callable type
+     * @tparam ParentCG Type of parent Cooperative Group
+     *
      * @param flushing_cg The Cooperative Group used to flush output buffer
      * @param probing_cg The Cooperative Group used to retrieve
      * @param pair The pair to search for

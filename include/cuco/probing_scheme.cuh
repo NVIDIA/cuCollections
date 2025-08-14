@@ -86,6 +86,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @tparam BucketSize Size of the bucket
    * @tparam ProbeKey Type of probing key
    * @tparam Extent Type of extent
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group to generate probing iterator
    * @param probe_key The probing key
@@ -183,6 +184,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @tparam BucketSize Size of the bucket
    * @tparam ProbeKey Type of probing key
    * @tparam Extent Type of extent
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group to generate probing iterator
    * @param probe_key The probing key

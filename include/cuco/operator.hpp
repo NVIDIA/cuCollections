@@ -63,6 +63,7 @@ inline namespace op {
  *
  * Where:
  * @see @tparam Value Input type which is convertible to the container's `value_type`
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param value The element to insert
@@ -92,6 +93,7 @@ struct insert_tag {
  *
  * Where:
  * @see @tparam Value Input type which is convertible to the container's `value_type`
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param value The element to insert
@@ -121,6 +123,7 @@ struct insert_and_find_tag {
  *
  * Where:
  * @see @tparam Value Input type which is convertible to the container's `value_type`
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param value The element to insert
@@ -162,6 +165,7 @@ struct insert_or_assign_tag {
  * @see @tparam Op Callable type which is used as `apply` operation and can be
  *   called with arguments as `Op(cuda::atomic_ref<T, Scope>, T)`. `Op` strictly must
  *   have this signature to atomically apply the operation.
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param value The element to insert
@@ -189,6 +193,7 @@ struct insert_or_apply_tag {
  *
  * Where:
  * @see @tparam ProbeKey Input key type which is convertible to the container's 'key_type'
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param key The key to search for
@@ -215,6 +220,7 @@ struct erase_tag {
  *
  * Where:
  * @see @tparam ProbeKey Input key type which is convertible to the containser's 'key_type'
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param key The key to search for
@@ -240,6 +246,7 @@ struct contains_tag {
  *
  * Where:
  * @see @tparam ProbeKey Input key type which is convertible to the containser's 'key_type'
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param key The key to search for
@@ -365,6 +372,7 @@ struct retrieve_tag {
  * @see @tparam ProbeKey Probe key type
  * @see @tparam CallbackOp Type of unary callback function object
  * @see @tparam SyncOp Functor or device lambda which accepts the current `group` object
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param key The key to search for

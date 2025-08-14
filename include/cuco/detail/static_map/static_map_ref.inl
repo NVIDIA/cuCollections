@@ -459,6 +459,7 @@ class operator_impl<
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -552,6 +553,7 @@ class operator_impl<
    * to the mapped_type corresponding to the key `k`.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -744,6 +746,7 @@ class operator_impl<
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
    *   have this signature to atomically apply the operation.
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -776,6 +779,7 @@ class operator_impl<
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
    *   have this signature to atomically apply the operation.
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -836,6 +840,7 @@ class operator_impl<
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
    *   have this signature to atomically apply the operation.
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -944,6 +949,7 @@ class operator_impl<
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
    *   have this signature to atomically apply the operation.
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -1141,6 +1147,7 @@ class operator_impl<
    * not.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -1196,6 +1203,7 @@ class operator_impl<
    * @brief Erases an element.
    *
    * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param key The element to erase
@@ -1257,6 +1265,7 @@ class operator_impl<
    * true. Otherwise, returns false.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -1321,6 +1330,7 @@ class operator_impl<
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -1391,6 +1401,7 @@ class operator_impl<
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -1447,6 +1458,7 @@ class operator_impl<
    * @brief Counts the occurrence of a given key contained in map
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for

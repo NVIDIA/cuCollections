@@ -72,6 +72,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * To be used for Cooperative Group based probing.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
@@ -91,6 +92,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * To be used for Cooperative Group based probing.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
@@ -578,6 +580,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam ProbeT Probe data type
    * @tparam Equal Binary callable type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g The Cooperative Group used to perform the contains operation
    * @param element The probe element to search for
@@ -648,6 +651,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam ProbeT Probe data type
    * @tparam Equal Binary callable type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g The Cooperative Group used to perform the contains operation
    * @param element The probe element to search for

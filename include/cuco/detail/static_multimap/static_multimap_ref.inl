@@ -462,6 +462,7 @@ class operator_impl<
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -528,6 +529,7 @@ class operator_impl<
    * true. Otherwise, returns false.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
@@ -597,6 +599,7 @@ class operator_impl<
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -634,6 +637,7 @@ class operator_impl<
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
    * @tparam SyncOp Functor or device lambda which accepts the current `group` object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -702,6 +706,7 @@ class operator_impl<
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
@@ -759,6 +764,7 @@ class operator_impl<
    * @brief Counts the occurrence of a given key contained in multimap
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for

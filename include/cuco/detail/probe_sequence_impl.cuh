@@ -201,6 +201,7 @@ class linear_probing_impl
    * If vector-load is enabled, the return slot is always even to avoid illegal memory access.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
@@ -219,6 +220,7 @@ class linear_probing_impl
    * If vector-load is enabled, the return slot is always even to avoid illegal memory access.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
@@ -355,6 +357,7 @@ class double_hashing_impl
    * to avoid illegal memory access.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
@@ -374,6 +377,7 @@ class double_hashing_impl
    * to avoid illegal memory access.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
