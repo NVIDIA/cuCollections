@@ -36,14 +36,11 @@
  * In this example we load two 32-bit bitmaps and one 64-bit bitmap (portable format) from the
  * [RoaringBitmapFormatSpec](https://github.com/RoaringBitmap/RoaringFormatSpec) repository and
  * check if the bulk lookup API returns the correct results. Namely, we test the following files:
- * -
- * [examples/roaring_bitmap/bitmapwithoutruns.bin
+ * - [bitmapwithoutruns.bin
  * (32-bit)](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/5177ad9/testdata/bitmapwithoutruns.bin)
- * -
- * [examples/roaring_bitmap/bitmapwithruns.bin
+ * - [bitmapwithruns.bin
  * (32-bit)](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/5177ad9/testdata/bitmapwithruns.bin)
- * -
- * [examples/roaring_bitmap/portable_bitmap64.bin
+ * - [portable_bitmap64.bin
  * (64-bit)](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/5177ad9/testdata64/portable_bitmap64.bin)
  *
  * @note This example requires the cmake option -DCUCO_DOWNLOAD_ROARING_TESTDATA=ON to be set.
