@@ -13,9 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <cuco/roaring_bitmap.cuh>
 #include <cuco/utility/traits.hpp>
 
+#include <cuda/std/cstddef>
+#include <cuda/std/cstdint>
 #include <cuda/std/type_traits>
 #include <thrust/device_vector.h>
 #include <thrust/logical.h>
@@ -34,11 +37,16 @@
  * [RoaringBitmapFormatSpec](https://github.com/RoaringBitmap/RoaringFormatSpec) repository and
  * check if the bulk lookup API returns the correct results. Namely, we test the following files:
  * -
- * [examples/roaring_bitmap/bitmapwithoutruns.bin](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata/bitmapwithoutruns.bin)
+ * [examples/roaring_bitmap/bitmapwithoutruns.bin
+ * (32-bit)](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/5177ad9/testdata/bitmapwithoutruns.bin)
  * -
- * [examples/roaring_bitmap/bitmapwithruns.bin](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata/bitmapwithruns.bin)
+ * [examples/roaring_bitmap/bitmapwithruns.bin
+ * (32-bit)](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/5177ad9/testdata/bitmapwithruns.bin)
  * -
- * [examples/roaring_bitmap/portable_bitmap64.bin](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata64/portable_bitmap64.bin)
+ * [examples/roaring_bitmap/portable_bitmap64.bin
+ * (64-bit)](https://github.com/RoaringBitmap/RoaringFormatSpec/blob/5177ad9/testdata64/portable_bitmap64.bin)
+ *
+ * @note This example requires the cmake option -DCUCO_DOWNLOAD_ROARING_TESTDATA=ON to be set.
  *
  */
 
@@ -47,8 +55,8 @@ bool check(std::string const& bitmap_file_path)
 {
   auto generate_keys = []() -> thrust::device_vector<KeyType> {
     if constexpr (cuda::std::is_same_v<KeyType, cuda::std::uint32_t>) {
-      // reference:
-      // https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata/README.md#test-data
+      // Create query keys for the bitmapwith{out}runs.bin files:
+      // https://github.com/RoaringBitmap/RoaringFormatSpec/blob/5177ad9/testdata/README.md#test-data
       std::vector<cuda::std::uint32_t> keys;
       for (cuda::std::uint32_t k = 0; k < 100000; k += 1000) {
         keys.push_back(k);
@@ -61,8 +69,8 @@ bool check(std::string const& bitmap_file_path)
       }
       return thrust::device_vector<cuda::std::uint32_t>(keys.begin(), keys.end());
     } else if constexpr (cuda::std::is_same_v<KeyType, cuda::std::uint64_t>) {
-      // reference:
-      // https://github.com/RoaringBitmap/RoaringFormatSpec/blob/master/testdata64/README.md#portable_bitmap64bin
+      // Create query keys for the portable_bitmap64.bin file:
+      // https://github.com/RoaringBitmap/RoaringFormatSpec/blob/5177ad9/testdata64/README.md#portable_bitmap64bin
       std::vector<cuda::std::uint64_t> keys;
       for (cuda::std::uint64_t k = 0x00000ull; k < 0x09000ull; ++k) {
         keys.push_back(k);
@@ -100,30 +108,38 @@ bool check(std::string const& bitmap_file_path)
   file.read(reinterpret_cast<char*>(thrust::raw_pointer_cast(buffer.data())), file_size);
   file.close();
 
+  // Create roaring bitmap from the file
   cuco::roaring_bitmap<KeyType> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
 
+  // Generate query keys (all should be contained in the bitmap)
   auto keys = generate_keys();
+
+  // Create a vector to store the results
   thrust::device_vector<bool> contained(keys.size(), false);
 
+  // Bulk-lookup query keys against the bitmap
   roaring_bitmap.contains(keys.begin(), keys.end(), contained.begin());
 
+  // Check if all the keys are contained in the bitmap
   bool all_contained = thrust::all_of(contained.begin(), contained.end(), ::cuda::std::identity{});
   return all_contained;
 }
 
 int main()
 {
-  auto data_dir_prefix = []() -> std::string {
-    std::string source_path = __FILE__;
-    auto pos                = source_path.find_last_of("/\\");
-    return (pos == std::string::npos) ? std::string(".") : source_path.substr(0, pos);
-  };
-
-  bool success = check<cuda::std::uint32_t>(data_dir_prefix() + "/bitmapwithoutruns.bin");
-  success &= check<cuda::std::uint32_t>(data_dir_prefix() + "/bitmapwithruns.bin");
-  success &= check<cuda::std::uint64_t>(data_dir_prefix() + "/portable_bitmap64.bin");
+#ifdef CUCO_ROARING_DATA_DIR
+  std::string const data_dir = CUCO_ROARING_DATA_DIR;
+  bool success               = check<cuda::std::uint32_t>(data_dir + "/bitmapwithoutruns.bin");
+  success &= check<cuda::std::uint32_t>(data_dir + "/bitmapwithruns.bin");
+  success &= check<cuda::std::uint64_t>(data_dir + "/portable_bitmap64.bin");
 
   std::cout << "success: " << (success ? "true" : "false") << std::endl;
 
   return success ? 0 : 1;
+#else
+  std::cerr << "This example requires CUCO_ROARING_DATA_DIR to be defined (build with cmake option "
+               "-DCUCO_DOWNLOAD_ROARING_TESTDATA=ON)"
+            << std::endl;
+  return 1;
+#endif
 }

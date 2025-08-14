@@ -18,74 +18,80 @@
 #include <benchmark_utils.hpp>
 
 #include <cuco/roaring_bitmap.cuh>
+#include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/std/cstddef>
+#include <cuda/std/cstdint>
 #include <thrust/device_vector.h>
+#include <thrust/universal_vector.h>
 
-#include <filesystem>
 #include <fstream>
-#include <iostream>
-#include <vector>
+#include <string>
 
-void roaring_bitmap_contains(nvbench::state& state)
+using namespace cuco::benchmark;  // defaults
+using namespace cuco::utility;    // key_generator, distribution
+
+template <typename T>
+void roaring_bitmap_contains(nvbench::state& state, nvbench::type_list<T>)
 {
-  namespace fs = std::filesystem;
+  auto const num_items   = state.get_int64("NumInputs");
+  auto const bitmap_file = state.get_string_or_default("BitmapFile", {});
 
-  // Get the path of the current source file
-  fs::path source_file_path = __FILE__;
-  fs::path source_dir       = source_file_path.parent_path();
-
-  fs::path path      = source_dir / "../../examples/roaring_bitmap/bitmapwithoutruns.bin";
-  fs::path full_path = path.lexically_normal();
-
-  std::ifstream file(full_path, std::ios::binary);
-  if (!file.is_open()) { state.skip("Failed to open bitmap file"); }
+  std::ifstream file(bitmap_file, std::ios::binary);
+  if (!file.is_open()) { state.skip("Bitmap file not found"); }
 
   // Get file size
   file.seekg(0, std::ios::end);
   std::streamsize file_size = file.tellg();
   file.seekg(0, std::ios::beg);
 
-  char* buffer;
-  CUCO_CUDA_TRY(cudaMallocHost(&buffer, file_size));
+  thrust::universal_host_pinned_vector<cuda::std::byte> buffer(file_size);
 
-  file.read(buffer, file_size);
+  file.read(reinterpret_cast<char*>(thrust::raw_pointer_cast(buffer.data())), file_size);
   file.close();
 
-  cuco::roaring_bitmap<cuda::std::uint32_t> roaring_bitmap(
-    reinterpret_cast<cuda::std::byte const*>(buffer));
+  cuco::roaring_bitmap<T> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
 
-  std::vector<cuda::std::uint32_t> keys;
-  for (cuda::std::uint32_t k = 0; k < 100000; k += 1000) {
-    keys.push_back(k);
-  }
-  for (cuda::std::uint32_t k = 100000; k < 200000; ++k) {
-    keys.push_back(3 * k);
-  }
-  for (cuda::std::uint32_t k = 700000; k < 800000; ++k) {
-    keys.push_back(k);
-  }
+  thrust::device_vector<T> items(num_items);
 
-  // multiply the keys for more accurate benchmark numbers
-  for (int i = 0; i < 13; i++) {
-    keys.insert(keys.end(), keys.begin(), keys.end());
-  }
+  key_generator gen{};
+  gen.generate(distribution::unique{}, items.begin(), items.end());
 
-  thrust::device_vector<cuda::std::uint32_t> keys_d(keys.begin(), keys.end());
-  thrust::device_vector<bool> contained(keys.size(), false);
+  thrust::device_vector<bool> contained(items.size(), false);
 
-  state.add_element_count(keys.size());
-  state.add_global_memory_reads<cuda::std::uint32_t>(keys.size(), "InputSize");
+  state.add_element_count(items.size());
+  state.add_global_memory_reads<T>(items.size(), "InputSize");
+
+  auto& summ = state.add_summary("BitmapSizeMB");
+  summ.set_string("hint", "BitmapSize");
+  summ.set_string("short_name", "BitmapSizeMB");
+  summ.set_string("description", "Bitmap size in MB");
+  summ.set_float64("value", static_cast<double>(file_size) / (1024 * 1024));
 
   state.exec([&](nvbench::launch& launch) {
     roaring_bitmap.contains_async(
-      keys_d.begin(), keys_d.end(), contained.begin(), {launch.get_stream()});
+      items.begin(), items.end(), contained.begin(), {launch.get_stream()});
   });
-
-  CUCO_CUDA_TRY(cudaFreeHost(buffer));
 }
 
-NVBENCH_BENCH(roaring_bitmap_contains)
+NVBENCH_BENCH_TYPES(roaring_bitmap_contains,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::uint32_t>))
   .set_name("roaring_bitmap_contains")
+  .add_int64_power_of_two_axis("NumInputs", {32})
+// Default benchmark is only available if the Roaring bitmap testdata has been downloaded
+#ifdef CUCO_ROARING_DATA_DIR
+  .add_string_axis("BitmapFile", {std::string(CUCO_ROARING_DATA_DIR) + "/bitmapwithruns.bin"})
+#endif
+  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE);
+
+NVBENCH_BENCH_TYPES(roaring_bitmap_contains,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::uint64_t>))
+  .set_name("roaring_bitmap_contains")
+  .add_int64_power_of_two_axis("NumInputs", {31})
+// Default benchmark is only available if the Roaring bitmap testdata has been downloaded
+#ifdef CUCO_ROARING_DATA_DIR
+  .add_string_axis("BitmapFile", {std::string(CUCO_ROARING_DATA_DIR) + "/portable_bitmap64.bin"})
+#endif
   .set_max_noise(cuco::benchmark::defaults::MAX_NOISE);
