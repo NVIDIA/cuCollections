@@ -77,7 +77,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @return An iterator whose value_type is convertible to slot index type
    */
   template <int32_t BucketSize, typename ProbeKey, typename Extent>
-  __host__ __device__ constexpr auto make_iterator(ProbeKey const& probe_key,
+  __host__ __device__ constexpr auto make_iterator(ProbeKey probe_key,
                                                    Extent upper_bound) const noexcept;
 
   /**
@@ -95,7 +95,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
   template <int32_t BucketSize, typename ProbeKey, typename Extent>
   __host__ __device__ constexpr auto make_iterator(
     cooperative_groups::thread_block_tile<cg_size> const& g,
-    ProbeKey const& probe_key,
+    ProbeKey probe_key,
     Extent upper_bound) const noexcept;
 
   /**
@@ -174,7 +174,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @return An iterator whose value_type is convertible to slot index type
    */
   template <int32_t BucketSize, typename ProbeKey, typename Extent>
-  __host__ __device__ constexpr auto make_iterator(ProbeKey const& probe_key,
+  __host__ __device__ constexpr auto make_iterator(ProbeKey probe_key,
                                                    Extent upper_bound) const noexcept;
 
   /**
@@ -192,7 +192,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
   template <int32_t BucketSize, typename ProbeKey, typename Extent>
   __host__ __device__ constexpr auto make_iterator(
     cooperative_groups::thread_block_tile<cg_size> const& g,
-    ProbeKey const& probe_key,
+    ProbeKey probe_key,
     Extent upper_bound) const noexcept;
 
   /**

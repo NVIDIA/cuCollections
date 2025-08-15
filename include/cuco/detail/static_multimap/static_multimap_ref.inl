@@ -454,7 +454,7 @@ class operator_impl<
    * @return True if the given element is successfully inserted
    */
   template <typename Value>
-  __device__ bool insert(Value const& value) noexcept
+  __device__ bool insert(Value value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(value);
@@ -472,7 +472,7 @@ class operator_impl<
    */
   template <typename Value>
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         Value const& value) noexcept
+                         Value value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     if (!cuco::detail::bitwise_compare(ref_.erased_key_sentinel(), ref_.empty_key_sentinel())) {
@@ -516,7 +516,7 @@ class operator_impl<
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ bool contains(ProbeKey key) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -538,7 +538,7 @@ class operator_impl<
    */
   template <typename ProbeKey>
   [[nodiscard]] __device__ bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.contains(group, key);
@@ -576,7 +576,7 @@ class operator_impl<
    * @param callback_op Function to call on every element found
    */
   template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
+  __device__ void for_each(ProbeKey key, CallbackOp&& callback_op) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -605,7 +605,7 @@ class operator_impl<
    */
   template <class ProbeKey, class CallbackOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
-                           ProbeKey const& key,
+                           ProbeKey key,
                            CallbackOp&& callback_op) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
@@ -643,7 +643,7 @@ class operator_impl<
    */
   template <class ProbeKey, class CallbackOp, class SyncOp>
   __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
-                           ProbeKey const& key,
+                           ProbeKey key,
                            CallbackOp&& callback_op,
                            SyncOp&& sync_op) const noexcept
   {
@@ -689,7 +689,7 @@ class operator_impl<
    * @return An iterator to the position at which the equivalent key is stored
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ const_iterator find(ProbeKey key) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -710,8 +710,8 @@ class operator_impl<
    * @return An iterator to the position at which the equivalent key is stored
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ const_iterator
+  find(cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.find(group, key);
@@ -749,7 +749,7 @@ class operator_impl<
    * @return Number of occurrences found by the current thread
    */
   template <typename ProbeKey>
-  __device__ size_type count(ProbeKey const& key) const noexcept
+  __device__ size_type count(ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.count(key);
@@ -767,7 +767,7 @@ class operator_impl<
    */
   template <typename ProbeKey>
   __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
-                             ProbeKey const& key) const noexcept
+                             ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.count(group, key);
