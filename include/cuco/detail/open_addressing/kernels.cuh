@@ -83,7 +83,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(InputIt first,
         if (ref.insert(insert_element)) { thread_num_successes++; };
       } else {
         auto const tile =
-          cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+          cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+            cooperative_groups::this_thread_block());
         if (ref.insert(tile, insert_element) && tile.thread_rank() == 0) { thread_num_successes++; }
       }
     }
@@ -141,7 +142,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(
         ref.insert(insert_element);
       } else {
         auto const tile =
-          cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+          cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+            cooperative_groups::this_thread_block());
         ref.insert(tile, insert_element);
       }
     }
@@ -176,7 +178,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
       ref.erase(erase_element);
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       ref.erase(tile, erase_element);
     }
     idx += loop_stride;
@@ -216,7 +219,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void for_each_n(InputIt first,
       ref.for_each(key, callback_op);
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       ref.for_each(tile, key, callback_op);
     }
     idx += loop_stride;
@@ -286,7 +290,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(block);
+      auto const tile = cg::tiled_partition<CGSize, cg::thread_block>(block);
       if (idx < n) {
         typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
@@ -403,7 +407,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find_if_n(InputIt first,
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(block);
+      auto const tile = cg::tiled_partition<CGSize, cg::thread_block>(block);
       if (idx < n) {
         typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
         auto const found                                                   = ref.find(tile, key);
@@ -498,7 +502,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
         *(inserted_begin + idx) = output_inserted_buffer[thread_idx];
       }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
+      auto const tile = cg::tiled_partition<CGSize, cg::thread_block>(cg::this_thread_block());
       if (idx < n) {
         typename cuda::std::iterator_traits<InputIt>::value_type const insert_element{
           *(first + idx)};
@@ -560,7 +564,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
       }
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       if constexpr (IsOuter) {
         auto temp_count = ref.count(tile, key);
         if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
@@ -619,7 +624,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
       }
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       if constexpr (IsOuter) {
         auto temp_count = ref.count(tile, key);
         if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
@@ -756,7 +762,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
 
   auto constexpr cg_size = ContainerRef::cg_size;
   auto const block       = cg::this_thread_block();
-  auto const tile        = cg::tiled_partition<cg_size>(block);
+  auto const tile        = cg::tiled_partition<cg_size, cg::thread_block>(block);
 
   auto const thread_rank         = block.thread_rank();
   auto constexpr tiles_per_block = BlockSize / cg_size;  // tile.meta_group_size() but constexpr

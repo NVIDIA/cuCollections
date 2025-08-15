@@ -331,9 +331,7 @@ template <typename Key,
 template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
-  CG const& tile,
-  bucket_type* const memory_to_use,
-  cuda_thread_scope<NewScope> scope) const noexcept
+  CG tile, bucket_type* const memory_to_use, cuda_thread_scope<NewScope> scope) const noexcept
 {
   auto const storage_ref = this->storage_ref().make_copy(tile, memory_to_use);
   return static_multiset_ref<Key,
@@ -357,7 +355,7 @@ template <typename Key,
 template <typename CG>
 __device__ constexpr void
 static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
-  CG const& tile) noexcept
+  CG tile) noexcept
 {
   this->storage_ref().initialize(tile, this->empty_key_sentinel());
 }
@@ -403,14 +401,15 @@ class operator_impl<
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
-  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename Value, typename ParentCG>
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                          Value value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
@@ -461,15 +460,16 @@ class operator_impl<
    * @brief Indicates whether the probe key `key` was inserted into the container.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
    *
    * @return A boolean indicating whether the probe key is present
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey key) const noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.contains(group, key);
@@ -524,15 +524,16 @@ class operator_impl<
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ const_iterator
-  find(cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey key) const noexcept
+  find(cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.find(group, key);
@@ -708,13 +709,14 @@ class operator_impl<
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to call on every element found
    */
-  template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <class ProbeKey, class CallbackOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                            ProbeKey key,
                            CallbackOp&& callback_op) const noexcept
   {
@@ -745,14 +747,15 @@ class operator_impl<
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Unary callback functor or device lambda
    * @tparam SyncOp Functor or device lambda which accepts the current `group` object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to call on every element found
    * @param sync_op Function that is allowed to synchronize `group` inbetween probing buckets
    */
-  template <class ProbeKey, class CallbackOp, class SyncOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <class ProbeKey, class CallbackOp, class SyncOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                            ProbeKey key,
                            CallbackOp&& callback_op,
                            SyncOp&& sync_op) const noexcept
@@ -804,14 +807,15 @@ class operator_impl<
    * @brief Counts the occurrence of a given key contained in multiset
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for
    *
    * @return Number of occurrences found by the current thread
    */
-  template <typename ProbeKey>
-  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename ProbeKey, typename ParentCG>
+  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                              ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);

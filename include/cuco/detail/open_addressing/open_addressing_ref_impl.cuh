@@ -313,7 +313,7 @@ class open_addressing_ref_impl {
    * the ownership of the memory
    */
   template <typename CG>
-  __device__ void make_copy(CG const& g, value_type* const memory_to_use) const noexcept
+  __device__ void make_copy(CG g, value_type* const memory_to_use) const noexcept
   {
     auto const num_slots = this->capacity();
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -348,7 +348,7 @@ class open_addressing_ref_impl {
    * @param tile The cooperative thread group used to initialize the container
    */
   template <typename CG>
-  __device__ constexpr void initialize(CG const& tile) noexcept
+  __device__ constexpr void initialize(CG tile) noexcept
   {
     auto tid          = tile.thread_rank();
     auto const extent = static_cast<size_type>(this->extent());
@@ -419,14 +419,15 @@ class open_addressing_ref_impl {
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <bool SupportsErase, typename Value>
-  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <bool SupportsErase, typename Value, typename ParentCG>
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                          Value value) noexcept
   {
     auto const val = this->heterogeneous_value(value);
@@ -578,6 +579,7 @@ class open_addressing_ref_impl {
    * not.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -585,9 +587,9 @@ class open_addressing_ref_impl {
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value>
+  template <typename Value, typename ParentCG>
   __device__ cuda::std::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, Value value) noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value value) noexcept
   {
 #if __CUDA_ARCH__ < 700
     // Spinning to ensure that the write to the value part took place requires
@@ -721,14 +723,15 @@ class open_addressing_ref_impl {
    * @brief Erases an element.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group erase
    * @param key The element to erase
    *
    * @return True if the given element is successfully erased
    */
-  template <typename ProbeKey>
-  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <typename ProbeKey, typename ParentCG>
+  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                         ProbeKey key) noexcept
   {
     auto probing_iter =
@@ -818,15 +821,16 @@ class open_addressing_ref_impl {
    * false.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
    *
    * @return A boolean indicating whether the probe key is present
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey key) const noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
@@ -901,15 +905,16 @@ class open_addressing_ref_impl {
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ iterator
-  find(cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey key) const noexcept
+  find(cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
@@ -997,15 +1002,16 @@ class open_addressing_ref_impl {
    * @brief Counts the occurrence of a given key contained in the container
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for
    *
    * @return Number of occurrences found by the current thread
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ size_type
-  count(cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey key) const noexcept
+  count(cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
@@ -1195,8 +1201,8 @@ class open_addressing_ref_impl {
     auto constexpr max_matches_per_step = flushing_tile_size * bucket_size;
     auto constexpr buffer_size = buffer_multiplier * max_matches_per_step + flushing_tile_size;
 
-    auto const flushing_tile = cg::tiled_partition<flushing_tile_size>(block);
-    auto const probing_tile  = cg::tiled_partition<probing_tile_size>(block);
+    auto const flushing_tile = cg::tiled_partition<flushing_tile_size, cg::thread_block>(block);
+    auto const probing_tile  = cg::tiled_partition<probing_tile_size, cg::thread_block>(block);
 
     auto const flushing_tile_id = flushing_tile.meta_group_rank();
     auto const stride           = probing_tile.meta_group_size();
@@ -1208,7 +1214,7 @@ class open_addressing_ref_impl {
     if (flushing_tile.thread_rank() == 0) { counters[flushing_tile_id] = 0; }
     flushing_tile.sync();
 
-    auto flush_buffers = [&](auto const& tile) {
+    auto flush_buffers = [&](auto tile) {
       size_type offset = 0;
       auto const count = counters[flushing_tile_id];
       auto const rank  = tile.thread_rank();
@@ -1403,13 +1409,14 @@ class open_addressing_ref_impl {
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to apply to every matched slot
    */
-  template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <class ProbeKey, class CallbackOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                            ProbeKey key,
                            CallbackOp&& callback_op) const noexcept
   {
@@ -1466,14 +1473,15 @@ class open_addressing_ref_impl {
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
    * @tparam SyncOp Type of function object which accepts the current `group` object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to apply to every matched slot
    * @param sync_op Function that is allowed to synchronize `group` inbetween probing buckets
    */
-  template <class ProbeKey, class CallbackOp, class SyncOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+  template <class ProbeKey, class CallbackOp, class SyncOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                            ProbeKey key,
                            CallbackOp&& callback_op,
                            SyncOp&& sync_op) const noexcept

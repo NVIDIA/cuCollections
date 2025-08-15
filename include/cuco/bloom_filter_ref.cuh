@@ -91,7 +91,7 @@ class bloom_filter_ref {
    * @param group The Cooperative Group this operation is executed with
    */
   template <class CG>
-  __device__ constexpr void clear(CG const& group);
+  __device__ constexpr void clear(CG group);
 
   /**
    * @brief Erases all information from the filter.
@@ -132,7 +132,7 @@ class bloom_filter_ref {
    * @param key The key to be added
    */
   template <class CG, class ProbeKey>
-  __device__ void add(CG const& group, ProbeKey const& key);
+  __device__ void add(CG group, ProbeKey const& key);
 
   /**
    * @brief Device function that adds all keys in the range `[first, last)` to the filter.
@@ -148,7 +148,7 @@ class bloom_filter_ref {
    * @param last End of the sequence of keys
    */
   template <class CG, class InputIt>
-  __device__ void add(CG const& group, InputIt first, InputIt last);
+  __device__ void add(CG group, InputIt first, InputIt last);
 
   /**
    * @brief Adds all keys in the range `[first, last)` to the filter.
@@ -255,11 +255,11 @@ class bloom_filter_ref {
    * @return `true` iff the key's fingerprint was present in the filter
    */
   template <class CG, class ProbeKey>
-  [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const;
+  [[nodiscard]] __device__ bool contains(CG group, ProbeKey const& key) const;
 
   // TODO
   // template <class CG, class InputIt, class OutputIt>
-  // __device__ void contains(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
+  // __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin)
   // const;
 
   /**

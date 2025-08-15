@@ -95,7 +95,7 @@ class bloom_filter_impl {
   }
 
   template <class CG>
-  __device__ constexpr void clear(CG const& group)
+  __device__ constexpr void clear(CG group)
   {
     for (int i = group.thread_rank(); i < num_blocks_ * words_per_block; i += group.size()) {
       words_[i] = 0;
@@ -149,7 +149,7 @@ class bloom_filter_impl {
   }
 
   template <class CG, class ProbeKey>
-  __device__ void add(CG const& group, ProbeKey const& key)
+  __device__ void add(CG group, ProbeKey const& key)
   {
     constexpr auto num_threads         = tile_size_v<CG>;
     constexpr auto optimal_num_threads = add_optimal_cg_size();
@@ -166,7 +166,7 @@ class bloom_filter_impl {
   }
 
   template <class CG, class InputIt>
-  __device__ void add(CG const& group, InputIt first, InputIt last)
+  __device__ void add(CG group, InputIt first, InputIt last)
   {
     namespace cg = cooperative_groups;
 
@@ -208,7 +208,7 @@ class bloom_filter_impl {
       typename policy_type::hash_result_type hash_value;
       size_type block_index;
 
-      auto const worker_group  = cg::tiled_partition<worker_num_threads>(group);
+      auto const worker_group  = cg::tiled_partition<worker_num_threads, CG>(group);
       auto const worker_offset = worker_num_threads * worker_group.meta_group_rank();
 
       auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
@@ -229,7 +229,7 @@ class bloom_filter_impl {
   }
 
   template <class CG, class HashValue, class BlockIndex>
-  __device__ void add_impl(CG const& group, HashValue const& hash_value, BlockIndex block_index)
+  __device__ void add_impl(CG group, HashValue const& hash_value, BlockIndex block_index)
   {
     constexpr auto num_threads = tile_size_v<CG>;
 
@@ -327,7 +327,7 @@ class bloom_filter_impl {
   }
 
   template <class CG, class ProbeKey>
-  [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const
+  [[nodiscard]] __device__ bool contains(CG group, ProbeKey const& key) const
   {
     constexpr auto num_threads         = tile_size_v<CG>;
     constexpr auto optimal_num_threads = contains_optimal_cg_size();
@@ -359,7 +359,7 @@ class bloom_filter_impl {
 
   // TODO
   // template <class CG, class InputIt, class OutputIt>
-  // __device__ void contains(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
+  // __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin)
   // const;
 
   template <class InputIt, class OutputIt>
@@ -432,7 +432,7 @@ class bloom_filter_impl {
   // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const
   // [[nodiscard]] __host__ __device__ static uint32_t optimal_pattern_bits(size_t num_blocks)
   // template <typename CG, cuda::thread_scope NewScope = thread_scope>
-  // [[nodiscard]] __device__ constexpr auto make_copy(CG const& group, word_type* const
+  // [[nodiscard]] __device__ constexpr auto make_copy(CG group, word_type* const
   // memory_to_use, cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
  private:

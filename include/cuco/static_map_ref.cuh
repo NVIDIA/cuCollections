@@ -292,7 +292,7 @@ class static_map_ref
    */
   template <typename CG, cuda::thread_scope NewScope = thread_scope>
   [[nodiscard]] __device__ constexpr auto make_copy(
-    CG const& tile,
+    CG tile,
     typename StorageRef::value_type* const memory_to_use,
     cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
@@ -306,7 +306,7 @@ class static_map_ref
    * @param tile The cooperative thread group used to initialize the map
    */
   template <typename CG>
-  __device__ constexpr void initialize(CG const& tile) noexcept;
+  __device__ constexpr void initialize(CG tile) noexcept;
 
  private:
   impl_type impl_;  ///< Static map ref implementation
