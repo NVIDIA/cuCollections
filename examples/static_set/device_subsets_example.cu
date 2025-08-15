@@ -80,7 +80,7 @@ __global__ void insert(ref_type* set_refs)
 {
   namespace cg = cooperative_groups;
 
-  auto const tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto const tile = cg::tiled_partition<cg_size, cg::thread_block>(cg::this_thread_block());
   // Get subset (or CG) index
   auto const idx = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
@@ -105,7 +105,7 @@ __global__ void find(ref_type* set_refs)
 {
   namespace cg = cooperative_groups;
 
-  auto const tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto const tile = cg::tiled_partition<cg_size, cg::thread_block>(cg::this_thread_block());
   auto const idx  = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
 
   auto raw_set_ref  = *(set_refs + idx);

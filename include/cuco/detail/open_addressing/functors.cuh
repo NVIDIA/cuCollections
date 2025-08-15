@@ -73,7 +73,7 @@ struct slot_is_filled {
    * @param empty_sentinel Key sentinel indicating an empty slot
    * @param erased_sentinel Key sentinel indicating an erased slot
    */
-  explicit constexpr slot_is_filled(T const& empty_sentinel, T const& erased_sentinel) noexcept
+  explicit constexpr slot_is_filled(T empty_sentinel, T erased_sentinel) noexcept
     : empty_sentinel_{empty_sentinel}, erased_sentinel_{erased_sentinel}
   {
   }
@@ -88,7 +88,7 @@ struct slot_is_filled {
    * @return `true` if slot is filled
    */
   template <typename S>
-  __device__ constexpr bool operator()(S const& slot) const noexcept
+  __device__ constexpr bool operator()(S slot) const noexcept
   {
     auto const key = [&]() {
       if constexpr (HasPayload) {

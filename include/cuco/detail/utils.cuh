@@ -131,7 +131,7 @@ __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
  * @return Converted hash value
  */
 template <typename SizeType, typename CG, typename HashType>
-__device__ constexpr SizeType sanitize_hash(CG const& group, HashType hash) noexcept
+__device__ constexpr SizeType sanitize_hash(CG group, HashType hash) noexcept
 {
   auto const base_hash = sanitize_hash<SizeType>(hash);
   auto const max_size  = cuda::std::numeric_limits<SizeType>::max();

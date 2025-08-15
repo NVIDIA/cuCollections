@@ -1646,7 +1646,7 @@ class static_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename ProbeKey, typename Hash>
-    __device__ iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) noexcept
+    __device__ iterator initial_slot(CG g, ProbeKey const& k, Hash hash) noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -1666,7 +1666,7 @@ class static_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename ProbeKey, typename Hash>
-    __device__ const_iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) const noexcept
+    __device__ const_iterator initial_slot(CG g, ProbeKey const& k, Hash hash) const noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -1706,7 +1706,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ iterator next_slot(CG const& g, iterator s) noexcept
+    __device__ iterator next_slot(CG g, iterator s) noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -1724,7 +1724,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ const_iterator next_slot(CG const& g, const_iterator s) const noexcept
+    __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -2015,7 +2015,7 @@ class static_map {
      */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
-      CG const& g,
+      CG g,
       pair_atomic_type* slots,
       std::size_t capacity,
       empty_key<Key> empty_key_sentinel,
@@ -2046,7 +2046,7 @@ class static_map {
      */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
-      CG const& g,
+      CG g,
       pair_atomic_type* slots,
       std::size_t capacity,
       empty_key<Key> empty_key_sentinel,
@@ -2128,7 +2128,7 @@ class static_map {
     template <typename CG,
               typename Hash     = cuco::default_hash_function<key_type>,
               typename KeyEqual = cuda::std::equal_to<key_type>>
-    __device__ bool insert(CG const& g,
+    __device__ bool insert(CG g,
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -2172,7 +2172,7 @@ class static_map {
     template <typename CG,
               typename Hash     = cuco::default_hash_function<key_type>,
               typename KeyEqual = cuda::std::equal_to<key_type>>
-    __device__ bool erase(CG const& g,
+    __device__ bool erase(CG g,
                           key_type const& k,
                           Hash hash          = Hash{},
                           KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -2477,10 +2477,7 @@ class static_map {
               typename Hash     = cuco::default_hash_function<key_type>,
               typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ cuda::std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool> contains(
-      CG const& g,
-      ProbeKey const& k,
-      Hash hash          = Hash{},
-      KeyEqual key_equal = KeyEqual{}) const noexcept;
+      CG g, ProbeKey const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
   };  // class device_view
 
   /**

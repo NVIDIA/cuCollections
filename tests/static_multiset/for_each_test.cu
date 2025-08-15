@@ -66,7 +66,8 @@ CUCO_KERNEL void for_each_check_cooperative(Ref ref,
 
   while (idx < n) {
     auto const tile =
-      cooperative_groups::tiled_partition<Ref::cg_size>(cooperative_groups::this_thread_block());
+      cooperative_groups::tiled_partition<Ref::cg_size, cooperative_groups::thread_block>(
+        cooperative_groups::this_thread_block());
     auto const& key            = *(first + idx);
     std::size_t thread_matches = 0;
     if constexpr (Synced) {
@@ -76,7 +77,7 @@ CUCO_KERNEL void for_each_check_cooperative(Ref ref,
         [&] __device__(auto const slot) {
           if (ref.key_eq()(key, slot)) { thread_matches++; }
         },
-        [] __device__(auto const& group) { group.sync(); });
+        [] __device__(auto group) { group.sync(); });
     } else {
       ref.for_each(tile, key, [&] __device__(auto const slot) {
         if (ref.key_eq()(key, slot)) { thread_matches++; }

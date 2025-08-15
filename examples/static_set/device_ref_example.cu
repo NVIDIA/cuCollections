@@ -42,7 +42,7 @@ __global__ void custom_cooperative_insert(SetRef set, InputIterator keys, std::s
 
   constexpr auto cg_size = SetRef::cg_size;
 
-  auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<cg_size, cg::thread_block>(cg::this_thread_block());
 
   int64_t const loop_stride = gridDim.x * blockDim.x / cg_size;
   int64_t idx               = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
@@ -60,7 +60,7 @@ __global__ void custom_contains(SetRef set, InputIterator keys, std::size_t n, O
 
   constexpr auto cg_size = SetRef::cg_size;
 
-  auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<cg_size, cg::thread_block>(cg::this_thread_block());
 
   int64_t const loop_stride = gridDim.x * blockDim.x / cg_size;
   int64_t idx               = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
