@@ -83,7 +83,7 @@ __host__ __device__ constexpr std::size_t alignment()
  * @return If the bits in the object representations of lhs and rhs are identical.
  */
 template <typename T>
-__host__ __device__ constexpr bool bitwise_compare(T const& lhs, T const& rhs)
+__host__ __device__ constexpr bool bitwise_compare(T lhs, T rhs)
 {
   static_assert(
     cuco::is_bitwise_comparable_v<T>,

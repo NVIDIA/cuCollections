@@ -56,7 +56,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename cuda::std::iterator_traits<InputIt>::value_type const& insert_pair = *(first + idx);
+    typename cuda::std::iterator_traits<InputIt>::value_type const insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
       ref.insert_or_assign(insert_pair);
     } else {
@@ -110,8 +110,8 @@ __global__ void insert_or_apply(
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    using value_type              = typename cuda::std::iterator_traits<InputIt>::value_type;
-    value_type const& insert_pair = *(first + idx);
+    using value_type             = typename cuda::std::iterator_traits<InputIt>::value_type;
+    value_type const insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
       if constexpr (HasInit) {
         ref.insert_or_apply(insert_pair, init, op);
@@ -217,7 +217,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
     int32_t warp_cardinality = 0;
     // insert-or-apply into the shared map first
     if (idx < n) {
-      value_type const& insert_pair = *(first + idx);
+      value_type const insert_pair = *(first + idx);
       if constexpr (HasInit) {
         inserted = shared_map_ref.insert_or_apply(insert_pair, init, op);
       } else {
@@ -254,7 +254,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   if (block_cardinality > BlockSize) {
     idx += loop_stride;
     while (idx < n) {
-      value_type const& insert_pair = *(first + idx);
+      value_type const insert_pair = *(first + idx);
       if constexpr (HasInit) {
         ref.insert_or_apply(insert_pair, init, op);
       } else {
