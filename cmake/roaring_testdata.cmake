@@ -35,5 +35,7 @@ rapids_cmake_download_with_retry("${ROARING_FORMATSPEC_BASE}/testdata64/portable
                                  "${CUCO_ROARING_DATA_DIR}/portable_bitmap64.bin"
                                  "b5a553a759167f5f9ccb3fa21552d943b4c73235635b753376f4faf62067d178")
 
+message(STATUS "Roaring Bitmap test data downloaded to: ${CUCO_ROARING_DATA_DIR}")
+
 # Define macro only when data is available
 add_compile_definitions(CUCO_ROARING_DATA_DIR="${CUCO_ROARING_DATA_DIR}")
