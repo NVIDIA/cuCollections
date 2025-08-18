@@ -45,8 +45,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
                                                  metadata_type const& metadata)
     : metadata_{metadata},
       data_{bitmap},
-      run_container_bitmap_{
-        reinterpret_cast<cuda::std::uint8_t const*>(bitmap + metadata.run_container_bitmap)},
+      run_container_bitmap_{bitmap + metadata.run_container_bitmap},
       key_cards_{bitmap + metadata.key_cards},
       container_offsets_{bitmap + metadata.container_offsets}
   {
@@ -64,7 +63,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
 
   __host__ __device__ cuda::std::size_t size_bytes() const noexcept { return metadata_.size_bytes; }
 
-  __host__ __device__ cuda::std::uint8_t const* run_container_bitmap() const noexcept
+  __host__ __device__ cuda::std::byte const* run_container_bitmap() const noexcept
   {
     return run_container_bitmap_;
   }
@@ -79,7 +78,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
  private:
   metadata_type metadata_;
   cuda::std::byte const* data_;
-  cuda::std::uint8_t const* run_container_bitmap_;
+  cuda::std::byte const* run_container_bitmap_;
   cuda::std::byte const* key_cards_;
   cuda::std::byte const* container_offsets_;
 };
@@ -208,10 +207,6 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
       metadata_.num_buckets * sizeof(cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>),
       cudaMemcpyHostToDevice,
       stream.get()));
-    // stream.wait();
-    // clear intermediate data
-    // bucket_metadata.clear();
-    // buckets_h.clear();
   }
 
   ref_type ref() const noexcept { return ref_; }

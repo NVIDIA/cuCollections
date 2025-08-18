@@ -74,7 +74,8 @@ class roaring_bitmap {
    *       `contains_async`.
    *
    * @tparam InputIt  Device-accessible random access input iterator of keys convertible to `T`
-   * @tparam OutputIt Device-accessible random access output iterator to `bool`
+   * @tparam OutputIt Device-accessible random access output iterator whose `value_type` is
+   * constructible from `bool`
    *
    * @param first Beginning of the sequence of keys
    * @param last  End of the sequence of keys
@@ -153,7 +154,7 @@ class roaring_bitmap {
   [[nodiscard]] ref_type ref() const noexcept;
 
  private:
-  storage_type storage_;
+  storage_type storage_;  ///< Storage type
 };
 
 }  // namespace cuco

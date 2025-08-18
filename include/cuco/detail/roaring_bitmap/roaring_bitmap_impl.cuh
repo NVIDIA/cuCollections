@@ -27,8 +27,7 @@
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/stream_ref>
-#include <thrust/execution_policy.h>
-#include <thrust/fill.h>
+#include <thrust/iterator/constant_iterator.h>
 
 namespace cuco::detail {
 
@@ -75,9 +74,12 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
                                cuda::stream_ref stream = {}) const noexcept
   {
     if (this->empty()) {
-      auto nosync_exec_policy = thrust::cuda::par_nosync.on(stream.get());
-      thrust::fill(
-        nosync_exec_policy, contained, contained + cuda::std::distance(first, last), false);
+      cub::DeviceTransform::Transform(
+        thrust::constant_iterator<bool>(false),
+        contained,
+        cuda::std::distance(first, last),
+        cuda::proclaim_return_type<bool>([] __device__(auto /* dummy */) { return false; }),
+        stream.get());
     } else {
       cub::DeviceTransform::Transform(
         first,
@@ -176,8 +178,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
                                                     index * sizeof(cuda::std::uint32_t));
     }
     cuda::std::byte const* container = storage_ref_.data() + offset;
-    if (storage_ref_.metadata().has_run and
-        (storage_ref_.run_container_bitmap()[index / 8] & (1 << (index % 8)))) {
+    if (storage_ref_.metadata().has_run and check_bit(storage_ref_.run_container_bitmap(), index)) {
       return this->contains_run_container<Aligned>(container, lower);
     } else {
       cuda::std::uint32_t card;
@@ -188,7 +189,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
         card = 1u + misaligned_load<cuda::std::uint16_t>(
                       storage_ref_.key_cards() + (index * 2 + 1) * sizeof(cuda::std::uint16_t));
       }
-      if (card <= 4096) {
+      if (card <= storage_ref_type::metadata_type::max_array_container_card) {
         return this->contains_array_container<Aligned>(container, lower, card);
       } else {
         return this->contains_bitset_container(container, lower, card);
@@ -313,17 +314,21 @@ class roaring_bitmap_impl<cuda::std::uint64_t> {
                                OutputIt contained,
                                cuda::stream_ref stream = {}) const noexcept
   {
-    auto nosync_exec_policy = thrust::cuda::par_nosync.on(stream.get());
     if (this->empty()) {
-      thrust::fill(
-        nosync_exec_policy, contained, contained + cuda::std::distance(first, last), false);
+      cub::DeviceTransform::Transform(
+        thrust::constant_iterator<bool>(false),
+        contained,
+        cuda::std::distance(first, last),
+        cuda::proclaim_return_type<bool>([] __device__(auto /* dummy */) { return false; }),
+        stream.get());
     } else {
-      thrust::transform(nosync_exec_policy,
-                        first,
-                        last,
-                        contained,
-                        cuda::proclaim_return_type<bool>(
-                          [*this] __device__(auto key) { return this->contains(key); }));
+      cub::DeviceTransform::Transform(
+        first,
+        contained,
+        cuda::std::distance(first, last),
+        cuda::proclaim_return_type<bool>(
+          [*this] __device__(auto key) { return this->contains(key); }),
+        stream.get());
     }
   }
 

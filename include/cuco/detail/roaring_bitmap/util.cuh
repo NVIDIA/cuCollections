@@ -42,6 +42,14 @@ __host__ __device__ __forceinline__ T misaligned_load(cuda::std::byte const* ptr
   return value;
 }
 
+__host__ __device__ __forceinline__ bool check_bit(cuda::std::byte const* bitmap,
+                                                   cuda::std::uint32_t index)
+{
+  // check if the bit at index is set
+  return static_cast<cuda::std::uint8_t>(bitmap[index / 8]) &
+         (cuda::std::uint8_t(1) << (index % 8));
+}
+
 template <class T>
 struct roaring_bitmap_metadata {
   static_assert(cuco::dependent_false<T>, "T must be either uint32_t or uint64_t");
@@ -49,8 +57,10 @@ struct roaring_bitmap_metadata {
 
 template <>
 struct roaring_bitmap_metadata<cuda::std::uint32_t> {
+  static constexpr cuda::std::uint32_t max_array_container_card = 4096;
+
   cuda::std::size_t size_bytes             = 0;
-  cuda::std::uint32_t num_keys             = 0;
+  cuda::std::size_t num_keys               = 0;
   cuda::std::uint32_t run_container_bitmap = 0;
   cuda::std::uint32_t key_cards            = 0;
   cuda::std::uint32_t container_offsets    = 0;
@@ -63,14 +73,18 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
     constexpr cuda::std::uint32_t serial_cookie                 = 12347;
     // constexpr cuda::std::uint32_t frozen_cookie                 = 13766; // not implemented
-    constexpr cuda::std::int32_t no_offset_threshold = 4;
+    constexpr cuda::std::int32_t no_offset_threshold     = 4;
+    constexpr cuda::std::int32_t max_containers          = 1 << 16;
+    constexpr cuda::std::uint32_t cookie_mask            = 0xFFFF;
+    constexpr cuda::std::uint32_t cookie_shift           = 16;
+    constexpr cuda::std::uint32_t bitset_container_bytes = 8192;
 
     cuda::std::byte const* buf = bitmap;
 
     cuda::std::uint32_t cookie;
     cuda::std::memcpy(&cookie, buf, sizeof(cuda::std::uint32_t));
     buf += sizeof(cuda::std::uint32_t);
-    if ((cookie & 0xFFFF) != serial_cookie && cookie != serial_cookie_no_runcontainer) {
+    if ((cookie & cookie_mask) != serial_cookie && cookie != serial_cookie_no_runcontainer) {
       valid = false;
       NV_IF_TARGET(
         NV_IS_HOST,
@@ -80,13 +94,15 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
       return;
     }
 
-    if ((cookie & 0xFFFF) == serial_cookie)
-      num_containers = (cookie >> 16) + 1;
+    if ((cookie & cookie_mask) == serial_cookie)
+      // upper 16 bits of cookie are the number of containers - 1
+      num_containers = (cookie >> cookie_shift) + 1;
     else {
+      // following 4 bytes are the number of containers
       cuda::std::memcpy(&num_containers, buf, sizeof(cuda::std::uint32_t));
       buf += sizeof(cuda::std::uint32_t);
     }
-    if (num_containers < 0 or num_containers > (1 << 16)) {
+    if (num_containers < 0 or num_containers > max_containers) {
       valid = false;
       NV_IF_TARGET(
         NV_IS_HOST,
@@ -95,14 +111,16 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
       return;
     }
 
-    has_run = (cookie & 0xFFFF) == serial_cookie;
+    has_run = (cookie & cookie_mask) == serial_cookie;
     if (has_run) {
-      cuda::std::size_t s  = (num_containers + 7) / 8;
+      cuda::std::size_t s  = (num_containers + 7) / 8;  // ceil bytes to store run container bitmap
       run_container_bitmap = cuda::std::distance(bitmap, buf);
       buf += s;
     }
 
-    key_cards             = cuda::std::distance(bitmap, buf);
+    key_cards = cuda::std::distance(bitmap, buf);
+    // if the current address is aligned to 2 bytes, then all containers are aligned to at least 2
+    // bytes
     bool const aligned_16 = (reinterpret_cast<cuda::std::uintptr_t>(bitmap + key_cards) %
                              sizeof(cuda::std::uint16_t)) == 0;
     buf += num_containers * 2 * sizeof(cuda::std::uint16_t);
@@ -136,16 +154,14 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     cuda::std::byte const* end =
       bitmap + misaligned_load<cuda::std::uint32_t>(
                  bitmap + container_offsets + (num_containers - 1) * sizeof(cuda::std::uint32_t));
-    if (has_run and (static_cast<cuda::std::uint8_t>(
-                       (bitmap + run_container_bitmap)[(num_containers - 1) / 8]) &
-                     (cuda::std::uint8_t(1) << ((num_containers - 1) % 8)))) {
+    if (has_run and check_bit(bitmap + run_container_bitmap, num_containers - 1)) {
       cuda::std::uint16_t const num_runs = misaligned_load<cuda::std::uint16_t>(end);
       end += sizeof(cuda::std::uint16_t) + num_runs * 2 * sizeof(cuda::std::uint16_t);
     } else {
-      if (card <= 4096) {  // TODO check if this is correct
+      if (card <= max_array_container_card) {
         end += card * sizeof(cuda::std::uint16_t);
       } else {
-        end += 8192;  // fixed size bitset container
+        end += bitset_container_bytes;  // fixed size bitset container
       }
     }
 

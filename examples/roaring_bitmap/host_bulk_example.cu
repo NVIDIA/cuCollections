@@ -24,6 +24,7 @@
 #include <thrust/logical.h>
 #include <thrust/universal_vector.h>
 
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -95,10 +96,9 @@ bool check(std::string const& bitmap_file_path)
   }
 
   // Get file size
-  file.seekg(0, std::ios::end);
-  std::streamsize file_size = file.tellg();
-  file.seekg(0, std::ios::beg);
+  auto file_size = std::filesystem::file_size(bitmap_file_path);
 
+  // Allocate host memory for the bitmap file
   thrust::universal_host_pinned_vector<cuda::std::byte> buffer(file_size);
 
   // Read file into memory
@@ -130,7 +130,7 @@ int main()
   success &= check<cuda::std::uint32_t>(data_dir + "/bitmapwithruns.bin");
   success &= check<cuda::std::uint64_t>(data_dir + "/portable_bitmap64.bin");
 
-  std::cout << "success: " << (success ? "true" : "false") << std::endl;
+  std::cout << "success: " << std::boolalpha << success << std::endl;
 
   return success ? 0 : 1;
 #else

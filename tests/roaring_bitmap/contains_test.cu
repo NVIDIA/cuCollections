@@ -26,6 +26,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -70,9 +71,7 @@ bool check(std::string const& bitmap_file_path)
   std::ifstream file(bitmap_file_path, std::ios::binary);
   if (!file.is_open()) { return false; }
 
-  file.seekg(0, std::ios::end);
-  std::streamsize file_size = file.tellg();
-  file.seekg(0, std::ios::beg);
+  auto file_size = std::filesystem::file_size(bitmap_file_path);
 
   thrust::universal_host_pinned_vector<cuda::std::byte> buffer(file_size);
 
