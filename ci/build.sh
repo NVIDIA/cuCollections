@@ -37,6 +37,9 @@ resolve_path() {
 # Ensure the script is being executed in its containing directory
 cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 
+# Determine repo root as the parent of the `ci` directory
+REPO_ROOT="$(cd .. && pwd)"
+
 # Script defaults
 BUILD_TESTS=${BUILD_TESTS:-OFF}
 BUILD_EXAMPLES=${BUILD_EXAMPLES:-OFF}
@@ -202,12 +205,13 @@ CMAKE_OPTIONS="
     -DBUILD_TESTS=${BUILD_TESTS} \
     -DBUILD_EXAMPLES=${BUILD_EXAMPLES} \
     -DBUILD_BENCHMARKS=${BUILD_BENCHMARKS} \
+    ${CMAKE_ARGS[*]}
 "
 
 echo "[INFO]=============================================="
 echo "-- TIMESTAMP: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
-echo "-- GIT_SHA: $(git rev-parse HEAD 2>/dev/null || echo 'Not a repository')"
-echo "-- SRC_DIR: $(dirname $(pwd))"
+echo "-- GIT_SHA: $(git rev-parse HEAD 2>/dev/null || echo 'N/A')"
+echo "-- SRC_DIR: ${REPO_ROOT}"
 echo "-- BUILD_DIR: ${BUILD_DIR}"
 echo "-- BUILD_TYPE: ${BUILD_TYPE}"
 echo "-- PARALLEL_LEVEL: ${PARALLEL_LEVEL}"
@@ -222,10 +226,9 @@ else
     echo "-- CMAKE_ARGS: (none)"
 fi
 
-
 # configure
 echo "[CONFIGURE]========================================"
-cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS "${CMAKE_ARGS[@]}"
+cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
 
 if command -v sccache >/dev/null; then
     source "./sccache_stats.sh" start
