@@ -138,14 +138,12 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
 
     cuda::std::uint32_t card = 0;
     for (cuda::std::int32_t i = 0; i < num_containers; i++) {
+      cuda::std::byte const* card_ptr =
+        bitmap + key_cards + (i * 2 + 1) * sizeof(cuda::std::uint16_t);
       if (aligned_16) {
-        card = aligned_load<cuda::std::uint16_t>(bitmap + key_cards +
-                                                 (i * 2 + 1) * sizeof(cuda::std::uint16_t)) +
-               1u;
+        card = 1u + aligned_load<cuda::std::uint16_t>(card_ptr);
       } else {
-        card = misaligned_load<cuda::std::uint16_t>(bitmap + key_cards +
-                                                    (i * 2 + 1) * sizeof(cuda::std::uint16_t)) +
-               1u;
+        card = 1u + misaligned_load<cuda::std::uint16_t>(card_ptr);
       }
       num_keys += card;
     }

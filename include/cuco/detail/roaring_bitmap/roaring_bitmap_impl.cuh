@@ -113,12 +113,12 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
 // linear search
 #pragma unroll
       for (cuda::std::uint32_t i = 0; i < storage_ref_.metadata().num_containers; i++) {
+        cuda::std::byte const* key_ptr =
+          storage_ref_.key_cards() + (i * 2) * sizeof(cuda::std::uint16_t);
         if constexpr (Aligned) {
-          key = aligned_load<cuda::std::uint16_t>(storage_ref_.key_cards() +
-                                                  (i * 2) * sizeof(cuda::std::uint16_t));
+          key = aligned_load<cuda::std::uint16_t>(key_ptr);
         } else {
-          key = misaligned_load<cuda::std::uint16_t>(storage_ref_.key_cards() +
-                                                     (i * 2) * sizeof(cuda::std::uint16_t));
+          key = misaligned_load<cuda::std::uint16_t>(key_ptr);
         }
         if (key == upper) { return this->contains_container<Aligned>(lower, i); }
         if (key > upper) { return false; }
@@ -129,12 +129,12 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
       cuda::std::uint32_t right = storage_ref_.metadata().num_containers;
       while (left < right) {
         cuda::std::uint32_t mid = left + (right - left) / 2;
+        cuda::std::byte const* key_ptr =
+          storage_ref_.key_cards() + (mid * 2) * sizeof(cuda::std::uint16_t);
         if constexpr (Aligned) {
-          key = aligned_load<cuda::std::uint16_t>(storage_ref_.key_cards() +
-                                                  (mid * 2) * sizeof(cuda::std::uint16_t));
+          key = aligned_load<cuda::std::uint16_t>(key_ptr);
         } else {
-          key = misaligned_load<cuda::std::uint16_t>(storage_ref_.key_cards() +
-                                                     (mid * 2) * sizeof(cuda::std::uint16_t));
+          key = misaligned_load<cuda::std::uint16_t>(key_ptr);
         }
 
         if (key == upper) {
@@ -170,29 +170,29 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   __device__ bool contains_container(cuda::std::uint16_t lower, cuda::std::uint32_t index) const
   {
     cuda::std::uint32_t offset;
+    cuda::std::byte const* offset_ptr =
+      storage_ref_.container_offsets() + index * sizeof(cuda::std::uint32_t);
     if (offsets_aligned_) {
-      offset = aligned_load<cuda::std::uint32_t>(storage_ref_.container_offsets() +
-                                                 index * sizeof(cuda::std::uint32_t));
+      offset = aligned_load<cuda::std::uint32_t>(offset_ptr);
     } else {
-      offset = misaligned_load<cuda::std::uint32_t>(storage_ref_.container_offsets() +
-                                                    index * sizeof(cuda::std::uint32_t));
+      offset = misaligned_load<cuda::std::uint32_t>(offset_ptr);
     }
     cuda::std::byte const* container = storage_ref_.data() + offset;
     if (storage_ref_.metadata().has_run and check_bit(storage_ref_.run_container_bitmap(), index)) {
       return this->contains_run_container<Aligned>(container, lower);
     } else {
       cuda::std::uint32_t card;
+      cuda::std::byte const* card_ptr =
+        storage_ref_.key_cards() + (index * 2 + 1) * sizeof(cuda::std::uint16_t);
       if constexpr (Aligned) {
-        card = 1u + aligned_load<cuda::std::uint16_t>(
-                      storage_ref_.key_cards() + (index * 2 + 1) * sizeof(cuda::std::uint16_t));
+        card = 1u + aligned_load<cuda::std::uint16_t>(card_ptr);
       } else {
-        card = 1u + misaligned_load<cuda::std::uint16_t>(
-                      storage_ref_.key_cards() + (index * 2 + 1) * sizeof(cuda::std::uint16_t));
+        card = 1u + misaligned_load<cuda::std::uint16_t>(card_ptr);
       }
       if (card <= storage_ref_type::metadata_type::max_array_container_card) {
         return this->contains_array_container<Aligned>(container, lower, card);
       } else {
-        return this->contains_bitset_container(container, lower, card);
+        return this->contains_bitset_container(container, lower);
       }
     }
   }
@@ -206,10 +206,11 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
     // Use linear search for small arrays, binary search for larger ones
     if (card < binary_search_threshold) {
       for (cuda::std::uint32_t i = 0; i < card; i++) {
+        cuda::std::byte const* elem_ptr = container + i * sizeof(cuda::std::uint16_t);
         if constexpr (Aligned) {
-          elem = aligned_load<cuda::std::uint16_t>(container + i * sizeof(cuda::std::uint16_t));
+          elem = aligned_load<cuda::std::uint16_t>(elem_ptr);
         } else {
-          elem = misaligned_load<cuda::std::uint16_t>(container + i * sizeof(cuda::std::uint16_t));
+          elem = misaligned_load<cuda::std::uint16_t>(elem_ptr);
         }
         if (elem == lower) { return true; }
       }
@@ -219,12 +220,12 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
       cuda::std::uint32_t right = card;
 
       while (left < right) {
-        cuda::std::uint32_t mid = left + (right - left) / 2;
+        cuda::std::uint32_t mid         = left + (right - left) / 2;
+        cuda::std::byte const* elem_ptr = container + mid * sizeof(cuda::std::uint16_t);
         if constexpr (Aligned) {
-          elem = aligned_load<cuda::std::uint16_t>(container + mid * sizeof(cuda::std::uint16_t));
+          elem = aligned_load<cuda::std::uint16_t>(elem_ptr);
         } else {
-          elem =
-            misaligned_load<cuda::std::uint16_t>(container + mid * sizeof(cuda::std::uint16_t));
+          elem = misaligned_load<cuda::std::uint16_t>(elem_ptr);
         }
         if (elem == lower) {
           return true;
@@ -239,11 +240,9 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   }
 
   __device__ bool contains_bitset_container(cuda::std::byte const* container,
-                                            cuda::std::uint16_t lower,
-                                            cuda::std::uint32_t card) const
+                                            cuda::std::uint16_t lower) const
   {
-    return static_cast<cuda::std::uint8_t>(container[lower / 8]) &
-           (cuda::std::uint8_t(1) << (lower % 8));
+    return check_bit(container, lower);
   }
 
   template <bool Aligned>
@@ -262,19 +261,18 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
     cuda::std::uint32_t end;
 
     for (cuda::std::uint32_t i = 0; i < num_runs; i++) {
+      // the first 16 bits of the run container denotes the number of runs
+      // followed by the sequence of runs as (start, end) U16 pairs
+      cuda::std::byte const* start_ptr = container + (i * 2 + 1) * sizeof(cuda::std::uint16_t);
       // TODO load start+end in one instruction
       if constexpr (Aligned) {
-        start =
-          aligned_load<cuda::std::uint16_t>(container + (i * 2 + 1) * sizeof(cuda::std::uint16_t));
-        end =
-          static_cast<cuda::std::uint32_t>(start) +
-          aligned_load<cuda::std::uint16_t>(container + (i * 2 + 2) * sizeof(cuda::std::uint16_t));
-      } else {
-        start = misaligned_load<cuda::std::uint16_t>(container +
-                                                     (i * 2 + 1) * sizeof(cuda::std::uint16_t));
+        start = aligned_load<cuda::std::uint16_t>(start_ptr);
         end   = static_cast<cuda::std::uint32_t>(start) +
-              misaligned_load<cuda::std::uint16_t>(container +
-                                                   (i * 2 + 2) * sizeof(cuda::std::uint16_t));
+              aligned_load<cuda::std::uint16_t>(start_ptr + sizeof(cuda::std::uint16_t));
+      } else {
+        start = misaligned_load<cuda::std::uint16_t>(start_ptr);
+        end   = static_cast<cuda::std::uint32_t>(start) +
+              misaligned_load<cuda::std::uint16_t>(start_ptr + sizeof(cuda::std::uint16_t));
       }
       if (start <= lower && end >= lower) { return true; }
       if (start > lower) { break; }
