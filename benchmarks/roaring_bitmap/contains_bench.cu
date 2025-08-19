@@ -27,6 +27,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/universal_vector.h>
 
+#include <filesystem>
 #include <fstream>
 #include <string>
 
@@ -43,9 +44,7 @@ void roaring_bitmap_contains(nvbench::state& state, nvbench::type_list<T>)
   if (!file.is_open()) { state.skip("Bitmap file not found"); }
 
   // Get file size
-  file.seekg(0, std::ios::end);
-  std::streamsize file_size = file.tellg();
-  file.seekg(0, std::ios::beg);
+  auto const file_size = std::filesystem::file_size(bitmap_file);
 
   thrust::universal_host_pinned_vector<cuda::std::byte> buffer(file_size);
 
