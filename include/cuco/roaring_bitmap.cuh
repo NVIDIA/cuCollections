@@ -23,7 +23,7 @@
 #include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
-namespace cuco {
+namespace cuco::experimental {
 
 /**
  * @brief GPU-accelerated container that owns a serialized Roaring bitmap.
@@ -157,6 +157,6 @@ class roaring_bitmap {
   storage_type storage_;  ///< Storage type
 };
 
-}  // namespace cuco
+}  // namespace cuco::experimental
 
 #include <cuco/detail/roaring_bitmap/roaring_bitmap.inl>

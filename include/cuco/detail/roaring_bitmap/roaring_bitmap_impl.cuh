@@ -29,7 +29,7 @@
 #include <cuda/stream_ref>
 #include <thrust/iterator/constant_iterator.h>
 
-namespace cuco::detail {
+namespace cuco::experimental::detail {
 
 // primary template
 template <class T>
@@ -372,4 +372,4 @@ class roaring_bitmap_impl<cuda::std::uint64_t> {
   storage_ref_type storage_ref_;
 };
 
-}  // namespace cuco::detail
+}  // namespace cuco::experimental::detail

@@ -26,7 +26,7 @@
 #include <nv/target>
 #include <vector>
 
-namespace cuco::detail {
+namespace cuco::experimental::detail {
 
 template <class T>
 __host__ __device__ __forceinline__ T aligned_load(cuda::std::byte const* ptr)
@@ -237,4 +237,4 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
     valid      = true;
   }
 };
-}  // namespace cuco::detail
+}  // namespace cuco::experimental::detail

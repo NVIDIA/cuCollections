@@ -22,7 +22,7 @@
 #include <cuda/std/type_traits>
 #include <cuda/stream_ref>
 
-namespace cuco {
+namespace cuco::experimental {
 
 template <class T>
 __host__ __device__ roaring_bitmap_ref<T>::roaring_bitmap_ref(storage_ref_type const& storage_ref)
@@ -87,4 +87,4 @@ __host__ __device__ cuda::std::size_t roaring_bitmap_ref<T>::size_bytes() const 
   return impl_.size_bytes();
 }
 
-}  // namespace cuco
+}  // namespace cuco::experimental

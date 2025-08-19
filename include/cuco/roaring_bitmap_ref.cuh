@@ -21,7 +21,7 @@
 #include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
-namespace cuco {
+namespace cuco::experimental {
 
 /**
  * @brief Non-owning reference to a Roaring bitmap stored in its serialized format.
@@ -145,6 +145,6 @@ class roaring_bitmap_ref {
   impl_type impl_;
 };
 
-}  // namespace cuco
+}  // namespace cuco::experimental
 
 #include <cuco/detail/roaring_bitmap/roaring_bitmap_ref.inl>

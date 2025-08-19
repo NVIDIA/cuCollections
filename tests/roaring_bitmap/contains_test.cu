@@ -78,7 +78,8 @@ bool check(std::string const& bitmap_file_path)
   file.read(reinterpret_cast<char*>(thrust::raw_pointer_cast(buffer.data())), file_size);
   file.close();
 
-  cuco::roaring_bitmap<KeyType> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
+  cuco::experimental::roaring_bitmap<KeyType> roaring_bitmap(
+    thrust::raw_pointer_cast(buffer.data()));
 
   auto keys = generate_keys();
   thrust::device_vector<bool> contained(keys.size(), false);

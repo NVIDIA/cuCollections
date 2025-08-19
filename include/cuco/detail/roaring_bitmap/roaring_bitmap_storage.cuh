@@ -30,7 +30,7 @@
 #include <utility>
 #include <vector>
 
-namespace cuco::detail {
+namespace cuco::experimental::detail {
 
 template <class T>
 struct roaring_bitmap_storage_ref {
@@ -140,8 +140,8 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
     : allocator_{alloc},
       metadata_{bitmap},
       data_{allocator_.allocate(metadata_.size_bytes),
-            detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes,
-                                                                      allocator_}},
+            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes,
+                                                                            allocator_}},
       ref_{data_.get(), metadata_}
   {
     CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -153,7 +153,8 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
  private:
   allocator_type allocator_;
   typename ref_type::metadata_type metadata_;
-  std::unique_ptr<cuda::std::byte, custom_deleter<cuda::std::size_t, allocator_type>> data_;
+  std::unique_ptr<cuda::std::byte, cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>>
+    data_;
   ref_type ref_;
 };
 
@@ -186,10 +187,10 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
           return typename ref_type::metadata_type{bitmap, bucket_metadata};
         }(bucket_metadata_)},
       data_{allocator_.allocate(metadata_.size_bytes),
-            detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes,
-                                                                      allocator_}},
+            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes,
+                                                                            allocator_}},
       buckets_{bucket_allocator_.allocate(metadata_.num_buckets),
-               detail::custom_deleter<cuda::std::size_t, bucket_allocator_type>{
+               cuco::detail::custom_deleter<cuda::std::size_t, bucket_allocator_type>{
                  metadata_.num_buckets, bucket_allocator_}},
       ref_{data_.get(), metadata_, buckets_.get()}
   {
@@ -217,11 +218,12 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
   std::vector<typename ref_type::metadata_type::bucket_metadata> bucket_metadata_;
   std::vector<cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>> buckets_h_;
   typename ref_type::metadata_type metadata_;
-  std::unique_ptr<cuda::std::byte, custom_deleter<cuda::std::size_t, allocator_type>> data_;
+  std::unique_ptr<cuda::std::byte, cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>>
+    data_;
   std::unique_ptr<cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>,
-                  custom_deleter<cuda::std::size_t, bucket_allocator_type>>
+                  cuco::detail::custom_deleter<cuda::std::size_t, bucket_allocator_type>>
     buckets_;
   ref_type ref_;
 };
 
-}  // namespace cuco::detail
+}  // namespace cuco::experimental::detail

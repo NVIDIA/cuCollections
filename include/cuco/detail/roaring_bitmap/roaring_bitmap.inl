@@ -19,7 +19,7 @@
 #include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
-namespace cuco {
+namespace cuco::experimental {
 
 template <class T, class Allocator>
 roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
@@ -85,4 +85,4 @@ typename roaring_bitmap<T, Allocator>::ref_type roaring_bitmap<T, Allocator>::re
 {
   return ref_type{storage_.ref()};
 }
-}  // namespace cuco
+}  // namespace cuco::experimental

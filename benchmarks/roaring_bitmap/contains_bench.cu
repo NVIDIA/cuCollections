@@ -51,7 +51,7 @@ void roaring_bitmap_contains(nvbench::state& state, nvbench::type_list<T>)
   file.read(reinterpret_cast<char*>(thrust::raw_pointer_cast(buffer.data())), file_size);
   file.close();
 
-  cuco::roaring_bitmap<T> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
+  cuco::experimental::roaring_bitmap<T> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
 
   thrust::device_vector<T> items(num_items);
 

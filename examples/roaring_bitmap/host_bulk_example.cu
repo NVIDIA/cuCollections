@@ -106,7 +106,8 @@ bool check(std::string const& bitmap_file_path)
   file.close();
 
   // Create roaring bitmap from the file
-  cuco::roaring_bitmap<KeyType> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
+  cuco::experimental::roaring_bitmap<KeyType> roaring_bitmap(
+    thrust::raw_pointer_cast(buffer.data()));
 
   // Generate query keys (all should be contained in the bitmap)
   auto keys = generate_keys();
