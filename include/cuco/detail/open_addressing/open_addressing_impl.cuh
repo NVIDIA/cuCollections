@@ -1087,6 +1087,13 @@ class open_addressing_impl {
   [[nodiscard]] constexpr auto capacity() const noexcept { return storage_.capacity(); }
 
   /**
+   * @brief Gets a pointer to the underlying slot storage.
+   *
+   * @return Pointer to the underlying slot storage
+   */
+  [[nodiscard]] __host__ value_type* data() const { return storage_.data(); }
+
+  /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
