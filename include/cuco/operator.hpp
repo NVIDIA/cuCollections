@@ -336,8 +336,6 @@ struct find_tag {
  * @see @tparam StencilIt Device accessible random access iterator whose value_type is
  * convertible to Predicate's argument type (retrieve_if only)
  * @see @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
- * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type` (retrieve_if
- only)
  * @see @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the container's `key_type`
  * @see @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
