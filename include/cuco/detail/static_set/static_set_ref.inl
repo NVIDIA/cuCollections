@@ -844,6 +844,70 @@ class operator_impl<op::retrieve_tag,
     ref_.impl_.template retrieve<BlockSize>(
       block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
+   * input_probe_end)` if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred( *(stencil + i) )` returns true,
+   * copies `k` to `output_probe` and associated slot content to `output_match`, respectively.
+   * The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * @tparam BlockSize Size of the thread block this operation is executed in
+   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+   * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam AtomicCounter Atomic counter type that follows the same semantics as
+   * `cuda::atomic(_ref)`
+   *
+   * @param block Thread block this operation is executed in
+   * @param input_probe_begin Beginning of the input sequence of keys
+   * @param input_probe_end End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param atomic_counter Counter that is used to determine the next free position in the output
+   * sequences
+   */
+  template <int BlockSize,
+            class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_if(cooperative_groups::thread_block const& block,
+                              InputProbeIt input_probe_begin,
+                              InputProbeIt input_probe_end,
+                              StencilIt stencil,
+                              Predicate pred,
+                              OutputProbeIt output_probe,
+                              OutputMatchIt output_match,
+                              AtomicCounter& atomic_counter) const
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.template retrieve_if<BlockSize>(block,
+                                               input_probe_begin,
+                                               input_probe_end,
+                                               stencil,
+                                               pred,
+                                               output_probe,
+                                               output_match,
+                                               atomic_counter);
+  }
 };
+
 }  // namespace detail
 }  // namespace cuco

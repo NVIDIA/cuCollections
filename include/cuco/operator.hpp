@@ -295,8 +295,9 @@ struct find_tag {
  * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
  * Use `count()` to determine the size of the output range.
  *
- * API Signature:
+ * API Signatures:
  * ```cpp
+ * // Basic retrieve
  * template <int BlockSize,
  *           class InputProbeIt,
  *           class OutputProbeIt,
@@ -308,12 +309,35 @@ struct find_tag {
  *                          OutputProbeIt output_probe,
  *                          OutputMatchIt output_match,
  *                          AtomicCounter* atomic_counter) const
+ *
+ * // Conditional retrieve with predicate
+ * template <int BlockSize,
+ *           class InputProbeIt,
+ *           class StencilIt,
+ *           class Predicate,
+ *           class OutputProbeIt,
+ *           class OutputMatchIt,
+ *           class AtomicCounter>
+ * __device__ void retrieve_if(cooperative_groups::thread_block  const& block,
+ *                             InputProbeIt input_probe_begin,
+ *                             InputProbeIt input_probe_end,
+ *                             StencilIt stencil,
+ *                             Predicate pred,
+ *                             OutputProbeIt output_probe,
+ *                             OutputMatchIt output_match,
+ *                             AtomicCounter* atomic_counter) const
  * ```
  *
  * Where:
+
  * @see @tparam BlockSize Size of the thread block this operation is executed in
  * @see @tparam InputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the container's `key_type`
+ * @see @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type (retrieve_if only)
+ * @see @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type` (retrieve_if
+ only)
  * @see @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the container's `key_type`
  * @see @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -324,6 +348,9 @@ struct find_tag {
  * @see @param block Thread block this operation is executed in
  * @see @param input_probe_begin Beginning of the input sequence of keys
  * @see @param input_probe_end End of the input sequence of keys
+ * @see @param stencil Beginning of the stencil sequence (retrieve_if only)
+ * @see @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ (retrieve_if only)
  * @see @param output_probe Beginning of the sequence of keys corresponding to matching elements in
  * `output_match`
  * @see @param output_match Beginning of the sequence of matching elements
