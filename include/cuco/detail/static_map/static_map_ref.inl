@@ -1571,7 +1571,7 @@ class operator_impl<
    * @param atomic_counter Counter that is used to determine the next free position in the output
    * sequences
    */
-  template <int32_t BlockSize,
+  template <int BlockSize,
             class InputProbeIt,
             class StencilIt,
             class Predicate,

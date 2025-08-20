@@ -298,7 +298,7 @@ struct find_tag {
  * API Signatures:
  * ```cpp
  * // Basic retrieve
- * template <int32_t BlockSize,
+ * template <int BlockSize,
  *           class InputProbeIt,
  *           class OutputProbeIt,
  *           class OutputMatchIt,
@@ -311,7 +311,7 @@ struct find_tag {
  *                          AtomicCounter* atomic_counter) const
  *
  * // Conditional retrieve with predicate
- * template <int32_t BlockSize,
+ * template <int BlockSize,
  *           class InputProbeIt,
  *           class StencilIt,
  *           class Predicate,
