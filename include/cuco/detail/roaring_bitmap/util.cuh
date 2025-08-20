@@ -55,19 +55,39 @@ struct roaring_bitmap_metadata {
   static_assert(cuco::dependent_false<T>, "T must be either uint32_t or uint64_t");
 };
 
+/**
+ * @brief Metadata structure for 32-bit roaring bitmap
+ *
+ * Contains metadata information for a 32-bit roaring bitmap including size, container information,
+ * and validity status.
+ */
 template <>
 struct roaring_bitmap_metadata<cuda::std::uint32_t> {
+  /// Maximum number of elements in an array container before converting to bitmap
   static constexpr cuda::std::uint32_t max_array_container_card = 4096;
 
-  cuda::std::size_t size_bytes             = 0;
-  cuda::std::size_t num_keys               = 0;
+  /// Total size of the bitmap in bytes
+  cuda::std::size_t size_bytes = 0;
+  /// Number of keys/elements in the bitmap
+  cuda::std::size_t num_keys = 0;
+  /// Bitmap indicating which containers are run containers
   cuda::std::uint32_t run_container_bitmap = 0;
-  cuda::std::uint32_t key_cards            = 0;
-  cuda::std::uint32_t container_offsets    = 0;
-  cuda::std::int32_t num_containers        = 0;
-  bool has_run                             = false;
-  bool valid                               = false;
+  /// Offset to key cardinality data
+  cuda::std::uint32_t key_cards = 0;
+  /// Offset to container offset data
+  cuda::std::uint32_t container_offsets = 0;
+  /// Number of containers in the bitmap
+  cuda::std::int32_t num_containers = 0;
+  /// Whether the bitmap contains run containers
+  bool has_run = false;
+  /// Whether the metadata is valid
+  bool valid = false;
 
+  /**
+   * @brief Constructs metadata from a serialized bitmap
+   *
+   * @param bitmap Pointer to the beginning of the serialized bitmap
+   */
   __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
   {
     constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
@@ -168,18 +188,43 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
   }
 };
 
+/**
+ * @brief Metadata structure for 64-bit roaring bitmap
+ *
+ * Contains metadata information for a 64-bit roaring bitmap including bucket information,
+ * size, and validity status.
+ */
 template <>
 struct roaring_bitmap_metadata<cuda::std::uint64_t> {
+  /// Number of buckets in the 64-bit bitmap
   cuda::std::size_t num_buckets = 0;
-  cuda::std::size_t size_bytes  = 0;
-  cuda::std::size_t num_keys    = 0;
-  bool valid                    = false;
+  /// Total size of the bitmap in bytes
+  cuda::std::size_t size_bytes = 0;
+  /// Number of keys/elements in the bitmap
+  cuda::std::size_t num_keys = 0;
+  /// Whether the metadata is valid
+  bool valid = false;
 
+  /**
+   * @brief Metadata for individual buckets in a 64-bit roaring bitmap
+   *
+   * Each bucket contains a 32-bit roaring bitmap with its own metadata.
+   */
   struct bucket_metadata {
+    /// Byte offset of this bucket in the serialized data
     cuda::std::size_t byte_offset;
+    /// Key associated with this bucket (upper 32 bits)
     cuda::std::uint32_t key;
+    /// Metadata for the 32-bit roaring bitmap in this bucket
     roaring_bitmap_metadata<cuda::std::uint32_t> metadata;
 
+    /**
+     * @brief Constructs bucket metadata
+     *
+     * @param offset Byte offset of the bucket
+     * @param k Key associated with the bucket
+     * @param meta Metadata for the bucket's roaring bitmap
+     */
     bucket_metadata(cuda::std::size_t offset,
                     cuda::std::uint32_t k,
                     roaring_bitmap_metadata<cuda::std::uint32_t> const& meta)
@@ -188,6 +233,12 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
     }
   };
 
+  /**
+   * @brief Constructs metadata from a serialized 64-bit bitmap with bucket metadata
+   *
+   * @param bitmap Pointer to the beginning of the serialized bitmap
+   * @param bucket_metadata Vector to store metadata for each bucket
+   */
   __host__ roaring_bitmap_metadata(cuda::std::byte const* bitmap,
                                    std::vector<bucket_metadata>& bucket_metadata)
   {
@@ -216,6 +267,11 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
     valid      = true;
   }
 
+  /**
+   * @brief Constructs metadata from a serialized 64-bit bitmap
+   *
+   * @param bitmap Pointer to the beginning of the serialized bitmap
+   */
   __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
   {
     cuda::std::size_t byte_offset     = 0;
