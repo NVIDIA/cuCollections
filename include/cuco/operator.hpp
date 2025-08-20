@@ -42,7 +42,6 @@ namespace cuco {
  * - `count`: For a given key, returns the number of matching elements in the container
  * - `find`: Locates an element in the container
  * - `retrieve`: Retrieves all matching elements in the container for a given key
- * - `retrieve_if`: Retrieves all matching elements in the container if a predicate condition is met
  * - `for_each`: Applies a user-defined function to each element in the container (or for a given
  * key)
  *
@@ -296,8 +295,9 @@ struct find_tag {
  * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
  * Use `count()` to determine the size of the output range.
  *
- * API Signature:
+ * API Signatures:
  * ```cpp
+ * // Basic retrieve
  * template <int32_t BlockSize,
  *           class InputProbeIt,
  *           class OutputProbeIt,
@@ -309,49 +309,9 @@ struct find_tag {
  *                          OutputProbeIt output_probe,
  *                          OutputMatchIt output_match,
  *                          AtomicCounter* atomic_counter) const
- * ```
  *
- * Where:
- * @see @tparam BlockSize Size of the thread block this operation is executed in
- * @see @tparam InputProbeIt Device accessible input iterator whose `value_type` is
- * convertible to the container's `key_type`
- * @see @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
- * convertible to the container's `key_type`
- * @see @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
- * convertible to the container's `value_type`
- * @see @tparam AtomicCounter Atomic counter type that follows the same semantics as
- * `cuda::atomic(_ref)`
- *
- * @see @param block Thread block this operation is executed in
- * @see @param input_probe_begin Beginning of the input sequence of keys
- * @see @param input_probe_end End of the input sequence of keys
- * @see @param output_probe Beginning of the sequence of keys corresponding to matching elements in
- * `output_match`
- * @see @param output_match Beginning of the sequence of matching elements
- * @see @param atomic_counter Counter that is used to determine the next free position in the output
- * sequences
- *
- */
-struct retrieve_tag {
-} inline constexpr retrieve;  ///< `cuco::retrieve` operator
-
-/**
- * @brief Tag type for `retrieve_if` operator
- *
- * Retrieves all the matching elements corresponding to all keys in the range `[input_probe_begin,
- * input_probe_end)` if `pred` of the corresponding stencil returns true.
- *
- * If key `k = *(first + i)` exists in the container and `pred( *(stencil + i) )` returns true,
- * copies `k` to `output_probe` and associated slot content to `output_match`, respectively.
- * The output order is unspecified.
- *
- * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
- * Use `count()` to determine the size of the output range.
- *
- * API Signature:
- * ```cpp
- * template <bool IsOuter,
- *           int32_t BlockSize,
+ * // Conditional retrieve with predicate
+ * template <int32_t BlockSize,
  *           class InputProbeIt,
  *           class StencilIt,
  *           class Predicate,
@@ -369,14 +329,15 @@ struct retrieve_tag {
  * ```
  *
  * Where:
- * @see @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
+
  * @see @tparam BlockSize Size of the thread block this operation is executed in
  * @see @tparam InputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the container's `key_type`
  * @see @tparam StencilIt Device accessible random access iterator whose value_type is
- * convertible to Predicate's argument type
+ * convertible to Predicate's argument type (retrieve_if only)
  * @see @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
- * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type` (retrieve_if
+ only)
  * @see @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the container's `key_type`
  * @see @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -387,8 +348,9 @@ struct retrieve_tag {
  * @see @param block Thread block this operation is executed in
  * @see @param input_probe_begin Beginning of the input sequence of keys
  * @see @param input_probe_end End of the input sequence of keys
- * @see @param stencil Beginning of the stencil sequence
+ * @see @param stencil Beginning of the stencil sequence (retrieve_if only)
  * @see @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ (retrieve_if only)
  * @see @param output_probe Beginning of the sequence of keys corresponding to matching elements in
  * `output_match`
  * @see @param output_match Beginning of the sequence of matching elements
@@ -396,8 +358,8 @@ struct retrieve_tag {
  * sequences
  *
  */
-struct retrieve_if_tag {
-} inline constexpr retrieve_if;  ///< `cuco::retrieve_if` operator
+struct retrieve_tag {
+} inline constexpr retrieve;  ///< `cuco::retrieve` operator
 
 /**
  * @brief Tag type for `for_each` operator

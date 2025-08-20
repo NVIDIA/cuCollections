@@ -71,6 +71,7 @@ ConfigureTest(STATIC_SET_TEST
     static_set/large_input_test.cu
     static_set/retrieve_test.cu
     static_set/retrieve_all_test.cu
+    static_set/retrieve_if_test.cu
     static_set/rehash_test.cu
     static_set/size_test.cu
     static_set/shared_memory_test.cu
@@ -95,7 +96,8 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
     static_map/rehash_test.cu
-    static_map/retrieve_test.cu)
+    static_map/retrieve_test.cu
+    static_map/retrieve_if_test.cu)
 
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------

@@ -1166,7 +1166,6 @@ class open_addressing_ref_impl {
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
    * Use `count()` to determine the size of the output range.
    *
-   * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
    * @tparam BlockSize Size of the thread block this operation is executed in
    * @tparam InputProbeIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose value_type is
@@ -1191,8 +1190,7 @@ class open_addressing_ref_impl {
    * @param atomic_counter Atomic object of integral type that is used to count the
    * number of output elements
    */
-  template <bool IsOuter,
-            int32_t BlockSize,
+  template <int BlockSize,
             class InputProbeIt,
             class StencilIt,
             class Predicate,
@@ -1208,8 +1206,9 @@ class open_addressing_ref_impl {
                               OutputMatchIt output_match,
                               AtomicCounter& atomic_counter) const
   {
-    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);
-    this->retrieve_impl<IsOuter, BlockSize>(
+    auto constexpr is_outer = false;
+    auto const n            = cuco::detail::distance(input_probe_begin, input_probe_end);
+    this->retrieve_impl<is_outer, BlockSize>(
       block, input_probe_begin, n, stencil, pred, output_probe, output_match, atomic_counter);
   }
 
@@ -1314,16 +1313,14 @@ class open_addressing_ref_impl {
     };
 
     while (flushing_tile.any(idx < n)) {
-      bool active_flag = idx < n;
+      bool active_flag = idx < n and pred(*(stencil + idx));
       auto const active_flushing_tile =
         cg::binary_partition<flushing_tile_size>(flushing_tile, active_flag);
 
       if (active_flag) {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
-        auto const probe_key       = *(input_probe + idx);
-        auto const predicate_value = pred(*(stencil + idx));
-        // TODO: skip probing if predicate_value is false
+        auto const probe_key = *(input_probe + idx);
 
         auto probing_iter = probing_scheme_.template make_iterator<bucket_size>(
           probing_tile, probe_key, storage_ref_.extent());

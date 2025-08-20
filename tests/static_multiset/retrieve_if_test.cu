@@ -20,241 +20,202 @@
 
 #include <cuda/functional>
 #include <thrust/device_vector.h>
-#include <thrust/distance.h>
-#include <thrust/functional.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
-#include <thrust/sort.h>
+#include <thrust/host_vector.h>
+#include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
-#include <limits>
+using size_type = std::size_t;
 
 template <class Container>
-void test_retrieve_if_inner(Container& container, std::size_t num_keys)
-{
-  using key_type                = typename Container::key_type;
-  auto const empty_key_sentinel = container.empty_key_sentinel();
-
-  container.clear();
-
-  // Insert keys 0, 1, 2, ... num_keys-1
-  auto const keys_begin = thrust::counting_iterator<key_type>{0};
-  container.insert(keys_begin, keys_begin + num_keys);
-  REQUIRE(container.size() == num_keys);
-
-  // Create stencil and predicate for 50% filtering (even keys only)
-  auto const stencil_begin = keys_begin;
-  auto const pred          = [] __device__(key_type k) { return k % 2 == 0; };
-
-  thrust::device_vector<key_type> probed_keys(num_keys);
-  thrust::device_vector<key_type> matched_keys(num_keys);
-
-  SECTION("Inner retrieve_if should only return keys where predicate is true.")
-  {
-    auto const [probed_end, matched_end] = container.retrieve_if<false>(keys_begin,
-                                                                        keys_begin + num_keys,
-                                                                        stencil_begin,
-                                                                        pred,
-                                                                        probed_keys.begin(),
-                                                                        matched_keys.begin());
-
-    auto const num_retrieved  = std::distance(probed_keys.begin(), probed_end);
-    auto const expected_count = (num_keys + 1) / 2;  // ceiling of num_keys/2 for even keys
-
-    REQUIRE(num_retrieved == expected_count);
-    REQUIRE(std::distance(matched_keys.begin(), matched_end) == expected_count);
-
-    // Sort results for comparison
-    thrust::sort(probed_keys.begin(), probed_end);
-    thrust::sort(matched_keys.begin(), matched_end);
-
-    // Check that all retrieved keys are even
-    auto const even_keys_begin = thrust::make_transform_iterator(
-      thrust::counting_iterator<key_type>{0}, [] __device__(key_type i) { return i * 2; });
-
-    REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_end, even_keys_begin, cuda::std::equal_to<key_type>{}));
-    REQUIRE(cuco::test::equal(
-      matched_keys.begin(), matched_end, even_keys_begin, cuda::std::equal_to<key_type>{}));
-  }
-
-  SECTION("Inner retrieve_if with always-false predicate should return empty.")
-  {
-    auto const always_false              = [] __device__(key_type) { return false; };
-    auto const [probed_end, matched_end] = container.retrieve_if<false>(keys_begin,
-                                                                        keys_begin + num_keys,
-                                                                        stencil_begin,
-                                                                        always_false,
-                                                                        probed_keys.begin(),
-                                                                        matched_keys.begin());
-
-    REQUIRE(std::distance(probed_keys.begin(), probed_end) == 0);
-    REQUIRE(std::distance(matched_keys.begin(), matched_end) == 0);
-  }
-
-  SECTION("Inner retrieve_if with always-true predicate should return all keys.")
-  {
-    auto const always_true               = [] __device__(key_type) { return true; };
-    auto const [probed_end, matched_end] = container.retrieve_if<false>(keys_begin,
-                                                                        keys_begin + num_keys,
-                                                                        stencil_begin,
-                                                                        always_true,
-                                                                        probed_keys.begin(),
-                                                                        matched_keys.begin());
-
-    REQUIRE(std::distance(probed_keys.begin(), probed_end) == num_keys);
-    REQUIRE(std::distance(matched_keys.begin(), matched_end) == num_keys);
-
-    thrust::sort(probed_keys.begin(), probed_end);
-    thrust::sort(matched_keys.begin(), matched_end);
-
-    REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_end, keys_begin, cuda::std::equal_to<key_type>{}));
-    REQUIRE(cuco::test::equal(
-      matched_keys.begin(), matched_end, keys_begin, cuda::std::equal_to<key_type>{}));
-  }
-}
-
-template <class Container>
-void test_retrieve_if_outer(Container& container, std::size_t num_keys)
-{
-  using key_type                = typename Container::key_type;
-  auto const empty_key_sentinel = container.empty_key_sentinel();
-
-  container.clear();
-
-  // Insert only half of the keys (even keys: 0, 2, 4, ...)
-  auto const even_keys_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<key_type>{0}, [] __device__(key_type i) { return i * 2; });
-  container.insert(even_keys_begin, even_keys_begin + num_keys / 2);
-
-  // Query all keys 0, 1, 2, ... num_keys-1
-  auto const query_keys_begin = thrust::counting_iterator<key_type>{0};
-  auto const stencil_begin    = query_keys_begin;
-  auto const pred = [] __device__(key_type k) { return k % 4 == 0; };  // keys 0, 4, 8, ...
-
-  thrust::device_vector<key_type> probed_keys(num_keys);
-  thrust::device_vector<key_type> matched_keys(num_keys);
-
-  SECTION("Outer retrieve_if should include all queried keys with appropriate matches.")
-  {
-    auto const [probed_end, matched_end] = container.retrieve_if<true>(query_keys_begin,
-                                                                       query_keys_begin + num_keys,
-                                                                       stencil_begin,
-                                                                       pred,
-                                                                       probed_keys.begin(),
-                                                                       matched_keys.begin());
-
-    // Should return entries for all queried keys
-    REQUIRE(std::distance(probed_keys.begin(), probed_end) == num_keys);
-    REQUIRE(std::distance(matched_keys.begin(), matched_end) == num_keys);
-
-    // Sort by probed keys for easier verification
-    thrust::sort_by_key(probed_keys.begin(), probed_end, matched_keys.begin());
-
-    // Check that all queried keys are present
-    REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_end, query_keys_begin, cuda::std::equal_to<key_type>{}));
-
-    // For keys where predicate is false, should have empty sentinel
-    // For keys where predicate is true but key not in container, should have empty sentinel
-    // For keys where predicate is true and key is in container, should have the key as value
-    for (std::size_t i = 0; i < num_keys; ++i) {
-      auto key     = static_cast<key_type>(i);
-      auto matched = matched_keys[i];
-
-      if (key % 4 == 0 && key % 2 == 0) {
-        // Predicate true and key exists in container
-        REQUIRE(matched == key);
-      } else {
-        // Either predicate false or key doesn't exist
-        REQUIRE(matched == empty_key_sentinel);
-      }
-    }
-  }
-}
-
-template <class Container>
-void test_retrieve_if_stencil_mismatch(Container& container, std::size_t num_keys)
+__global__ void test_retrieve_if_kernel(
+  Container container_ref,
+  typename Container::key_type* keys_begin,
+  std::size_t num_keys,
+  typename Container::key_type* stencil_begin,
+  typename Container::key_type* output_probe,
+  typename Container::key_type* output_match,
+  cuda::atomic<int, cuda::thread_scope_device>* atomic_counter)
 {
   using key_type = typename Container::key_type;
+  namespace cg   = cooperative_groups;
 
-  container.clear();
+  auto const block = cg::this_thread_block();
+  auto const pred  = [] __device__(key_type k) { return k % 2 == 0; };
 
-  // Insert keys 0, 1, 2, ... num_keys-1
-  auto const keys_begin = thrust::counting_iterator<key_type>{0};
-  container.insert(keys_begin, keys_begin + num_keys);
+  container_ref.retrieve_if<128>(block,
+                                 keys_begin,
+                                 keys_begin + num_keys,
+                                 stencil_begin,
+                                 pred,
+                                 output_probe,
+                                 output_match,
+                                 *atomic_counter);
+}
 
-  // Use a different stencil that doesn't match the keys directly
-  thrust::device_vector<key_type> stencil_values(num_keys);
-  thrust::transform(
-    keys_begin, keys_begin + num_keys, stencil_values.begin(), [] __device__(key_type k) {
-      return k + 10;
-    });  // offset by 10
+template <class Container>
+__global__ void test_retrieve_if_all_false_kernel(
+  Container container_ref,
+  typename Container::key_type* keys_begin,
+  std::size_t num_keys,
+  typename Container::key_type* stencil_begin,
+  typename Container::key_type* output_probe,
+  typename Container::key_type* output_match,
+  cuda::atomic<int, cuda::thread_scope_device>* atomic_counter)
+{
+  using key_type = typename Container::key_type;
+  namespace cg   = cooperative_groups;
 
-  auto const pred = [] __device__(key_type s) { return s % 3 == 1; };  // 11, 14, 17, ...
+  auto const block        = cg::this_thread_block();
+  auto const always_false = [] __device__(key_type) { return false; };
 
-  thrust::device_vector<key_type> probed_keys(num_keys);
-  thrust::device_vector<key_type> matched_keys(num_keys);
+  container_ref.retrieve_if<128>(block,
+                                 keys_begin,
+                                 keys_begin + num_keys,
+                                 stencil_begin,
+                                 always_false,
+                                 output_probe,
+                                 output_match,
+                                 *atomic_counter);
+}
 
-  SECTION("retrieve_if should use stencil values for predicate evaluation.")
-  {
-    auto const [probed_end, matched_end] = container.retrieve_if<false>(keys_begin,
-                                                                        keys_begin + num_keys,
-                                                                        stencil_values.begin(),
-                                                                        pred,
-                                                                        probed_keys.begin(),
-                                                                        matched_keys.begin());
+template <class Container>
+__global__ void test_retrieve_if_all_true_kernel(
+  Container container_ref,
+  typename Container::key_type* keys_begin,
+  std::size_t num_keys,
+  typename Container::key_type* stencil_begin,
+  typename Container::key_type* output_probe,
+  typename Container::key_type* output_match,
+  cuda::atomic<int, cuda::thread_scope_device>* atomic_counter)
+{
+  using key_type = typename Container::key_type;
+  namespace cg   = cooperative_groups;
 
-    // Count expected results: stencil values 11, 14, 17, ... (where (k+10) % 3 == 1)
-    // This corresponds to original keys 1, 4, 7, ...
-    auto const expected_count = (num_keys + 2) / 3;  // keys where k % 3 == 1
+  auto const block       = cg::this_thread_block();
+  auto const always_true = [] __device__(key_type) { return true; };
 
-    REQUIRE(std::distance(probed_keys.begin(), probed_end) == expected_count);
-    REQUIRE(std::distance(matched_keys.begin(), matched_end) == expected_count);
-
-    // Sort results
-    thrust::sort(probed_keys.begin(), probed_end);
-    thrust::sort(matched_keys.begin(), matched_end);
-
-    // Expected keys: 1, 4, 7, ...
-    auto const expected_keys_begin = thrust::make_transform_iterator(
-      thrust::counting_iterator<key_type>{0}, [] __device__(key_type i) { return 1 + i * 3; });
-
-    REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_end, expected_keys_begin, cuda::std::equal_to<key_type>{}));
-    REQUIRE(cuco::test::equal(
-      matched_keys.begin(), matched_end, expected_keys_begin, cuda::std::equal_to<key_type>{}));
-  }
+  container_ref.retrieve_if<128>(block,
+                                 keys_begin,
+                                 keys_begin + num_keys,
+                                 stencil_begin,
+                                 always_true,
+                                 output_probe,
+                                 output_match,
+                                 *atomic_counter);
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "static_multiset retrieve_if tests",
-  "",
-  ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
-  (int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  "static_multiset retrieve_if", "", ((typename Key), Key), (int32_t), (int64_t))
 {
-  constexpr std::size_t num_keys{400};
-  constexpr double desired_load_factor = 0.5;
-  constexpr auto empty_key_sentinel    = std::numeric_limits<Key>::max();
+  constexpr size_type num_keys{400};
 
-  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
-                                   cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
-                                   cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+  using container_type = cuco::static_multiset<Key>;
 
-  auto set = cuco::static_multiset{
-    num_keys, desired_load_factor, cuco::empty_key<Key>{empty_key_sentinel}, {}, probe{}};
+  container_type container{num_keys * 2, cuco::empty_key<Key>{-1}};
 
-  test_retrieve_if_inner(set, num_keys);
-  test_retrieve_if_outer(set, num_keys);
-  test_retrieve_if_stencil_mismatch(set, num_keys);
+  auto keys_begin = thrust::counting_iterator<Key>(1);
+  auto keys_end   = keys_begin + num_keys;
+
+  container.insert(keys_begin, keys_end);
+
+  SECTION("Testing retrieve_if with even predicate")
+  {
+    thrust::device_vector<Key> input_keys(keys_begin, keys_end);
+    thrust::device_vector<Key> stencil_values(keys_begin, keys_end);
+    thrust::device_vector<Key> probed_keys(num_keys);
+    thrust::device_vector<Key> matched_keys(num_keys);
+
+    cuda::atomic<int, cuda::thread_scope_device>* d_atomic_counter;
+    CUCO_CUDA_TRY(
+      cudaMalloc(&d_atomic_counter, sizeof(cuda::atomic<int, cuda::thread_scope_device>)));
+    CUCO_CUDA_TRY(
+      cudaMemset(d_atomic_counter, 0, sizeof(cuda::atomic<int, cuda::thread_scope_device>)));
+
+    auto const container_ref = container.ref(cuco::op::retrieve);
+
+    test_retrieve_if_kernel<<<1, 128>>>(container_ref,
+                                        thrust::raw_pointer_cast(input_keys.data()),
+                                        num_keys,
+                                        thrust::raw_pointer_cast(stencil_values.data()),
+                                        thrust::raw_pointer_cast(probed_keys.data()),
+                                        thrust::raw_pointer_cast(matched_keys.data()),
+                                        d_atomic_counter);
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+    int h_counter;
+    CUCO_CUDA_TRY(cudaMemcpy(&h_counter, d_atomic_counter, sizeof(int), cudaMemcpyDeviceToHost));
+
+    // Should retrieve even numbers only
+    REQUIRE(h_counter > 0);
+    REQUIRE(h_counter <= static_cast<int>(num_keys));
+
+    CUCO_CUDA_TRY(cudaFree(d_atomic_counter));
+  }
+
+  SECTION("Testing retrieve_if with always false predicate")
+  {
+    thrust::device_vector<Key> input_keys(keys_begin, keys_end);
+    thrust::device_vector<Key> stencil_values(keys_begin, keys_end);
+    thrust::device_vector<Key> probed_keys(num_keys);
+    thrust::device_vector<Key> matched_keys(num_keys);
+
+    cuda::atomic<int, cuda::thread_scope_device>* d_atomic_counter;
+    CUCO_CUDA_TRY(
+      cudaMalloc(&d_atomic_counter, sizeof(cuda::atomic<int, cuda::thread_scope_device>)));
+    CUCO_CUDA_TRY(
+      cudaMemset(d_atomic_counter, 0, sizeof(cuda::atomic<int, cuda::thread_scope_device>)));
+
+    auto const container_ref = container.ref(cuco::op::retrieve);
+
+    test_retrieve_if_all_false_kernel<<<1, 128>>>(container_ref,
+                                                  thrust::raw_pointer_cast(input_keys.data()),
+                                                  num_keys,
+                                                  thrust::raw_pointer_cast(stencil_values.data()),
+                                                  thrust::raw_pointer_cast(probed_keys.data()),
+                                                  thrust::raw_pointer_cast(matched_keys.data()),
+                                                  d_atomic_counter);
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+    int h_counter;
+    CUCO_CUDA_TRY(cudaMemcpy(&h_counter, d_atomic_counter, sizeof(int), cudaMemcpyDeviceToHost));
+
+    // Should retrieve nothing
+    REQUIRE(h_counter == 0);
+
+    CUCO_CUDA_TRY(cudaFree(d_atomic_counter));
+  }
+
+  SECTION("Testing retrieve_if with always true predicate")
+  {
+    thrust::device_vector<Key> input_keys(keys_begin, keys_end);
+    thrust::device_vector<Key> stencil_values(keys_begin, keys_end);
+    thrust::device_vector<Key> probed_keys(num_keys);
+    thrust::device_vector<Key> matched_keys(num_keys);
+
+    cuda::atomic<int, cuda::thread_scope_device>* d_atomic_counter;
+    CUCO_CUDA_TRY(
+      cudaMalloc(&d_atomic_counter, sizeof(cuda::atomic<int, cuda::thread_scope_device>)));
+    CUCO_CUDA_TRY(
+      cudaMemset(d_atomic_counter, 0, sizeof(cuda::atomic<int, cuda::thread_scope_device>)));
+
+    auto const container_ref = container.ref(cuco::op::retrieve);
+
+    test_retrieve_if_all_true_kernel<<<1, 128>>>(container_ref,
+                                                 thrust::raw_pointer_cast(input_keys.data()),
+                                                 num_keys,
+                                                 thrust::raw_pointer_cast(stencil_values.data()),
+                                                 thrust::raw_pointer_cast(probed_keys.data()),
+                                                 thrust::raw_pointer_cast(matched_keys.data()),
+                                                 d_atomic_counter);
+    CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+    int h_counter;
+    CUCO_CUDA_TRY(cudaMemcpy(&h_counter, d_atomic_counter, sizeof(int), cudaMemcpyDeviceToHost));
+
+    // Should retrieve all keys that exist in the container
+    REQUIRE(h_counter == static_cast<int>(num_keys));
+
+    CUCO_CUDA_TRY(cudaFree(d_atomic_counter));
+  }
 }

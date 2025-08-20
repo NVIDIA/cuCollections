@@ -845,41 +845,7 @@ class operator_impl<
     ref_.impl_.template retrieve<BlockSize>(
       block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
-};
 
-/**
- * @brief Mixin to augment `static_multimap_ref` with `retrieve_if` operator
- *
- * @tparam Key Key type
- * @tparam T Mapped type
- * @tparam Scope The scope in which operations will be performed by individual threads.
- * @tparam KeyEqual Binary callable type used to compare two keys for equality
- * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
- * @tparam StorageRef Storage ref type
- * @tparam Operators List of operators provided by the ref
- */
-template <typename Key,
-          typename T,
-          cuda::thread_scope Scope,
-          typename KeyEqual,
-          typename ProbingScheme,
-          typename StorageRef,
-          typename... Operators>
-class operator_impl<
-  op::retrieve_if_tag,
-  static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
-  using base_type = static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
-  using ref_type =
-    static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
-  using key_type       = typename base_type::key_type;
-  using value_type     = typename base_type::value_type;
-  using iterator       = typename base_type::iterator;
-  using const_iterator = typename base_type::const_iterator;
-
-  static constexpr auto cg_size     = base_type::cg_size;
-  static constexpr auto bucket_size = base_type::bucket_size;
-
- public:
   /**
    * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
    * input_probe_end)` if `pred` of the corresponding stencil returns true.
@@ -891,7 +857,6 @@ class operator_impl<
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
    * Use `count()` to determine the size of the output range.
    *
-   * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
    * @tparam BlockSize Size of the thread block this operation is executed in
    * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
    * convertible to the container's `key_type`
@@ -917,8 +882,7 @@ class operator_impl<
    * @param atomic_counter Counter that is used to determine the next free position in the output
    * sequences
    */
-  template <bool IsOuter,
-            int32_t BlockSize,
+  template <int32_t BlockSize,
             class InputProbeIt,
             class StencilIt,
             class Predicate,
@@ -935,14 +899,14 @@ class operator_impl<
                               AtomicCounter& atomic_counter) const
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
-    ref_.impl_.template retrieve_if<IsOuter, BlockSize>(block,
-                                                        input_probe_begin,
-                                                        input_probe_end,
-                                                        stencil,
-                                                        pred,
-                                                        output_probe,
-                                                        output_match,
-                                                        atomic_counter);
+    ref_.impl_.template retrieve_if<BlockSize>(block,
+                                               input_probe_begin,
+                                               input_probe_end,
+                                               stencil,
+                                               pred,
+                                               output_probe,
+                                               output_match,
+                                               atomic_counter);
   }
 };
 }  // namespace detail
