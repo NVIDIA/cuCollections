@@ -60,10 +60,35 @@ class roaring_bitmap {
                  Allocator const& alloc  = {},
                  cuda::stream_ref stream = {});
 
-  roaring_bitmap(roaring_bitmap const& other)            = default;  ///< Copy constructor
-  roaring_bitmap(roaring_bitmap&& other)                 = default;  ///< Move constructor
-  roaring_bitmap& operator=(roaring_bitmap const& other) = default;  ///< Copy assignment
-  roaring_bitmap& operator=(roaring_bitmap&& other)      = default;  ///< Move assignment
+  /**
+   * @brief Copy constructor
+   *
+   * @param other The roaring_bitmap to copy from
+   */
+  roaring_bitmap(roaring_bitmap const& other) = default;
+
+  /**
+   * @brief Move constructor
+   *
+   * @param other The roaring_bitmap to move from
+   */
+  roaring_bitmap(roaring_bitmap&& other) = default;
+
+  /**
+   * @brief Copy assignment operator
+   *
+   * @param other The roaring_bitmap to copy from
+   * @return Reference to this roaring_bitmap
+   */
+  roaring_bitmap& operator=(roaring_bitmap const& other) = default;
+
+  /**
+   * @brief Move assignment operator
+   *
+   * @param other The roaring_bitmap to move from
+   * @return Reference to this roaring_bitmap
+   */
+  roaring_bitmap& operator=(roaring_bitmap&& other) = default;
 
   ~roaring_bitmap() = default;  ///< Destructor
 

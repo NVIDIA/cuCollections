@@ -317,7 +317,7 @@ struct find_tag {
  * @see @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the container's `key_type`
  * @see @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
- * convertible to the container's `value_type`
+ * convertible to the container's value_type
  * @see @tparam AtomicCounter Atomic counter type that follows the same semantics as
  * `cuda::atomic(_ref)`
  *
