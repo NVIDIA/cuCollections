@@ -15,11 +15,9 @@
 
 #pragma once
 
-#include <cuco/detail/utility/cuda.hpp>
+#include <cuda/std/cstdint>
 
 #include <cooperative_groups.h>
-
-#include <cstdint>
 
 #if defined(CUCO_DISABLE_KERNEL_VISIBILITY_WARNING_SUPPRESSION)
 #define CUCO_SUPPRESS_KERNEL_WARNINGS
@@ -40,8 +38,11 @@ _Pragma("GCC diagnostic ignored \"-Wattributes\"")
 namespace cuco {
 namespace detail {
 
+using index_type = cuda::std::int64_t;  ///< CUDA thread index type
+
+/// Default block size
 /// CUDA warp size
-[[nodiscard]] __device__ constexpr int32_t warp_size() noexcept { return 32; }
+[[nodiscard]] __device__ constexpr cuda::std::int32_t warp_size() noexcept { return 32; }
 
 /**
  * @brief Returns the global thread index in a 1D scalar grid

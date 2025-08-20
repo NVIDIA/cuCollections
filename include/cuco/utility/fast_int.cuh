@@ -19,10 +19,9 @@
 #include <cuco/detail/__config>
 
 #include <cuda/std/bit>
+#include <cuda/std/cstdint>
 #include <cuda/std/limits>
 #include <cuda/std/type_traits>
-
-#include <cstdint>
 
 namespace cuco::utility {
 
@@ -33,9 +32,11 @@ namespace cuco::utility {
  */
 template <typename T>
 struct fast_int {
-  static_assert(cuda::std::is_same_v<T, std::int32_t> or cuda::std::is_same_v<T, std::uint32_t>
+  static_assert(cuda::std::is_same_v<T, cuda::std::int32_t> or
+                  cuda::std::is_same_v<T, cuda::std::uint32_t>
 #if defined(CUCO_HAS_INT128)
-                  or cuda::std::is_same_v<T, std::int64_t> or cuda::std::is_same_v<T, std::uint64_t>
+                  or cuda::std::is_same_v<T, cuda::std::int64_t> or
+                  cuda::std::is_same_v<T, cuda::std::uint64_t>
 #endif
                 ,
                 "Unsupported integer type");
@@ -69,7 +70,7 @@ struct fast_int {
  private:
   using intermediate_type =
     cuda::std::conditional_t<sizeof(value_type) == 4,
-                             std::uint64_t,
+                             cuda::std::uint64_t,
                              unsigned __int128>;  ///< Intermediate type for multiplication
   using unsigned_value_type = cuda::std::make_unsigned_t<value_type>;  ///< Unsigned value type
   using signed_value_type   = cuda::std::make_signed_t<value_type>;    ///< Signed value type
