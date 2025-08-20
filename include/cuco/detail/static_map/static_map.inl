@@ -806,6 +806,20 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+__host__ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::data()
+  const -> value_type*
+{
+  return impl_->data();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
   const noexcept

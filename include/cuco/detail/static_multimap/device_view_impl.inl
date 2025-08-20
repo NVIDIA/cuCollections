@@ -72,14 +72,15 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * To be used for Cooperative Group based probing.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   __device__ __forceinline__ iterator
-  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size, ParentCG> g,
                ProbeKey const& k) noexcept
   {
     return probe_sequence_.initial_slot(g, k);
@@ -91,14 +92,15 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * To be used for Cooperative Group based probing.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group for which the initial slot is needed
    * @param k The key to get the slot for
    * @return Pointer to the initial slot for `k`
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   __device__ __forceinline__ const_iterator
-  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+  initial_slot(cooperative_groups::thread_block_tile<ProbeSequence::cg_size, ParentCG> g,
                ProbeKey const& k) const noexcept
   {
     return probe_sequence_.initial_slot(g, k);
@@ -483,7 +485,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @param output_begin Beginning of the output sequence of key/value pairs
    */
   template <typename CG, typename atomicT, typename OutputIt>
-  __device__ __forceinline__ void flush_output_buffer(CG const& g,
+  __device__ __forceinline__ void flush_output_buffer(CG g,
                                                       uint32_t const num_outputs,
                                                       value_type* output_buffer,
                                                       atomicT* num_matches,
@@ -541,7 +543,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * pairs
    */
   template <typename CG, typename atomicT, typename OutputIt1, typename OutputIt2>
-  __device__ __forceinline__ void flush_output_buffer(CG const& g,
+  __device__ __forceinline__ void flush_output_buffer(CG g,
                                                       uint32_t const num_outputs,
                                                       value_type* probe_output_buffer,
                                                       value_type* contained_output_buffer,
@@ -578,15 +580,20 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam ProbeT Probe data type
    * @tparam Equal Binary callable type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g The Cooperative Group used to perform the contains operation
    * @param element The probe element to search for
    * @param equal The binary function to compare input element and slot content for equality
    * @return A boolean indicating whether the key/value pair represented by `element` was inserted
    */
-  template <bool is_pair_contains, bool uses_vector_load, typename ProbeT, typename Equal>
+  template <bool is_pair_contains,
+            bool uses_vector_load,
+            typename ProbeT,
+            typename Equal,
+            typename ParentCG>
   __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, bool> contains(
-    cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+    cooperative_groups::thread_block_tile<ProbeSequence::cg_size, ParentCG> g,
     ProbeT const& element,
     Equal equal) const noexcept
   {
@@ -644,15 +651,20 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    * @tparam uses_vector_load Boolean flag indicating whether vector loads are used
    * @tparam ProbeT Probe data type
    * @tparam Equal Binary callable type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g The Cooperative Group used to perform the contains operation
    * @param element The probe element to search for
    * @param equal The binary function to compare input element and slot content for equality
    * @return A boolean indicating whether the key/value pair represented by `element` was inserted
    */
-  template <bool is_pair_contains, bool uses_vector_load, typename ProbeT, typename Equal>
+  template <bool is_pair_contains,
+            bool uses_vector_load,
+            typename ProbeT,
+            typename Equal,
+            typename ParentCG>
   __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, bool> contains(
-    cooperative_groups::thread_block_tile<ProbeSequence::cg_size> const& g,
+    cooperative_groups::thread_block_tile<ProbeSequence::cg_size, ParentCG> g,
     ProbeT const& element,
     Equal equal) const noexcept
   {
@@ -706,7 +718,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
   __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, std::size_t> count(
-    CG const& g, Key const& k, KeyEqual key_equal) noexcept
+    CG g, Key const& k, KeyEqual key_equal) noexcept
   {
     std::size_t count = 0;
     auto current_slot = initial_slot(g, k);
@@ -756,7 +768,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename KeyEqual>
   __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, std::size_t> count(
-    CG const& g, Key const& k, KeyEqual key_equal) noexcept
+    CG g, Key const& k, KeyEqual key_equal) noexcept
   {
     std::size_t count = 0;
     auto current_slot = initial_slot(g, k);
@@ -804,7 +816,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
   __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, std::size_t> pair_count(
-    CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
+    CG g, value_type const& pair, PairEqual pair_equal) noexcept
   {
     std::size_t count = 0;
     auto key          = pair.first;
@@ -857,7 +869,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
    */
   template <bool uses_vector_load, bool is_outer, typename CG, typename PairEqual>
   __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, std::size_t> pair_count(
-    CG const& g, value_type const& pair, PairEqual pair_equal) noexcept
+    CG g, value_type const& pair, PairEqual pair_equal) noexcept
   {
     std::size_t count = 0;
     auto key          = pair.first;
@@ -923,8 +935,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename atomicT,
             typename OutputIt,
             typename KeyEqual>
-  __device__ __forceinline__ void retrieve(FlushingCG const& flushing_cg,
-                                           ProbingCG const& probing_cg,
+  __device__ __forceinline__ void retrieve(FlushingCG flushing_cg,
+                                           ProbingCG probing_cg,
                                            Key const& k,
                                            uint32_t* flushing_cg_counter,
                                            value_type* output_buffer,
@@ -1033,7 +1045,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename atomicT,
             typename OutputIt,
             typename KeyEqual>
-  __device__ __forceinline__ void retrieve(CG const& g,
+  __device__ __forceinline__ void retrieve(CG g,
                                            Key const& k,
                                            uint32_t* cg_counter,
                                            value_type* output_buffer,
@@ -1141,7 +1153,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename OutputIt4,
             typename PairEqual>
   __device__ __forceinline__ cuda::std::enable_if_t<uses_vector_load, void> pair_retrieve(
-    ProbingCG const& probing_cg,
+    ProbingCG probing_cg,
     value_type const& pair,
     OutputIt1 probe_key_begin,
     OutputIt2 probe_val_begin,
@@ -1252,7 +1264,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename OutputIt4,
             typename PairEqual>
   __device__ __forceinline__ cuda::std::enable_if_t<not uses_vector_load, void> pair_retrieve(
-    ProbingCG const& probing_cg,
+    ProbingCG probing_cg,
     value_type const& pair,
     OutputIt1 probe_key_begin,
     OutputIt2 probe_val_begin,
@@ -1348,8 +1360,8 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename OutputIt1,
             typename OutputIt2,
             typename PairEqual>
-  __device__ __forceinline__ void pair_retrieve(FlushingCG const& flushing_cg,
-                                                ProbingCG const& probing_cg,
+  __device__ __forceinline__ void pair_retrieve(FlushingCG flushing_cg,
+                                                ProbingCG probing_cg,
                                                 value_type const& pair,
                                                 uint32_t* flushing_cg_counter,
                                                 value_type* probe_output_buffer,
@@ -1476,7 +1488,7 @@ class static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::device_view_
             typename OutputIt1,
             typename OutputIt2,
             typename PairEqual>
-  __device__ __forceinline__ void pair_retrieve(CG const& g,
+  __device__ __forceinline__ void pair_retrieve(CG g,
                                                 value_type const& pair,
                                                 uint32_t* cg_counter,
                                                 value_type* probe_output_buffer,

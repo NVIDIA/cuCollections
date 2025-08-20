@@ -89,6 +89,12 @@ target_link_libraries(cuco INTERFACE CCCL::CCCL CUDA::toolkit)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 
 ###################################################################################################
+# - Optionally download RoaringFormatSpec test data -----------------------------------------------
+
+option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ON)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
+
+###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------
 
 if(BUILD_TESTS)

@@ -66,7 +66,8 @@ __global__ void generate_cg_probing_sequence(Key key,
 
   if (tid < cg_size) {
     auto const tile =
-      cooperative_groups::tiled_partition<cg_size>(cooperative_groups::this_thread_block());
+      cooperative_groups::tiled_partition<cg_size, cooperative_groups::thread_block>(
+        cooperative_groups::this_thread_block());
 
     auto iter = probing_scheme.template make_iterator<BucketSize>(tile, key, upper_bound);
 

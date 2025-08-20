@@ -107,7 +107,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::rebind_hash_fun
 template <int32_t CGSize, typename Hash>
 template <int32_t BucketSize, typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
-  ProbeKey const& probe_key, Extent upper_bound) const noexcept
+  ProbeKey probe_key, Extent upper_bound) const noexcept
 {
   using size_type      = typename Extent::value_type;
   size_type const init = cuco::detail::sanitize_hash<size_type>(hash_(probe_key)) %
@@ -116,10 +116,10 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
 }
 
 template <int32_t CGSize, typename Hash>
-template <int32_t BucketSize, typename ProbeKey, typename Extent>
+template <int32_t BucketSize, typename ProbeKey, typename Extent, typename ParentCG>
 __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
-  cooperative_groups::thread_block_tile<cg_size> const& g,
-  ProbeKey const& probe_key,
+  cooperative_groups::thread_block_tile<cg_size, ParentCG> g,
+  ProbeKey probe_key,
   Extent upper_bound) const noexcept
 {
   using size_type            = typename Extent::value_type;
@@ -168,7 +168,7 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::rebind_
 template <int32_t CGSize, typename Hash1, typename Hash2>
 template <int32_t BucketSize, typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_iterator(
-  ProbeKey const& probe_key, Extent upper_bound) const noexcept
+  ProbeKey probe_key, Extent upper_bound) const noexcept
 {
   using size_type = typename Extent::value_type;
   return detail::probing_iterator<Extent>{
@@ -182,10 +182,10 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_it
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
-template <int32_t BucketSize, typename ProbeKey, typename Extent>
+template <int32_t BucketSize, typename ProbeKey, typename Extent, typename ParentCG>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_iterator(
-  cooperative_groups::thread_block_tile<cg_size> const& g,
-  ProbeKey const& probe_key,
+  cooperative_groups::thread_block_tile<cg_size, ParentCG> g,
+  ProbeKey probe_key,
   Extent upper_bound) const noexcept
 {
   int32_t const stride = cg_size * BucketSize;

@@ -77,7 +77,7 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @return An iterator whose value_type is convertible to slot index type
    */
   template <int32_t BucketSize, typename ProbeKey, typename Extent>
-  __host__ __device__ constexpr auto make_iterator(ProbeKey const& probe_key,
+  __host__ __device__ constexpr auto make_iterator(ProbeKey probe_key,
                                                    Extent upper_bound) const noexcept;
 
   /**
@@ -86,16 +86,17 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
    * @tparam BucketSize Size of the bucket
    * @tparam ProbeKey Type of probing key
    * @tparam Extent Type of extent
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group to generate probing iterator
    * @param probe_key The probing key
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <int32_t BucketSize, typename ProbeKey, typename Extent>
+  template <int32_t BucketSize, typename ProbeKey, typename Extent, typename ParentCG>
   __host__ __device__ constexpr auto make_iterator(
-    cooperative_groups::thread_block_tile<cg_size> const& g,
-    ProbeKey const& probe_key,
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> g,
+    ProbeKey probe_key,
     Extent upper_bound) const noexcept;
 
   /**
@@ -174,7 +175,7 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @return An iterator whose value_type is convertible to slot index type
    */
   template <int32_t BucketSize, typename ProbeKey, typename Extent>
-  __host__ __device__ constexpr auto make_iterator(ProbeKey const& probe_key,
+  __host__ __device__ constexpr auto make_iterator(ProbeKey probe_key,
                                                    Extent upper_bound) const noexcept;
 
   /**
@@ -183,16 +184,17 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
    * @tparam BucketSize Size of the bucket
    * @tparam ProbeKey Type of probing key
    * @tparam Extent Type of extent
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param g the Cooperative Group to generate probing iterator
    * @param probe_key The probing key
    * @param upper_bound Upper bound of the iteration
    * @return An iterator whose value_type is convertible to slot index type
    */
-  template <int32_t BucketSize, typename ProbeKey, typename Extent>
+  template <int32_t BucketSize, typename ProbeKey, typename Extent, typename ParentCG>
   __host__ __device__ constexpr auto make_iterator(
-    cooperative_groups::thread_block_tile<cg_size> const& g,
-    ProbeKey const& probe_key,
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> g,
+    ProbeKey probe_key,
     Extent upper_bound) const noexcept;
 
   /**

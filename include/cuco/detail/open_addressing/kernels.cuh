@@ -78,13 +78,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(InputIt first,
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
-        *(first + idx)};
+      typename cuda::std::iterator_traits<InputIt>::value_type const insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
         if (ref.insert(insert_element)) { thread_num_successes++; };
       } else {
         auto const tile =
-          cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+          cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+            cooperative_groups::this_thread_block());
         if (ref.insert(tile, insert_element) && tile.thread_rank() == 0) { thread_num_successes++; }
       }
     }
@@ -137,13 +137,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_if_n(
 
   while (idx < n) {
     if (pred(*(stencil + idx))) {
-      typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
-        *(first + idx)};
+      typename cuda::std::iterator_traits<InputIt>::value_type const insert_element{*(first + idx)};
       if constexpr (CGSize == 1) {
         ref.insert(insert_element);
       } else {
         auto const tile =
-          cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+          cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+            cooperative_groups::this_thread_block());
         ref.insert(tile, insert_element);
       }
     }
@@ -173,12 +173,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void erase(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename cuda::std::iterator_traits<InputIt>::value_type const& erase_element{*(first + idx)};
+    typename cuda::std::iterator_traits<InputIt>::value_type const erase_element{*(first + idx)};
     if constexpr (CGSize == 1) {
       ref.erase(erase_element);
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       ref.erase(tile, erase_element);
     }
     idx += loop_stride;
@@ -213,12 +214,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void for_each_n(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename cuda::std::iterator_traits<InputIt>::value_type const& key{*(first + idx)};
+    typename cuda::std::iterator_traits<InputIt>::value_type const key{*(first + idx)};
     if constexpr (CGSize == 1) {
       ref.for_each(key, callback_op);
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       ref.for_each(tile, key, callback_op);
     }
     idx += loop_stride;
@@ -276,7 +278,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
-        typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
         /*
          * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
          * sector stores from L2 to global memory. By writing results to shared memory and then
@@ -288,9 +290,9 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(block);
+      auto const tile = cg::tiled_partition<CGSize, cg::thread_block>(block);
       if (idx < n) {
-        typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
         auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
         if (tile.thread_rank() == 0) { *(output_begin + idx) = found; }
       }
@@ -392,8 +394,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find_if_n(InputIt first,
   while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
-        typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-        auto const found                                                    = ref.find(key);
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+        auto const found                                                   = ref.find(key);
         /*
          * The ld.relaxed.gpu instruction causes L1 to flush more frequently, causing increased
          * sector stores from L2 to global memory. By writing results to shared memory and then
@@ -405,10 +407,10 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void find_if_n(InputIt first,
       block.sync();
       if (idx < n) { *(output_begin + idx) = output_buffer[thread_idx]; }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(block);
+      auto const tile = cg::tiled_partition<CGSize, cg::thread_block>(block);
       if (idx < n) {
-        typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-        auto const found                                                    = ref.find(tile, key);
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+        auto const found                                                   = ref.find(tile, key);
 
         if (tile.thread_rank() == 0) {
           *(output_begin + idx) = pred(*(stencil + idx)) ? output(found) : sentinel;
@@ -482,7 +484,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
   while ((idx - thread_idx / CGSize) < n) {  // the whole thread block falls into the same iteration
     if constexpr (CGSize == 1) {
       if (idx < n) {
-        typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
+        typename cuda::std::iterator_traits<InputIt>::value_type const insert_element{
           *(first + idx)};
         auto const [iter, inserted] = ref.insert_and_find(insert_element);
         /*
@@ -500,9 +502,9 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
         *(inserted_begin + idx) = output_inserted_buffer[thread_idx];
       }
     } else {
-      auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
+      auto const tile = cg::tiled_partition<CGSize, cg::thread_block>(cg::this_thread_block());
       if (idx < n) {
-        typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
+        typename cuda::std::iterator_traits<InputIt>::value_type const insert_element{
           *(first + idx)};
         auto const [iter, inserted] = ref.insert_and_find(tile, insert_element);
         if (tile.thread_rank() == 0) {
@@ -548,7 +550,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+    typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
     if constexpr (CGSize == 1) {
       if constexpr (IsOuter) {
         thread_count += max(ref.count(key), outer_min_count);
@@ -557,7 +559,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
       }
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       if constexpr (IsOuter) {
         auto temp_count = ref.count(tile, key);
         if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
@@ -607,7 +610,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
   size_type constexpr outer_min_count = 1;
 
   while (idx < n) {
-    typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+    typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
     if constexpr (CGSize == 1) {
       if constexpr (IsOuter) {
         *(output_begin + idx) = max(ref.count(key), size_type{outer_min_count});
@@ -616,7 +619,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
       }
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       if constexpr (IsOuter) {
         auto temp_count = ref.count(tile, key);
         if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
@@ -753,7 +757,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
 
   auto constexpr cg_size = ContainerRef::cg_size;
   auto const block       = cg::this_thread_block();
-  auto const tile        = cg::tiled_partition<cg_size>(block);
+  auto const tile        = cg::tiled_partition<cg_size, cg::thread_block>(block);
 
   auto const thread_rank         = block.thread_rank();
   auto constexpr tiles_per_block = BlockSize / cg_size;  // tile.meta_group_size() but constexpr
