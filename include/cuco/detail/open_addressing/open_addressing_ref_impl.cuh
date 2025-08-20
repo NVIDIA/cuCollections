@@ -28,6 +28,7 @@
 #include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 #include <thrust/execution_policy.h>
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/logical.h>
 #include <thrust/reduce.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -1085,8 +1086,16 @@ class open_addressing_ref_impl {
   {
     auto constexpr is_outer = false;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    this->retrieve_impl<is_outer, BlockSize>(
-      block, input_probe_begin, n, output_probe, output_match, atomic_counter);
+    auto const always_true_stencil = thrust::constant_iterator<bool>(true);
+    auto const identity_predicate  = cuda::std::identity{};
+    this->retrieve_impl<is_outer, BlockSize>(block,
+                                             input_probe_begin,
+                                             n,
+                                             always_true_stencil,
+                                             identity_predicate,
+                                             output_probe,
+                                             output_match,
+                                             atomic_counter);
   }
 
   /**
@@ -1134,8 +1143,74 @@ class open_addressing_ref_impl {
   {
     auto constexpr is_outer = true;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    this->retrieve_impl<is_outer, BlockSize>(
-      block, input_probe_begin, n, output_probe, output_match, atomic_counter);
+    auto const always_true_stencil = thrust::constant_iterator<bool>(true);
+    auto const identity_predicate  = cuda::std::identity{};
+    this->retrieve_impl<is_outer, BlockSize>(block,
+                                             input_probe_begin,
+                                             n,
+                                             always_true_stencil,
+                                             identity_predicate,
+                                             output_probe,
+                                             output_match,
+                                             atomic_counter);
+  }
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
+   * input_probe_end)` if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred( *(stencil + i) )` returns true,
+   * copies `k` to `output_probe` and associated slot contents to `output_match`,
+   * respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
+   * @tparam BlockSize Size of the thread block this operation is executed in
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+   * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam AtomicCounter Integral atomic counter type that follows the same semantics as
+   * `cuda::(std::)atomic(_ref)`
+   *
+   * @param block Thread block this operation is executed in
+   * @param input_probe_begin Beginning of the input sequence of keys
+   * @param input_probe_end End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param atomic_counter Atomic object of integral type that is used to count the
+   * number of output elements
+   */
+  template <bool IsOuter,
+            int32_t BlockSize,
+            class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_if(cooperative_groups::thread_block const& block,
+                              InputProbeIt input_probe_begin,
+                              InputProbeIt input_probe_end,
+                              StencilIt stencil,
+                              Predicate pred,
+                              OutputProbeIt output_probe,
+                              OutputMatchIt output_match,
+                              AtomicCounter& atomic_counter) const
+  {
+    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);
+    this->retrieve_impl<IsOuter, BlockSize>(
+      block, input_probe_begin, n, stencil, pred, output_probe, output_match, atomic_counter);
   }
 
   /**
@@ -1154,6 +1229,10 @@ class open_addressing_ref_impl {
    * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
    * @tparam BlockSize Size of the thread block this operation is executed in
    * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+   * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
    * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -1162,8 +1241,10 @@ class open_addressing_ref_impl {
    * `cuda::(std::)atomic(_ref)`
    *
    * @param block Thread block this operation is executed in
-   * @param input_probe_begin Beginning of the input sequence of keys
-   * @param input_probe_end End of the input sequence of keys
+   * @param input_probe Beginning of the input sequence of keys
+   * @param n Number of input keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
@@ -1173,12 +1254,16 @@ class open_addressing_ref_impl {
   template <bool IsOuter,
             int32_t BlockSize,
             class InputProbeIt,
+            class StencilIt,
+            class Predicate,
             class OutputProbeIt,
             class OutputMatchIt,
             class AtomicCounter>
   __device__ void retrieve_impl(cooperative_groups::thread_block const& block,
                                 InputProbeIt input_probe,
                                 cuco::detail::index_type n,
+                                StencilIt stencil,
+                                Predicate pred,
                                 OutputProbeIt output_probe,
                                 OutputMatchIt output_match,
                                 AtomicCounter& atomic_counter) const
@@ -1236,8 +1321,11 @@ class open_addressing_ref_impl {
       if (active_flag) {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
-        auto const probe_key = *(input_probe + idx);
-        auto probing_iter    = probing_scheme_.template make_iterator<bucket_size>(
+        auto const probe_key       = *(input_probe + idx);
+        auto const predicate_value = pred(*(stencil + idx));
+        // TODO: skip probing if predicate_value is false
+
+        auto probing_iter = probing_scheme_.template make_iterator<bucket_size>(
           probing_tile, probe_key, storage_ref_.extent());
         auto const init_idx = *probing_iter;
 

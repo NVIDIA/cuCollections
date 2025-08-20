@@ -845,5 +845,6 @@ class operator_impl<op::retrieve_tag,
       block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
   }
 };
+
 }  // namespace detail
 }  // namespace cuco
