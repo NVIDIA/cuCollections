@@ -297,7 +297,7 @@ struct find_tag {
  *
  * API Signature:
  * ```cpp
- * template <::int BlockSize,
+ * template <int BlockSize,
  *           class InputProbeIt,
  *           class OutputProbeIt,
  *           class OutputMatchIt,
