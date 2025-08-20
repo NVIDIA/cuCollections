@@ -71,6 +71,7 @@ ConfigureTest(STATIC_SET_TEST
     static_set/large_input_test.cu
     static_set/retrieve_test.cu
     static_set/retrieve_all_test.cu
+    static_set/retrieve_if_test.cu
     static_set/rehash_test.cu
     static_set/size_test.cu
     static_set/shared_memory_test.cu
@@ -95,7 +96,8 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
     static_map/rehash_test.cu
-    static_map/retrieve_test.cu)
+    static_map/retrieve_test.cu
+    static_map/retrieve_if_test.cu)
 
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------
@@ -115,6 +117,7 @@ ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/insert_test.cu
     static_multiset/for_each_test.cu
     static_multiset/retrieve_test.cu
+    static_multiset/retrieve_if_test.cu
     static_multiset/large_input_test.cu
     static_multiset/load_factor_test.cu)
 
@@ -128,7 +131,8 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
     static_multimap/for_each_test.cu
-    static_multimap/retrieve_test.cu)
+    static_multimap/retrieve_test.cu
+    static_multimap/retrieve_if_test.cu)
 
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------
