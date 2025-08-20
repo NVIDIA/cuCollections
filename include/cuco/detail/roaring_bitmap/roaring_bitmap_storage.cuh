@@ -52,7 +52,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
   /**
    * @brief Constructs a storage reference from bitmap data and metadata
    *
-   * @param bitmap Pointer to the serialized bitmap data
+   * @param bitmap Pointer to the serialized bitmap in a device-accessible memory location
    * @param metadata Metadata describing the bitmap structure
    */
   __host__ __device__ roaring_bitmap_storage_ref(cuda::std::byte const* bitmap,
@@ -71,7 +71,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
    *
    * Automatically parses metadata from the bitmap data.
    *
-   * @param bitmap Pointer to the serialized bitmap data
+   * @param bitmap Pointer to the serialized bitmap in a device-accessible memory location
    */
   __device__ roaring_bitmap_storage_ref(cuda::std::byte const* bitmap)
     : roaring_bitmap_storage_ref{bitmap, metadata_type{bitmap}}
@@ -149,9 +149,9 @@ class roaring_bitmap_storage_ref<cuda::std::uint64_t> {
   /**
    * @brief Constructs a storage reference from bitmap data, metadata, and buckets
    *
-   * @param bitmap Pointer to the serialized bitmap data
+   * @param bitmap Pointer to the serialized bitmap in a device-accessible memory location
    * @param metadata Metadata describing the bitmap structure
-   * @param buckets Pointer to the array of bucket references
+   * @param buckets Pointer to the array of bucket references in a device-accessible memory location
    */
   __host__ __device__ roaring_bitmap_storage_ref(
     cuda::std::byte const* bitmap,
