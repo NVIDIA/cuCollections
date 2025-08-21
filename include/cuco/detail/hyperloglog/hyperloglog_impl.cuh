@@ -106,7 +106,7 @@ class hyperloglog_impl {
    * @param group CUDA Cooperative group this operation is executed in
    */
   template <class CG>
-  __device__ constexpr void clear(CG const& group) noexcept
+  __device__ constexpr void clear(CG group) noexcept
   {
     for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
       new (&(this->sketch_[i])) register_type{};
@@ -280,8 +280,7 @@ class hyperloglog_impl {
    * @param other Other estimator reference to be merged into `*this`
    */
   template <class CG, cuda::thread_scope OtherScope>
-  __device__ constexpr void merge(CG const& group,
-                                  hyperloglog_impl<T, OtherScope, Hash> const& other)
+  __device__ constexpr void merge(CG group, hyperloglog_impl<T, OtherScope, Hash> const& other)
   {
     // TODO find a better way to do error handling in device code
     // if (other.precision_ != this->precision_) { __trap(); }
@@ -362,7 +361,8 @@ class hyperloglog_impl {
     }
 
     // warp reduce Z and V
-    auto const warp = cooperative_groups::tiled_partition<32>(group);
+    auto const warp =
+      cooperative_groups::tiled_partition<32, cooperative_groups::thread_block>(group);
 #if defined(CUCO_HAS_CG_REDUCE_UPDATE_ASYNC)
     cooperative_groups::reduce_update_async(
       warp, block_sum, thread_sum, cooperative_groups::plus<fp_type>());
@@ -402,7 +402,7 @@ class hyperloglog_impl {
    *
    * @return Approximate distinct items count
    */
-  [[nodiscard]] __host__ constexpr size_t estimate(cuda::stream_ref stream) const
+  [[nodiscard]] __host__ size_t estimate(cuda::stream_ref stream) const
   {
     auto const num_regs = 1ull << this->precision_;
     std::vector<register_type> host_sketch(num_regs);

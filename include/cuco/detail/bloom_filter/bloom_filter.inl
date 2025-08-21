@@ -22,7 +22,7 @@
 #include <cuda/atomic>
 #include <cuda/stream_ref>
 
-#include <cstdint>
+#include <cstddef>
 
 namespace cuco {
 
@@ -34,9 +34,8 @@ __host__ constexpr bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_fi
   Allocator const& alloc,
   cuda::stream_ref stream)
   : allocator_{alloc},
-    data_{allocator_.allocate(num_blocks * words_per_block),
-          detail::custom_deleter<std::size_t, allocator_type>{num_blocks * words_per_block,
-                                                              allocator_}},
+    data_{allocator_.allocate(num_blocks),
+          detail::custom_deleter<std::size_t, allocator_type>{num_blocks, allocator_}},
     ref_{data_.get(), num_blocks, {}, policy}
 {
   this->clear_async(stream);
@@ -164,7 +163,7 @@ template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
-  typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::ref_type<>
+  typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::template ref_type<>
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::ref() const noexcept
 {
   return ref_;

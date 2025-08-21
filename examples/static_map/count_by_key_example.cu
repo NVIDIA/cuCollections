@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@
 
 #include <cub/block/block_reduce.cuh>
 #include <cuda/std/atomic>
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/logical.h>
 #include <thrust/transform.h>
 
 #include <cmath>
@@ -132,7 +132,7 @@ int main(void)
                               load_factor,
                               cuco::empty_key{empty_key_sentinel},
                               cuco::empty_value{empty_value_sentinel},
-                              thrust::equal_to<Key>{},
+                              cuda::std::equal_to<Key>{},
                               cuco::linear_probing<1, cuco::default_hash_function<Key>>{}};
 
   // Get a non-owning, mutable reference of the map that allows `insert_and_find` operation to pass
@@ -153,8 +153,8 @@ int main(void)
   auto const num_keys_check = num_unique_keys[0] == (num_keys / key_duplicates);
 
   // Iterate over all result counts and verify that they are correct
-  auto const counts_check = thrust::all_of(
-    result_counts.begin(), result_counts.end(), [] __host__ __device__(Count const count) {
+  auto const counts_check =
+    thrust::all_of(result_counts.begin(), result_counts.end(), [] __device__(Count const count) {
       return count == key_duplicates;
     });
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/discard_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
@@ -68,7 +67,7 @@ TEMPLATE_TEST_CASE_SIG(
                               Value,
                               cuco::extent<size_type>,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{
@@ -114,7 +113,7 @@ TEMPLATE_TEST_CASE_SIG(
     REQUIRE(cuco::test::equal(unique_keys.begin(),
                               unique_keys.end(),
                               thrust::make_counting_iterator<Key>(0),
-                              thrust::equal_to<Key>{}));
+                              cuda::std::equal_to<Key>{}));
   }
 
   SECTION("Tests of contains")
@@ -123,9 +122,9 @@ TEMPLATE_TEST_CASE_SIG(
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
     REQUIRE(cuco::test::all_of(
-      d_contained.begin(), d_contained.begin() + num_keys / 2, thrust::identity{}));
+      d_contained.begin(), d_contained.begin() + num_keys / 2, cuda::std::identity{}));
 
     REQUIRE(cuco::test::none_of(
-      d_contained.begin() + num_keys / 2, d_contained.end(), thrust::identity{}));
+      d_contained.begin() + num_keys / 2, d_contained.end(), cuda::std::identity{}));
   }
 }

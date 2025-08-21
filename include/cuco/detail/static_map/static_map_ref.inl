@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
 
@@ -239,10 +240,30 @@ __host__ __device__ constexpr static_map_ref<Key,
                                              ProbingScheme,
                                              StorageRef,
                                              Operators...>::extent_type
+static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::extent()
+  const noexcept
+{
+  return impl_.extent();
+}
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+__host__ __device__ constexpr static_map_ref<Key,
+                                             T,
+                                             Scope,
+                                             KeyEqual,
+                                             ProbingScheme,
+                                             StorageRef,
+                                             Operators...>::extent_type
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::bucket_extent()
   const noexcept
 {
-  return impl_.bucket_extent();
+  return this->extent();
 }
 
 template <typename Key,
@@ -366,8 +387,8 @@ template <typename Key,
 template <typename CG, cuda::thread_scope NewScope>
 __device__ constexpr auto
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::make_copy(
-  CG const& tile,
-  bucket_type* const memory_to_use,
+  CG tile,
+  typename StorageRef::value_type* const memory_to_use,
   cuda_thread_scope<NewScope> scope) const noexcept
 {
   this->impl_.make_copy(tile, memory_to_use);
@@ -378,7 +399,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
     this->key_eq(),
     this->probing_scheme(),
     scope,
-    storage_ref_type{this->bucket_extent(), memory_to_use}};
+    storage_ref_type{this->extent(), memory_to_use}};
 }
 
 template <typename Key,
@@ -391,7 +412,7 @@ template <typename Key,
 template <typename CG>
 __device__ constexpr void
 static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
-  CG const& tile) noexcept
+  CG tile) noexcept
 {
   this->impl_.initialize(tile);
 }
@@ -428,7 +449,7 @@ class operator_impl<
    * @return True if the given element is successfully inserted
    */
   template <typename Value>
-  __device__ bool insert(Value const& value) noexcept
+  __device__ bool insert(Value value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert(value);
@@ -438,18 +459,23 @@ class operator_impl<
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
-  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         Value const& value) noexcept
+  template <typename Value, typename ParentCG>
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                         Value value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
-    return ref_.impl_.insert(group, value);
+    if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
+      return ref_.impl_.template insert<true>(group, value);
+    } else {
+      return ref_.impl_.template insert<false>(group, value);
+    }
   }
 };
 
@@ -482,26 +508,28 @@ class operator_impl<
    * @param value The element to insert
    */
   template <typename Value>
-  __device__ void insert_or_assign(Value const& value) noexcept
+  __device__ void insert_or_assign(Value value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val       = ref_.impl_.heterogeneous_value(value);
-    auto const key       = ref_.impl_.extract_key(val);
-    auto& probing_scheme = ref_.impl_.probing_scheme();
-    auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(key, storage_ref.bucket_extent());
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter =
+      probing_scheme.template make_iterator<bucket_size>(key, storage_ref.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
-          ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
+          ref_.impl_.predicate_.template operator()<is_insert::YES>(key, slot_content.first);
+        auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
+        auto slot_ptr                 = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
@@ -514,6 +542,7 @@ class operator_impl<
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return; }
     }
   }
 
@@ -524,21 +553,24 @@ class operator_impl<
    * to the mapped_type corresponding to the key `k`.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    */
-  template <typename Value>
-  __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                   Value const& value) noexcept
+  template <typename Value, typename ParentCG>
+  __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                                   Value value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val       = ref_.impl_.heterogeneous_value(value);
-    auto const key       = ref_.impl_.extract_key(val);
-    auto& probing_scheme = ref_.impl_.probing_scheme();
-    auto storage_ref     = ref_.impl_.storage_ref();
-    auto probing_iter    = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter =
+      probing_scheme.template make_iterator<bucket_size>(group, key, storage_ref.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -546,7 +578,8 @@ class operator_impl<
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, bucket_slots[i].first);
+          res =
+            ref_.impl_.predicate_.template operator()<is_insert::YES>(key, bucket_slots[i].first);
           if (res != detail::equal_result::UNEQUAL) {
             return detail::bucket_probing_results{res, i};
           }
@@ -555,7 +588,7 @@ class operator_impl<
         return detail::bucket_probing_results{res, -1};
       }();
 
-      auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
+      auto slot_ptr = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
@@ -578,6 +611,7 @@ class operator_impl<
         if (group.shfl(status, src_lane)) { return; }
       } else {
         ++probing_iter;
+        if (*probing_iter == init_idx) { return; }
       }
     }
   }
@@ -598,7 +632,7 @@ class operator_impl<
    * @return Returns `true` if the given `value` is inserted or `value` has a match in the map.
    */
   template <typename Value>
-  __device__ constexpr bool attempt_insert_or_assign(value_type* slot, Value const& value) noexcept
+  __device__ constexpr bool attempt_insert_or_assign(value_type* slot, Value value) noexcept
   {
     ref_type& ref_    = static_cast<ref_type&>(*this);
     auto expected_key = ref_.impl_.empty_slot_sentinel().first;
@@ -656,7 +690,7 @@ class operator_impl<
    */
 
   template <typename Value, typename Op>
-  __device__ bool insert_or_apply(Value const& value, Op op)
+  __device__ bool insert_or_apply(Value value, Op op)
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -692,7 +726,7 @@ class operator_impl<
             typename Init,
             typename Op,
             typename = cuda::std::enable_if_t<std::is_convertible_v<Value, value_type>>>
-  __device__ bool insert_or_apply(Value const& value, Init init, Op op)
+  __device__ bool insert_or_apply(Value value, Init init, Op op)
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
@@ -712,6 +746,7 @@ class operator_impl<
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
    *   have this signature to atomically apply the operation.
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -721,9 +756,9 @@ class operator_impl<
    * @return Returns `true` if the given `value` is inserted successfully.
    */
 
-  template <typename Value, typename Op>
-  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                  Value const& value,
+  template <typename Value, typename Op, typename ParentCG>
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                                  Value value,
                                   Op op)
   {
     static_assert(
@@ -744,6 +779,7 @@ class operator_impl<
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
    *   have this signature to atomically apply the operation.
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -753,9 +789,9 @@ class operator_impl<
    *
    * @return Returns `true` if the given `value` is inserted successfully.
    */
-  template <typename Value, typename Init, typename Op>
-  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                  Value const& value,
+  template <typename Value, typename Init, typename Op, typename ParentCG>
+  __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                                  Value value,
                                   Init init,
                                   Op op)
   {
@@ -785,14 +821,14 @@ class operator_impl<
    * @return Returns `true` if the given `value` is inserted successfully.
    */
   template <typename Value, typename Init, typename Op>
-  __device__ bool dispatch_insert_or_apply(Value const& value, Init init, Op op)
+  __device__ bool dispatch_insert_or_apply(Value value, Init init, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     // if init equals sentinel value, then we can just `apply` op instead of write
     if (cuco::detail::bitwise_compare(init, ref_.empty_value_sentinel())) {
-      return ref_.insert_or_apply_impl<true>(value, op);
+      return ref_.template insert_or_apply_impl<true>(value, op);
     } else {
-      return ref_.insert_or_apply_impl<false>(value, op);
+      return ref_.template insert_or_apply_impl<false>(value, op);
     }
   }
 
@@ -804,6 +840,7 @@ class operator_impl<
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
    *   have this signature to atomically apply the operation.
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -811,12 +848,9 @@ class operator_impl<
    * @param op The callable object to perform binary operation between existing value at the slot
    *  and the element to insert.
    */
-  template <typename Value, typename Init, typename Op>
+  template <typename Value, typename Init, typename Op, typename ParentCG>
   __device__ bool dispatch_insert_or_apply(
-    cooperative_groups::thread_block_tile<cg_size> const& group,
-    Value const& value,
-    Init init,
-    Op op)
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value value, Init init, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     // if init equals sentinel value, then we can just `apply` op instead of write
@@ -846,15 +880,17 @@ class operator_impl<
    * @return Returns `true` if the given `value` is inserted successfully.
    */
   template <bool UseDirectApply, typename Value, typename Op>
-  __device__ bool insert_or_apply_impl(Value const& value, Op op)
+  __device__ bool insert_or_apply_impl(Value value, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(key, storage_ref.bucket_extent());
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter =
+      probing_scheme.template make_iterator<bucket_size>(key, storage_ref.extent());
+    auto const init_idx    = *probing_iter;
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
@@ -865,9 +901,9 @@ class operator_impl<
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
-          ref_.impl_.predicate_.operator()<is_insert::YES>(key, slot_content.first);
-        auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-        auto slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
+          ref_.impl_.predicate_.template operator()<is_insert::YES>(key, slot_content.first);
+        auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
+        auto slot_ptr                 = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
@@ -879,7 +915,8 @@ class operator_impl<
           return false;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          switch (ref_.attempt_insert_or_apply<UseDirectApply>(slot_ptr, slot_content, val, op)) {
+          switch (ref_.template attempt_insert_or_apply<UseDirectApply>(
+            slot_ptr, slot_content, val, op)) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: {
               // wait for payload only when performing insert operation
@@ -894,6 +931,7 @@ class operator_impl<
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return false; }
     }
   }
 
@@ -908,6 +946,7 @@ class operator_impl<
    * @tparam Op Callable type which is used as apply operation and can be
    *   called with arguments as Op(cuda::atomic_ref<T, Scope>, T). Op strictly must
    *   have this signature to atomically apply the operation.
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
@@ -917,18 +956,19 @@ class operator_impl<
    *
    * @return Returns `true` if the given `value` is inserted successfully.
    */
-  template <bool UseDirectApply, typename Value, typename Op>
-  __device__ bool insert_or_apply_impl(cooperative_groups::thread_block_tile<cg_size> const& group,
-                                       Value const& value,
-                                       Op op)
+  template <bool UseDirectApply, typename Value, typename Op, typename ParentCG>
+  __device__ bool insert_or_apply_impl(
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value value, Op op)
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val         = ref_.impl_.heterogeneous_value(value);
-    auto const key         = ref_.impl_.extract_key(val);
-    auto& probing_scheme   = ref_.impl_.probing_scheme();
-    auto storage_ref       = ref_.impl_.storage_ref();
-    auto probing_iter      = probing_scheme(group, key, storage_ref.bucket_extent());
+    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const key            = ref_.impl_.extract_key(val);
+    auto const probing_scheme = ref_.impl_.probing_scheme();
+    auto storage_ref          = ref_.impl_.storage_ref();
+    auto probing_iter =
+      probing_scheme.template make_iterator<bucket_size>(group, key, storage_ref.extent());
+    auto const init_idx    = *probing_iter;
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
@@ -940,7 +980,8 @@ class operator_impl<
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = ref_.impl_.predicate_.operator()<is_insert::YES>(key, bucket_slots[i].first);
+          res =
+            ref_.impl_.predicate_.template operator()<is_insert::YES>(key, bucket_slots[i].first);
           if (res != detail::equal_result::UNEQUAL) {
             return detail::bucket_probing_results{res, i};
           }
@@ -949,7 +990,7 @@ class operator_impl<
         return detail::bucket_probing_results{res, -1};
       }();
 
-      auto* slot_ptr = (storage_ref.data() + *probing_iter)->data() + intra_bucket_index;
+      auto* slot_ptr = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
@@ -987,6 +1028,7 @@ class operator_impl<
         }
       } else {
         ++probing_iter;
+        if (*probing_iter == init_idx) { return false; }
       }
     }
   }
@@ -1010,10 +1052,8 @@ class operator_impl<
    *  and the element to insert.
    */
   template <bool UseDirectApply, typename Value, typename Op>
-  [[nodiscard]] __device__ insert_result attempt_insert_or_apply(value_type* address,
-                                                                 value_type const& expected,
-                                                                 Value const& desired,
-                                                                 Op op) noexcept
+  [[nodiscard]] __device__ insert_result
+  attempt_insert_or_apply(value_type* address, value_type expected, Value desired, Op op) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
@@ -1088,7 +1128,7 @@ class operator_impl<
    * insertion is successful or not.
    */
   template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(Value value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(value);
@@ -1102,6 +1142,7 @@ class operator_impl<
    * not.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -1109,9 +1150,9 @@ class operator_impl<
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
+  template <typename Value, typename ParentCG>
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);
@@ -1147,7 +1188,7 @@ class operator_impl<
    * @return True if the given element is successfully erased
    */
   template <typename ProbeKey>
-  __device__ bool erase(ProbeKey const& key) noexcept
+  __device__ bool erase(ProbeKey key) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.erase(key);
@@ -1157,15 +1198,16 @@ class operator_impl<
    * @brief Erases an element.
    *
    * @tparam ProbeKey Input key type which is convertible to 'key_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param key The element to erase
    *
    * @return True if the given element is successfully erased
    */
-  template <typename ProbeKey>
-  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
-                        ProbeKey const& key) noexcept
+  template <typename ProbeKey, typename ParentCG>
+  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                        ProbeKey key) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.erase(group, key);
@@ -1204,7 +1246,7 @@ class operator_impl<
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ bool contains(ProbeKey key) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -1218,15 +1260,16 @@ class operator_impl<
    * true. Otherwise, returns false.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
    *
    * @return A boolean indicating whether the probe key is present
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.contains(group, key);
@@ -1267,7 +1310,7 @@ class operator_impl<
    * @return An iterator to the position at which the equivalent key is stored
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ iterator find(ProbeKey key) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -1281,15 +1324,16 @@ class operator_impl<
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
-  template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  template <typename ProbeKey, typename ParentCG>
+  [[nodiscard]] __device__ iterator
+  find(cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.find(group, key);
@@ -1330,7 +1374,7 @@ class operator_impl<
    * @param callback_op Function to apply to the copy of the matched key-value pair
    */
   template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
+  __device__ void for_each(ProbeKey key, CallbackOp&& callback_op) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
     auto const& ref_ = static_cast<ref_type const&>(*this);
@@ -1350,14 +1394,15 @@ class operator_impl<
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to apply to the copy of the matched key-value pair
    */
-  template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
-                           ProbeKey const& key,
+  template <class ProbeKey, class CallbackOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                           ProbeKey key,
                            CallbackOp&& callback_op) const noexcept
   {
     // CRTP: cast `this` to the actual ref type
@@ -1396,7 +1441,7 @@ class operator_impl<
    * @return Number of occurrences found by the current thread
    */
   template <typename ProbeKey>
-  __device__ size_type count(ProbeKey const& key) const noexcept
+  __device__ size_type count(ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.count(key);
@@ -1406,19 +1451,153 @@ class operator_impl<
    * @brief Counts the occurrence of a given key contained in map
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group count
    * @param key The key to count for
    *
    * @return Number of occurrences found by the current thread
    */
-  template <typename ProbeKey>
-  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
-                             ProbeKey const& key) const noexcept
+  template <typename ProbeKey, typename ParentCG>
+  __device__ size_type count(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                             ProbeKey key) const noexcept
   {
     auto const& ref_ = static_cast<ref_type const&>(*this);
     return ref_.impl_.count(group, key);
   }
 };
+
+template <typename Key,
+          typename T,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename StorageRef,
+          typename... Operators>
+class operator_impl<
+  op::retrieve_tag,
+  static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>> {
+  using base_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef>;
+  using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
+  using key_type = typename base_type::key_type;
+  using value_type     = typename base_type::value_type;
+  using iterator       = typename base_type::iterator;
+  using const_iterator = typename base_type::const_iterator;
+
+  static constexpr auto cg_size     = base_type::cg_size;
+  static constexpr auto bucket_size = base_type::bucket_size;
+
+ public:
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
+   * input_probe_end)`.
+   *
+   * If key `k = *(first + i)` exists in the container, copies `k` to `
+   * output_probe` and associated slot content to `output_match`, respectively. The output order is
+   * unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * @tparam BlockSize Size of the thread block this operation is executed in
+   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam AtomicCounter Atomic counter type that follows the same semantics as
+   * `cuda::atomic(_ref)`
+   *
+   * @param block Thread block this operation is executed in
+   * @param input_probe_begin Beginning of the input sequence of keys
+   * @param input_probe_end End of the input sequence of keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param atomic_counter Counter that is used to determine the next free position in the output
+   * sequences
+   */
+  template <int BlockSize,
+            class InputProbeIt,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve(cooperative_groups::thread_block block,
+                           InputProbeIt input_probe_begin,
+                           InputProbeIt input_probe_end,
+                           OutputProbeIt output_probe,
+                           OutputMatchIt output_match,
+                           AtomicCounter& atomic_counter) const
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.template retrieve<BlockSize>(
+      block, input_probe_begin, input_probe_end, output_probe, output_match, atomic_counter);
+  }
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
+   * input_probe_end)` if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred( *(stencil + i) )` returns true,
+   * copies `k` to `output_probe` and associated slot content to `output_match`, respectively.
+   * The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * @tparam BlockSize Size of the thread block this operation is executed in
+   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+   * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam AtomicCounter Atomic counter type that follows the same semantics as
+   * `cuda::atomic(_ref)`
+   *
+   * @param block Thread block this operation is executed in
+   * @param input_probe_begin Beginning of the input sequence of keys
+   * @param input_probe_end End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param atomic_counter Counter that is used to determine the next free position in the output
+   * sequences
+   */
+  template <int BlockSize,
+            class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_if(cooperative_groups::thread_block const& block,
+                              InputProbeIt input_probe_begin,
+                              InputProbeIt input_probe_end,
+                              StencilIt stencil,
+                              Predicate pred,
+                              OutputProbeIt output_probe,
+                              OutputMatchIt output_match,
+                              AtomicCounter& atomic_counter) const
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.template retrieve_if<BlockSize>(block,
+                                               input_probe_begin,
+                                               input_probe_end,
+                                               stencil,
+                                               pred,
+                                               output_probe,
+                                               output_match,
+                                               atomic_counter);
+  }
+};
+
 }  // namespace detail
 }  // namespace cuco

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,18 +19,17 @@
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <limits>
 
-template <std::size_t NumWindows, typename Ref>
+template <std::size_t ValidSize, typename Ref>
 __global__ void shared_memory_test_kernel(Ref* sets,
                                           typename Ref::key_type const* const insterted_keys,
                                           size_t number_of_elements,
@@ -41,7 +40,7 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   const size_t set_id = blockIdx.x;
   const size_t offset = set_id * number_of_elements;
 
-  __shared__ typename Ref::window_type sm_buffer[NumWindows];
+  __shared__ typename Ref::value_type sm_buffer[ValidSize];
 
   auto g          = cuco::test::cg::this_thread_block();
   auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
@@ -64,7 +63,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG(
+  "static_set shared memory tests", "", ((typename Key), Key), (int32_t), (int64_t))
 {
   constexpr std::size_t number_of_sets  = 1000;
   constexpr std::size_t elements_in_set = 500;
@@ -74,7 +74,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
   using set_type    = cuco::static_set<Key,
                                        extent_type,
                                        cuda::thread_scope_device,
-                                       thrust::equal_to<Key>,
+                                       cuda::std::equal_to<Key>,
                                        cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all sets, first elements_in_set element belong to set 0, second to set 1 and so
@@ -93,7 +93,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
   thrust::device_vector<bool> d_keys_exist(number_of_sets * elements_in_set);
   thrust::device_vector<bool> d_keys_correct(number_of_sets * elements_in_set);
 
-  using ref_type = typename set_type::ref_type<cuco::op::insert_tag>;
+  using ref_type = typename set_type::template ref_type<cuco::op::insert_tag>;
 
   SECTION("Keys are all found after insertion.")
   {
@@ -107,9 +107,11 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
+    auto constexpr valid_size =
+      cuco::make_valid_extent<typename ref_type::probing_scheme_type,
+                              typename ref_type::storage_ref_type>(extent_type{});
 
-    shared_memory_test_kernel<num_windows.value(), ref_type>
+    shared_memory_test_kernel<valid_size.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                elements_in_set,
@@ -118,12 +120,12 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
 
     REQUIRE(d_keys_exist.size() == d_keys_correct.size());
     auto zip =
-      thrust::make_zip_iterator(thrust::make_tuple(d_keys_exist.begin(), d_keys_correct.begin()));
+      thrust::make_zip_iterator(cuda::std::tuple{d_keys_exist.begin(), d_keys_correct.begin()});
 
     REQUIRE(cuco::test::all_of(zip,
                                zip + d_keys_exist.size(),
                                cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
-                                 return thrust::get<0>(z) and thrust::get<1>(z);
+                                 return cuda::std::get<0>(z) and cuda::std::get<1>(z);
                                })));
   }
 
@@ -135,36 +137,38 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static set", "", ((typename Key), Key), (i
     }
     thrust::device_vector<ref_type> d_refs(h_refs);
 
-    auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
+    auto constexpr valid_size =
+      cuco::make_valid_extent<typename ref_type::probing_scheme_type,
+                              typename ref_type::storage_ref_type>(extent_type{});
 
-    shared_memory_test_kernel<num_windows.value(), ref_type>
+    shared_memory_test_kernel<valid_size.value(), ref_type>
       <<<number_of_sets, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                elements_in_set,
                                d_keys_exist.data().get(),
                                d_keys_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
   }
 }
 
 auto constexpr cg_size     = 1;
-auto constexpr window_size = 1;
+auto constexpr bucket_size = 1;
 
-template <std::size_t NumWindows>
+template <std::size_t ValidSize>
 __global__ void shared_memory_hash_set_kernel(bool* key_found)
 {
   using Key       = int32_t;
   using slot_type = Key;
 
-  __shared__ cuco::window<slot_type, window_size> set[NumWindows];
+  __shared__ slot_type set[ValidSize];
 
-  using extent_type      = cuco::extent<std::size_t, NumWindows>;
-  using storage_ref_type = cuco::aow_storage_ref<slot_type, window_size, extent_type>;
+  using extent_type      = cuco::extent<std::size_t, ValidSize>;
+  using storage_ref_type = cuco::bucket_storage_ref<slot_type, bucket_size, extent_type>;
 
   auto raw_ref =
     cuco::static_set_ref{cuco::empty_key<Key>{-1},
-                         thrust::equal_to<Key>{},
+                         cuda::std::equal_to<Key>{},
                          cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
                          cuco::thread_scope_block,
                          storage_ref_type{extent_type{}, set}};
@@ -175,7 +179,7 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   auto const index = threadIdx.x + blockIdx.x * blockDim.x;
   auto const rank  = block.thread_rank();
 
-  // insert {thread_rank, thread_rank} for each thread in thread-block
+  // insert thread_rank for each thread in thread-block
   auto insert_ref = raw_ref.rebind_operators(cuco::op::insert);
   insert_ref.insert(rank);
   block.sync();
@@ -187,15 +191,15 @@ __global__ void shared_memory_hash_set_kernel(bool* key_found)
   if (retrieved_it != find_ref.end() && *retrieved_it == rank) { key_found[index] = true; }
 }
 
-TEST_CASE("static set shared memory slots.", "")
+TEST_CASE("static_set shared memory slots test", "")
 {
   constexpr std::size_t N = 256;
-  [[maybe_unused]] auto constexpr num_windows =
-    cuco::make_window_extent<cg_size, window_size>(cuco::extent<std::size_t, N>{});
+  [[maybe_unused]] auto constexpr valid_size =
+    cuco::make_valid_extent<cg_size, bucket_size>(cuco::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
-  shared_memory_hash_set_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());
+  shared_memory_hash_set_kernel<valid_size.value()><<<8, 32>>>(key_found.data().get());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
+  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), cuda::std::identity{}));
 }

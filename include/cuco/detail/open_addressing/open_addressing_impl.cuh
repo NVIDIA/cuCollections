@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,11 +31,13 @@
 #include <cub/device/device_for.cuh>
 #include <cub/device/device_select.cuh>
 #include <cuda/atomic>
+#include <cuda/std/functional>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
 #include <cmath>
+#include <cstdint>
 
 namespace cuco {
 namespace detail {
@@ -77,12 +79,12 @@ class open_addressing_impl {
     "Key type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
-  static_assert(
-    std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
-    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+  static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
+                                        ProbingScheme>,
+                "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
   /// Determines if the container is a key/value or key-only store
-  static constexpr auto has_payload = not std::is_same_v<Key, Value>;
+  static constexpr auto has_payload = not cuda::std::is_same_v<Key, Value>;
 
  public:
   static constexpr auto cg_size      = ProbingScheme::cg_size;  ///< CG size used for probing
@@ -95,7 +97,7 @@ class open_addressing_impl {
   using hasher              = typename probing_scheme_type::hasher;  ///< Hash function type
   /// Extent type
   using extent_type =
-    decltype(make_bucket_extent<probing_scheme_type, Storage>(std::declval<Extent>()));
+    decltype(make_valid_extent<probing_scheme_type, Storage>(std::declval<Extent>()));
   using size_type = typename extent_type::value_type;  ///< Size type
   using key_equal = KeyEqual;                          ///< Key equality comparator type
   using storage_type =
@@ -109,7 +111,7 @@ class open_addressing_impl {
    * capacity, sentinel values and CUDA stream.
    *
    * @note The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the container. Attempting to insert more unique keys than the capacity of
    * the container results in undefined behavior.
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
@@ -134,7 +136,7 @@ class open_addressing_impl {
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<probing_scheme_type, Storage>(capacity), alloc}
+      storage_{make_valid_extent<probing_scheme_type, Storage>(capacity), alloc}
   {
     this->clear_async(stream);
   }
@@ -147,7 +149,7 @@ class open_addressing_impl {
    * insert and the desired load factor without manually computing the desired capacity. The actual
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
+   * size, and the bucket size and is computed via the `make_valid_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -180,13 +182,8 @@ class open_addressing_impl {
       erased_key_sentinel_{this->extract_key(empty_slot_sentinel)},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<probing_scheme_type, Storage>(
-                 static_cast<size_type>(std::ceil(static_cast<double>(n) / desired_load_factor))),
-               alloc}
+      storage_{make_valid_extent<probing_scheme_type, Storage>(n, desired_load_factor), alloc}
   {
-    CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
-    CUCO_EXPECTS(desired_load_factor <= 1., "Desired occupancy must be no larger than one");
-
     this->clear_async(stream);
   }
 
@@ -195,7 +192,7 @@ class open_addressing_impl {
    * capacity, sentinel values and CUDA stream.
    *
    * @note The actual capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the container. Attempting to insert more unique keys than the capacity of
    * the container results in undefined behavior.
    * @note Any `*_sentinel`s are reserved and behavior is undefined when attempting to insert
@@ -222,7 +219,7 @@ class open_addressing_impl {
       erased_key_sentinel_{erased_key_sentinel},
       predicate_{pred},
       probing_scheme_{probing_scheme},
-      storage_{make_bucket_extent<probing_scheme_type, Storage>(capacity), alloc}
+      storage_{make_valid_extent<probing_scheme_type, Storage>(capacity), alloc}
   {
     CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",
@@ -273,7 +270,7 @@ class open_addressing_impl {
   size_type insert(InputIt first, InputIt last, Ref container_ref, cuda::stream_ref stream)
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
-    return this->insert_if(first, last, always_true, thrust::identity{}, container_ref, stream);
+    return this->insert_if(first, last, always_true, cuda::std::identity{}, container_ref, stream);
   }
 
   /**
@@ -296,7 +293,7 @@ class open_addressing_impl {
                     cuda::stream_ref stream) noexcept
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
-    this->insert_if_async(first, last, always_true, thrust::identity{}, container_ref, stream);
+    this->insert_if_async(first, last, always_true, cuda::std::identity{}, container_ref, stream);
   }
 
   /**
@@ -342,7 +339,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+    detail::open_addressing_ns::insert_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, counter.data(), container_ref);
 
@@ -384,7 +381,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::insert_if_n<cg_size, cuco::detail::default_block_size()>
+    detail::open_addressing_ns::insert_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, container_ref);
   }
@@ -426,7 +423,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::insert_and_find<cg_size, cuco::detail::default_block_size()>
+    detail::open_addressing_ns::insert_and_find<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, found_begin, inserted_begin, container_ref);
   }
@@ -466,7 +463,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::erase<cg_size, cuco::detail::default_block_size()>
+    detail::open_addressing_ns::erase<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, container_ref);
   }
@@ -494,7 +491,7 @@ class open_addressing_impl {
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
     this->contains_if_async(
-      first, last, always_true, thrust::identity{}, output_begin, container_ref, stream);
+      first, last, always_true, cuda::std::identity{}, output_begin, container_ref, stream);
   }
 
   /**
@@ -540,7 +537,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::contains_if_n<cg_size, cuco::detail::default_block_size()>
+    detail::open_addressing_ns::contains_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, output_begin, container_ref);
   }
@@ -569,7 +566,7 @@ class open_addressing_impl {
     auto const always_true = thrust::constant_iterator<bool>{true};
 
     this->find_if_async(
-      first, last, always_true, thrust::identity{}, output_begin, container_ref, stream);
+      first, last, always_true, cuda::std::identity{}, output_begin, container_ref, stream);
   }
 
   /**
@@ -577,8 +574,8 @@ class open_addressing_impl {
    * a match with its key equivalent to the query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, stores `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, stores `empty_value_sentinel` to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose value_type is
@@ -615,7 +612,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::find_if_n<cg_size, cuco::detail::default_block_size()>
+    detail::open_addressing_ns::find_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, stencil, pred, output_begin, container_ref);
   }
@@ -752,6 +749,70 @@ class open_addressing_impl {
   }
 
   /**
+   * @brief Counts the number of occurrences of each query key in the container
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the container and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param output_begin Beginning of the output range where per-key counts will be stored
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename OutputIt, typename Ref>
+  void count_each(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  Ref container_ref,
+                  cuda::stream_ref stream) const noexcept
+  {
+    auto constexpr is_outer = false;
+    this->count_each<is_outer>(first, last, output_begin, container_ref, stream);
+  }
+
+  /**
+   * @brief Counts the number of occurrences of each query key in the container with outer semantics
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the container and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * If a query key has no matches in the container, the result for that key will be 1 instead of 0.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param output_begin Beginning of the output range where per-key counts will be stored
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <typename InputIt, typename OutputIt, typename Ref>
+  void count_each_outer(InputIt first,
+                        InputIt last,
+                        OutputIt output_begin,
+                        Ref container_ref,
+                        cuda::stream_ref stream) const noexcept
+  {
+    auto constexpr is_outer = true;
+    this->count_each<is_outer>(first, last, output_begin, container_ref, stream);
+  }
+
+  /**
    * @brief Retrieves all keys contained in the container.
    *
    * @note This API synchronizes the given stream.
@@ -774,7 +835,7 @@ class open_addressing_impl {
     using temp_allocator_type =
       typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
 
-    cuco::detail::index_type constexpr stride = std::numeric_limits<int32_t>::max();
+    cuco::detail::index_type constexpr stride = std::numeric_limits<std::int32_t>::max();
 
     cuco::detail::index_type h_num_out{0};
     auto temp_allocator = temp_allocator_type{this->allocator()};
@@ -789,8 +850,8 @@ class open_addressing_impl {
         std::min(static_cast<cuco::detail::index_type>(this->capacity()) - offset, stride);
       auto const begin = thrust::make_transform_iterator(
         thrust::counting_iterator{static_cast<size_type>(offset)},
-        open_addressing_ns::detail::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
-      auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+        detail::open_addressing_ns::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
+      auto const is_filled = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
         this->empty_key_sentinel(), this->erased_key_sentinel()};
 
       std::size_t temp_storage_bytes = 0;
@@ -800,7 +861,7 @@ class open_addressing_impl {
                                           begin,
                                           output_begin + h_num_out,
                                           d_num_out,
-                                          static_cast<int32_t>(num_items),
+                                          static_cast<std::int32_t>(num_items),
                                           is_filled,
                                           stream.get()));
 
@@ -812,7 +873,7 @@ class open_addressing_impl {
                                           begin,
                                           output_begin + h_num_out,
                                           d_num_out,
-                                          static_cast<int32_t>(num_items),
+                                          static_cast<std::int32_t>(num_items),
                                           is_filled,
                                           stream.get()));
 
@@ -844,18 +905,16 @@ class open_addressing_impl {
   template <typename CallbackOp>
   void for_each_async(CallbackOp&& callback_op, cuda::stream_ref stream) const
   {
-    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+    auto const is_filled = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
     auto storage_ref = this->storage_ref();
-    auto const op    = [callback_op, is_filled, storage_ref] __device__(auto const bucket_slots) {
-      for (auto const slot : bucket_slots) {
-        if (is_filled(slot)) { callback_op(slot); }
-      }
+    auto const op    = [callback_op, is_filled, storage_ref] __device__(auto const slot_or_bucket) {
+      if (is_filled(slot_or_bucket)) { callback_op(slot_or_bucket); }
     };
 
     CUCO_CUDA_TRY(cub::DeviceFor::ForEachCopyN(
-      storage_ref.data(), storage_ref.num_buckets(), op, stream.get()));
+      storage_ref.data(), static_cast<size_type>(storage_ref.extent()), op, stream.get()));
   }
 
   /**
@@ -886,7 +945,7 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::for_each_n<cg_size, cuco::detail::default_block_size()>
+    detail::open_addressing_ns::for_each_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, std::forward<CallbackOp>(callback_op), container_ref);
   }
@@ -906,13 +965,13 @@ class open_addressing_impl {
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator()};
     counter.reset(stream);
 
-    auto const grid_size = cuco::detail::grid_size(storage_.num_buckets());
-    auto const is_filled = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+    auto const grid_size = cuco::detail::grid_size(this->capacity());
+    auto const is_filled = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
     // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
     // v2.1.0
-    detail::size<cuco::detail::default_block_size()>
+    detail::open_addressing_ns::size<cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         storage_.ref(), is_filled, counter.data());
 
@@ -952,7 +1011,7 @@ class open_addressing_impl {
    * @note Behavior is undefined if the desired `extent` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
    *
@@ -979,7 +1038,7 @@ class open_addressing_impl {
   template <typename Container>
   void rehash_async(Container const& container, cuda::stream_ref stream)
   {
-    this->rehash_async(this->storage_.bucket_extent(), container, stream);
+    this->rehash_async(storage_.extent(), container, stream);
   }
 
   /**
@@ -993,7 +1052,7 @@ class open_addressing_impl {
    * @note Behavior is undefined if the desired `extent` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @tparam Container The container type this function operates on
    *
@@ -1014,10 +1073,10 @@ class open_addressing_impl {
     auto constexpr block_size = cuco::detail::default_block_size();
     auto constexpr stride     = cuco::detail::default_stride();
     auto const grid_size      = cuco::detail::grid_size(num_buckets, 1, stride, block_size);
-    auto const is_filled      = open_addressing_ns::detail::slot_is_filled<has_payload, key_type>{
+    auto const is_filled      = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
 
-    detail::rehash<block_size><<<grid_size, block_size, 0, stream.get()>>>(
+    detail::open_addressing_ns::rehash<block_size><<<grid_size, block_size, 0, stream.get()>>>(
       old_storage.ref(), container.ref(op::insert), is_filled);
   }
 
@@ -1027,6 +1086,13 @@ class open_addressing_impl {
    * @return The maximum number of elements the container can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept { return storage_.capacity(); }
+
+  /**
+   * @brief Gets a pointer to the underlying slot storage.
+   *
+   * @return Pointer to the underlying slot storage
+   */
+  [[nodiscard]] __host__ value_type* data() const { return storage_.data(); }
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
@@ -1120,11 +1186,52 @@ class open_addressing_impl {
 
     auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::count<IsOuter, cg_size, cuco::detail::default_block_size()>
+    detail::open_addressing_ns::count<IsOuter, cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
         first, num_keys, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
+  }
+
+  /**
+   * @brief Counts the number of occurrences of each query key in the container
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the container and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * If `IsOuter` is `true` and a query key has no matches in the container, the result for that key
+   * will be 1 instead of 0. Otherwise, the actual number of matches is returned.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam IsOuter Flag indicating whether to use outer semantics (non-matches count as 1)
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputIt Device accessible output iterator
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param output_begin Beginning of the output range where per-key counts will be stored
+   * @param container_ref Non-owning device container ref used to access the slot storage
+   * @param stream CUDA stream used for this operation
+   */
+  template <bool IsOuter, typename InputIt, typename OutputIt, typename Ref>
+  void count_each(InputIt first,
+                  InputIt last,
+                  OutputIt output_begin,
+                  Ref container_ref,
+                  cuda::stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::open_addressing_ns::count_each<IsOuter, cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num_keys, output_begin, container_ref);
   }
 
   /**
@@ -1175,13 +1282,14 @@ class open_addressing_impl {
     auto counter       = counter_type{this->allocator()};
     counter.reset(stream.get());
 
-    int32_t constexpr block_size = cuco::detail::default_block_size();
+    auto constexpr block_size = cuco::detail::default_block_size();
 
     auto constexpr grid_stride = 1;
     auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
 
-    detail::retrieve<IsOuter, block_size><<<grid_size, block_size, 0, stream.get()>>>(
-      first, n, output_probe, output_match, counter.data(), container_ref);
+    detail::open_addressing_ns::retrieve<IsOuter, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(
+        first, n, output_probe, output_match, counter.data(), container_ref);
 
     auto const num_retrieved = counter.load_to_host(stream.get());
 
@@ -1197,7 +1305,7 @@ class open_addressing_impl {
    */
   [[nodiscard]] constexpr key_type const& extract_key(value_type const& slot) const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return slot.first;
     } else {
       return slot;

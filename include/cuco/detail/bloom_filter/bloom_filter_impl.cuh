@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,14 +29,15 @@
 #include <cuda/std/__algorithm/min.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/array>
 #include <cuda/std/bit>
+#include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 #include <cuda/stream_ref>
-#include <thrust/functional.h>
 #include <thrust/iterator/constant_iterator.h>
 
+#include <cooperative_groups.h>
+
 #include <cstdint>
-#include <nv/target>
 
 namespace cuco::detail {
 
@@ -52,6 +53,19 @@ class bloom_filter_impl {
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
 
+  __host__ __device__ static constexpr size_t max_vec_bytes() noexcept
+  {
+    constexpr auto word_bytes  = sizeof(word_type);
+    constexpr auto block_bytes = word_bytes * words_per_block;
+    return cuda::std::min(cuda::std::max(word_bytes, 32ul),
+                          block_bytes);  // aiming for 2xLDG128 -> 1 sector per thread
+  }
+
+  struct alignas(max_vec_bytes()) filter_block_type {
+   private:
+    word_type data_[words_per_block];
+  };
+
   static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
                 "Number of words per block must be a power-of-two and less than or equal to 32");
 
@@ -64,29 +78,26 @@ class bloom_filter_impl {
                                   cuda::std::memory_order>,
     "Invalid word type");
 
+  __host__ __device__ explicit constexpr bloom_filter_impl(filter_block_type* filter,
+                                                           Extent num_blocks,
+                                                           cuda_thread_scope<Scope>,
+                                                           Policy policy) noexcept
+    : words_{reinterpret_cast<word_type*>(filter)}, num_blocks_{num_blocks}, policy_{policy}
+  {
+  }
+
   __host__ __device__ explicit constexpr bloom_filter_impl(word_type* filter,
                                                            Extent num_blocks,
                                                            cuda_thread_scope<Scope>,
-                                                           Policy policy)
+                                                           Policy policy) noexcept
     : words_{filter}, num_blocks_{num_blocks}, policy_{policy}
   {
-    auto const alignment =
-      1ull << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(filter));
-
-    NV_DISPATCH_TARGET(
-      NV_IS_HOST,
-      (CUCO_EXPECTS(alignment >= required_alignment(), "Invalid memory alignment");
-       CUCO_EXPECTS(num_blocks_ > 0, "Number of blocks cannot be zero");),
-      NV_IS_DEVICE,
-      (if (alignment < required_alignment() or num_blocks_ == 0) {
-        __trap();  // TODO this kills the kernel and corrupts the CUDA context. Not ideal.
-      }))
   }
 
   template <class CG>
-  __device__ constexpr void clear(CG const& group)
+  __device__ constexpr void clear(CG group)
   {
-    for (int i = group.thread_rank(); num_blocks_ * words_per_block; i += group.size()) {
+    for (int i = group.thread_rank(); i < num_blocks_ * words_per_block; i += group.size()) {
       words_[i] = 0;
     }
   }
@@ -110,42 +121,130 @@ class bloom_filter_impl {
   __device__ void add(ProbeKey const& key)
   {
     auto const hash_value = policy_.hash(key);
-    auto const idx        = policy_.block_index(hash_value, num_blocks_);
+    this->add_impl(hash_value, policy_.block_index(hash_value, num_blocks_));
+  }
 
+  template <class InputIt>
+  __device__ void add(InputIt first, InputIt last)
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    for (decltype(num_keys) i = 0; i < num_keys; ++i) {
+      auto const hash_value = policy_.hash(*(first + i));
+      this->add_impl(hash_value, policy_.block_index(hash_value, num_blocks_));
+    }
+  }
+
+  template <class HashValue, class BlockIndex>
+  __device__ void add_impl(HashValue const& hash_value, BlockIndex block_index)
+  {
 #pragma unroll words_per_block
     for (uint32_t i = 0; i < words_per_block; ++i) {
       auto const word = policy_.word_pattern(hash_value, i);
       if (word != 0) {
-        auto atom_word =
-          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + i))};
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+          *(words_ + (block_index * words_per_block + i))};
         atom_word.fetch_or(word, cuda::memory_order_relaxed);
       }
     }
   }
 
   template <class CG, class ProbeKey>
-  __device__ void add(CG const& group, ProbeKey const& key)
+  __device__ void add(CG group, ProbeKey const& key)
   {
     constexpr auto num_threads         = tile_size_v<CG>;
     constexpr auto optimal_num_threads = add_optimal_cg_size();
-    constexpr auto words_per_thread    = words_per_block / optimal_num_threads;
+    constexpr auto worker_num_threads =
+      (num_threads < optimal_num_threads) ? num_threads : optimal_num_threads;
 
     // If single thread is optimal, use scalar add
-    if constexpr (num_threads == 1 or optimal_num_threads == 1) {
+    if constexpr (worker_num_threads == 1) {
       this->add(key);
     } else {
-      auto const rank = group.thread_rank();
-
       auto const hash_value = policy_.hash(key);
-      auto const idx        = policy_.block_index(hash_value, num_blocks_);
+      this->add_impl(hash_value, policy_.block_index(hash_value, num_blocks_));
+    }
+  }
 
+  template <class CG, class InputIt>
+  __device__ void add(CG group, InputIt first, InputIt last)
+  {
+    namespace cg = cooperative_groups;
+
+    constexpr auto num_threads         = tile_size_v<CG>;
+    constexpr auto optimal_num_threads = add_optimal_cg_size();
+    constexpr auto worker_num_threads =
+      (num_threads < optimal_num_threads) ? num_threads : optimal_num_threads;
+
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto const rank = group.thread_rank();
+
+    // If single thread is optimal, use scalar add
+    if constexpr (worker_num_threads == 1) {
+      for (auto i = rank; i < num_keys; i += num_threads) {
+        typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
+          *(first + i)};
+        this->add(insert_element);
+      }
+    } else if constexpr (num_threads == worker_num_threads) {  // given CG is optimal CG
+      typename policy_type::hash_result_type hash_value;
+      size_type block_index;
+
+      auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+      for (size_type i = 0; (i / num_threads) < group_iters; i += num_threads) {
+        if (i + rank < num_keys) {
+          typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
+            *(first + i + rank)};
+          hash_value  = policy_.hash(insert_element);
+          block_index = policy_.block_index(hash_value, num_blocks_);
+        }
+
+        for (uint32_t j = 0; (j < num_threads) and (i + j < num_keys); ++j) {
+          this->add_impl(group, group.shfl(hash_value, j), group.shfl(block_index, j));
+        }
+      }
+    } else {  // subdivide given CG into multiple optimal CGs
+      typename policy_type::hash_result_type hash_value;
+      size_type block_index;
+
+      auto const worker_group  = cg::tiled_partition<worker_num_threads, CG>(group);
+      auto const worker_offset = worker_num_threads * worker_group.meta_group_rank();
+
+      auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+
+      for (size_type i = 0; (i / num_threads) < group_iters; i += num_threads) {
+        if (i + rank < num_keys) {
+          typename cuda::std::iterator_traits<InputIt>::value_type const& key{*(first + i + rank)};
+          hash_value  = policy_.hash(key);
+          block_index = policy_.block_index(hash_value, num_blocks_);
+        }
+
+        for (uint32_t j = 0; (j < worker_num_threads) and (i + worker_offset + j < num_keys); ++j) {
+          this->add_impl(
+            worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
+        }
+      }
+    }
+  }
+
+  template <class CG, class HashValue, class BlockIndex>
+  __device__ void add_impl(CG group, HashValue const& hash_value, BlockIndex block_index)
+  {
+    constexpr auto num_threads = tile_size_v<CG>;
+
+    auto const rank = group.thread_rank();
+
+    if constexpr (num_threads == words_per_block) {
+      auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+        *(words_ + (block_index * words_per_block + rank))};
+      atom_word.fetch_or(policy_.word_pattern(hash_value, rank), cuda::memory_order_relaxed);
+    } else {
 #pragma unroll
-      for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
-        auto const word = policy_.word_pattern(hash_value, rank);
-
-        auto atom_word =
-          cuda::atomic_ref<word_type, thread_scope>{*(words_ + (idx * words_per_block + rank))};
-        atom_word.fetch_or(word, cuda::memory_order_relaxed);
+      for (auto i = rank; i < words_per_block; i += num_threads) {
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+          *(words_ + (block_index * words_per_block + i))};
+        atom_word.fetch_or(policy_.word_pattern(hash_value, i), cuda::memory_order_relaxed);
       }
     }
   }
@@ -170,8 +269,16 @@ class bloom_filter_impl {
         [*this] __device__(key_type const key) mutable { this->add(key); },
         stream.get()));
     } else {
-      auto const always_true = thrust::constant_iterator<bool>{true};
-      this->add_if_async(first, last, always_true, thrust::identity{}, stream);
+      auto const num_keys = cuco::detail::distance(first, last);
+      if (num_keys == 0) { return; }
+
+      auto constexpr block_size = cuco::detail::default_block_size();
+      void const* kernel        = reinterpret_cast<void const*>(
+        detail::bloom_filter_ns::add<block_size, InputIt, bloom_filter_impl>);
+      auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel);
+
+      detail::bloom_filter_ns::add<block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
     }
   }
 
@@ -198,7 +305,7 @@ class bloom_filter_impl {
     auto const grid_size =
       cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
 
-    detail::add_if_n<cg_size, block_size>
+    detail::bloom_filter_ns::add_if_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
   }
 
@@ -220,7 +327,7 @@ class bloom_filter_impl {
   }
 
   template <class CG, class ProbeKey>
-  [[nodiscard]] __device__ bool contains(CG const& group, ProbeKey const& key) const
+  [[nodiscard]] __device__ bool contains(CG group, ProbeKey const& key) const
   {
     constexpr auto num_threads         = tile_size_v<CG>;
     constexpr auto optimal_num_threads = contains_optimal_cg_size();
@@ -252,48 +359,48 @@ class bloom_filter_impl {
 
   // TODO
   // template <class CG, class InputIt, class OutputIt>
-  // __device__ void contains(CG const& group, InputIt first, InputIt last, OutputIt output_begin)
+  // __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin)
   // const;
 
   template <class InputIt, class OutputIt>
-  __host__ constexpr void contains(InputIt first,
-                                   InputIt last,
-                                   OutputIt output_begin,
-                                   cuda::stream_ref stream) const
+  __host__ void contains(InputIt first,
+                         InputIt last,
+                         OutputIt output_begin,
+                         cuda::stream_ref stream) const
   {
     this->contains_async(first, last, output_begin, stream);
     stream.wait();
   }
 
   template <class InputIt, class OutputIt>
-  __host__ constexpr void contains_async(InputIt first,
-                                         InputIt last,
-                                         OutputIt output_begin,
-                                         cuda::stream_ref stream) const noexcept
+  __host__ void contains_async(InputIt first,
+                               InputIt last,
+                               OutputIt output_begin,
+                               cuda::stream_ref stream) const noexcept
   {
     auto const always_true = thrust::constant_iterator<bool>{true};
-    this->contains_if_async(first, last, always_true, thrust::identity{}, output_begin, stream);
+    this->contains_if_async(first, last, always_true, cuda::std::identity{}, output_begin, stream);
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ constexpr void contains_if(InputIt first,
-                                      InputIt last,
-                                      StencilIt stencil,
-                                      Predicate pred,
-                                      OutputIt output_begin,
-                                      cuda::stream_ref stream) const
+  __host__ void contains_if(InputIt first,
+                            InputIt last,
+                            StencilIt stencil,
+                            Predicate pred,
+                            OutputIt output_begin,
+                            cuda::stream_ref stream) const
   {
     this->contains_if_async(first, last, stencil, pred, output_begin, stream);
     stream.wait();
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
-  __host__ constexpr void contains_if_async(InputIt first,
-                                            InputIt last,
-                                            StencilIt stencil,
-                                            Predicate pred,
-                                            OutputIt output_begin,
-                                            cuda::stream_ref stream) const noexcept
+  __host__ void contains_if_async(InputIt first,
+                                  InputIt last,
+                                  StencilIt stencil,
+                                  Predicate pred,
+                                  OutputIt output_begin,
+                                  cuda::stream_ref stream) const noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -303,8 +410,9 @@ class bloom_filter_impl {
     auto const grid_size =
       cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
 
-    detail::contains_if_n<cg_size, block_size><<<grid_size, block_size, 0, stream.get()>>>(
-      first, num_keys, stencil, pred, output_begin, *this);
+    detail::bloom_filter_ns::contains_if_n<cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(
+        first, num_keys, stencil, pred, output_begin, *this);
   }
 
   [[nodiscard]] __host__ __device__ constexpr word_type* data() noexcept { return words_; }
@@ -324,7 +432,7 @@ class bloom_filter_impl {
   // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const
   // [[nodiscard]] __host__ __device__ static uint32_t optimal_pattern_bits(size_t num_blocks)
   // template <typename CG, cuda::thread_scope NewScope = thread_scope>
-  // [[nodiscard]] __device__ constexpr auto make_copy(CG const& group, word_type* const
+  // [[nodiscard]] __device__ constexpr auto make_copy(CG group, word_type* const
   // memory_to_use, cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
  private:
@@ -332,15 +440,7 @@ class bloom_filter_impl {
   __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {
     return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(__builtin_assume_aligned(
-      words_ + index, cuda::std::min(sizeof(word_type) * NumWords, required_alignment())));
-  }
-
-  __host__ __device__ static constexpr size_t max_vec_bytes() noexcept
-  {
-    constexpr auto word_bytes  = sizeof(word_type);
-    constexpr auto block_bytes = word_bytes * words_per_block;
-    return cuda::std::min(cuda::std::max(word_bytes, 32ul),
-                          block_bytes);  // aiming for 2xLDG128 -> 1 sector per thread
+      words_ + index, cuda::std::min(sizeof(word_type) * NumWords, max_vec_bytes())));
   }
 
   [[nodiscard]] __host__ __device__ static constexpr int32_t add_optimal_cg_size()
@@ -353,11 +453,6 @@ class bloom_filter_impl {
     constexpr auto word_bytes  = sizeof(word_type);
     constexpr auto block_bytes = word_bytes * words_per_block;
     return block_bytes / max_vec_bytes();  // one vector load per thread
-  }
-
-  __host__ __device__ static constexpr size_t required_alignment() noexcept
-  {
-    return cuda::std::min(sizeof(word_type) * words_per_block, max_vec_bytes());
   }
 
   word_type* words_;

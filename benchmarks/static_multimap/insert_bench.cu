@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
@@ -56,11 +56,18 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::static_multimap<Key, Value> map{
-                 size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, launch.get_stream()};
+               cuco::experimental::static_multimap<Key, Value> map{size,
+                                                                   cuco::empty_key<Key>{-1},
+                                                                   cuco::empty_value<Value>{-1},
+                                                                   {},
+                                                                   {},
+                                                                   {},
+                                                                   {},
+                                                                   {},
+                                                                   {launch.get_stream()}};
 
                timer.start();
-               map.insert(pairs.begin(), pairs.end(), launch.get_stream());
+               map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
                timer.stop();
              });
 }

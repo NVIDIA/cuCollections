@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,13 +20,13 @@
 
 #include <cub/block/block_reduce.cuh>
 #include <cuda/atomic>
+#include <cuda/std/cstdint>
+#include <cuda/std/iterator>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
 
-#include <iterator>
-
-namespace cuco::static_map_ns::detail {
+namespace cuco::detail::static_map_ns {
 CUCO_SUPPRESS_KERNEL_WARNINGS
 
 // TODO user insert_or_assign internally
@@ -48,7 +48,7 @@ CUCO_SUPPRESS_KERNEL_WARNINGS
  * @param n Number of input elements
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int32_t CGSize, int32_t BlockSize, typename InputIt, typename Ref>
+template <int CGSize, int BlockSize, typename InputIt, typename Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
                                                                cuco::detail::index_type n,
                                                                Ref ref)
@@ -57,12 +57,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename std::iterator_traits<InputIt>::value_type const& insert_pair = *(first + idx);
+    typename cuda::std::iterator_traits<InputIt>::value_type const insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
       ref.insert_or_assign(insert_pair);
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       ref.insert_or_assign(tile, insert_pair);
     }
     idx += loop_stride;
@@ -97,8 +98,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_assign(InputIt first,
  * @param ref Non-owning container device ref used to access the slot storage
  */
 template <bool HasInit,
-          int32_t CGSize,
-          int32_t BlockSize,
+          int CGSize,
+          int BlockSize,
           typename InputIt,
           typename Init,
           typename Op,
@@ -110,8 +111,8 @@ __global__ void insert_or_apply(
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    using value_type              = typename std::iterator_traits<InputIt>::value_type;
-    value_type const& insert_pair = *(first + idx);
+    using value_type             = typename cuda::std::iterator_traits<InputIt>::value_type;
+    value_type const insert_pair = *(first + idx);
     if constexpr (CGSize == 1) {
       if constexpr (HasInit) {
         ref.insert_or_apply(insert_pair, init, op);
@@ -120,7 +121,8 @@ __global__ void insert_or_apply(
       }
     } else {
       auto const tile =
-        cooperative_groups::tiled_partition<CGSize>(cooperative_groups::this_thread_block());
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
       if constexpr (HasInit) {
         ref.insert_or_apply(tile, insert_pair, init, op);
       } else {
@@ -161,8 +163,8 @@ __global__ void insert_or_apply(
  * @param bucket_extent Bucket Extent used for shared memory map slot storage
  */
 template <bool HasInit,
-          int32_t CGSize,
-          int32_t BlockSize,
+          int CGSize,
+          int BlockSize,
           class SharedMapRefType,
           class InputIt,
           class Init,
@@ -180,22 +182,23 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   namespace cg     = cooperative_groups;
   using Key        = typename Ref::key_type;
   using Value      = typename Ref::mapped_type;
-  using value_type = typename std::iterator_traits<InputIt>::value_type;
+  using value_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   auto const block       = cg::this_thread_block();
   auto const thread_idx  = block.thread_rank();
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
-  auto warp                  = cg::tiled_partition<32>(block);
+  auto warp                  = cg::tiled_partition<32, cg::thread_block>(block);
   auto const warp_thread_idx = warp.thread_rank();
 
   // Shared map initialization
-  __shared__ typename SharedMapRefType::bucket_type buckets[bucket_extent.value()];
-  auto storage           = SharedMapRefType::storage_ref_type(bucket_extent, buckets);
+  __shared__ typename SharedMapRefType::value_type slots[bucket_extent.value()];
+  using storage_ref_type = typename SharedMapRefType::storage_ref_type;
+  auto storage           = storage_ref_type(bucket_extent, slots);
   auto const num_buckets = storage.num_buckets();
 
-  using atomic_type = cuda::atomic<int32_t, cuda::thread_scope_block>;
+  using atomic_type = cuda::atomic<cuda::std::int32_t, cuda::thread_scope_block>;
   __shared__ atomic_type block_cardinality;
   if (thread_idx == 0) { new (&block_cardinality) atomic_type{}; }
   block.sync();
@@ -211,11 +214,11 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   block.sync();
 
   while ((idx - thread_idx / CGSize) < n) {
-    int32_t inserted         = 0;
-    int32_t warp_cardinality = 0;
+    cuda::std::int32_t inserted         = 0;
+    cuda::std::int32_t warp_cardinality = 0;
     // insert-or-apply into the shared map first
     if (idx < n) {
-      value_type const& insert_pair = *(first + idx);
+      value_type const insert_pair = *(first + idx);
       if constexpr (HasInit) {
         inserted = shared_map_ref.insert_or_apply(insert_pair, init, op);
       } else {
@@ -223,7 +226,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
       }
     }
     if (idx - warp_thread_idx < n) {  // all threads in warp particpate
-      warp_cardinality = cg::reduce(warp, inserted, cg::plus<int32_t>());
+      warp_cardinality = cg::reduce(warp, inserted, cg::plus<cuda::std::int32_t>());
     }
     if (warp_thread_idx == 0) {
       block_cardinality.fetch_add(warp_cardinality, cuda::memory_order_relaxed);
@@ -252,7 +255,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   if (block_cardinality > BlockSize) {
     idx += loop_stride;
     while (idx < n) {
-      value_type const& insert_pair = *(first + idx);
+      value_type const insert_pair = *(first + idx);
       if constexpr (HasInit) {
         ref.insert_or_apply(insert_pair, init, op);
       } else {
@@ -262,4 +265,4 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
     }
   }
 }
-}  // namespace cuco::static_map_ns::detail
+}  // namespace cuco::detail::static_map_ns

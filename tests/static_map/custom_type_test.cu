@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,15 +19,17 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cstddef>
+#include <cstdint>
 #include <tuple>
 
 // User-defined key type
@@ -98,7 +100,7 @@ struct custom_key_equals {
   }
 };
 
-TEMPLATE_TEST_CASE_SIG("User defined key and value type",
+TEMPLATE_TEST_CASE_SIG("static_map custom key and value type tests",
                        "",
                        ((typename Key, typename Value), Key, Value),
 #if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and
@@ -117,20 +119,13 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   cuco::legacy::static_map<Key, Value> map{
     capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
 
-  thrust::device_vector<Key> insert_keys(num);
-  thrust::device_vector<Value> insert_values(num);
+  auto insert_keys = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
 
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num),
-                    insert_keys.begin(),
-                    cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
-
-  thrust::transform(thrust::device,
-                    thrust::counting_iterator<int>(0),
-                    thrust::counting_iterator<int>(num),
-                    insert_values.begin(),
-                    cuda::proclaim_return_type<Value>([] __device__(auto i) { return Value{i}; }));
+  auto insert_values = thrust::make_transform_iterator(
+    thrust::counting_iterator<int>(0),
+    cuda::proclaim_return_type<Value>([] __device__(auto i) { return Value{i}; }));
 
   auto insert_pairs = thrust::make_transform_iterator(
     thrust::make_counting_iterator<int>(0),
@@ -144,14 +139,11 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
     REQUIRE(num == map.get_size());
 
-    map.find(insert_keys.begin(),
-             insert_keys.end(),
-             found_values.begin(),
-             hash_custom_key{},
-             custom_key_equals{});
+    map.find(
+      insert_keys, insert_keys + num, found_values.begin(), hash_custom_key{}, custom_key_equals{});
 
-    REQUIRE(cuco::test::equal(insert_values.begin(),
-                              insert_values.end(),
+    REQUIRE(cuco::test::equal(insert_values,
+                              insert_values + num,
                               found_values.begin(),
                               cuda::proclaim_return_type<bool>([] __device__(Value lhs, Value rhs) {
                                 return cuda::std::tie(lhs.f, lhs.s) == cuda::std::tie(rhs.f, rhs.s);
@@ -162,12 +154,9 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   {
     thrust::device_vector<bool> contained(num);
     map.insert(insert_pairs, insert_pairs + num, hash_custom_key{}, custom_key_equals{});
-    map.contains(insert_keys.begin(),
-                 insert_keys.end(),
-                 contained.begin(),
-                 hash_custom_key{},
-                 custom_key_equals{});
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
+    map.contains(
+      insert_keys, insert_keys + num, contained.begin(), hash_custom_key{}, custom_key_equals{});
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("All conditionally inserted keys-value pairs should be contained")
@@ -183,11 +172,8 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
 
     REQUIRE(num / 2 == map.get_size());
 
-    map.contains(insert_keys.begin(),
-                 insert_keys.end(),
-                 contained.begin(),
-                 hash_custom_key{},
-                 custom_key_equals{});
+    map.contains(
+      insert_keys, insert_keys + num, contained.begin(), hash_custom_key{}, custom_key_equals{});
 
     REQUIRE(cuco::test::equal(
       contained.begin(),
@@ -201,12 +187,9 @@ TEMPLATE_TEST_CASE_SIG("User defined key and value type",
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     thrust::device_vector<bool> contained(num);
-    map.contains(insert_keys.begin(),
-                 insert_keys.end(),
-                 contained.begin(),
-                 hash_custom_key{},
-                 custom_key_equals{});
-    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
+    map.contains(
+      insert_keys, insert_keys + num, contained.begin(), hash_custom_key{}, custom_key_equals{});
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("All inserted keys-value pairs should be contained")

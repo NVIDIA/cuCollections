@@ -67,11 +67,11 @@ void test_insert_or_assign(Map& map, size_type num_keys)
 
   thrust::sort(thrust::device, d_values.begin(), d_values.end());
   REQUIRE(cuco::test::equal(
-    d_values.begin(), d_values.end(), gold_values_begin, thrust::equal_to<Value>{}));
+    d_values.begin(), d_values.end(), gold_values_begin, cuda::std::equal_to<Value>{}));
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Insert or assign",
+  "static_map insert_or_assign tests",
   "",
   ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
    Key,
@@ -106,7 +106,7 @@ TEMPLATE_TEST_CASE_SIG(
                               Value,
                               cuco::extent<size_type>,
                               cuda::thread_scope_device,
-                              thrust::equal_to<Key>,
+                              cuda::std::equal_to<Key>,
                               probe,
                               cuco::cuda_allocator<cuda::std::byte>,
                               cuco::storage<2>>{

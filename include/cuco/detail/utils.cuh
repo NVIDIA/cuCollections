@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,10 @@
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/cmath>
+#include <cuda/std/cstdint>
 #include <cuda/std/limits>
+#include <cuda/std/tuple>
 #include <cuda/std/type_traits>
-#include <thrust/tuple.h>
-
-#include <cstddef>
 
 namespace cuco {
 namespace detail {
@@ -34,13 +33,14 @@ namespace detail {
  * @brief For the `n` least significant bits in the given unsigned 32-bit integer `x`,
  * returns the number of set bits.
  */
-__device__ __forceinline__ int32_t count_least_significant_bits(uint32_t x, int32_t n)
+__device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda::std::uint32_t x,
+                                                                           cuda::std::int32_t n)
 {
   return __popc(x & (1 << n) - 1);
 }
 
 /**
- * @brief Converts pair to `thrust::tuple` to allow assigning to a zip iterator.
+ * @brief Converts pair to `cuda::std::tuple` to allow assigning to a zip iterator.
  *
  * @tparam Key The slot key type
  * @tparam Value The slot value type
@@ -48,17 +48,17 @@ __device__ __forceinline__ int32_t count_least_significant_bits(uint32_t x, int3
 template <typename Key, typename Value>
 struct slot_to_tuple {
   /**
-   * @brief Converts a pair to a `thrust::tuple`.
+   * @brief Converts a pair to a `cuda::std::tuple`.
    *
    * @tparam S The slot type
    *
    * @param s The slot to convert
-   * @return A thrust::tuple containing `s.first` and `s.second`
+   * @return A cuda::std::tuple containing `s.first` and `s.second`
    */
   template <typename S>
-  __device__ thrust::tuple<Key, Value> operator()(S const& s)
+  __device__ cuda::std::tuple<Key, Value> operator()(S const& s)
   {
-    return thrust::tuple<Key, Value>(s.first, s.second);
+    return cuda::std::tuple<Key, Value>(s.first, s.second);
   }
 };
 
@@ -82,7 +82,7 @@ struct slot_is_filled {
   template <typename S>
   __device__ bool operator()(S const& s)
   {
-    return not cuco::detail::bitwise_compare(thrust::get<0>(s), empty_key_sentinel_);
+    return not cuco::detail::bitwise_compare(cuda::std::get<0>(s), empty_key_sentinel_);
   }
 };
 
@@ -131,7 +131,7 @@ __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
  * @return Converted hash value
  */
 template <typename SizeType, typename CG, typename HashType>
-__device__ constexpr SizeType sanitize_hash(CG const& group, HashType hash) noexcept
+__device__ constexpr SizeType sanitize_hash(CG group, HashType hash) noexcept
 {
   auto const base_hash = sanitize_hash<SizeType>(hash);
   auto const max_size  = cuda::std::numeric_limits<SizeType>::max();

@@ -1,5 +1,5 @@
 ﻿#=============================================================================
-# Copyright (c) 2018-2024, NVIDIA CORPORATION.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,14 +15,6 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
-CPMAddPackage(
-  NAME nvbench
-  GITHUB_REPOSITORY NVIDIA/nvbench
-  GIT_TAG main
-  GIT_SHALLOW TRUE
-  EXCLUDE_FROM_ALL YES
-)
-
 ###################################################################################################
 ### compiler function #############################################################################
 ###################################################################################################
@@ -35,7 +27,12 @@ function(ConfigureBench BENCH_NAME)
                                         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/benchmarks")
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-    target_compile_options(${BENCH_NAME} PRIVATE --expt-extended-lambda -lineinfo)
+    target_compile_options(${BENCH_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
+      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda -lineinfo)
+    # Add GCC-specific warning suppression only for GCC
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      target_compile_options(${BENCH_NAME} PRIVATE -Xcompiler -Wno-subobject-linkage)
+    endif()
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
                                         pthread
@@ -52,6 +49,7 @@ ConfigureBench(STATIC_SET_BENCH
   static_set/contains_bench.cu
   static_set/find_bench.cu
   static_set/insert_bench.cu
+  static_set/retrieve_bench.cu
   static_set/retrieve_all_bench.cu
   static_set/size_bench.cu
   static_set/rehash_bench.cu)
@@ -88,7 +86,8 @@ ConfigureBench(DYNAMIC_MAP_BENCH
   dynamic_map/insert_bench.cu
   dynamic_map/find_bench.cu
   dynamic_map/contains_bench.cu
-  dynamic_map/erase_bench.cu)
+  dynamic_map/erase_bench.cu
+  dynamic_map/retrieve_all_bench.cu)
 
 ###################################################################################################
 # - hash function benchmarks ----------------------------------------------------------------------
@@ -105,3 +104,8 @@ ConfigureBench(HYPERLOGLOG_BENCH
 ConfigureBench(BLOOM_FILTER_BENCH
   bloom_filter/add_bench.cu
   bloom_filter/contains_bench.cu)
+
+###################################################################################################
+# - roaring_bitmap benchmarks ---------------------------------------------------------------------
+ConfigureBench(ROARING_BITMAP_BENCH
+  roaring_bitmap/contains_bench.cu)

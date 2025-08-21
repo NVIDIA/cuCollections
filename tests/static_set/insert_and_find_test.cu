@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,8 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -40,14 +40,15 @@ void test_insert_and_find(Set& set, std::size_t num_keys)
 
   // insert first time, fills inserted with true
   set.insert_and_find(keys_begin, keys_end, iters1.begin(), inserted.begin());
-  REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), thrust::identity{}));
+  REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
 
   // insert second time, fills inserted with false as keys already in set
   set.insert_and_find(keys_begin, keys_end, iters2.begin(), inserted.begin());
-  REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), thrust::identity{}));
+  REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
 
   // both iters1 and iters2 should be same, as keys will be referring to same slot
-  REQUIRE(cuco::test::equal(iters1.begin(), iters1.end(), iters2.begin(), thrust::equal_to<Key>{}));
+  REQUIRE(
+    cuco::test::equal(iters1.begin(), iters1.end(), iters2.begin(), cuda::std::equal_to<Key>{}));
 }
 
 TEMPLATE_TEST_CASE_SIG(

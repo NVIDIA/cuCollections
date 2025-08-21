@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,15 +34,15 @@ using namespace cuco::utility;
 template <typename Key, typename Dist>
 void static_multiset_retrieve(nvbench::state& state, nvbench::type_list<Key, Dist>)
 {
-  auto const num_keys      = state.get_int64_or_default("NumInputs", defaults::N);
-  auto const occupancy     = state.get_float64_or_default("Occupancy", defaults::OCCUPANCY);
-  auto const matching_rate = state.get_float64_or_default("MatchingRate", defaults::MATCHING_RATE);
+  auto const num_keys      = state.get_int64("NumInputs");
+  auto const occupancy     = state.get_float64("Occupancy");
+  auto const matching_rate = state.get_float64("MatchingRate");
 
   std::size_t const size = num_keys / occupancy;
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);
@@ -68,7 +68,10 @@ NVBENCH_BENCH_TYPES(static_multiset_retrieve,
   .set_name("static_multiset_retrieve_uniform_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE)
+  .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE})
+  .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY});
 
 NVBENCH_BENCH_TYPES(static_multiset_retrieve,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -76,7 +79,10 @@ NVBENCH_BENCH_TYPES(static_multiset_retrieve,
   .set_name("static_multiset_retrieve_uniform_matching_rate")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
-  .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
+  .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE)
+  .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY});
 
 NVBENCH_BENCH_TYPES(static_multiset_retrieve,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
@@ -84,4 +90,7 @@ NVBENCH_BENCH_TYPES(static_multiset_retrieve,
   .set_name("static_multiset_retrieve_uniform_multiplicity")
   .set_type_axes_names({"Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::N})
+  .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
+  .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE})
   .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);

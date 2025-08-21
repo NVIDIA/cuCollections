@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,30 +24,32 @@
 #include <cuco/probing_scheme.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/cstdint>
+#include <cuda/std/functional>
+#include <cuda/std/iterator>
 #include <cuda/std/type_traits>
-#include <thrust/distance.h>
-#include <thrust/tuple.h>
+#include <thrust/execution_policy.h>
+#include <thrust/iterator/constant_iterator.h>
+#include <thrust/logical.h>
+#include <thrust/reduce.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
 #endif
 
 #include <cooperative_groups.h>
 
-#include <cstdint>
-#include <type_traits>
-
 namespace cuco {
 namespace detail {
 
 /// Three-way insert result enum
-enum class insert_result : int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+enum class insert_result : cuda::std::int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 
 /**
  * @brief Helper struct to store intermediate bucket probing results.
  */
 struct bucket_probing_results {
-  detail::equal_result state_;  ///< Equal result
-  int32_t intra_bucket_index_;  ///< Intra-bucket index
+  detail::equal_result state_;             ///< Equal result
+  cuda::std::int32_t intra_bucket_index_;  ///< Intra-bucket index
 
   /**
    * @brief Constructs bucket_probing_results.
@@ -56,7 +58,7 @@ struct bucket_probing_results {
    * @param index Intra-bucket index
    */
   __device__ explicit constexpr bucket_probing_results(detail::equal_result state,
-                                                       int32_t index) noexcept
+                                                       cuda::std::int32_t index) noexcept
     : state_{state}, intra_bucket_index_{index}
   {
   }
@@ -93,12 +95,13 @@ class open_addressing_ref_impl {
     "Key type must have unique object representations or have been explicitly declared as safe for "
     "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
-  static_assert(
-    std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>, ProbingScheme>,
-    "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+  static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
+                                        ProbingScheme>,
+                "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
 
   /// Determines if the container is a key/value or key-only store
-  static constexpr auto has_payload = not std::is_same_v<Key, typename StorageRef::value_type>;
+  static constexpr auto has_payload =
+    not cuda::std::is_same_v<Key, typename StorageRef::value_type>;
 
   /// Flag indicating whether duplicate keys are allowed or not
   static constexpr auto allows_duplicates = AllowsDuplicates;
@@ -173,7 +176,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty key slot
    */
-  [[nodiscard]] __host__ __device__ constexpr key_type const& empty_key_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept
   {
     return this->predicate_.empty_sentinel_;
   }
@@ -183,8 +186,8 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty payload slot
    */
-  template <bool Dummy = true, typename Enable = std::enable_if_t<has_payload and Dummy>>
-  [[nodiscard]] __host__ __device__ constexpr auto const& empty_value_sentinel() const noexcept
+  template <bool Dummy = true, typename Enable = cuda::std::enable_if_t<has_payload and Dummy>>
+  [[nodiscard]] __host__ __device__ constexpr auto empty_value_sentinel() const noexcept
   {
     return this->extract_payload(this->empty_slot_sentinel());
   }
@@ -194,7 +197,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an erased key slot
    */
-  [[nodiscard]] __host__ __device__ constexpr key_type const& erased_key_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr key_type erased_key_sentinel() const noexcept
   {
     return this->predicate_.erased_sentinel_;
   }
@@ -204,7 +207,7 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an empty slot
    */
-  [[nodiscard]] __host__ __device__ constexpr value_type const& empty_slot_sentinel() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr value_type empty_slot_sentinel() const noexcept
   {
     return empty_slot_sentinel_;
   }
@@ -214,8 +217,8 @@ class open_addressing_ref_impl {
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> const&
-  predicate() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> predicate()
+    const noexcept
   {
     return this->predicate_;
   }
@@ -235,8 +238,7 @@ class open_addressing_ref_impl {
    *
    * @return The probing scheme used for the container
    */
-  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type const& probing_scheme()
-    const noexcept
+  [[nodiscard]] __host__ __device__ constexpr probing_scheme_type probing_scheme() const noexcept
   {
     return probing_scheme_;
   }
@@ -256,7 +258,7 @@ class open_addressing_ref_impl {
    *
    * @return The non-owning storage ref of the container
    */
-  [[nodiscard]] __host__ __device__ constexpr storage_ref_type const& storage_ref() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr storage_ref_type storage_ref() const noexcept
   {
     return storage_ref_;
   }
@@ -276,17 +278,17 @@ class open_addressing_ref_impl {
    *
    * @return The bucket extent.
    */
-  [[nodiscard]] __host__ __device__ constexpr extent_type bucket_extent() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept
   {
-    return storage_ref_.bucket_extent();
+    return storage_ref_.extent();
   }
 
   /**
-   * @brief Returns a const_iterator to one past the last slot.
+   * @brief Returns an iterator to one past the last slot.
    *
-   * @return A const_iterator to one past the last slot
+   * @return An iterator to one past the last slot
    */
-  [[nodiscard]] __host__ __device__ constexpr const_iterator end() const noexcept
+  [[nodiscard]] __host__ __device__ constexpr iterator end() const noexcept
   {
     return storage_ref_.end();
   }
@@ -306,14 +308,14 @@ class open_addressing_ref_impl {
    *
    * @tparam CG The type of the cooperative thread group
    *
-   * @param g The ooperative thread group used to copy the data structure
+   * @param g The cooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
    * the ownership of the memory
    */
   template <typename CG>
-  __device__ void make_copy(CG const& g, bucket_type* const memory_to_use) const noexcept
+  __device__ void make_copy(CG g, value_type* const memory_to_use) const noexcept
   {
-    auto const num_buckets = static_cast<size_type>(this->bucket_extent());
+    auto const num_slots = this->capacity();
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #pragma nv_diagnostic push
 // Disables `barrier` initialization warning.
@@ -324,13 +326,13 @@ class open_addressing_ref_impl {
     g.sync();
 
     cuda::memcpy_async(
-      g, memory_to_use, this->storage_ref().data(), sizeof(bucket_type) * num_buckets, barrier);
+      g, memory_to_use, this->storage_ref().data(), sizeof(value_type) * num_slots, barrier);
 
     barrier.arrive_and_wait();
 #else
-    bucket_type const* const buckets_ptr = this->storage_ref().data();
-    for (size_type i = g.thread_rank(); i < num_buckets; i += g.size()) {
-      memory_to_use[i] = buckets_ptr[i];
+    value_type const* const slots_ptr = this->storage_ref().data();
+    for (size_type i = g.thread_rank(); i < num_slots; i += g.size()) {
+      memory_to_use[i] = slots_ptr[i];
     }
     g.sync();
 #endif
@@ -346,18 +348,17 @@ class open_addressing_ref_impl {
    * @param tile The cooperative thread group used to initialize the container
    */
   template <typename CG>
-  __device__ constexpr void initialize(CG const& tile) noexcept
+  __device__ constexpr void initialize(CG tile) noexcept
   {
-    auto tid                = tile.thread_rank();
-    auto* const buckets_ptr = this->storage_ref().data();
-    while (tid < static_cast<size_type>(this->bucket_extent())) {
-      auto& bucket = *(buckets_ptr + tid);
-#pragma unroll
-      for (auto& slot : bucket) {
-        slot = this->empty_slot_sentinel();
-      }
+    auto tid          = tile.thread_rank();
+    auto const extent = static_cast<size_type>(this->extent());
+
+    auto* const slots_ptr = this->storage_ref().data();
+    while (tid < extent) {
+      slots_ptr[tid] = this->empty_slot_sentinel();
       tid += tile.size();
     }
+
     tile.sync();
   }
 
@@ -371,30 +372,32 @@ class open_addressing_ref_impl {
    * @return True if the given element is successfully inserted
    */
   template <typename Value>
-  __device__ bool insert(Value const& value) noexcept
+  __device__ bool insert(Value value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto const val    = this->heterogeneous_value(value);
-    auto const key    = this->extract_key(val);
-    auto probing_iter = probing_scheme_(key, storage_ref_.bucket_extent());
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
+
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : bucket_slots) {
-        auto const eq_res =
-          this->predicate_.operator()<is_insert::YES>(key, this->extract_key(slot_content));
+        auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
+          key, this->extract_key(slot_content));
 
         if constexpr (not allows_duplicates) {
           // If the key is already in the container, return false
           if (eq_res == detail::equal_result::EQUAL) { return false; }
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-          switch (attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                                 slot_content,
-                                 val)) {
+          auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
+          switch (attempt_insert(
+            this->get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, val)) {
             case insert_result::DUPLICATE: {
               if constexpr (allows_duplicates) {
                 [[fallthrough]];
@@ -408,6 +411,7 @@ class open_addressing_ref_impl {
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return false; }
     }
   }
 
@@ -415,27 +419,30 @@ class open_addressing_ref_impl {
    * @brief Inserts an element.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert
    * @param value The element to insert
    *
    * @return True if the given element is successfully inserted
    */
-  template <typename Value>
-  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
-                         Value const& value) noexcept
+  template <bool SupportsErase, typename Value, typename ParentCG>
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                         Value value) noexcept
   {
-    auto const val    = this->heterogeneous_value(value);
-    auto const key    = this->extract_key(val);
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_bucket_index] = [&]() {
         for (auto i = 0; i < bucket_size; ++i) {
-          switch (
-            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]))) {
+          switch (this->predicate_.template operator()<is_insert::YES>(
+            key, this->extract_key(bucket_slots[i]))) {
             case detail::equal_result::AVAILABLE:
               return bucket_probing_results{detail::equal_result::AVAILABLE, i};
             case detail::equal_result::EQUAL: {
@@ -460,12 +467,18 @@ class open_addressing_ref_impl {
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
-        auto const status =
-          (group.thread_rank() == src_lane)
-            ? attempt_insert((storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                             bucket_slots[intra_bucket_index],
-                             val)
-            : insert_result::CONTINUE;
+        auto status         = insert_result::CONTINUE;
+        if (group.thread_rank() == src_lane) {
+          if constexpr (SupportsErase) {
+            status = attempt_insert(this->get_slot_ptr(*probing_iter, intra_bucket_index),
+                                    bucket_slots[intra_bucket_index],
+                                    val);
+          } else {
+            status = attempt_insert(this->get_slot_ptr(*probing_iter, intra_bucket_index),
+                                    this->empty_slot_sentinel(),
+                                    val);
+          }
+        }
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
@@ -480,6 +493,7 @@ class open_addressing_ref_impl {
         }
       } else {
         ++probing_iter;
+        if (*probing_iter == init_idx) { return false; }
       }
     }
   }
@@ -499,7 +513,7 @@ class open_addressing_ref_impl {
    * insertion is successful or not.
    */
   template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(Value const& value) noexcept
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(Value value) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 #if __CUDA_ARCH__ < 700
@@ -510,47 +524,50 @@ class open_addressing_ref_impl {
       "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
-    auto const val    = this->heterogeneous_value(value);
-    auto const key    = this->extract_key(val);
-    auto probing_iter = probing_scheme_(key, storage_ref_.bucket_extent());
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < bucket_size; ++i) {
-        auto const eq_res =
-          this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]));
-        auto* bucket_ptr = (storage_ref_.data() + *probing_iter)->data();
+        auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
+          key, this->extract_key(bucket_slots[i]));
+        auto* slot_ptr = this->get_slot_ptr(*probing_iter, i);
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
           if constexpr (has_payload) {
             // wait to ensure that the write to the value part also took place
-            this->wait_for_payload((bucket_ptr + i)->second, this->empty_value_sentinel());
+            this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
           }
-          return {iterator{&bucket_ptr[i]}, false};
+          return {iterator{slot_ptr}, false};
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          switch (this->attempt_insert_stable(bucket_ptr + i, bucket_slots[i], val)) {
+          switch (this->attempt_insert_stable(slot_ptr, bucket_slots[i], val)) {
             case insert_result::SUCCESS: {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
-                this->wait_for_payload((bucket_ptr + i)->second, this->empty_value_sentinel());
+                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
               }
-              return {iterator{&bucket_ptr[i]}, true};
+              return {iterator{slot_ptr}, true};
             }
             case insert_result::DUPLICATE: {
               if constexpr (has_payload) {
                 // wait to ensure that the write to the value part also took place
-                this->wait_for_payload((bucket_ptr + i)->second, this->empty_value_sentinel());
+                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
               }
-              return {iterator{&bucket_ptr[i]}, false};
+              return {iterator{slot_ptr}, false};
             }
             default: continue;
           }
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return {this->end(), false}; }
     };
   }
 
@@ -562,6 +579,7 @@ class open_addressing_ref_impl {
    * not.
    *
    * @tparam Value Input type which is convertible to 'value_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert_and_find
    * @param value The element to insert
@@ -569,9 +587,9 @@ class open_addressing_ref_impl {
    * @return a pair consisting of an iterator to the element and a bool indicating whether the
    * insertion is successful or not.
    */
-  template <typename Value>
-  __device__ thrust::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
+  template <typename Value, typename ParentCG>
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value value) noexcept
   {
 #if __CUDA_ARCH__ < 700
     // Spinning to ensure that the write to the value part took place requires
@@ -581,9 +599,11 @@ class open_addressing_ref_impl {
       "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
 #endif
 
-    auto const val    = this->heterogeneous_value(value);
-    auto const key    = this->extract_key(val);
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -591,15 +611,15 @@ class open_addressing_ref_impl {
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res =
-            this->predicate_.operator()<is_insert::YES>(key, this->extract_key(bucket_slots[i]));
+          res = this->predicate_.template operator()<is_insert::YES>(
+            key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
         return bucket_probing_results{res, -1};
       }();
 
-      auto* slot_ptr = (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index;
+      auto* slot_ptr = this->get_slot_ptr(*probing_iter, intra_bucket_index);
 
       // If the key is already in the container, return false
       auto const group_finds_equal = group.ballot(state == detail::equal_result::EQUAL);
@@ -650,6 +670,7 @@ class open_addressing_ref_impl {
         }
       } else {
         ++probing_iter;
+        if (*probing_iter == init_idx) { return {this->end(), false}; }
       }
     }
   }
@@ -659,33 +680,34 @@ class open_addressing_ref_impl {
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
    *
-   * @param value The element to erase
+   * @param key The element to erase
    *
    * @return True if the given element is successfully erased
    */
   template <typename ProbeKey>
-  __device__ bool erase(ProbeKey const& key) noexcept
+  __device__ bool erase(ProbeKey key) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto probing_iter = probing_scheme_(key, storage_ref_.bucket_extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content));
+          this->predicate_.template operator()<is_insert::NO>(key, this->extract_key(slot_content));
 
         // Key doesn't exist, return false
         if (eq_res == detail::equal_result::EMPTY) { return false; }
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
-          auto const intra_bucket_index = thrust::distance(bucket_slots.begin(), &slot_content);
-          switch (attempt_insert_stable(
-            (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-            slot_content,
-            this->erased_slot_sentinel())) {
+          auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
+          switch (attempt_insert_stable(this->get_slot_ptr(*probing_iter, intra_bucket_index),
+                                        slot_content,
+                                        this->erased_slot_sentinel())) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
             default: continue;
@@ -693,6 +715,7 @@ class open_addressing_ref_impl {
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return false; }
     }
   }
 
@@ -700,17 +723,20 @@ class open_addressing_ref_impl {
    * @brief Erases an element.
    *
    * @tparam ProbeKey Input type which is convertible to 'key_type'
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group erase
-   * @param value The element to erase
+   * @param key The element to erase
    *
    * @return True if the given element is successfully erased
    */
-  template <typename ProbeKey>
-  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
-                        ProbeKey const& key) noexcept
+  template <typename ProbeKey, typename ParentCG>
+  __device__ bool erase(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                        ProbeKey key) noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -718,7 +744,8 @@ class open_addressing_ref_impl {
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
+          res = this->predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -730,10 +757,9 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         auto const status =
           (group.thread_rank() == src_lane)
-            ? attempt_insert_stable(
-                (storage_ref_.data() + *probing_iter)->data() + intra_bucket_index,
-                bucket_slots[intra_bucket_index],
-                this->erased_slot_sentinel())
+            ? attempt_insert_stable(this->get_slot_ptr(*probing_iter, intra_bucket_index),
+                                    bucket_slots[intra_bucket_index],
+                                    this->erased_slot_sentinel())
             : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
@@ -747,6 +773,7 @@ class open_addressing_ref_impl {
       if (group.any(state == detail::equal_result::EMPTY)) { return false; }
 
       ++probing_iter;
+      if (*probing_iter == init_idx) { return false; }
     }
   }
 
@@ -763,23 +790,27 @@ class open_addressing_ref_impl {
    * @return A boolean indicating whether the probe key is present
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ bool contains(ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ bool contains(ProbeKey key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.bucket_extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = storage_ref_[*probing_iter];
 
-      for (auto& slot_content : bucket_slots) {
-        switch (this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
+      for (auto i = 0; i < bucket_size; ++i) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::UNEQUAL: continue;
           case detail::equal_result::EMPTY: return false;
           case detail::equal_result::EQUAL: return true;
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return false; }
     }
   }
 
@@ -790,25 +821,29 @@ class open_addressing_ref_impl {
    * false.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group contains
    * @param key The key to search for
    *
    * @return A boolean indicating whether the probe key is present
    */
-  template <typename ProbeKey>
+  template <typename ProbeKey, typename ParentCG>
   [[nodiscard]] __device__ bool contains(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       auto const state = [&]() {
         auto res = detail::equal_result::UNEQUAL;
-        for (auto& slot : bucket_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
+        for (auto i = 0; i < bucket_size; ++i) {
+          res = this->predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return res; }
         }
         return res;
@@ -818,76 +853,7 @@ class open_addressing_ref_impl {
       if (group.any(state == detail::equal_result::EMPTY)) { return false; }
 
       ++probing_iter;
-    }
-  }
-
-  /**
-   * @brief Counts the occurrence of a given key contained in the container
-   *
-   * @tparam ProbeKey Probe key type
-   *
-   * @param key The key to count for
-   *
-   * @return Number of occurrences found by the current thread
-   */
-  template <typename ProbeKey>
-  [[nodiscard]] __device__ size_type count(ProbeKey const& key) const noexcept
-  {
-    if constexpr (not allows_duplicates) {
-      return static_cast<size_type>(this->contains(key));
-    } else {
-      auto probing_iter = probing_scheme_(key, storage_ref_.bucket_extent());
-      size_type count   = 0;
-
-      while (true) {
-        // TODO atomic_ref::load if insert operator is present
-        auto const bucket_slots = storage_ref_[*probing_iter];
-
-        for (auto& slot_content : bucket_slots) {
-          switch (
-            this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot_content))) {
-            case detail::equal_result::EMPTY: return count;
-            case detail::equal_result::EQUAL: ++count; break;
-            default: continue;
-          }
-        }
-        ++probing_iter;
-      }
-    }
-  }
-
-  /**
-   * @brief Counts the occurrence of a given key contained in the container
-   *
-   * @tparam ProbeKey Probe key type
-   *
-   * @param group The Cooperative Group used to perform group count
-   * @param key The key to count for
-   *
-   * @return Number of occurrences found by the current thread
-   */
-  template <typename ProbeKey>
-  [[nodiscard]] __device__ size_type count(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
-  {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
-    size_type count   = 0;
-
-    while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
-
-      auto const state = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto& slot : bucket_slots) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(slot));
-          if (res == detail::equal_result::EMPTY) { return res; }
-          count += static_cast<size_type>(res);
-        }
-        return res;
-      }();
-
-      if (group.any(state == detail::equal_result::EMPTY)) { return count; }
-      ++probing_iter;
+      if (*probing_iter == init_idx) { return false; }
     }
   }
 
@@ -904,28 +870,31 @@ class open_addressing_ref_impl {
    * @return An iterator to the position at which the equivalent key is stored
    */
   template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(ProbeKey const& key) const noexcept
+  [[nodiscard]] __device__ iterator find(ProbeKey key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = probing_scheme_(key, storage_ref_.bucket_extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       for (auto i = 0; i < bucket_size; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
             return this->end();
           }
           case detail::equal_result::EQUAL: {
-            return const_iterator{&(*(storage_ref_.data() + *probing_iter))[i]};
+            return iterator{this->get_slot_ptr(*probing_iter, i)};
           }
           default: continue;
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return this->end(); }
     }
   }
 
@@ -936,17 +905,20 @@ class open_addressing_ref_impl {
    * `key`. If no such element exists, returns `end()`.
    *
    * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    *
    * @return An iterator to the position at which the equivalent key is stored
    */
-  template <typename ProbeKey>
-  [[nodiscard]] __device__ const_iterator find(
-    cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const noexcept
+  template <typename ProbeKey, typename ParentCG>
+  [[nodiscard]] __device__ iterator
+  find(cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
-    auto probing_iter = probing_scheme_(group, key, storage_ref_.bucket_extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -954,7 +926,8 @@ class open_addressing_ref_impl {
       auto const [state, intra_bucket_index] = [&]() {
         auto res = detail::equal_result::UNEQUAL;
         for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
+          res = this->predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i]));
           if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
         }
         // returns dummy index `-1` for UNEQUAL
@@ -966,15 +939,107 @@ class open_addressing_ref_impl {
       if (group_finds_match) {
         auto const src_lane = __ffs(group_finds_match) - 1;
         auto const res      = group.shfl(
-          reinterpret_cast<intptr_t>(&(*(storage_ref_.data() + *probing_iter))[intra_bucket_index]),
+          reinterpret_cast<intptr_t>(this->get_slot_ptr(*probing_iter, intra_bucket_index)),
           src_lane);
-        return const_iterator{reinterpret_cast<value_type*>(res)};
+        return iterator{reinterpret_cast<value_type*>(res)};
       }
 
       // Find an empty slot, meaning that the probe key isn't present in the container
       if (group.any(state == detail::equal_result::EMPTY)) { return this->end(); }
 
       ++probing_iter;
+      if (*probing_iter == init_idx) { return this->end(); }
+    }
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @tparam ProbeKey Probe key type
+   *
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey>
+  [[nodiscard]] __device__ size_type count(ProbeKey key) const noexcept
+  {
+    if constexpr (not allows_duplicates) {
+      return static_cast<size_type>(this->contains(key));
+    } else {
+      auto probing_iter =
+        probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
+      auto const init_idx = *probing_iter;
+      size_type count     = 0;
+
+      while (true) {
+        auto const bucket_slots                = storage_ref_[*probing_iter];
+        cuda::std::int32_t equals[bucket_size] = {0};
+        bool empty_found                       = false;
+
+#pragma unroll bucket_size
+        for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
+          auto const result =
+            predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
+          equals[i] = (result == detail::equal_result::EQUAL);
+          if (result == detail::equal_result::EMPTY) {
+            empty_found = true;
+            break;
+          }
+        }
+
+        count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
+
+        if (empty_found) { return count; }
+
+        ++probing_iter;
+        if (*probing_iter == init_idx) { return count; }
+      }
+    }
+  }
+
+  /**
+   * @brief Counts the occurrence of a given key contained in the container
+   *
+   * @tparam ProbeKey Probe key type
+   * @tparam ParentCG Type of parent Cooperative Group
+   *
+   * @param group The Cooperative Group used to perform group count
+   * @param key The key to count for
+   *
+   * @return Number of occurrences found by the current thread
+   */
+  template <typename ProbeKey, typename ParentCG>
+  [[nodiscard]] __device__ size_type
+  count(cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
+  {
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
+    size_type count     = 0;
+
+    while (true) {
+      auto const bucket_slots                = storage_ref_[*probing_iter];
+      cuda::std::int32_t equals[bucket_size] = {0};
+      bool empty_found                       = false;
+
+#pragma unroll bucket_size
+      for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
+        auto const result =
+          predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
+        equals[i] = (result == detail::equal_result::EQUAL);
+        if (result == detail::equal_result::EMPTY) {
+          empty_found = true;
+          break;
+        }
+      }
+
+      count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
+
+      if (group.any(empty_found)) { return count; }
+
+      ++probing_iter;
+      if (*probing_iter == init_idx) { return count; }
     }
   }
 
@@ -1003,10 +1068,10 @@ class open_addressing_ref_impl {
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
-   * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+   * @param atomic_counter Atomic object of integral type that is used to count the
    * number of output elements
    */
-  template <int32_t BlockSize,
+  template <int BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
@@ -1020,8 +1085,16 @@ class open_addressing_ref_impl {
   {
     auto constexpr is_outer = false;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    this->retrieve_impl<is_outer, BlockSize>(
-      block, input_probe_begin, n, output_probe, output_match, atomic_counter);
+    auto const always_true_stencil = thrust::constant_iterator<bool>(true);
+    auto const identity_predicate  = cuda::std::identity{};
+    this->retrieve_impl<is_outer, BlockSize>(block,
+                                             input_probe_begin,
+                                             n,
+                                             always_true_stencil,
+                                             identity_predicate,
+                                             output_probe,
+                                             output_match,
+                                             atomic_counter);
   }
 
   /**
@@ -1052,10 +1125,10 @@ class open_addressing_ref_impl {
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
-   * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+   * @param atomic_counter Atomic object of integral type that is used to count the
    * number of output elements
    */
-  template <int32_t BlockSize,
+  template <int BlockSize,
             class InputProbeIt,
             class OutputProbeIt,
             class OutputMatchIt,
@@ -1069,8 +1142,73 @@ class open_addressing_ref_impl {
   {
     auto constexpr is_outer = true;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
+    auto const always_true_stencil = thrust::constant_iterator<bool>(true);
+    auto const identity_predicate  = cuda::std::identity{};
+    this->retrieve_impl<is_outer, BlockSize>(block,
+                                             input_probe_begin,
+                                             n,
+                                             always_true_stencil,
+                                             identity_predicate,
+                                             output_probe,
+                                             output_match,
+                                             atomic_counter);
+  }
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
+   * input_probe_end)` if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred( *(stencil + i) )` returns true,
+   * copies `k` to `output_probe` and associated slot contents to `output_match`,
+   * respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()` to determine the size of the output range.
+   *
+   * @tparam BlockSize Size of the thread block this operation is executed in
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+   * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam AtomicCounter Integral atomic counter type that follows the same semantics as
+   * `cuda::(std::)atomic(_ref)`
+   *
+   * @param block Thread block this operation is executed in
+   * @param input_probe_begin Beginning of the input sequence of keys
+   * @param input_probe_end End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param atomic_counter Atomic object of integral type that is used to count the
+   * number of output elements
+   */
+  template <int BlockSize,
+            class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_if(cooperative_groups::thread_block const& block,
+                              InputProbeIt input_probe_begin,
+                              InputProbeIt input_probe_end,
+                              StencilIt stencil,
+                              Predicate pred,
+                              OutputProbeIt output_probe,
+                              OutputMatchIt output_match,
+                              AtomicCounter& atomic_counter) const
+  {
+    auto constexpr is_outer = false;
+    auto const n            = cuco::detail::distance(input_probe_begin, input_probe_end);
     this->retrieve_impl<is_outer, BlockSize>(
-      block, input_probe_begin, n, output_probe, output_match, atomic_counter);
+      block, input_probe_begin, n, stencil, pred, output_probe, output_match, atomic_counter);
   }
 
   /**
@@ -1089,6 +1227,10 @@ class open_addressing_ref_impl {
    * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
    * @tparam BlockSize Size of the thread block this operation is executed in
    * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+   * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
    * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -1097,23 +1239,29 @@ class open_addressing_ref_impl {
    * `cuda::(std::)atomic(_ref)`
    *
    * @param block Thread block this operation is executed in
-   * @param input_probe_begin Beginning of the input sequence of keys
-   * @param input_probe_end End of the input sequence of keys
+   * @param input_probe Beginning of the input sequence of keys
+   * @param n Number of input keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
-   * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+   * @param atomic_counter Atomic object of integral type that is used to count the
    * number of output elements
    */
   template <bool IsOuter,
-            int32_t BlockSize,
+            int BlockSize,
             class InputProbeIt,
+            class StencilIt,
+            class Predicate,
             class OutputProbeIt,
             class OutputMatchIt,
             class AtomicCounter>
   __device__ void retrieve_impl(cooperative_groups::thread_block const& block,
                                 InputProbeIt input_probe,
                                 cuco::detail::index_type n,
+                                StencilIt stencil,
+                                Predicate pred,
                                 OutputProbeIt output_probe,
                                 OutputMatchIt output_match,
                                 AtomicCounter& atomic_counter) const
@@ -1122,7 +1270,7 @@ class open_addressing_ref_impl {
 
     if (n == 0) { return; }
 
-    using probe_type = typename std::iterator_traits<InputProbeIt>::value_type;
+    using probe_type = typename cuda::std::iterator_traits<InputProbeIt>::value_type;
 
     // tuning parameter
     auto constexpr buffer_multiplier = 1;
@@ -1134,151 +1282,159 @@ class open_addressing_ref_impl {
 
     auto constexpr num_flushing_tiles   = BlockSize / flushing_tile_size;
     auto constexpr max_matches_per_step = flushing_tile_size * bucket_size;
-    auto constexpr buffer_size          = buffer_multiplier * max_matches_per_step;
+    auto constexpr buffer_size = buffer_multiplier * max_matches_per_step + flushing_tile_size;
 
-    auto const flushing_tile = cg::tiled_partition<flushing_tile_size>(block);
-    auto const probing_tile  = cg::tiled_partition<probing_tile_size>(block);
+    auto const flushing_tile = cg::tiled_partition<flushing_tile_size, cg::thread_block>(block);
+    auto const probing_tile  = cg::tiled_partition<probing_tile_size, cg::thread_block>(block);
 
     auto const flushing_tile_id = flushing_tile.meta_group_rank();
-    auto idx                    = probing_tile.meta_group_rank();
     auto const stride           = probing_tile.meta_group_size();
+    auto idx                    = probing_tile.meta_group_rank();
 
-    // TODO align to 16B?
-    __shared__ probe_type probe_buffers[num_flushing_tiles][buffer_size];
-    __shared__ value_type match_buffers[num_flushing_tiles][buffer_size];
-    size_type num_matches = 0;
+    __shared__ cuco::pair<probe_type, value_type> buffers[num_flushing_tiles][buffer_size];
+    __shared__ cuda::std::int32_t counters[num_flushing_tiles];
 
-    auto flush_buffers = [&](cg::coalesced_group const& tile) {
-      auto const rank = tile.thread_rank();
+    if (flushing_tile.thread_rank() == 0) { counters[flushing_tile_id] = 0; }
+    flushing_tile.sync();
 
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-      auto const offset = cg::invoke_one_broadcast(tile, [&]() {
-        return atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
-      });
-#else
-      size_type offset;
-      if (rank == 0) {
-        offset = atomic_counter.fetch_add(num_matches, cuda::std::memory_order_relaxed);
-      }
+    auto flush_buffers = [&](auto tile) {
+      size_type offset = 0;
+      auto const count = counters[flushing_tile_id];
+      auto const rank  = tile.thread_rank();
+      if (rank == 0) { offset = atomic_counter.fetch_add(count, cuda::memory_order_relaxed); }
       offset = tile.shfl(offset, 0);
-#endif
 
       // flush_buffers
-      for (size_type i = rank; i < num_matches; i += tile.size()) {
-        *(output_probe + offset + i) = probe_buffers[flushing_tile_id][i];
-        *(output_match + offset + i) = match_buffers[flushing_tile_id][i];
+      for (auto i = rank; i < count; i += tile.size()) {
+        *(output_probe + offset + i) = buffers[flushing_tile_id][i].first;
+        *(output_match + offset + i) = buffers[flushing_tile_id][i].second;
       }
     };
 
     while (flushing_tile.any(idx < n)) {
-      bool active_flag = idx < n;
+      bool active_flag = idx < n and pred(*(stencil + idx));
       auto const active_flushing_tile =
         cg::binary_partition<flushing_tile_size>(flushing_tile, active_flag);
 
       if (active_flag) {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
-        auto const& probe = *(input_probe + idx);
-        auto probing_iter =
-          this->probing_scheme_(probing_tile, probe, this->storage_ref_.bucket_extent());
-        bool empty_found                      = false;
-        bool match_found                      = false;
-        [[maybe_unused]] bool found_any_match = false;  // only needed if `IsOuter == true`
+        auto const probe_key = *(input_probe + idx);
 
-        while (true) {
-          // TODO atomic_ref::load if insert operator is present
-          auto const bucket_slots = this->storage_ref_[*probing_iter];
+        auto probing_iter = probing_scheme_.template make_iterator<bucket_size>(
+          probing_tile, probe_key, storage_ref_.extent());
+        auto const init_idx = *probing_iter;
 
-          for (int32_t i = 0; i < bucket_size; ++i) {
-            if (not empty_found) {
-              // inspect slot content
-              switch (this->predicate_.operator()<is_insert::NO>(
-                probe, this->extract_key(bucket_slots[i]))) {
-                case detail::equal_result::EMPTY: {
-                  empty_found = true;
-                  break;
-                }
-                case detail::equal_result::EQUAL: {
-                  match_found = true;
-                  break;
-                }
-                default: {
-                  break;
+        bool running                      = true;
+        [[maybe_unused]] bool found_match = false;
+
+        bool equals[bucket_size];
+        cuda::std::uint32_t exists[bucket_size];
+
+        while (active_flushing_tile.any(running)) {
+          if (running) {
+            // TODO atomic_ref::load if insert operator is present
+            auto const bucket_slots = this->storage_ref_[*probing_iter];
+
+#pragma unroll bucket_size
+            for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
+              equals[i] = false;
+              if (running) {
+                // inspect slot content
+                switch (this->predicate_.template operator()<is_insert::NO>(
+                  probe_key, this->extract_key(bucket_slots[i]))) {
+                  case detail::equal_result::EMPTY: {
+                    running = false;
+                    break;
+                  }
+                  case detail::equal_result::EQUAL: {
+                    if constexpr (!AllowsDuplicates) { running = false; }
+                    equals[i] = true;
+                    break;
+                  }
+                  default: {
+                    break;
+                  }
                 }
               }
             }
 
-            if (active_flushing_tile.any(match_found)) {
-              auto const matching_tile = cg::binary_partition(active_flushing_tile, match_found);
-              // stage matches in shmem buffer
-              if (match_found) {
-                probe_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] = probe;
-                match_buffers[flushing_tile_id][num_matches + matching_tile.thread_rank()] =
-                  bucket_slots[i];
-              }
-
-              // add number of new matches to the buffer counter
-              num_matches += (match_found) ? matching_tile.size()
-                                           : active_flushing_tile.size() - matching_tile.size();
+            probing_tile.sync();
+            running = probing_tile.all(running);
+#pragma unroll bucket_size
+            for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
+              exists[i] = probing_tile.ballot(equals[i]);
             }
 
+            // Fill the buffer if any matching keys are found
+            auto const lane_id = probing_tile.thread_rank();
+            if (thrust::any_of(thrust::seq, exists, exists + bucket_size, cuda::std::identity{})) {
+              if constexpr (IsOuter) { found_match = true; }
+
+              cuda::std::int32_t num_matches[bucket_size];
+
+              for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
+                num_matches[i] = __popc(exists[i]);
+              }
+
+              cuda::std::int32_t output_idx;
+              if (lane_id == 0) {
+                auto const total_matches =
+                  thrust::reduce(thrust::seq, num_matches, num_matches + bucket_size);
+                auto ref = cuda::atomic_ref<cuda::std::int32_t, cuda::thread_scope_block>{
+                  counters[flushing_tile_id]};
+                output_idx = ref.fetch_add(total_matches, cuda::memory_order_relaxed);
+              }
+              output_idx = probing_tile.shfl(output_idx, 0);
+
+              cuda::std::int32_t matches_offset = 0;
+#pragma unroll bucket_size
+              for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
+                if (equals[i]) {
+                  auto const lane_offset = detail::count_least_significant_bits(exists[i], lane_id);
+                  buffers[flushing_tile_id][output_idx + matches_offset + lane_offset] = {
+                    probe_key, bucket_slots[i]};
+                }
+                matches_offset += num_matches[i];
+              }
+            }
+            // Special handling for outer cases where no match is found
             if constexpr (IsOuter) {
-              if (not found_any_match /*yet*/ and probing_tile.any(match_found) /*now*/) {
-                found_any_match = true;
+              if (!running) {
+                if (!found_match and lane_id == 0) {
+                  auto ref = cuda::atomic_ref<cuda::std::int32_t, cuda::thread_scope_block>{
+                    counters[flushing_tile_id]};
+                  auto const output_idx = ref.fetch_add(1, cuda::memory_order_relaxed);
+                  buffers[flushing_tile_id][output_idx] = {probe_key, this->empty_slot_sentinel()};
+                }
               }
             }
+          }  // if running
 
-            // reset flag for next iteration
-            match_found = false;
-          }
-          empty_found = probing_tile.any(empty_found);
-
-          // check if all probing tiles have finished their work
-          bool const finished = active_flushing_tile.all(empty_found);
-
-          if constexpr (IsOuter) {
-            if (finished) {
-              bool const writes_sentinel =
-                ((probing_tile.thread_rank() == 0) and not found_any_match);
-
-              auto const sentinel_writers =
-                cg::binary_partition(active_flushing_tile, writes_sentinel);
-              if (writes_sentinel) {
-                auto const rank = sentinel_writers.thread_rank();
-                probe_buffers[flushing_tile_id][num_matches + rank] = probe;
-                match_buffers[flushing_tile_id][num_matches + rank] = this->empty_slot_sentinel();
-              }
-              // add number of new matches to the buffer counter
-              num_matches += (writes_sentinel)
-                               ? sentinel_writers.size()
-                               : active_flushing_tile.size() - sentinel_writers.size();
-            }
-          }
-
+          active_flushing_tile.sync();
           // if the buffer has not enough empty slots for the next iteration
-          if (num_matches > (buffer_size - max_matches_per_step)) {
+          if (counters[flushing_tile_id] > (buffer_size - max_matches_per_step)) {
             flush_buffers(active_flushing_tile);
+            active_flushing_tile.sync();
 
             // reset buffer counter
-            num_matches = 0;
+            if (active_flushing_tile.thread_rank() == 0) { counters[flushing_tile_id] = 0; }
+            active_flushing_tile.sync();
           }
-
-          // the entire flushing tile has finished its work
-          if (finished) { break; }
 
           // onto the next probing bucket
           ++probing_iter;
-        }
-
-        // entire flusing_tile has finished; flush remaining elements
-        if (num_matches != 0 and active_flushing_tile.all((idx + stride) >= n)) {
-          flush_buffers(active_flushing_tile);
-        }
-      }
+          if (*probing_iter == init_idx) { running = false; }
+        }  // while running
+      }  // if active_flag
 
       // onto the next key
       idx += stride;
     }
+
+    flushing_tile.sync();
+    // entire flusing_tile has finished; flush remaining elements
+    if (counters[flushing_tile_id] > 0) { flush_buffers(flushing_tile); }
   }
 
   /**
@@ -1294,18 +1450,20 @@ class open_addressing_ref_impl {
    * @param callback_op Function to apply to every matched slot
    */
   template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
+  __device__ void for_each(ProbeKey key, CallbackOp&& callback_op) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
-    auto probing_iter = this->probing_scheme_(key, this->storage_ref_.bucket_extent());
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-      for (int32_t i = 0; i < bucket_size; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+      for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
             return;
           }
@@ -1317,6 +1475,7 @@ class open_addressing_ref_impl {
         }
       }
       ++probing_iter;
+      if (*probing_iter == init_idx) { return; }
     }
   }
 
@@ -1334,26 +1493,29 @@ class open_addressing_ref_impl {
    *
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to apply to every matched slot
    */
-  template <class ProbeKey, class CallbackOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
-                           ProbeKey const& key,
+  template <class ProbeKey, class CallbackOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                           ProbeKey key,
                            CallbackOp&& callback_op) const noexcept
   {
-    auto probing_iter = this->probing_scheme_(group, key, this->storage_ref_.bucket_extent());
-    bool empty        = false;
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
+    bool empty          = false;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-      for (int32_t i = 0; i < bucket_size and !empty; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+      for (cuda::std::int32_t i = 0; i < bucket_size and !empty; ++i) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
             empty = true;
             continue;
@@ -1370,6 +1532,7 @@ class open_addressing_ref_impl {
       if (group.any(empty)) { return; }
 
       ++probing_iter;
+      if (*probing_iter == init_idx) { return; }
     }
   }
 
@@ -1394,28 +1557,31 @@ class open_addressing_ref_impl {
    * @tparam ProbeKey Probe key type
    * @tparam CallbackOp Type of unary callback function object
    * @tparam SyncOp Type of function object which accepts the current `group` object
+   * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform this operation
    * @param key The key to search for
    * @param callback_op Function to apply to every matched slot
    * @param sync_op Function that is allowed to synchronize `group` inbetween probing buckets
    */
-  template <class ProbeKey, class CallbackOp, class SyncOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
-                           ProbeKey const& key,
+  template <class ProbeKey, class CallbackOp, class SyncOp, typename ParentCG>
+  __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                           ProbeKey key,
                            CallbackOp&& callback_op,
                            SyncOp&& sync_op) const noexcept
   {
-    auto probing_iter = this->probing_scheme_(group, key, this->storage_ref_.bucket_extent());
-    bool empty        = false;
+    auto probing_iter =
+      probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
+    auto const init_idx = *probing_iter;
+    bool empty          = false;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-      for (int32_t i = 0; i < bucket_size and !empty; ++i) {
-        switch (
-          this->predicate_.operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]))) {
+      for (cuda::std::int32_t i = 0; i < bucket_size and !empty; ++i) {
+        switch (this->predicate_.template operator()<is_insert::NO>(
+          key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
             empty = true;
             continue;
@@ -1433,7 +1599,21 @@ class open_addressing_ref_impl {
       if (group.any(empty)) { return; }
 
       ++probing_iter;
+      if (*probing_iter == init_idx) { return; }
     }
+  }
+
+  /**
+   * @brief Gets a pointer to the slot at the given probing index and intra-bucket index.
+   *
+   * @param probing_idx The current probing index
+   * @param intra_bucket_idx The index within the bucket (0 for flat storage)
+   * @return Pointer to the slot
+   */
+  __device__ value_type* get_slot_ptr(size_type probing_idx,
+                                      cuda::std::int32_t intra_bucket_idx) const noexcept
+  {
+    return storage_ref_.data() + probing_idx + intra_bucket_idx;
   }
 
   /**
@@ -1446,10 +1626,9 @@ class open_addressing_ref_impl {
    * @return The key
    */
   template <typename Value>
-  [[nodiscard]] __host__ __device__ constexpr auto const& extract_key(
-    Value const& value) const noexcept
+  [[nodiscard]] __host__ __device__ constexpr auto extract_key(Value value) const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return thrust::raw_reference_cast(value).first;
     } else {
       return thrust::raw_reference_cast(value);
@@ -1467,8 +1646,8 @@ class open_addressing_ref_impl {
    *
    * @return The payload
    */
-  template <typename Value, typename Enable = std::enable_if_t<has_payload and sizeof(Value)>>
-  [[nodiscard]] __device__ constexpr auto const& extract_payload(Value const& value) const noexcept
+  template <typename Value, typename Enable = cuda::std::enable_if_t<has_payload and sizeof(Value)>>
+  [[nodiscard]] __host__ __device__ constexpr auto extract_payload(Value value) const noexcept
   {
     return thrust::raw_reference_cast(value).second;
   }
@@ -1483,9 +1662,9 @@ class open_addressing_ref_impl {
    * @return The converted object
    */
   template <typename T>
-  [[nodiscard]] __device__ constexpr value_type native_value(T const& value) const noexcept
+  [[nodiscard]] __device__ constexpr value_type native_value(T value) const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return {static_cast<key_type>(this->extract_key(value)), this->extract_payload(value)};
     } else {
       return static_cast<value_type>(value);
@@ -1503,9 +1682,9 @@ class open_addressing_ref_impl {
    * @return The converted object
    */
   template <typename T>
-  [[nodiscard]] __device__ constexpr auto heterogeneous_value(T const& value) const noexcept
+  [[nodiscard]] __device__ constexpr auto heterogeneous_value(T value) const noexcept
   {
-    if constexpr (this->has_payload and not cuda::std::is_same_v<T, value_type>) {
+    if constexpr (has_payload and not cuda::std::is_same_v<T, value_type>) {
       using mapped_type = decltype(this->empty_value_sentinel());
       if constexpr (cuco::detail::is_cuda_std_pair_like<T>::value) {
         return cuco::pair{cuda::std::get<0>(value),
@@ -1525,9 +1704,9 @@ class open_addressing_ref_impl {
    *
    * @return The sentinel value used to represent an erased slot
    */
-  [[nodiscard]] __device__ constexpr value_type const erased_slot_sentinel() const noexcept
+  [[nodiscard]] __device__ constexpr value_type erased_slot_sentinel() const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return cuco::pair{this->erased_key_sentinel(), this->empty_value_sentinel()};
     } else {
       return this->erased_key_sentinel();
@@ -1550,7 +1729,8 @@ class open_addressing_ref_impl {
                                                               value_type expected,
                                                               Value desired) noexcept
   {
-    using packed_type = cuda::std::conditional_t<sizeof(value_type) == 4, uint32_t, uint64_t>;
+    using packed_type =
+      cuda::std::conditional_t<sizeof(value_type) == 4, cuda::std::uint32_t, cuda::std::uint64_t>;
 
     auto* slot_ptr     = reinterpret_cast<packed_type*>(address);
     auto* expected_ptr = reinterpret_cast<packed_type*>(&expected);
@@ -1586,8 +1766,8 @@ class open_addressing_ref_impl {
    */
   template <typename Value>
   [[nodiscard]] __device__ constexpr insert_result back_to_back_cas(value_type* address,
-                                                                    value_type const& expected,
-                                                                    Value const& desired) noexcept
+                                                                    value_type expected,
+                                                                    Value desired) noexcept
   {
     using mapped_type = cuda::std::decay_t<decltype(this->empty_value_sentinel())>;
 
@@ -1637,8 +1817,9 @@ class open_addressing_ref_impl {
    * @return Result of this operation, i.e., success/continue/duplicate
    */
   template <typename Value>
-  [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(
-    value_type* address, value_type const& expected, Value const& desired) noexcept
+  [[nodiscard]] __device__ constexpr insert_result cas_dependent_write(value_type* address,
+                                                                       value_type expected,
+                                                                       Value desired) noexcept
   {
     using mapped_type = cuda::std::decay_t<decltype(this->empty_value_sentinel())>;
 
@@ -1679,8 +1860,8 @@ class open_addressing_ref_impl {
    */
   template <typename Value>
   [[nodiscard]] __device__ insert_result attempt_insert(value_type* address,
-                                                        value_type const& expected,
-                                                        Value const& desired) noexcept
+                                                        value_type expected,
+                                                        Value desired) noexcept
   {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(address, expected, desired);
@@ -1712,8 +1893,8 @@ class open_addressing_ref_impl {
    */
   template <typename Value>
   [[nodiscard]] __device__ insert_result attempt_insert_stable(value_type* address,
-                                                               value_type const& expected,
-                                                               Value const& desired) noexcept
+                                                               value_type expected,
+                                                               Value desired) noexcept
   {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(address, expected, desired);
@@ -1734,7 +1915,7 @@ class open_addressing_ref_impl {
    * @param sentinel The slot sentinel value
    */
   template <typename T>
-  __device__ void wait_for_payload(T& slot, T const& sentinel) const noexcept
+  __device__ void wait_for_payload(T& slot, T sentinel) const noexcept
   {
     auto ref = cuda::atomic_ref<T, Scope>{slot};
     T current;

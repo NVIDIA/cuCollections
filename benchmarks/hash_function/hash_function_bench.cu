@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,7 +34,6 @@ template <int32_t Words>
 struct large_key {
   constexpr __host__ __device__ large_key(int32_t seed) noexcept
   {
-#pragma unroll Words
     for (int32_t i = 0; i < Words; ++i) {
       data_[i] = seed;
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/functional>
 #include <cuda/stream_ref>
-#include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -82,7 +82,7 @@ namespace cuco {
 template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class KeyEqual           = thrust::equal_to<Key>,
+          class KeyEqual           = cuda::std::equal_to<Key>,
           class ProbingScheme      = cuco::double_hashing<4,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<Key>,
@@ -106,7 +106,6 @@ class static_set {
   using storage_ref_type    = typename impl_type::storage_ref_type;
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
   using hasher              = typename probing_scheme_type::hasher;     ///< Hash function type
-
   template <typename... Operators>
   using ref_type = cuco::static_set_ref<key_type,
                                         thread_scope,
@@ -133,7 +132,7 @@ class static_set {
    * and CUDA stream
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the set
    * results in undefined behavior.
    *
@@ -167,7 +166,7 @@ class static_set {
    * the desired load factor without manually computing the desired capacity. The actual set
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
+   * size, and the bucket size and is computed via the `make_valid_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -206,7 +205,7 @@ class static_set {
    * and CUDA stream.
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the set
    * results in undefined behavior.
    *
@@ -591,12 +590,40 @@ class static_set {
                   cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds an element with key
+   * equivalent to the query key.
+   *
+   * @note If the key `*(first + i)` has a matched `element` in the set, copies `element` to
+   * `(output_begin + i)`. Else, copies the empty key sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type that can be constructed from
+   * an integer value
+   * @tparam OutputIt Device accessible output iterator assignable from the set's `key_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param output_begin Beginning of the sequence of elements retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename ProbeEqual, typename ProbeHash, typename OutputIt>
+  void find_async(InputIt first,
+                  InputIt last,
+                  ProbeEqual const& probe_equal,
+                  ProbeHash const& probe_hash,
+                  OutputIt output_begin,
+                  cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief For all keys in the range `[first, last)`, finds a match with its key equivalent to the
    * query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `find_if_async`.
    *
@@ -628,8 +655,8 @@ class static_set {
    * a match with its key equivalent to the query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
@@ -651,6 +678,49 @@ class static_set {
                      InputIt last,
                      StencilIt stencil,
                      Predicate pred,
+                     OutputIt output_begin,
+                     cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds
+   * a match with its key equivalent to the query key.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores the payload of the
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
+   * Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type that can be constructed from
+   * an integer value
+   * @tparam OutputIt Device accessible output iterator
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param output_begin Beginning of the sequence of matches retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename ProbeEqual,
+            typename ProbeHash,
+            typename OutputIt>
+  void find_if_async(InputIt first,
+                     InputIt last,
+                     StencilIt stencil,
+                     Predicate pred,
+                     ProbeEqual const& probe_equal,
+                     ProbeHash const& probe_hash,
                      OutputIt output_begin,
                      cuda::stream_ref stream = {}) const;
 
@@ -772,44 +842,6 @@ class static_set {
                                            cuda::stream_ref stream = {}) const;
 
   /**
-   * @brief Asynchronously retrieves the matched key in the set corresponding to all probe keys in
-   * the range `[first, last)`
-   *
-   * If key `k = *(first + i)` has a match `m` in the set, copies a `cuco::pair{k, m}` to
-   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
-   *
-   * @note Behavior is undefined if the size of the output range exceeds
-   * `std::distance(output_begin, output_end)`.
-   * @note Behavior is undefined if the given key has multiple matches in the set.
-   *
-   * @throw This API will always throw since it's not implemented.
-   *
-   * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator whose `value_type` can be constructed from
-   * `cuco::pair<ProbeKey, Key>`
-   * @tparam ProbeEqual Binary callable equal type
-   * @tparam ProbeHash Unary callable hasher type that can be constructed from
-   * an integer value
-   *
-   * @param first Beginning of the sequence of probe keys
-   * @param last End of the sequence of probe keys
-   * @param output_begin Beginning of the sequence of probe key and set key pairs retrieved for each
-   * probe key
-   * @param probe_equal The binary function to compare set keys and probe keys for equality
-   * @param probe_hash The unary function to hash probe keys
-   * @param stream CUDA stream used for retrieve
-   *
-   * @return The iterator indicating the last valid pair in the output
-   */
-  template <typename InputIt, typename OutputIt, typename ProbeEqual, typename ProbeHash>
-  OutputIt retrieve(InputIt first,
-                    InputIt last,
-                    OutputIt output_begin,
-                    ProbeEqual const& probe_equal = ProbeEqual{},
-                    ProbeHash const& probe_hash   = ProbeHash{},
-                    cuda::stream_ref stream       = {}) const;
-
-  /**
    * @brief Retrieves all keys contained in the set.
    *
    * @note This API synchronizes the given stream.
@@ -852,7 +884,7 @@ class static_set {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -877,7 +909,7 @@ class static_set {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -900,6 +932,13 @@ class static_set {
    * @return The maximum number of elements the hash set can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept;
+
+  /**
+   * @brief Gets a pointer to the underlying slot storage.
+   *
+   * @return Pointer to the underlying slot storage
+   */
+  [[nodiscard]] __host__ value_type* data() const;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.

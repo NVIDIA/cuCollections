@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -77,7 +77,6 @@ class static_multiset_ref
   using hasher              = typename probing_scheme_type::hasher;    ///< Hash function type
   using storage_ref_type    = StorageRef;                              ///< Type of storage ref
   using bucket_type         = typename storage_ref_type::bucket_type;  ///< Bucket type
-  using window_type         = bucket_type;                             ///< Bucket type
   using value_type          = typename storage_ref_type::value_type;   ///< Storage element type
   using extent_type         = typename storage_ref_type::extent_type;  ///< Extent type
   using size_type           = typename storage_ref_type::size_type;    ///< Probing scheme size type
@@ -142,6 +141,13 @@ class static_multiset_ref
    * @return The maximum number of elements the container can hold
    */
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept;
+
+  /**
+   * @brief Gets the extent of the current storage.
+   *
+   * @return The bucket extent.
+   */
+  [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept;
 
   /**
    * @brief Gets the bucket extent of the current storage.
@@ -243,6 +249,43 @@ class static_multiset_ref
    */
   template <typename NewHash>
   [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(NewHash const& hash) const;
+
+  /**
+   * @brief Makes a copy of the current device reference using non-owned memory
+   *
+   * This function is intended to be used to create shared memory copies of small static sets,
+   * although global memory can be used as well.
+   *
+   * @note This function synchronizes the group `tile`.
+   * @note By-default the thread scope of the copy will be the same as the scope of the parent ref.
+   *
+   * @tparam CG The type of the cooperative thread group
+   * @tparam NewScope The thread scope of the newly created device ref
+   *
+   * @param tile The cooperative thread group used to copy the data structure
+   * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
+   * the ownership of the memory
+   * @param scope The thread scope of the newly created device ref
+   *
+   * @return Copy of the current device ref
+   */
+  template <typename CG, cuda::thread_scope NewScope = thread_scope>
+  [[nodiscard]] __device__ constexpr auto make_copy(
+    CG tile,
+    bucket_type* const memory_to_use,
+    cuda_thread_scope<NewScope> scope = {}) const noexcept;
+
+  /**
+   * @brief Initializes the set storage using the threads in the group `tile`.
+   *
+   * @note This function synchronizes the group `tile`.
+   *
+   * @tparam CG The type of the cooperative thread group
+   *
+   * @param tile The cooperative thread group used to initialize the set
+   */
+  template <typename CG>
+  __device__ constexpr void initialize(CG tile) noexcept;
 
  private:
   impl_type impl_;

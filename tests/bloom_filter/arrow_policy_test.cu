@@ -33,37 +33,43 @@ template <typename Key>
 thrust::device_vector<uint32_t> get_arrow_filter_reference_bitset()
 {
   static std::vector<thrust::device_vector<uint32_t>> const reference_bitsets{
-    {4294752255,
-     928963967,
-     4227333887,
-     3183462382,
-     3892030683,
-     3481206270,
-     3513757613,
-     3220961761,
-     3186616955,
-     4026531705,
-     4110408887,
-     804913147,
-     1039007726,
-     4286569403,
-     2675948542,
-     3688689479},  // type = int32, blocks = 2, num_keys = 100
-    {2290897413, 3368027184, 2432735301, 2013315170, 610406792,  35787348,   43061541,
-     1145143906, 238486532,  2840527950, 241188878,  624061504,  759830680,  184694210,
-     2282459916, 3232258264, 285316692,  3284142851, 2760958614, 2974341265, 38749317,
-     2655160577, 2193666087, 261196816,  411328595,  5391621,    2308014147, 2550892738,
-     1224755395, 1396835974, 3227911200, 307324929},  // type = int64, blocks = 4, num_keys = 50
-    {3037098621, 1001208422, 3070541682, 3611620780, 372254302,  2869772027, 2629135999,
-     3332804862, 2832966981, 1225184253, 1315442262, 211922492,  1020510327, 2725704195,
-     2909038118, 2783622989, 4214109798, 535934391,  2385459605, 4109595381, 3219664733,
-     3164400602, 1995984498, 2917029602, 3047576211, 2212973933, 1672737343, 300902378,
-     3000318461, 1561320274, 2710202091, 3067275349, 2734901244, 2638172076, 3669981206,
-     3719000395, 793729452,  2258222966, 4111863618, 2391109497, 240119500,  855317864,
-     2893522276, 1103034386, 738173080,  4098968587, 1271241025, 499361504,  4174530401,
-     3259956170, 3823469907, 578271374,  3168397042, 3890816473, 431898609,  1583427570,
-     1835797371, 2078281027, 2741410265, 2639785266, 3422606831, 1589476610, 3972396492,
-     3611525326}  // type = float, blocks = 8, num_keys = 200
+    {
+      3017764846,
+      4219371383,
+      4160077310,
+      3214786543,
+      4020088765,
+      4294437885,
+      2013200345,
+      2550116063,
+      855631359,
+      4290436829,
+      2884632042,
+      1592483646,
+      4281695998,
+      2080111551,
+      3220060030,
+      4021279731,
+    },  // type = int32, blocks = 2, num_keys = 100
+    {
+      860053560,  186397876,  1518788617, 2013987426, 545522943,  79856155,   103371656,
+      20265733,   2168586373, 1210138712, 2437452036, 1342183988, 1107366672, 3560981000,
+      2184221186, 1661010032, 2317009736, 1442875878, 1116227467, 3458613792, 114398528,
+      679658134,  206734656,  340863450,  2220104352, 141846788,  948331524,  2344943952,
+      4030989912, 3239203139, 2941256193, 4035057968,
+    },  // type = int64, blocks = 4, num_keys = 50
+    {
+      3807057303, 3207519405, 2508188120, 1491024175, 2073585514, 2094743110, 2533287591,
+      691662424,  1498889215, 2069126314, 2270481639, 796401059,  1961968732, 3512881027,
+      3162306144, 2277085974, 3477648628, 1090385857, 4035761415, 1165385841, 4047856262,
+      2297893848, 902599838,  418175153,  1437192944, 3673877288, 1536198910, 98677451,
+      3620189521, 3794688342, 3625373537, 3550967313, 2119503598, 1805574667, 4076413870,
+      2999897588, 3050286944, 4146882307, 3459690182, 167235913,  2078961096, 1863964920,
+      1408130860, 4190644775, 532451008,  1563872186, 2529714129, 465761275,  3161649891,
+      4204002248, 3931628891, 3251515903, 1421507581, 3849056446, 1748476671, 4223388125,
+      1627644727, 2717076288, 2992639576, 3864567831, 190096788,  1885360347, 724608293,
+      2768994330,
+    }  // type = float, blocks = 8, num_keys = 200
   };
 
   if constexpr (std::is_same_v<Key, int32_t>) {
@@ -98,22 +104,10 @@ std::pair<size_t, size_t> get_arrow_filter_test_settings()
 }
 
 template <typename Key>
-std::vector<Key> random_values(size_t size)
+std::vector<Key> sequence_values(size_t size)
 {
   std::vector<Key> values(size);
-
-  using uniform_distribution =
-    typename std::conditional_t<std::is_same_v<Key, bool>,
-                                std::bernoulli_distribution,
-                                std::conditional_t<std::is_floating_point_v<Key>,
-                                                   std::uniform_real_distribution<Key>,
-                                                   std::uniform_int_distribution<Key>>>;
-
-  static constexpr auto seed = 0xf00d;
-  static std::mt19937 engine{seed};
-  static uniform_distribution dist{};
-  std::generate_n(values.begin(), size, [&]() { return Key{dist(engine)}; });
-
+  std::iota(values.begin(), values.end(), Key{1});
   return values;
 }
 
@@ -126,7 +120,7 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
   using word_type = typename Filter::word_type;
 
   // Generate keys
-  auto const h_keys = random_values<key_type>(num_keys);
+  auto const h_keys = sequence_values<key_type>(num_keys);
   thrust::device_vector<key_type> d_keys(h_keys.begin(), h_keys.end());
 
   // Insert to the bloom filter
@@ -150,8 +144,12 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
     })));
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "Arrow filter policy bitset validation", "", (class Key), (int32_t), (int64_t), (float))
+TEMPLATE_TEST_CASE_SIG("bloom_filter arrow filter policy bitset validation",
+                       "",
+                       (class Key),
+                       (int32_t),
+                       (int64_t),
+                       (float))
 {
   // Get test settings
   auto const [sub_filters, num_keys] = get_arrow_filter_test_settings<Key>();

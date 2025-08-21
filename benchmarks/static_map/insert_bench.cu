@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
@@ -52,12 +52,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
     return pair_type(key, {});
   });
 
-  state.add_element_count(num_keys);
-
   auto map = cuco::static_map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
-  state.exec([&](nvbench::launch& launch) {
+  state.add_element_count(num_keys);
+  state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+    timer.start();
     map.insert_async(pairs.begin(), pairs.end(), {launch.get_stream()});
+    timer.stop();
+    map.clear_async({launch.get_stream()});
   });
 }
 

@@ -82,9 +82,9 @@ class bloom_filter {
   using size_type   = typename extent_type::value_type;  ///< Underlying type of the extent type
   using word_type =
     typename ref_type<>::word_type;  ///< Underlying word/segment type of a filter block
-  using allocator_type =
-    typename std::allocator_traits<Allocator>::template rebind_alloc<word_type>;  ///< Allocator
-                                                                                  ///< type
+  using allocator_type = typename std::allocator_traits<Allocator>::template rebind_alloc<
+    typename ref_type<>::filter_block_type>;  ///< Allocator
+                                              ///< type
 
   bloom_filter(bloom_filter const&) = delete;  ///< Copy constructor is not available
   bloom_filter& operator=(bloom_filter const&) =
@@ -349,7 +349,8 @@ class bloom_filter {
 
  private:
   allocator_type allocator_;  ///< Allocator used to allocate device-accessible storage
-  std::unique_ptr<word_type, detail::custom_deleter<std::size_t, allocator_type>>
+  std::unique_ptr<typename ref_type<>::filter_block_type,
+                  detail::custom_deleter<std::size_t, allocator_type>>
     data_;          ///< Storage of the current `bloom_filter` object
   ref_type<> ref_;  ///< Device ref of the current `bloom_filter` object
 };

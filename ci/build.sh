@@ -37,6 +37,9 @@ resolve_path() {
 # Ensure the script is being executed in its containing directory
 cd "$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )";
 
+# Determine repo root as the parent of the `ci` directory
+REPO_ROOT="$(cd .. && pwd)"
+
 # Script defaults
 BUILD_TESTS=${BUILD_TESTS:-OFF}
 BUILD_EXAMPLES=${BUILD_EXAMPLES:-OFF}
@@ -50,6 +53,13 @@ CUDA_COMPILER=${CUDACXX:-nvcc} # $CUDACXX if set, otherwise `nvcc`
 HOST_COMPILER=${CXX:-g++} # $CXX if set, otherwise `g++`
 CUDA_ARCHS=native # detect system's GPU architectures
 CXX_STANDARD=17
+
+# Initialize CMAKE_ARGS from environment variable if available
+if [ -n "${CMAKE_ARGS:-}" ]; then
+    read -ra CMAKE_ARGS <<< "$CMAKE_ARGS"
+else
+    CMAKE_ARGS=()
+fi
 
 function usage {
     echo "cuCollections build script"
@@ -103,6 +113,16 @@ function usage {
     echo "    Enables verbose mode for detailed output and builds with C++17 standard."
     echo "    Build files will be written to <repo_root>/build/local and symlinked to <repo_root>/build/latest."
     echo
+    echo "  Using CMAKE_ARGS Environment Variable:"
+    echo "    $ CMAKE_ARGS=\"-DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_FEATURE=ON\" $0 -t"
+    echo "    $ export CMAKE_ARGS=\"-DCMAKE_VERBOSE_MAKEFILE=ON -DENABLE_FEATURE=ON\""
+    echo "    $ $0 -t"
+    echo "    Uses CMAKE_ARGS environment variable to pass additional CMake options."
+    echo "    Can be overridden by using -- followed by specific arguments."
+    echo
+    echo "  Pass-through to CMake:"
+    echo "    -- [CMake args...]  Anything after -- is forwarded to CMake (overrides CMAKE_ARGS env var)"
+    echo
     exit 1
 }
 
@@ -126,20 +146,21 @@ while [ "${#args[@]}" -ne 0 ]; do
     --arch) CUDA_ARCHS="${args[1]}";    args=("${args[@]:2}");;
     --std)  CXX_STANDARD="${args[1]}";  args=("${args[@]:2}");;
     -v | -verbose | --verbose) VERBOSE=1; args=("${args[@]:1}");;
+    --) CMAKE_ARGS=("${args[@]:1}"); break;;
     -h | -help | --help) usage ;;
     *) echo "Unrecognized option: ${args[0]}"; usage ;;
     esac
 done
+
+if [ $VERBOSE ]; then
+    set -x
+fi
 
 # Convert to full paths:
 HOST_COMPILER=$(which ${HOST_COMPILER})
 CUDA_COMPILER=$(which ${CUDA_COMPILER})
 # Make CUDA arch list compatible with cmake
 CUDA_ARCHS=$(echo "$CUDA_ARCHS" | tr ' ,' ';;')
-
-if [ $VERBOSE ]; then
-    set -x
-fi
 
 # Begin processing unsets after option parsing
 set -u
@@ -156,14 +177,12 @@ if [ "$BUILD_TESTS" == "OFF" ] && [ "$BUILD_EXAMPLES" == "OFF" ] && [ "$BUILD_BE
     BUILD_BENCHMARKS=ON
 fi
 
+BUILD_DIR="$BUILD_PREFIX/$BUILD_INFIX"
 # Trigger clean (re-)build
 if [ "$CLEAN_BUILD" -eq 1 ]; then
     rm -rf BUILD_DIR
 fi
-
-BUILD_DIR="$BUILD_PREFIX/$BUILD_INFIX"
 mkdir -p $BUILD_DIR
-export BUILD_DIR # TODO remove
 
 # The most recent build will be symlinked to cuCollections/build/latest
 rm -f $BUILD_PREFIX/latest
@@ -186,12 +205,13 @@ CMAKE_OPTIONS="
     -DBUILD_TESTS=${BUILD_TESTS} \
     -DBUILD_EXAMPLES=${BUILD_EXAMPLES} \
     -DBUILD_BENCHMARKS=${BUILD_BENCHMARKS} \
+    ${CMAKE_ARGS[*]}
 "
 
-echo "========================================"
-echo "-- START: $(date)"
-echo "-- GIT_SHA: $(git rev-parse HEAD 2>/dev/null || echo 'Not a repository')"
-echo "-- PWD: $(pwd)"
+echo "[INFO]=============================================="
+echo "-- TIMESTAMP: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+echo "-- GIT_SHA: $(git rev-parse HEAD 2>/dev/null || echo 'N/A')"
+echo "-- SRC_DIR: ${REPO_ROOT}"
 echo "-- BUILD_DIR: ${BUILD_DIR}"
 echo "-- BUILD_TYPE: ${BUILD_TYPE}"
 echo "-- PARALLEL_LEVEL: ${PARALLEL_LEVEL}"
@@ -200,17 +220,25 @@ echo "-- BUILD_TESTS: ${BUILD_TESTS}"
 echo "-- BUILD_EXAMPLES: ${BUILD_EXAMPLES}"
 echo "-- BUILD_BENCHMARKS: ${BUILD_BENCHMARKS}"
 
+if [ ${#CMAKE_ARGS[@]} -gt 0 ]; then
+    echo "-- CMAKE_ARGS: ${CMAKE_ARGS[*]}"
+else
+    echo "-- CMAKE_ARGS: (none)"
+fi
+
 # configure
+echo "[CONFIGURE]========================================"
 cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
-echo "========================================"
 
 if command -v sccache >/dev/null; then
     source "./sccache_stats.sh" start
+else
+    echo "sccache stats: N/A"
 fi
 
 #build
+echo "[BUILD]============================================"
 cmake --build $BUILD_DIR --parallel $PARALLEL_LEVEL
-echo "========================================"
 echo "Build complete"
 
 if command -v sccache >/dev/null; then

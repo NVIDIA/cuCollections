@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,7 +18,9 @@
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/pair/traits.hpp>
 
-namespace cuco::open_addressing_ns::detail {
+#include <cuda/std/tuple>
+
+namespace cuco::detail::open_addressing_ns {
 
 /**
  * @brief Device functor returning the content of the slot indexed by `idx`
@@ -45,13 +47,11 @@ struct get_slot {
    */
   __device__ constexpr auto operator()(typename StorageRef::size_type idx) const noexcept
   {
-    auto const bucket_idx = idx / StorageRef::bucket_size;
-    auto const intra_idx  = idx % StorageRef::bucket_size;
     if constexpr (HasPayload) {
-      auto const [first, second] = storage_[bucket_idx][intra_idx];
-      return thrust::make_tuple(first, second);
+      auto const [first, second] = *(storage_.data() + idx);
+      return cuda::std::tuple{first, second};
     } else {
-      return storage_[bucket_idx][intra_idx];
+      return *(storage_.data() + idx);
     }
   }
 };
@@ -73,7 +73,7 @@ struct slot_is_filled {
    * @param empty_sentinel Key sentinel indicating an empty slot
    * @param erased_sentinel Key sentinel indicating an erased slot
    */
-  explicit constexpr slot_is_filled(T const& empty_sentinel, T const& erased_sentinel) noexcept
+  explicit constexpr slot_is_filled(T empty_sentinel, T erased_sentinel) noexcept
     : empty_sentinel_{empty_sentinel}, erased_sentinel_{erased_sentinel}
   {
   }
@@ -88,13 +88,13 @@ struct slot_is_filled {
    * @return `true` if slot is filled
    */
   template <typename S>
-  __device__ constexpr bool operator()(S const& slot) const noexcept
+  __device__ constexpr bool operator()(S slot) const noexcept
   {
     auto const key = [&]() {
       if constexpr (HasPayload) {
         // required by thrust zip iterator in `retrieve_all`
         if constexpr (cuco::detail::is_cuda_std_pair_like<S>::value) {
-          return thrust::get<0>(slot);
+          return cuda::std::get<0>(slot);
         } else {
           return slot.first;
         }
@@ -107,4 +107,4 @@ struct slot_is_filled {
   }
 };
 
-}  // namespace cuco::open_addressing_ns::detail
+}  // namespace cuco::detail::open_addressing_ns

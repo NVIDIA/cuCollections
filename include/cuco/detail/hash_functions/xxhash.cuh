@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -114,7 +114,7 @@ struct XXHash_32 {
                                                          Extent size) const noexcept
   {
     std::size_t offset = 0;
-    std::uint32_t h32;
+    std::uint32_t h32{};
 
     // data can be processed in 16-byte chunks
     if (size >= 16) {
@@ -297,7 +297,7 @@ struct XXHash_64 {
                                                          Extent size) const noexcept
   {
     std::size_t offset = 0;
-    std::uint64_t h64;
+    std::uint64_t h64{};
 
     // data can be processed in 32-byte chunks
     if (size >= 32) {

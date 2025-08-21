@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@
 #include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
@@ -82,8 +81,11 @@ struct custom_key_equal {
   }
 };
 
-TEMPLATE_TEST_CASE_SIG(
-  "Heterogeneous lookup", "", ((typename T, int CGSize), T, CGSize), (int32_t, 1), (int32_t, 2))
+TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup tests",
+                       "",
+                       ((typename T, int CGSize), T, CGSize),
+                       (int32_t, 1),
+                       (int32_t, 2))
 {
   using Key        = T;
   using InsertKey  = key_pair<T>;
@@ -111,13 +113,13 @@ TEMPLATE_TEST_CASE_SIG(
     thrust::device_vector<bool> contained(num);
     my_set.insert(insert_keys, insert_keys + num);
     my_set.contains(probe_keys, probe_keys + num, contained.begin());
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Non-inserted keys should not be contained")
   {
     thrust::device_vector<bool> contained(num);
     my_set.contains(probe_keys, probe_keys + num, contained.begin());
-    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 }

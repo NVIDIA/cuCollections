@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,9 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/std/atomic>
+#include <cuda/std/functional>
+#include <cuda/std/utility>
 #include <cuda/stream_ref>
-#include <thrust/functional.h>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -50,12 +51,12 @@ namespace cuco {
  *
  * The host-side bulk operations include `insert`, `contains`, etc. These APIs should be used when
  * there are a large number of keys to modify or lookup. For example, given a range of keys
- * specified by device-accessible iterators, the bulk `insert` function will insert all keys into
+ * specified by device-accessible iterators, the bulk `insert` function inserts all keys into
  * the map.
  *
  * The singular device-side operations allow individual threads (or cooperative groups) to perform
  * independent modify or lookup operations from device code. These operations are accessed through
- * non-owning, trivially copyable reference types (or "ref"). User can combine any arbitrary
+ * non-owning, trivially copyable reference types (or "ref"). Users can combine any arbitrary
  * operators (see options in `include/cuco/operator.hpp`) when creating the ref. Concurrent modify
  * and lookup will be supported if both kinds of operators are specified during the ref
  * construction.
@@ -89,7 +90,7 @@ template <class Key,
           class T,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class KeyEqual           = thrust::equal_to<Key>,
+          class KeyEqual           = cuda::std::equal_to<Key>,
           class ProbingScheme      = cuco::linear_probing<4,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
@@ -157,7 +158,7 @@ class static_map {
    * and CUDA stream
    *
    * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *
@@ -193,7 +194,7 @@ class static_map {
    * the desired load factor without manually computing the desired capacity. The actual map
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
+   * size, and the bucket size and is computed via the `make_valid_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -234,7 +235,7 @@ class static_map {
    * and CUDA stream.
    *
    * The actual map capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the map. Attempting to insert more unique keys than the capacity of the map
    * results in undefined behavior.
    *
@@ -768,12 +769,39 @@ class static_map {
                   cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds an element with key
+   * equivalent to the query key.
+   *
+   * @note If the key `*(first + i)` has a matched `element` in the map, copies the payload of
+   * `element` to `(output_begin + i)`. Else, copies the empty value sentinel.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type
+   * @tparam OutputIt Device accessible output iterator assignable from the map's `mapped_type`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param probe_equal The binary function to compare map keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param output_begin Beginning of the sequence of elements retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt, typename ProbeEqual, typename ProbeHash, typename OutputIt>
+  void find_async(InputIt first,
+                  InputIt last,
+                  ProbeEqual const& probe_equal,
+                  ProbeHash const& probe_hash,
+                  OutputIt output_begin,
+                  cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief For all keys in the range `[first, last)`, finds a match with its key equivalent to the
    * query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `find_if_async`.
    *
@@ -805,8 +833,8 @@ class static_map {
    * a match with its key equivalent to the query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
@@ -828,6 +856,48 @@ class static_map {
                      InputIt last,
                      StencilIt stencil,
                      Predicate pred,
+                     OutputIt output_begin,
+                     cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief For all keys in the range `[first, last)`, asynchronously finds
+   * a match with its key equivalent to the query key.
+   *
+   * @note If `pred( *(stencil + i) )` is true, stores the payload of the
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
+   * Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type
+   * @tparam OutputIt Device accessible output iterator
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param probe_equal The binary function to compare map keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param output_begin Beginning of the sequence of matches retrieved for each key
+   * @param stream Stream used for executing the kernels
+   */
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename ProbeEqual,
+            typename ProbeHash,
+            typename OutputIt>
+  void find_if_async(InputIt first,
+                     InputIt last,
+                     StencilIt stencil,
+                     Predicate pred,
+                     ProbeEqual const& probe_equal,
+                     ProbeHash const& probe_hash,
                      OutputIt output_begin,
                      cuda::stream_ref stream = {}) const;
 
@@ -916,6 +986,40 @@ class static_map {
   size_type count(InputIt first, InputIt last, cuda::stream_ref stream = {}) const;
 
   /**
+   * @brief Retrieves the matched key-value pair in the map corresponding to all probe keys in the
+   * range
+   * `[first, last)`
+   *
+   * If key `k = *(first + i)` has a match `m` in the map, copies a `cuco::pair{k, m}` to
+   * unspecified locations in `[output_begin, output_end)`. Else, does nothing.
+   *
+   * @note This function synchronizes the given stream.
+   * @note Behavior is undefined if the size of the output range exceeds
+   * `std::distance(output_begin, output_end)`.
+   * @note Behavior is undefined if the given key has multiple matches in the set.
+   *
+   * @tparam InputIt Device accessible input iterator
+   * @tparam OutputProbeIt Device accessible output iterator whose `value_type` can be constructed
+   * from `ProbeKey`
+   * @tparam OutputMatchIt Device accessible output iterator whose `value_type` can be constructed
+   * from map's `value_type`
+   *
+   * @param first Beginning of the sequence of probe keys
+   * @param last End of the sequence of probe keys
+   * @param output_probe Beginning of the sequence of the probe keys that have a match
+   * @param output_match Beginning of the sequence of the matched key-value pairs
+   * @param stream CUDA stream used for retrieve
+   *
+   * @return The iterator indicating the last valid pair in the output
+   */
+  template <typename InputIt, typename OutputProbeIt, typename OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputIt first,
+                                                   InputIt last,
+                                                   OutputProbeIt output_probe,
+                                                   OutputMatchIt output_match,
+                                                   cuda::stream_ref stream = {}) const;
+
+  /**
    * @brief Retrieves all of the keys and their associated values contained in the map
    *
    * @note This API synchronizes the given stream.
@@ -926,7 +1030,7 @@ class static_map {
    *
    * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
    * convertible from `key_type`.
-   * @tparam ValueOut Device accesible random access output iterator whose `value_type` is
+   * @tparam ValueOut Device accessible random access output iterator whose `value_type` is
    * convertible from `mapped_type`.
    *
    * @param keys_out Beginning output iterator for keys
@@ -963,7 +1067,7 @@ class static_map {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -988,7 +1092,7 @@ class static_map {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -1011,6 +1115,13 @@ class static_map {
    * @return The maximum number of elements the hash map can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept;
+
+  /**
+   * @brief Gets a pointer to the underlying slot storage.
+   *
+   * @return Pointer to the underlying slot storage
+   */
+  [[nodiscard]] __host__ value_type* data() const;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.
@@ -1134,7 +1245,7 @@ namespace legacy {
  * static_map<int, int> m{100'000, empty_key_sentinel, empty_value_sentinel, erased_value_sentinel};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
- * thrust::device_vector<thrust::pair<int,int>> pairs(50,000);
+ * thrust::device_vector<cuda::std::pair<int,int>> pairs(50,000);
  * thrust::transform(thrust::make_counting_iterator(0),
  *                   thrust::make_counting_iterator(pairs.size()),
  *                   pairs.begin(),
@@ -1289,7 +1400,7 @@ class static_map {
    */
   template <typename InputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void insert(InputIt first,
               InputIt last,
               Hash hash           = Hash{},
@@ -1323,7 +1434,7 @@ class static_map {
             typename StencilIt,
             typename Predicate,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void insert_if(InputIt first,
                  InputIt last,
                  StencilIt stencil,
@@ -1361,7 +1472,7 @@ class static_map {
    */
   template <typename InputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void erase(InputIt first,
              InputIt last,
              Hash hash           = Hash{},
@@ -1390,7 +1501,7 @@ class static_map {
   template <typename InputIt,
             typename OutputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
@@ -1409,7 +1520,7 @@ class static_map {
    *
    * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
    * convertible from `key_type`.
-   * @tparam ValueOut Device accesible random access output iterator whose `value_type` is
+   * @tparam ValueOut Device accessible random access output iterator whose `value_type` is
    * convertible from `mapped_type`.
    * @param keys_out Beginning output iterator for keys
    * @param values_out Beginning output iterator for values
@@ -1445,7 +1556,7 @@ class static_map {
   template <typename InputIt,
             typename OutputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
@@ -1542,7 +1653,7 @@ class static_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename ProbeKey, typename Hash>
-    __device__ iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) noexcept
+    __device__ iterator initial_slot(CG g, ProbeKey const& k, Hash hash) noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -1562,7 +1673,7 @@ class static_map {
      * @return Pointer to the initial slot for `k`
      */
     template <typename CG, typename ProbeKey, typename Hash>
-    __device__ const_iterator initial_slot(CG const& g, ProbeKey const& k, Hash hash) const noexcept
+    __device__ const_iterator initial_slot(CG g, ProbeKey const& k, Hash hash) const noexcept
     {
       return &slots_[(hash(k) + g.thread_rank()) % capacity_];
     }
@@ -1602,7 +1713,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ iterator next_slot(CG const& g, iterator s) noexcept
+    __device__ iterator next_slot(CG g, iterator s) noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -1620,7 +1731,7 @@ class static_map {
      * @return The next slot after `s`
      */
     template <typename CG>
-    __device__ const_iterator next_slot(CG const& g, const_iterator s) const noexcept
+    __device__ const_iterator next_slot(CG g, const_iterator s) const noexcept
     {
       uint32_t index = s - slots_;
       return &slots_[(index + g.size()) % capacity_];
@@ -1911,7 +2022,7 @@ class static_map {
      */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
-      CG const& g,
+      CG g,
       pair_atomic_type* slots,
       std::size_t capacity,
       empty_key<Key> empty_key_sentinel,
@@ -1942,7 +2053,7 @@ class static_map {
      */
     template <typename CG>
     __device__ static device_mutable_view make_from_uninitialized_slots(
-      CG const& g,
+      CG g,
       pair_atomic_type* slots,
       std::size_t capacity,
       empty_key<Key> empty_key_sentinel,
@@ -1967,7 +2078,7 @@ class static_map {
      * @return `true` if the insert was successful, `false` otherwise.
      */
     template <typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ bool insert(value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -1998,8 +2109,8 @@ class static_map {
      * either `true` if the insert was successful, `false` otherwise.
      */
     template <typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ thrust::pair<iterator, bool> insert_and_find(
+              typename KeyEqual = cuda::std::equal_to<key_type>>
+    __device__ cuda::std::pair<iterator, bool> insert_and_find(
       value_type const& insert_pair, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
 
     /**
@@ -2023,8 +2134,8 @@ class static_map {
      */
     template <typename CG,
               typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool insert(CG const& g,
+              typename KeyEqual = cuda::std::equal_to<key_type>>
+    __device__ bool insert(CG g,
                            value_type const& insert_pair,
                            Hash hash          = Hash{},
                            KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -2044,7 +2155,7 @@ class static_map {
      * @return `true` if the erasure was successful, `false` otherwise.
      */
     template <typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ bool erase(key_type const& k,
                           Hash hash          = Hash{},
                           KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -2067,8 +2178,8 @@ class static_map {
      */
     template <typename CG,
               typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ bool erase(CG const& g,
+              typename KeyEqual = cuda::std::equal_to<key_type>>
+    __device__ bool erase(CG g,
                           key_type const& k,
                           Hash hash          = Hash{},
                           KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -2177,7 +2288,7 @@ class static_map {
      * @endcode
      *
      * @tparam CG The type of the cooperative thread group
-     * @param g The ooperative thread group used to copy the slots
+     * @param g The cooperative thread group used to copy the slots
      * @param source_device_view `device_view` to copy from
      * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
      * the ownership of the memory
@@ -2234,7 +2345,7 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ iterator find(Key const& k,
                              Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) noexcept;
@@ -2254,7 +2365,7 @@ class static_map {
      * containing `k` was inserted
      */
     template <typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ const_iterator find(Key const& k,
                                    Hash hash          = Hash{},
                                    KeyEqual key_equal = KeyEqual{}) const noexcept;
@@ -2281,7 +2392,7 @@ class static_map {
      */
     template <typename CG,
               typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) noexcept;
 
@@ -2307,7 +2418,7 @@ class static_map {
      */
     template <typename CG,
               typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ const_iterator
     find(CG g, Key const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
 
@@ -2336,7 +2447,7 @@ class static_map {
      */
     template <typename ProbeKey,
               typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
+              typename KeyEqual = cuda::std::equal_to<key_type>>
     __device__ bool contains(ProbeKey const& k,
                              Hash hash          = Hash{},
                              KeyEqual key_equal = KeyEqual{}) const noexcept;
@@ -2371,12 +2482,9 @@ class static_map {
     template <typename CG,
               typename ProbeKey,
               typename Hash     = cuco::default_hash_function<key_type>,
-              typename KeyEqual = thrust::equal_to<key_type>>
-    __device__ std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool> contains(
-      CG const& g,
-      ProbeKey const& k,
-      Hash hash          = Hash{},
-      KeyEqual key_equal = KeyEqual{}) const noexcept;
+              typename KeyEqual = cuda::std::equal_to<key_type>>
+    __device__ cuda::std::enable_if_t<std::is_invocable_v<KeyEqual, ProbeKey, Key>, bool> contains(
+      CG g, ProbeKey const& k, Hash hash = Hash{}, KeyEqual key_equal = KeyEqual{}) const noexcept;
   };  // class device_view
 
   /**

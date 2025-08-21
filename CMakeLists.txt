@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2024, NVIDIA CORPORATION.
+# Copyright (c) 2018-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,8 +15,10 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
+set(rapids-cmake-version 25.10)
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
-    file(DOWNLOAD https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-24.10/RAPIDS.cmake
+    file(DOWNLOAD
+      https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-${rapids-cmake-version}/RAPIDS.cmake
          ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
 endif()
 include(${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
@@ -87,6 +89,12 @@ target_link_libraries(cuco INTERFACE CCCL::CCCL CUDA::toolkit)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 
 ###################################################################################################
+# - Optionally download RoaringFormatSpec test data -----------------------------------------------
+
+option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ON)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
+
+###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------
 
 if(BUILD_TESTS)
@@ -94,9 +102,13 @@ if(BUILD_TESTS)
 endif(BUILD_TESTS)
 
 ###################################################################################################
-# - Optionally build google benchmarks ------------------------------------------------------------
+# - Optionally build nvbench benchmarks -----------------------------------------------------------
 
 if(BUILD_BENCHMARKS)
+    include(${rapids-cmake-dir}/cpm/nvbench.cmake)
+    include(${rapids-cmake-dir}/cpm/package_override.cmake)
+    rapids_cpm_nvbench(BUILD_STATIC)
+
     add_subdirectory(benchmarks)
 endif(BUILD_BENCHMARKS)
 

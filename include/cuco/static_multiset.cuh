@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,8 +28,8 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/atomic>
+#include <cuda/std/functional>
 #include <cuda/stream_ref>
-#include <thrust/functional.h>
 
 #include <cstddef>
 #include <memory>
@@ -77,7 +77,7 @@ namespace cuco {
 template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class KeyEqual           = thrust::equal_to<Key>,
+          class KeyEqual           = cuda::std::equal_to<Key>,
           class ProbingScheme      = cuco::double_hashing<4,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<Key>,
@@ -101,7 +101,6 @@ class static_multiset {
   using storage_ref_type    = typename impl_type::storage_ref_type;
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
   using hasher              = typename probing_scheme_type::hasher;     ///< Hash function type
-
   template <typename... Operators>
   using ref_type = cuco::static_multiset_ref<key_type,
                                              thread_scope,
@@ -128,7 +127,7 @@ class static_multiset {
    * values and CUDA stream
    *
    * The actual multiset capacity depends on the given `capacity`, the probing scheme, CG size, and
-   * the bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will
+   * the bucket size and it is computed via the `make_valid_extent` factory. Insert operations will
    * not automatically grow the set. Attempting to insert more unique keys than the capacity of the
    * multiset results in undefined behavior.
    *
@@ -162,7 +161,7 @@ class static_multiset {
    * the desired load factor without manually computing the desired capacity. The actual set
    * capacity will be a size no smaller than `ceil(n / desired_load_factor)`. It's determined by
    * multiple factors including the given `n`, the desired load factor, the probing scheme, the CG
-   * size, and the bucket size and is computed via the `make_bucket_extent` factory.
+   * size, and the bucket size and is computed via the `make_valid_extent` factory.
    * @note Insert operations will not automatically grow the container.
    * @note Attempting to insert more unique keys than the capacity of the container results in
    * undefined behavior.
@@ -201,7 +200,7 @@ class static_multiset {
    * and CUDA stream.
    *
    * The actual set capacity depends on the given `capacity`, the probing scheme, CG size, and the
-   * bucket size and it is computed via the `make_bucket_extent` factory. Insert operations will not
+   * bucket size and it is computed via the `make_valid_extent` factory. Insert operations will not
    * automatically grow the set. Attempting to insert more unique keys than the capacity of the
    * multiset results in undefined behavior.
    *
@@ -487,8 +486,8 @@ class static_multiset {
    * query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    * @note This function synchronizes the given stream. For asynchronous execution use
    * `find_if_async`.
    *
@@ -520,8 +519,8 @@ class static_multiset {
    * a match with its key equivalent to the query key.
    *
    * @note If `pred( *(stencil + i) )` is true, stores the payload of the
-   * matched key or the `empty_value_sentienl` to `(output_begin + i)`. If `pred( *(stencil + i) )`
-   * is false, always stores the `empty_value_sentienl` to `(output_begin + i)`.
+   * matched key or the `empty_value_sentinel` to `(output_begin + i)`. If `pred( *(stencil + i) )`
+   * is false, always stores the `empty_value_sentinel` to `(output_begin + i)`.
    *
    * @tparam InputIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose `value_type` is convertible to
@@ -678,6 +677,74 @@ class static_multiset {
                         InputIt last,
                         ProbeKeyEqual const& probe_key_equal,
                         ProbeHash const& probe_hash,
+                        cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Counts the number of occurrences of each query key in the multiset
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the multiset and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam InputIt       Device-accessible input iterator type for query keys
+   * @tparam ProbeKeyEqual Binary callable that compares two keys for equality
+   * @tparam ProbeHash     Unary callable that computes the hash of a key
+   * @tparam OutputIt      Device-accessible output iterator type for storing per-key counts
+   *
+   * @param first          Iterator to the beginning of the sequence of query keys
+   * @param last           Iterator to the end of the sequence of query keys
+   * @param probe_key_equal Predicate to compare a query key with a multiset key for equality
+   * @param probe_hash     Hash function to compute the hash value of a query key
+   * @param output_begin   Iterator to the beginning of the output range where per-key counts will
+   * be stored
+   * @param stream         CUDA stream on which to execute the counting operation
+   */
+  template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash, typename OutputIt>
+  void count_each(InputIt first,
+                  InputIt last,
+                  ProbeKeyEqual const& probe_key_equal,
+                  ProbeHash const& probe_hash,
+                  OutputIt output_begin,
+                  cuda::stream_ref stream = {}) const;
+
+  /**
+   * @brief Counts the number of occurrences of each query key in the multiset with outer semantics.
+   *
+   * For each key in the input range `[first, last)`, this function computes the number of matching
+   * elements in the multiset and writes the result to the corresponding position in the output
+   * range starting at `output_begin`.
+   *
+   * If a query key has no matches in the multiset, the result for that key will be 1 instead of 0.
+   * Otherwise, the actual number of matches is returned.
+   *
+   * This provides "outer join"-like semantics, ensuring that every query key contributes at least 1
+   * count.
+   *
+   * @note The input and output ranges must be device-accessible and of the same length.
+   * @note The behavior is undefined if the input and output ranges overlap.
+   *
+   * @tparam InputIt       Device-accessible input iterator type for query keys
+   * @tparam ProbeKeyEqual Binary callable that compares two keys for equality
+   * @tparam ProbeHash     Unary callable that computes the hash of a key
+   * @tparam OutputIt      Device-accessible output iterator type for storing per-key counts
+   *
+   * @param first          Iterator to the beginning of the sequence of query keys
+   * @param last           Iterator to the end of the sequence of query keys
+   * @param probe_key_equal Predicate to compare a query key with a multiset key for equality
+   * @param probe_hash     Hash function to compute the hash value of a query key
+   * @param output_begin   Iterator to the beginning of the output range where per-key counts will
+   * be stored
+   * @param stream         CUDA stream on which to execute the counting operation
+   */
+  template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash, typename OutputIt>
+  void count_each_outer(InputIt first,
+                        InputIt last,
+                        ProbeKeyEqual const& probe_key_equal,
+                        ProbeHash const& probe_hash,
+                        OutputIt output_begin,
                         cuda::stream_ref stream = {}) const;
 
   /**
@@ -845,7 +912,7 @@ class static_multiset {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -870,7 +937,7 @@ class static_multiset {
    * @note Behavior is undefined if the desired `capacity` is insufficient to store all of the
    * contained elements.
    *
-   * @note This function is not available if the conatiner's `extent_type` is static.
+   * @note This function is not available if the container's `extent_type` is static.
    *
    * @param capacity New capacity of the container
    * @param stream CUDA stream used for this operation
@@ -893,6 +960,13 @@ class static_multiset {
    * @return The maximum number of elements the multiset can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept;
+
+  /**
+   * @brief Gets a pointer to the underlying slot storage.
+   *
+   * @return Pointer to the underlying slot storage
+   */
+  [[nodiscard]] __host__ value_type* data() const;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.

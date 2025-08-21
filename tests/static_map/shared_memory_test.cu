@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,18 +19,17 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
-#include <thrust/tuple.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <limits>
 
-template <std::size_t NumWindows, typename Ref>
+template <std::size_t ValidSize, typename Ref>
 __global__ void shared_memory_test_kernel(Ref* maps,
                                           typename Ref::key_type const* const insterted_keys,
                                           typename Ref::mapped_type const* const inserted_values,
@@ -42,7 +41,7 @@ __global__ void shared_memory_test_kernel(Ref* maps,
   const size_t map_id = blockIdx.x;
   const size_t offset = map_id * number_of_elements;
 
-  __shared__ typename Ref::window_type sm_buffer[NumWindows];
+  __shared__ typename Ref::value_type sm_buffer[ValidSize];
 
   auto g          = cuco::test::cg::this_thread_block();
   auto insert_ref = maps[map_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
@@ -66,7 +65,7 @@ __global__ void shared_memory_test_kernel(Ref* maps,
   }
 }
 
-TEMPLATE_TEST_CASE_SIG("Shared memory static map",
+TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
                        "",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t),
@@ -83,7 +82,7 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                                        Value,
                                        extent_type,
                                        cuda::thread_scope_device,
-                                       thrust::equal_to<Key>,
+                                       cuda::std::equal_to<Key>,
                                        cuco::linear_probing<1, cuco::default_hash_function<Key>>>;
 
   // one array for all maps, first elements_in_map element belong to map 0, second to map 1 and so
@@ -105,12 +104,16 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
   thrust::device_vector<bool> d_keys_exist(number_of_maps * elements_in_map);
   thrust::device_vector<bool> d_keys_and_values_correct(number_of_maps * elements_in_map);
 
-  using ref_type = typename map_type::ref_type<cuco::op::insert_tag>;
+  using ref_type = typename map_type::template ref_type<cuco::op::insert_tag>;
 
   SECTION("Keys are all found after insertion.")
   {
-    auto pairs_begin =
-      thrust::make_zip_iterator(thrust::make_tuple(d_keys.begin(), d_values.begin()));
+    auto pairs_begin = thrust::make_transform_iterator(
+      thrust::counting_iterator{0},
+      cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+        [d_keys = d_keys.data(), d_values = d_values.data()] __device__(int idx) {
+          return cuco::pair<Key, Value>(d_keys[idx], d_values[idx]);
+        }));
     std::vector<ref_type> h_refs;
     for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
       const std::size_t offset = map_id * elements_in_map;
@@ -122,9 +125,11 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     thrust::device_vector<ref_type> d_refs(h_refs);
 
     // maybe_unused to silence false positive "variable set but not used" warning
-    [[maybe_unused]] auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
+    [[maybe_unused]] auto constexpr valid_size =
+      cuco::make_valid_extent<typename ref_type::probing_scheme_type,
+                              typename ref_type::storage_ref_type>(extent_type{});
 
-    shared_memory_test_kernel<num_windows.value(), ref_type>
+    shared_memory_test_kernel<valid_size.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                d_values.data().get(),
@@ -134,12 +139,12 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
 
     REQUIRE(d_keys_exist.size() == d_keys_and_values_correct.size());
     auto zip = thrust::make_zip_iterator(
-      thrust::make_tuple(d_keys_exist.begin(), d_keys_and_values_correct.begin()));
+      cuda::std::tuple{d_keys_exist.begin(), d_keys_and_values_correct.begin()});
 
     REQUIRE(cuco::test::all_of(zip,
                                zip + d_keys_exist.size(),
                                cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
-                                 return thrust::get<0>(z) and thrust::get<1>(z);
+                                 return cuda::std::get<0>(z) and cuda::std::get<1>(z);
                                })));
   }
 
@@ -152,9 +157,11 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
     thrust::device_vector<ref_type> d_refs(h_refs);
 
     // maybe_unused to silence false positive "variable set but not used" warning
-    [[maybe_unused]] auto constexpr num_windows = cuco::make_window_extent<ref_type>(extent_type{});
+    [[maybe_unused]] auto constexpr valid_size =
+      cuco::make_valid_extent<typename ref_type::probing_scheme_type,
+                              typename ref_type::storage_ref_type>(extent_type{});
 
-    shared_memory_test_kernel<num_windows.value(), ref_type>
+    shared_memory_test_kernel<valid_size.value(), ref_type>
       <<<number_of_maps, 64>>>(d_refs.data().get(),
                                d_keys.data().get(),
                                d_values.data().get(),
@@ -162,29 +169,29 @@ TEMPLATE_TEST_CASE_SIG("Shared memory static map",
                                d_keys_exist.data().get(),
                                d_keys_and_values_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
   }
 }
 
 auto constexpr cg_size     = 1;
-auto constexpr window_size = 1;
+auto constexpr bucket_size = 1;
 
-template <std::size_t NumWindows>
+template <std::size_t ValidSize>
 __global__ void shared_memory_hash_table_kernel(bool* key_found)
 {
   using Key       = int32_t;
   using Value     = int32_t;
   using slot_type = cuco::pair<Key, Value>;
 
-  __shared__ cuco::window<slot_type, window_size> map[NumWindows];
+  __shared__ slot_type map[ValidSize];
 
-  using extent_type      = cuco::extent<std::size_t, NumWindows>;
-  using storage_ref_type = cuco::aow_storage_ref<slot_type, window_size, extent_type>;
+  using extent_type      = cuco::extent<std::size_t, ValidSize>;
+  using storage_ref_type = cuco::bucket_storage_ref<slot_type, bucket_size, extent_type>;
 
   auto raw_ref =
     cuco::static_map_ref{cuco::empty_key<Key>{-1},
                          cuco::empty_value<Value>{-1},
-                         thrust::equal_to<Key>{},
+                         cuda::std::equal_to<Key>{},
                          cuco::linear_probing<cg_size, cuco::default_hash_function<Key>>{},
                          cuco::thread_scope_block,
                          storage_ref_type{extent_type{}, map}};
@@ -213,12 +220,12 @@ TEST_CASE("static map shared memory slots.", "")
 {
   constexpr std::size_t N = 256;
   // maybe_unused to silence false positive "variable set but not used" warning
-  [[maybe_unused]] auto constexpr num_windows =
-    cuco::make_window_extent<cg_size, window_size>(cuco::extent<std::size_t, N>{});
+  [[maybe_unused]] auto constexpr valid_size =
+    cuco::make_valid_extent<cg_size, bucket_size>(cuco::extent<std::size_t, N>{});
 
   thrust::device_vector<bool> key_found(N, false);
-  shared_memory_hash_table_kernel<num_windows.value()><<<8, 32>>>(key_found.data().get());
+  shared_memory_hash_table_kernel<valid_size.value()><<<8, 32>>>(key_found.data().get());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), thrust::identity<bool>{}));
+  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), cuda::std::identity{}));
 }

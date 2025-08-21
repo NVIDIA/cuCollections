@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2022, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,9 +14,12 @@
  * limitations under the License.
  */
 #pragma once
+
+#include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
+#include <cub/block/block_scan.cuh>
 #include <cuda/std/atomic>
 
 #include <cooperative_groups.h>
@@ -163,7 +166,7 @@ CUCO_KERNEL void insert(InputIt first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   auto tid  = blockDim.x * blockIdx.x + threadIdx.x;
   auto it   = first + tid / tile_size;
 
@@ -309,7 +312,7 @@ CUCO_KERNEL void erase(InputIt first,
   extern __shared__ unsigned long long submap_block_num_successes[];
 
   auto block = cg::this_thread_block();
-  auto tile  = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile  = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   auto tid   = block_size * block.group_index().x + block.thread_rank();
   auto it    = first + tid / tile_size;
 
@@ -389,7 +392,7 @@ CUCO_KERNEL void find(InputIt first,
       auto submap_view = submap_views[i];
       auto found       = submap_view.find(key, hash, key_equal);
       if (found != submap_view.end()) {
-        found_value = found->second;
+        found_value = found->second.load(cuda::std::memory_order_relaxed);
         break;
       }
     }
@@ -453,9 +456,9 @@ CUCO_KERNEL void find(InputIt first,
                       Hash hash,
                       KeyEqual key_equal)
 {
-  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid                  = blockDim.x * blockIdx.x + threadIdx.x;
-  auto key_idx              = tid / tile_size;
+  auto tile    = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
+  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
   auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
   __shared__ Value writeBuffer[block_size];
 
@@ -466,7 +469,7 @@ CUCO_KERNEL void find(InputIt first,
       auto submap_view = submap_views[i];
       auto found       = submap_view.find(tile, key, hash, key_equal);
       if (found != submap_view.end()) {
-        found_value = found->second;
+        found_value = found->second.load(cuda::std::memory_order_relaxed);
         break;
       }
     }
@@ -484,6 +487,88 @@ CUCO_KERNEL void find(InputIt first,
       *(output_begin + key_idx) = writeBuffer[threadIdx.x / tile_size];
     }
     key_idx += (gridDim.x * blockDim.x) / tile_size;
+  }
+}
+
+/**
+ * @brief Retrieves all of the keys and their associated values.
+ *
+ * The order in which keys are returned is implementation defined and not guaranteed to be
+ * consistent between subsequent calls to `retrieve_all`.
+ *
+ * Behavior is undefined if the range beginning at `keys_out` or `values_out` is less than
+ * `get_size()`
+ *
+ * @tparam block_size The number of threads in the thread block
+ * @tparam KeyOutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `key_type`
+ * @tparam ValueOutputIt Device accessible output iterator whose `value_type` is
+ * convertible to the map's `mapped_type`
+ * @tparam viewT Type of `static_map` device view
+ * @tparam AtomicT Atomic counter type
+ *
+ * @param keys_out Beginning output iterator for keys
+ * @param values_out Beginning output iterator for values
+ * @param submap_views Array of `static_map::device_view` objects used to
+ * perform `retrieve_all` operations on each underlying `static_map`
+ * @param num_submaps The number of submaps in the map
+ * @param capacity The total number of slots of all submaps
+ * @param d_num_out Pointer to the device memory location where the number of keys/vals retrieved
+ * are stored
+ * @param cap_prefix_sum Array of prefix sums of the number of slots in each submap
+ * @return Pair of iterators indicating the last elements in the output
+ */
+template <uint32_t block_size,
+          typename KeyOutputIt,
+          typename ValueOutputIt,
+          typename viewT,
+          typename AtomicT>
+CUCO_KERNEL void retrieve_all(KeyOutputIt keys_out,
+                              ValueOutputIt values_out,
+                              viewT* submap_views,
+                              uint32_t num_submaps,
+                              uint64_t capacity,
+                              AtomicT* d_num_out,
+                              size_t* cap_prefix_sum)
+{
+  using BlockScan = cub::BlockScan<unsigned int, block_size>;
+
+  __shared__ typename BlockScan::TempStorage scan_temp_storage;
+  __shared__ unsigned int block_base;
+
+  auto tid                       = blockDim.x * blockIdx.x + threadIdx.x;
+  auto const empty_key_sentinel  = submap_views[0].get_empty_key_sentinel();
+  auto const erased_key_sentinel = submap_views[0].get_erased_key_sentinel();
+
+  while ((tid - threadIdx.x) < capacity) {
+    uint32_t submap_idx    = 0;
+    uint32_t submap_offset = tid;
+    while (tid >= cap_prefix_sum[submap_idx] && submap_idx < num_submaps) {
+      ++submap_idx;
+    }
+    if (submap_idx > 0) { submap_offset = tid - cap_prefix_sum[submap_idx - 1]; }
+
+    auto const& current_slot = submap_views[submap_idx].get_slots()[submap_offset];
+    auto const existing_key  = current_slot.first.load(cuda::std::memory_order_relaxed);
+
+    bool const is_filled = not(cuco::detail::bitwise_compare(existing_key, empty_key_sentinel) or
+                               cuco::detail::bitwise_compare(existing_key, erased_key_sentinel));
+
+    unsigned int local_idx   = 0;
+    unsigned int block_valid = 0;
+    BlockScan(scan_temp_storage).ExclusiveSum(is_filled ? 1u : 0u, local_idx, block_valid);
+
+    if (threadIdx.x == 0) {
+      block_base = d_num_out->fetch_add(block_valid, cuda::memory_order_relaxed);
+    }
+    __syncthreads();
+
+    if (is_filled) {
+      auto const value                 = current_slot.second.load(cuda::std::memory_order_relaxed);
+      keys_out[block_base + local_idx] = existing_key;
+      values_out[block_base + local_idx] = value;
+    }
+    tid += gridDim.x * blockDim.x;
   }
 }
 
@@ -592,7 +677,7 @@ CUCO_KERNEL void contains(InputIt first,
                           Hash hash,
                           KeyEqual key_equal)
 {
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile    = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
   __shared__ bool writeBuffer[block_size];

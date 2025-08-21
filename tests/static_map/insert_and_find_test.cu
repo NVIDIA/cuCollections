@@ -1,6 +1,6 @@
 /*
  * Copyright (c) 2022, Jonas Hahnfeld, CERN.
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,6 @@
 #include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/transform_iterator.h>
 
@@ -70,7 +69,7 @@ TEMPLATE_TEST_CASE_SIG(
                                 Value,
                                 cuco::extent<size_type>,
                                 cuda::thread_scope_device,
-                                thrust::equal_to<Key>,
+                                cuda::std::equal_to<Key>,
                                 probe,
                                 cuco::cuda_allocator<cuda::std::byte>,
                                 cuco::storage<2>>{
@@ -88,14 +87,14 @@ TEMPLATE_TEST_CASE_SIG(
 
     // insert first time, fills inserted with true
     map.insert_and_find(pairs_begin, pairs_begin + num_keys, found1.begin(), inserted.begin());
-    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), thrust::identity{}));
+    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
 
     // insert second time, fills inserted with false as keys already in map
     map.insert_and_find(pairs_begin, pairs_begin + num_keys, found2.begin(), inserted.begin());
-    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), thrust::identity{}));
+    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
 
     // both found1 and found2 should be same, as keys will be referring to same slot
     REQUIRE(
-      cuco::test::equal(found1.begin(), found1.end(), found2.begin(), thrust::equal_to<Key>{}));
+      cuco::test::equal(found1.begin(), found1.end(), found2.begin(), cuda::std::equal_to<Key>{}));
   }
 }

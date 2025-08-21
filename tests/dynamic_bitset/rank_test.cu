@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2024, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-extern bool modulo_bitgen(uint64_t i);  // Defined in get_test.cu
+using cuco::test::modulo_bitgen;
 
-TEST_CASE("Rank test", "")
+TEST_CASE("dynamic_bitset rank test", "")
 {
   cuco::experimental::detail::dynamic_bitset bv;
 

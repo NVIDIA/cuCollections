@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,10 @@
 
 #include <cuda/std/cmath>
 #include <cuda/std/functional>  // TODO include <cuda/std/algorithm> instead once available
+#include <cuda/std/iterator>
 #include <cuda/std/limits>
 #include <cuda/std/span>
+#include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -98,7 +100,9 @@ struct generate_uniform_fn {
    * @param dist Random number distribution
    * @param seed Random seed
    */
-  __host__ __device__ constexpr generate_uniform_fn(std::size_t num, Dist dist, std::size_t seed)
+  __host__ __device__ constexpr generate_uniform_fn(cuda::std::size_t num,
+                                                    Dist dist,
+                                                    cuda::std::size_t seed)
     : num_{num}, dist_{dist}, seed_{seed}
   {
   }
@@ -110,7 +114,7 @@ struct generate_uniform_fn {
    *
    * @return A resulting random number
    */
-  __host__ __device__ constexpr T operator()(std::size_t idx) const noexcept
+  __host__ __device__ constexpr T operator()(cuda::std::size_t idx) const noexcept
   {
     RNG rng;
     // Improved seeding using a linear congruential generator
@@ -124,9 +128,9 @@ struct generate_uniform_fn {
     return uniform_dist(rng);
   }
 
-  std::size_t num_;   ///< Number of elements to generate
-  Dist dist_;         ///< Random number distribution
-  std::size_t seed_;  ///< Random seed
+  cuda::std::size_t num_;   ///< Number of elements to generate
+  Dist dist_;               ///< Random number distribution
+  cuda::std::size_t seed_;  ///< Random seed
 };
 
 /**
@@ -144,7 +148,7 @@ struct generate_gaussian_fn {
    * @param num Number of elements to generate
    * @param dist Random number distribution
    */
-  __host__ __device__ constexpr generate_gaussian_fn(std::size_t num, Dist dist)
+  __host__ __device__ constexpr generate_gaussian_fn(cuda::std::size_t num, Dist dist)
     : num_{num}, dist_{dist}
   {
   }
@@ -156,7 +160,7 @@ struct generate_gaussian_fn {
    *
    * @return A resulting random number
    */
-  __host__ __device__ constexpr T operator()(std::size_t seed) const noexcept
+  __host__ __device__ T operator()(cuda::std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::normal_distribution<> normal_dist(static_cast<double>(num_ / 2), num_ * dist_.value);
@@ -171,8 +175,8 @@ struct generate_gaussian_fn {
     return val;
   }
 
-  std::size_t num_;  ///< Number of elements to generate
-  Dist dist_;        ///< Random number distribution
+  cuda::std::size_t num_;  ///< Number of elements to generate
+  Dist dist_;              ///< Random number distribution
 };
 
 /**
@@ -188,7 +192,7 @@ struct dropout_fn {
    *
    * @param num Number of elements to generate
    */
-  __host__ __device__ constexpr dropout_fn(std::size_t num) : num_{num} {}
+  __host__ __device__ constexpr dropout_fn(cuda::std::size_t num) : num_{num} {}
 
   /**
    * @brief Generates a random number of type `T` based on the given `seed`
@@ -197,7 +201,7 @@ struct dropout_fn {
    *
    * @return A resulting random number
    */
-  __host__ __device__ constexpr T operator()(std::size_t seed) const noexcept
+  __host__ __device__ T operator()(cuda::std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::uniform_int_distribution<T> non_match_dist{static_cast<T>(num_),
@@ -206,7 +210,7 @@ struct dropout_fn {
     return non_match_dist(rng);
   }
 
-  std::size_t num_;  ///< Number of elements to generate
+  cuda::std::size_t num_;  ///< Number of elements to generate
 };
 
 /**
@@ -230,7 +234,7 @@ struct dropout_pred {
    *
    * @return A random boolean value
    */
-  __host__ __device__ constexpr bool operator()(std::size_t seed) const noexcept
+  __host__ __device__ bool operator()(cuda::std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::uniform_real_distribution<double> rate_dist{0.0, 1.0};
@@ -283,7 +287,7 @@ class key_generator {
       thrust::sequence(exec_policy, out_begin, out_end, value_type{0});
       thrust::shuffle(exec_policy, out_begin, out_end, this->rng_);
     } else if constexpr (std::is_same_v<Dist, distribution::uniform>) {
-      size_t num_keys = thrust::distance(out_begin, out_end);
+      size_t num_keys = cuda::std::distance(out_begin, out_end);
       size_t seed     = this->rng_();
 
       thrust::transform(exec_policy,
@@ -292,7 +296,7 @@ class key_generator {
                         out_begin,
                         detail::generate_uniform_fn<value_type, Dist, RNG>{num_keys, dist, seed});
     } else if constexpr (std::is_same_v<Dist, distribution::gaussian>) {
-      size_t num_keys = thrust::distance(out_begin, out_end);
+      size_t num_keys = cuda::std::distance(out_begin, out_end);
 
       thrust::counting_iterator<size_t> seq(this->rng_());
 
@@ -368,7 +372,7 @@ class key_generator {
     CUCO_EXPECTS(keep_prob >= 0.0 and keep_prob <= 1.0, "Probability needs to be between 0 and 1");
 
     if (keep_prob < 1.0) {
-      size_t const num_keys = thrust::distance(begin, end);
+      size_t const num_keys = cuda::std::distance(begin, end);
 
       thrust::counting_iterator<size_t> seeds(rng_());
 
@@ -488,7 +492,7 @@ generate_random_byte_sequences(std::size_t n_sequences,
   thrust::device_vector<cuda::std::byte> bytes(n_bytes);
 
   auto offsets_and_lengths =
-    thrust::make_zip_iterator(thrust::make_tuple(offsets.begin(), lengths.begin()));
+    thrust::make_zip_iterator(cuda::std::tuple{offsets.begin(), lengths.begin()});
   thrust::device_vector<cuda::std::span<cuda::std::byte>> sequences(n_sequences);
   // create the span object for each sequence
   thrust::transform(
@@ -498,8 +502,8 @@ generate_random_byte_sequences(std::size_t n_sequences,
     sequences.begin(),
     cuda::proclaim_return_type<cuda::std::span<cuda::std::byte>>(
       [bytes_ptr = thrust::raw_pointer_cast(bytes.data())] __device__(auto const& seq) {
-        return cuda::std::span<cuda::std::byte>{bytes_ptr + thrust::get<0>(seq),
-                                                thrust::get<1>(seq)};
+        return cuda::std::span<cuda::std::byte>{bytes_ptr + cuda::std::get<0>(seq),
+                                                cuda::std::get<1>(seq)};
       }));
 
   // fill the byte buffer with random data

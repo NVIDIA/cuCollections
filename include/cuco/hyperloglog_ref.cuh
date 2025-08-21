@@ -75,7 +75,7 @@ class hyperloglog_ref {
    * @param group CUDA Cooperative group this operation is executed in
    */
   template <class CG>
-  __device__ constexpr void clear(CG const& group) noexcept;
+  __device__ constexpr void clear(CG group) noexcept;
 
   /**
    * @brief Asynchronously resets the estimator, i.e., clears the current count estimate.
@@ -144,8 +144,7 @@ class hyperloglog_ref {
    * @param other Other estimator reference to be merged into `*this`
    */
   template <class CG, cuda::thread_scope OtherScope>
-  __device__ constexpr void merge(CG const& group,
-                                  hyperloglog_ref<T, OtherScope, Hash> const& other);
+  __device__ constexpr void merge(CG group, hyperloglog_ref<T, OtherScope, Hash> const& other);
 
   /**
    * @brief Asynchronously merges the result of `other` estimator reference into `*this` estimator.

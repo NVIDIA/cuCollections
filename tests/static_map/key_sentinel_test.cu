@@ -33,8 +33,7 @@ struct custom_equals {
   __device__ bool operator()(T lhs, T rhs) const { return A[lhs] == A[rhs]; }
 };
 
-TEMPLATE_TEST_CASE_SIG(
-  "Key comparison against sentinel", "", ((typename T), T), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests", "", ((typename T), T), (int32_t), (int64_t))
 {
   using Key   = T;
   using Value = T;

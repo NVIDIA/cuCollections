@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 #include <thrust/logical.h>
 #include <thrust/sequence.h>
 
@@ -42,7 +42,7 @@ __global__ void custom_cooperative_insert(SetRef set, InputIterator keys, std::s
 
   constexpr auto cg_size = SetRef::cg_size;
 
-  auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<cg_size, cg::thread_block>(cg::this_thread_block());
 
   int64_t const loop_stride = gridDim.x * blockDim.x / cg_size;
   int64_t idx               = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
@@ -60,7 +60,7 @@ __global__ void custom_contains(SetRef set, InputIterator keys, std::size_t n, O
 
   constexpr auto cg_size = SetRef::cg_size;
 
-  auto tile = cg::tiled_partition<cg_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<cg_size, cg::thread_block>(cg::this_thread_block());
 
   int64_t const loop_stride = gridDim.x * blockDim.x / cg_size;
   int64_t idx               = (blockDim.x * blockIdx.x + threadIdx.x) / cg_size;
@@ -112,7 +112,7 @@ int main(void)
   custom_contains<<<128, 128>>>(set.ref(cuco::contains), keys.begin(), num_keys, found.begin());
 
   // Verify that all keys have been found
-  bool const all_keys_found = thrust::all_of(found.begin(), found.end(), thrust::identity<bool>());
+  bool const all_keys_found = thrust::all_of(found.begin(), found.end(), cuda::std::identity{});
 
   if (all_keys_found) { std::cout << "Success! Found all keys.\n"; }
 

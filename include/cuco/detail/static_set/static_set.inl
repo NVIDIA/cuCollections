@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
-#include <cuco/detail/static_set/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
@@ -345,6 +344,29 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename ProbeEqual, typename ProbeHash, typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
+  InputIt first,
+  InputIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  impl_->find_async(first,
+                    last,
+                    output_begin,
+                    ref(op::find).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
+                    stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_if(
   InputIt first,
@@ -375,6 +397,38 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   cuda::stream_ref stream) const
 {
   impl_->find_if_async(first, last, stencil, pred, output_begin, ref(op::find), stream);
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename ProbeEqual,
+          typename ProbeHash,
+          typename OutputIt>
+void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_if_async(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  impl_->find_if_async(first,
+                       last,
+                       stencil,
+                       pred,
+                       output_begin,
+                       ref(op::find).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
+                       stream);
 }
 
 template <class Key,
@@ -468,40 +522,7 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ret
   OutputIt2 output_match,
   cuda::stream_ref stream) const
 {
-  auto const num_keys = cuco::detail::distance(first, last);
-  if (num_keys == 0) { return {output_probe, output_match}; }
-
-  auto counter =
-    detail::counter_storage<size_type, thread_scope, allocator_type>{this->impl_->allocator()};
-  counter.reset(stream);
-
-  auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
-  static_set_ns::detail::retrieve<cuco::detail::default_block_size()>
-    <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-      first, num_keys, output_probe, output_match, counter.data(), ref(op::find));
-
-  auto const count = counter.load_to_host(stream);
-  return {output_probe + count, output_match + count};
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename InputIt, typename OutputIt, typename ProbeEqual, typename ProbeHash>
-OutputIt static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
-  InputIt first,
-  InputIt last,
-  OutputIt output_begin,
-  ProbeEqual const& probe_equal,
-  ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const
-{
-  CUCO_FAIL("Unsupported code path: retrieve with custom hash/equal");
+  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
 }
 
 template <class Key,
@@ -541,7 +562,7 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_set>(capacity);
+  auto const extent = make_valid_extent<probing_scheme_type, storage_ref_type>(capacity);
   this->impl_->rehash(extent, *this, stream);
 }
 
@@ -568,7 +589,7 @@ template <class Key,
 void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_set>(capacity);
+  auto const extent = make_valid_extent<static_set>(capacity);
   this->impl_->rehash_async(extent, *this, stream);
 }
 
@@ -598,6 +619,19 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::cap
   const noexcept
 {
   return impl_->capacity();
+}
+
+template <class Key,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+__host__ auto static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::data()
+  const -> value_type*
+{
+  return impl_->data();
 }
 
 template <class Key,

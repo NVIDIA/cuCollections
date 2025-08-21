@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,6 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/utility/allocator.hpp>
-
-#include <thrust/functional.h>
 
 #include <cooperative_groups.h>
 
@@ -101,6 +99,8 @@ bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cuda
 
   return res == size;
 }
+
+inline bool modulo_bitgen(uint64_t i) { return i % 7 == 0; }
 
 }  // namespace test
 }  // namespace cuco

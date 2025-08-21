@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,8 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/distance.h>
-#include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
@@ -53,12 +52,12 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
     auto d_res_end = set.retrieve_all(d_res.begin());
     thrust::sort(d_res.begin(), d_res_end);
     REQUIRE(cuco::test::equal(
-      d_res.begin(), d_res_end, thrust::counting_iterator<Key>(0), thrust::equal_to<Key>{}));
+      d_res.begin(), d_res_end, thrust::counting_iterator<Key>(0), cuda::std::equal_to<Key>{}));
   }
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "Retrieve all",
+  "static_set::retrieve_all tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -72,13 +71,19 @@ TEMPLATE_TEST_CASE_SIG(
 {
   constexpr std::size_t num_keys{400};
   constexpr double desired_load_factor = 1.;
-  auto constexpr gold_capacity         = CGSize == 1 ? 409  // 409 x 1 x 1
-                                                     : 422  // 211 x 2 x 1
-    ;
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+
+  constexpr std::size_t gold_capacity = [&]() {
+    if constexpr (cuco::is_double_hashing<probe>::value) {
+      return (CGSize == 1) ? 409   // 409 x 1 x 2
+                           : 422;  // 211 x 2 x 2
+    } else {
+      return 400;
+    }
+  }();
 
   auto set = cuco::static_set{num_keys, desired_load_factor, cuco::empty_key<Key>{-1}, {}, probe{}};
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,13 @@ namespace cuco {
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 __host__ __device__ constexpr bloom_filter_ref<Key, Extent, Scope, Policy>::bloom_filter_ref(
+  filter_block_type* data, Extent num_blocks, cuda_thread_scope<Scope>, Policy const& policy)
+  : impl_{data, num_blocks, {}, policy}
+{
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+__host__ __device__ constexpr bloom_filter_ref<Key, Extent, Scope, Policy>::bloom_filter_ref(
   word_type* data, Extent num_blocks, cuda_thread_scope<Scope>, Policy const& policy)
   : impl_{data, num_blocks, {}, policy}
 {
@@ -32,7 +39,7 @@ __host__ __device__ constexpr bloom_filter_ref<Key, Extent, Scope, Policy>::bloo
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class CG>
-__device__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::clear(CG const& group)
+__device__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::clear(CG group)
 {
   impl_.clear(group);
 }
@@ -59,10 +66,18 @@ __device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(ProbeKey const
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class CG, class ProbeKey>
-__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(CG const& group,
-                                                                  ProbeKey const& key)
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(CG group, ProbeKey const& key)
 {
   impl_.add(group, key);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class CG, class InputIt>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(CG group,
+                                                                  InputIt first,
+                                                                  InputIt last)
+{
+  impl_.add(group, first, last);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -109,7 +124,7 @@ template <class ProbeKey>
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class CG, class ProbeKey>
 [[nodiscard]] __device__ bool bloom_filter_ref<Key, Extent, Scope, Policy>::contains(
-  CG const& group, ProbeKey const& key) const
+  CG group, ProbeKey const& key) const
 {
   return impl_.contains(group, key);
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,8 @@
 
 #include <cuco/detail/storage/storage.cuh>
 
+#include <cuda/std/cstdint>
+
 namespace cuco {
 
 /**
@@ -34,15 +36,14 @@ namespace cuco {
  *
  * @tparam BucketSize Number of elements per bucket storage
  */
-template <int32_t BucketSize>
+template <int BucketSize>
 class storage {
  public:
   /// Number of slots per bucket storage
-  static constexpr int32_t bucket_size = BucketSize;
+  static constexpr cuda::std::int32_t bucket_size = BucketSize;
 
   /// Type of implementation details
   template <class T, class Extent, class Allocator>
   using impl = bucket_storage<T, bucket_size, Extent, Allocator>;
 };
-
 }  // namespace cuco

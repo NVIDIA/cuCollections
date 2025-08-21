@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 #include <cuco/operator.hpp>
 #include <cuco/static_map_ref.cuh>
 
+#include <cuda/std/tuple>
 #include <cuda/stream_ref>
 
 #include <algorithm>
@@ -284,7 +285,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 
   auto const grid_size = cuco::detail::grid_size(num, cg_size);
 
-  static_map_ns::detail::insert_or_assign<cg_size, cuco::detail::default_block_size()>
+  detail::static_map_ns::insert_or_assign<cg_size, cuco::detail::default_block_size()>
     <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
       first, num, ref(op::insert_or_assign));
 }
@@ -335,7 +336,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 {
   auto constexpr has_init = false;
   auto const init = this->empty_value_sentinel();  // use empty_sentinel as unused init value
-  static_map_ns::detail::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
+  detail::static_map_ns::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
     first, last, init, op, ref(op::insert_or_apply), stream);
 }
 
@@ -353,7 +354,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
     InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream) noexcept
 {
   auto constexpr has_init = true;
-  static_map_ns::detail::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
+  detail::static_map_ns::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
     first, last, init, op, ref(op::insert_or_apply), stream);
 }
 
@@ -499,6 +500,30 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename ProbeEqual, typename ProbeHash, typename OutputIt>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
+  InputIt first,
+  InputIt last,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  impl_->find_async(first,
+                    last,
+                    output_begin,
+                    ref(op::find).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
+                    stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate, typename OutputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_if(
   InputIt first,
@@ -530,6 +555,39 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   cuda::stream_ref stream) const
 {
   impl_->find_if_async(first, last, stencil, pred, output_begin, ref(op::find), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename ProbeEqual,
+          typename ProbeHash,
+          typename OutputIt>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_if_async(
+  InputIt first,
+  InputIt last,
+  StencilIt stencil,
+  Predicate pred,
+  ProbeEqual const& probe_equal,
+  ProbeHash const& probe_hash,
+  OutputIt output_begin,
+  cuda::stream_ref stream) const
+{
+  impl_->find_if_async(first,
+                       last,
+                       stencil,
+                       pred,
+                       output_begin,
+                       ref(op::find).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
+                       stream);
 }
 
 template <class Key,
@@ -620,12 +678,32 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
+template <typename InputIt, typename OutputProbeIt, typename OutputMatchIt>
+std::pair<OutputProbeIt, OutputMatchIt>
+static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve(
+  InputIt first,
+  InputIt last,
+  OutputProbeIt output_probe,
+  OutputMatchIt output_match,
+  cuda::stream_ref stream) const
+{
+  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
 template <typename KeyOut, typename ValueOut>
 std::pair<KeyOut, ValueOut>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_all(
   KeyOut keys_out, ValueOut values_out, cuda::stream_ref stream) const
 {
-  auto const zipped_out_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_out, values_out));
+  auto const zipped_out_begin = thrust::make_zip_iterator(keys_out, values_out);
   auto const zipped_out_end   = impl_->retrieve_all(zipped_out_begin, stream);
   auto const num              = std::distance(zipped_out_begin, zipped_out_end);
 
@@ -657,7 +735,7 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_map>(capacity);
+  auto const extent = make_valid_extent<probing_scheme_type, storage_ref_type>(capacity);
   this->impl_->rehash(extent, *this, stream);
 }
 
@@ -686,7 +764,7 @@ template <class Key,
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   size_type capacity, cuda::stream_ref stream)
 {
-  auto const extent = make_bucket_extent<static_map>(capacity);
+  auto const extent = make_valid_extent<static_map>(capacity);
   this->impl_->rehash_async(extent, *this, stream);
 }
 
@@ -718,6 +796,20 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   const noexcept
 {
   return impl_->capacity();
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+__host__ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::data()
+  const -> value_type*
+{
+  return impl_->data();
 }
 
 template <class Key,

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,22 +21,22 @@
 
 #if !defined(__CUDACC_VER_MAJOR__) || !defined(__CUDACC_VER_MINOR__)
 #error "NVCC version not found"
-#elif __CUDACC_VER_MAJOR__ < 11 || (__CUDACC_VER_MAJOR__ == 11 && __CUDACC_VER_MINOR__ < 5)
-#error "NVCC version 11.5 or later is required"
+#elif __CUDACC_VER_MAJOR__ < 12 
+#error "NVCC version 12.0 or later is required"
 #endif
 
 #if !defined(__CUDACC_EXTENDED_LAMBDA__)
 #error "Support for extended device lambdas is required (nvcc flag --expt-extended-lambda)"
 #endif
 
-#if !defined(CCCL_VERSION) || (CCCL_VERSION < 2005000)
-#error "CCCL version 2.5.0 or later is required"
+#if !defined(CCCL_VERSION) || (CCCL_VERSION < 3000000)
+#error "CCCL version 3.0.0 or later is required"
 #endif
 
 // WAR for libcudacxx/296
 #define CUCO_CUDA_MINIMUM_ARCH _NV_FIRST_ARG(__CUDA_ARCH_LIST__)
 
-#if defined(CUDART_VERSION) && (CUDART_VERSION >= 11000) && (CUCO_CUDA_MINIMUM_ARCH >= 700)
+#if defined(CUDART_VERSION) && (CUCO_CUDA_MINIMUM_ARCH >= 700)
 #define CUCO_HAS_CUDA_BARRIER
 #endif
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,11 +22,12 @@
 #include <cuco/types.cuh>
 
 #include <cuda/std/atomic>
+#include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 
 #include <cstddef>
 #include <memory>
+#include <numeric>
 #include <type_traits>
 #include <vector>
 
@@ -52,7 +53,7 @@ template <class Key,
           class T,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class KeyEqual           = thrust::equal_to<Key>,
+          class KeyEqual           = cuda::std::equal_to<Key>,
           class ProbingScheme      = cuco::linear_probing<4,  // CG size
                                                           cuco::default_hash_function<Key>>,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
@@ -206,13 +207,13 @@ class dynamic_map {
  *                         empty_value<int>{empty_value_sentinel}};
  *
  * // Create a sequence of pairs {{0,0}, {1,1}, ... {i,i}}
- * thrust::device_vector<thrust::pair<int,int>> pairs_0(50'000);
+ * thrust::device_vector<cuda::std::pair<int,int>> pairs_0(50'000);
  * thrust::transform(thrust::make_counting_iterator(0),
  *                   thrust::make_counting_iterator(pairs_0.size()),
  *                   pairs_0.begin(),
  *                   []__device__(auto i){ return cuco::pair{i,i}; };
  *
- * thrust::device_vector<thrust::pair<int,int>> pairs_1(100'000);
+ * thrust::device_vector<cuda::std::pair<int,int>> pairs_1(100'000);
  * thrust::transform(thrust::make_counting_iterator(50'000),
  *                   thrust::make_counting_iterator(pairs_1.size()),
  *                   pairs_1.begin(),
@@ -347,7 +348,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void insert(InputIt first,
               InputIt last,
               Hash hash           = Hash{},
@@ -386,7 +387,7 @@ class dynamic_map {
    */
   template <typename InputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void erase(InputIt first,
              InputIt last,
              Hash hash           = Hash{},
@@ -416,13 +417,36 @@ class dynamic_map {
   template <typename InputIt,
             typename OutputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void find(InputIt first,
             InputIt last,
             OutputIt output_begin,
             Hash hash           = Hash{},
             KeyEqual key_equal  = KeyEqual{},
             cudaStream_t stream = nullptr);
+
+  /**
+   * @brief Retrieves all of the keys and their associated values.
+   *
+   * The order in which keys are returned is implementation defined and not guaranteed to be
+   * consistent between subsequent calls to `retrieve_all`.
+   *
+   * Behavior is undefined if the range beginning at `keys_out` or `values_out` is less than
+   * `get_size()`
+   *
+   * @tparam KeyOut Device accessible random access output iterator whose `value_type` is
+   * convertible from `key_type`.
+   * @tparam ValueOut Device accessible random access output iterator whose `value_type` is
+   * convertible from `mapped_type`.
+   * @param keys_out Beginning output iterator for keys
+   * @param values_out Beginning output iterator for values
+   * @param stream CUDA stream used for this operation
+   * @return Pair of iterators indicating the last elements in the output
+   */
+  template <typename KeyOut, typename ValueOut>
+  std::pair<KeyOut, ValueOut> retrieve_all(KeyOut keys_out,
+                                           ValueOut values_out,
+                                           cudaStream_t stream = 0) const;
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -446,7 +470,7 @@ class dynamic_map {
   template <typename InputIt,
             typename OutputIt,
             typename Hash     = cuco::default_hash_function<key_type>,
-            typename KeyEqual = thrust::equal_to<key_type>>
+            typename KeyEqual = cuda::std::equal_to<key_type>>
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,

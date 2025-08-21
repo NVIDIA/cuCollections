@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,8 @@
 
 #include <cub/block/block_reduce.cuh>
 #include <cuda/std/atomic>
+#include <cuda/std/iterator>
 #include <thrust/type_traits/is_contiguous_iterator.h>
-
-#include <iterator>
 
 namespace cuco {
 namespace detail {
@@ -84,7 +83,7 @@ CUCO_KERNEL void initialize(pair_atomic_type* const slots, Key k, Value v, int64
 template <uint32_t block_size, uint32_t tile_size, typename InputIt, typename viewT>
 CUCO_KERNEL void insert(InputIt first, int64_t n, viewT view)
 {
-  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
@@ -132,7 +131,7 @@ template <uint32_t block_size,
           typename Predicate>
 CUCO_KERNEL void insert_if_n(InputIt first, StencilIt s, int64_t n, viewT view, Predicate pred)
 {
-  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
@@ -179,14 +178,14 @@ template <bool is_pair_contains,
           typename Equal>
 CUCO_KERNEL void contains(InputIt first, int64_t n, OutputIt output_begin, viewT view, Equal equal)
 {
-  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
   __shared__ bool writeBuffer[block_size / tile_size];
 
   while (idx < n) {
-    typename std::iterator_traits<InputIt>::value_type element = *(first + idx);
-    auto found                                                 = [&]() {
+    typename cuda::std::iterator_traits<InputIt>::value_type element = *(first + idx);
+    auto found                                                       = [&]() {
       if constexpr (is_pair_contains) { return view.pair_contains(tile, element, equal); }
       if constexpr (not is_pair_contains) { return view.contains(tile, element, equal); }
     }();
@@ -238,7 +237,7 @@ template <uint32_t block_size,
 CUCO_KERNEL void count(
   InputIt first, int64_t n, atomicT* num_matches, viewT view, KeyEqual key_equal)
 {
-  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
@@ -297,7 +296,7 @@ template <uint32_t block_size,
 CUCO_KERNEL void pair_count(
   InputIt first, int64_t n, atomicT* num_matches, viewT view, PairEqual pair_equal)
 {
-  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / tile_size;
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / tile_size;
 
@@ -375,8 +374,9 @@ CUCO_KERNEL void retrieve(InputIt first,
   constexpr uint32_t num_flushing_cgs = block_size / flushing_cg_size;
   const uint32_t flushing_cg_id       = threadIdx.x / flushing_cg_size;
 
-  auto flushing_cg          = cg::tiled_partition<flushing_cg_size>(cg::this_thread_block());
-  auto probing_cg           = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
+  auto flushing_cg =
+    cg::tiled_partition<flushing_cg_size, cg::thread_block>(cg::this_thread_block());
+  auto probing_cg = cg::tiled_partition<probing_cg_size, cg::thread_block>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / probing_cg_size;
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / probing_cg_size;
 
@@ -396,23 +396,23 @@ CUCO_KERNEL void retrieve(InputIt first,
     if (active_flag) {
       auto key = *(first + idx);
       if constexpr (is_outer) {
-        view.retrieve_outer<buffer_size>(active_flushing_cg,
-                                         probing_cg,
-                                         key,
-                                         &flushing_cg_counter[flushing_cg_id],
-                                         output_buffer[flushing_cg_id],
-                                         num_matches,
-                                         output_begin,
-                                         key_equal);
+        view.template retrieve_outer<buffer_size>(active_flushing_cg,
+                                                  probing_cg,
+                                                  key,
+                                                  &flushing_cg_counter[flushing_cg_id],
+                                                  output_buffer[flushing_cg_id],
+                                                  num_matches,
+                                                  output_begin,
+                                                  key_equal);
       } else {
-        view.retrieve<buffer_size>(active_flushing_cg,
-                                   probing_cg,
-                                   key,
-                                   &flushing_cg_counter[flushing_cg_id],
-                                   output_buffer[flushing_cg_id],
-                                   num_matches,
-                                   output_begin,
-                                   key_equal);
+        view.template retrieve<buffer_size>(active_flushing_cg,
+                                            probing_cg,
+                                            key,
+                                            &flushing_cg_counter[flushing_cg_id],
+                                            output_buffer[flushing_cg_id],
+                                            num_matches,
+                                            output_begin,
+                                            key_equal);
       }
     }
     idx += loop_stride;
@@ -489,8 +489,9 @@ CUCO_KERNEL void pair_retrieve(InputIt first,
   constexpr uint32_t num_flushing_cgs = block_size / flushing_cg_size;
   const uint32_t flushing_cg_id       = threadIdx.x / flushing_cg_size;
 
-  auto flushing_cg          = cg::tiled_partition<flushing_cg_size>(cg::this_thread_block());
-  auto probing_cg           = cg::tiled_partition<probing_cg_size>(cg::this_thread_block());
+  auto flushing_cg =
+    cg::tiled_partition<flushing_cg_size, cg::thread_block>(cg::this_thread_block());
+  auto probing_cg = cg::tiled_partition<probing_cg_size, cg::thread_block>(cg::this_thread_block());
   int64_t const loop_stride = gridDim.x * block_size / probing_cg_size;
   int64_t idx               = (block_size * blockIdx.x + threadIdx.x) / probing_cg_size;
 
