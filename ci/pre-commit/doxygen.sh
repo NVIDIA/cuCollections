@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2022-2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2022-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# skip if doxygen is not installed
+# Skip if doxygen is not installed
 if ! [ -x "$(command -v doxygen)" ]; then
-  echo -e "warning: Doxygen is not installed"
+  echo -e "Warning: Doxygen is not installed - skipping check"
   exit 0
 fi
 
@@ -26,10 +26,12 @@ function version { echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4
 # Doxygen supported version 1.8.20 to 1.9.1
 DOXYGEN_VERSION=$(doxygen --version)
 if [ $(version "$DOXYGEN_VERSION") -lt $(version "1.8.20") ] ||  [ $(version $DOXYGEN_VERSION) -gt $(version "1.9.1") ]; then
-  echo -e "Warning: Unsupported Doxygen version $DOXYGEN_VERSION"
-  echo -e "Expecting Doxygen version from 1.8.20 to 1.9.1"
+  echo -e "Warning: Unsupported Doxygen version $DOXYGEN_VERSION - skipping check"
+  echo -e "Expected Doxygen version from 1.8.20 to 1.9.1"
   exit 0
 fi
+
+echo "Using doxygen version: ${DOXYGEN_VERSION}"
 
 # Run doxygen, ignore missing tag files error
 TAG_ERROR1="error: Tag file '.*.tag' does not exist or is not a file. Skipping it..."
