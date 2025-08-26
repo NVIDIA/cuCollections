@@ -47,7 +47,6 @@
  * @note This example requires the cmake option -DCUCO_DOWNLOAD_ROARING_TESTDATA=ON to be set.
  *
  */
-
 template <typename KeyType>
 bool check(std::string const& bitmap_file_path)
 {
