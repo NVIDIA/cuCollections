@@ -42,7 +42,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
  public:
   using storage_ref_type = roaring_bitmap_storage_ref<cuda::std::uint32_t>;
 
-  static constexpr cuda::std::uint32_t binary_search_threshold = 8;  // TODO determine optimal value
+  static constexpr cuda::std::int32_t binary_search_threshold = 8;  // TODO determine optimal value
 
   __host__ __device__ roaring_bitmap_impl(storage_ref_type const& storage_ref)
     : storage_ref_{storage_ref},
@@ -112,7 +112,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
     if (storage_ref_.metadata().num_containers < binary_search_threshold) {
 // linear search
 #pragma unroll
-      for (cuda::std::uint32_t i = 0; i < storage_ref_.metadata().num_containers; i++) {
+      for (cuda::std::int32_t i = 0; i < storage_ref_.metadata().num_containers; i++) {
         cuda::std::byte const* key_ptr =
           storage_ref_.key_cards() + (i * 2) * sizeof(cuda::std::uint16_t);
         if constexpr (Aligned) {
