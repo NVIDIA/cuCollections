@@ -50,7 +50,7 @@ __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::cle
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::clear_async(
-  cuda::stream_ref stream)
+  cuda::stream_ref stream) noexcept
 {
   ref_.clear_async(stream);
 }
@@ -66,7 +66,7 @@ __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::add
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::add_async(
-  InputIt first, InputIt last, cuda::stream_ref stream)
+  InputIt first, InputIt last, cuda::stream_ref stream) noexcept
 {
   ref_.add_async(first, last, stream);
 }

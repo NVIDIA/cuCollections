@@ -38,6 +38,16 @@ class default_filter_policy_impl {
 
   static constexpr std::uint32_t words_per_block = WordsPerBlock;
 
+  // TODO this could be expressed as two cuda::std::extents<uint32_t, HORIZONTAL, VERTICAL> instead
+  static constexpr uint32_t add_horizontal_layout =
+    words_per_block;  ///< horizontal vectorization layout for add operation
+  static constexpr uint32_t add_vertical_layout =
+    1;  ///< vertical vectorization layout for add operation
+  static constexpr uint32_t contains_horizontal_layout =
+    1;  ///< horizontal vectorization layout for contains operation
+  static constexpr uint32_t contains_vertical_layout =
+    words_per_block;  ///< vertical vectorization layout for contains operation
+
  private:
   static constexpr std::uint32_t word_bits       = cuda::std::numeric_limits<word_type>::digits;
   static constexpr std::uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);

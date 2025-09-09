@@ -61,6 +61,11 @@ class default_filter_policy {
   static constexpr std::uint32_t words_per_block =
     impl_type::words_per_block;  ///< Number of words/segments in each filter block
 
+  static constexpr uint32_t add_horizontal_layout      = impl_type::add_horizontal_layout;
+  static constexpr uint32_t add_vertical_layout        = impl_type::add_vertical_layout;
+  static constexpr uint32_t contains_horizontal_layout = impl_type::contains_horizontal_layout;
+  static constexpr uint32_t contains_vertical_layout   = impl_type::contains_vertical_layout;
+
  public:
   /**
    * @brief Constructs the `default_filter_policy` object.

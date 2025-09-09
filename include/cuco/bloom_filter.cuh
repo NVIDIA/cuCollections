@@ -134,7 +134,7 @@ class bloom_filter {
    *
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
-  __host__ constexpr void clear_async(cuda::stream_ref stream = {});
+  __host__ constexpr void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Adds all keys in the range `[first, last)` to the filter.
@@ -160,7 +160,9 @@ class bloom_filter {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt>
-  __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  __host__ constexpr void add_async(InputIt first,
+                                    InputIt last,
+                                    cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns

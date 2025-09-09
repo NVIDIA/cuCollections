@@ -91,6 +91,16 @@ class arrow_filter_policy {
   static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded bits set per Arrow filter block
   static constexpr uint32_t words_per_block    = 8;  ///< hardcoded words per Arrow filter block
 
+  // TODO this could be expressed as two cuda::std::extents<uint32_t, HORIZONTAL, VERTICAL> instead
+  static constexpr uint32_t add_horizontal_layout =
+    words_per_block;  ///< horizontal vectorization layout for add operation
+  static constexpr uint32_t add_vertical_layout =
+    1;  ///< vertical vectorization layout for add operation
+  static constexpr uint32_t contains_horizontal_layout =
+    1;  ///< horizontal vectorization layout for contains operation
+  static constexpr uint32_t contains_vertical_layout =
+    words_per_block;  ///< vertical vectorization layout for contains operation
+
   static constexpr std::uint32_t bytes_per_filter_block =
     32;  ///< Number of bytes in one Arrow filter block
   static constexpr std::uint32_t max_arrow_filter_bytes =

@@ -52,7 +52,7 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::clear(cuda
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::clear_async(
-  cuda::stream_ref stream)
+  cuda::stream_ref stream) noexcept
 {
   impl_.clear_async(stream);
 }
@@ -62,6 +62,13 @@ template <class ProbeKey>
 __device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(ProbeKey const& key)
 {
   impl_.add(key);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class InputIt>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(InputIt first, InputIt last)
+{
+  impl_.add(first, last);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -92,7 +99,7 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add(InputI
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class InputIt>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add_async(
-  InputIt first, InputIt last, cuda::stream_ref stream)
+  InputIt first, InputIt last, cuda::stream_ref stream) noexcept
 {
   impl_.add_async(first, last, stream);
 }
@@ -122,11 +129,30 @@ template <class ProbeKey>
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class InputIt, class OutputIt>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(InputIt first,
+                                                                       InputIt last,
+                                                                       OutputIt output_begin) const
+{
+  impl_.contains(first, last, output_begin);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class CG, class ProbeKey>
 [[nodiscard]] __device__ bool bloom_filter_ref<Key, Extent, Scope, Policy>::contains(
   CG group, ProbeKey const& key) const
 {
   return impl_.contains(group, key);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class CG, class InputIt, class OutputIt>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(CG group,
+                                                                       InputIt first,
+                                                                       InputIt last,
+                                                                       OutputIt output_begin) const
+{
+  impl_.contains(group, first, last, output_begin);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>

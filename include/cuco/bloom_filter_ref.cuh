@@ -108,7 +108,7 @@ class bloom_filter_ref {
    *
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
-  __host__ constexpr void clear_async(cuda::stream_ref stream = {});
+  __host__ constexpr void clear_async(cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Device function that adds a key to the filter.
@@ -119,6 +119,17 @@ class bloom_filter_ref {
    */
   template <class ProbeKey>
   __device__ void add(ProbeKey const& key);
+
+  /**
+   * @brief Device function that adds all keys in the range `[first, last)` to the filter.
+   *
+   * @tparam InputIt Device-accessible random access input key iterator
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   */
+  template <class InputIt>
+  __device__ void add(InputIt first, InputIt last);
 
   /**
    * @brief Device function that cooperatively adds a key to the filter.
@@ -175,7 +186,9 @@ class bloom_filter_ref {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt>
-  __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  __host__ constexpr void add_async(InputIt first,
+                                    InputIt last,
+                                    cuda::stream_ref stream = {}) noexcept;
 
   /**
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns
@@ -241,6 +254,20 @@ class bloom_filter_ref {
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const;
 
   /**
+   * @brief Device function that tests if all keys in the range `[first, last)` are present in the
+   * filter.
+   *
+   * @tparam InputIt Device-accessible random access input key iterator
+   * @tparam OutputIt Device-accessible output iterator assignable from `bool`
+   *
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   */
+  template <class InputIt, class OutputIt>
+  __device__ void contains(InputIt first, InputIt last, OutputIt output_begin) const;
+
+  /**
    * @brief Device function that tests if a key's fingerprint is present in the filter.
    *
    * @note Best performance is achieved if the size of the CG is equal to `(words_per_block *
@@ -257,10 +284,21 @@ class bloom_filter_ref {
   template <class CG, class ProbeKey>
   [[nodiscard]] __device__ bool contains(CG group, ProbeKey const& key) const;
 
-  // TODO
-  // template <class CG, class InputIt, class OutputIt>
-  // __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin)
-  // const;
+  /**
+   * @brief Device function that tests if all keys in the range `[first, last)` are present in the
+   * filter.
+   *
+   * @tparam CG Cooperative Group type
+   * @tparam InputIt Device-accessible random access input key iterator
+   * @tparam OutputIt Device-accessible output iterator assignable from `bool`
+   *
+   * @param group The Cooperative Group this operation is executed with
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   */
+  template <class CG, class InputIt, class OutputIt>
+  __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin) const;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the
