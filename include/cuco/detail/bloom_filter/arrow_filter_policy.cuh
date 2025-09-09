@@ -101,14 +101,13 @@ class arrow_filter_policy {
   static constexpr uint32_t contains_vertical_layout =
     words_per_block;  ///< vertical vectorization layout for contains operation
 
-  static constexpr std::uint32_t bytes_per_filter_block =
+  static constexpr size_t bytes_per_filter_block =
     32;  ///< Number of bytes in one Arrow filter block
-  static constexpr std::uint32_t max_arrow_filter_bytes =
+  static constexpr size_t max_filter_bytes =
     128 * 1024 * 1024;  ///< Max bytes in Arrow bloom filter
-  static constexpr std::uint32_t max_filter_blocks =
-    (max_arrow_filter_bytes /
+  static constexpr size_t max_filter_blocks =
+    (max_filter_bytes /
      bytes_per_filter_block);  ///< Max sub-filter blocks allowed in Arrow bloom filter
-
  public:
   /**
    * @brief Constructs the `arrow_filter_policy` object.

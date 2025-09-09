@@ -29,7 +29,7 @@
 namespace cuco::detail {
 
 template <class Hash, class Word, uint32_t WordsPerBlock>
-class default_filter_policy_impl {
+class default_filter_policy {
  public:
   using hasher             = Hash;
   using word_type          = Word;
@@ -43,18 +43,23 @@ class default_filter_policy_impl {
     words_per_block;  ///< horizontal vectorization layout for add operation
   static constexpr uint32_t add_vertical_layout =
     1;  ///< vertical vectorization layout for add operation
-  static constexpr uint32_t contains_horizontal_layout =
-    1;  ///< horizontal vectorization layout for contains operation
   static constexpr uint32_t contains_vertical_layout =
-    words_per_block;  ///< vertical vectorization layout for contains operation
+    cuda::std::min(sizeof(word_type) * words_per_block, 32ul) /
+    sizeof(word_type);  ///< vertical vectorization layout for contains operation
+  static constexpr uint32_t contains_horizontal_layout =
+    words_per_block /
+    contains_vertical_layout;  ///< horizontal vectorization layout for contains operation
+
+  static constexpr size_t max_filter_bytes  = cuda::std::numeric_limits<size_t>::max();
+  static constexpr size_t max_filter_blocks = cuda::std::numeric_limits<size_t>::max();
 
  private:
   static constexpr std::uint32_t word_bits       = cuda::std::numeric_limits<word_type>::digits;
   static constexpr std::uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
 
  public:
-  __host__ __device__ explicit constexpr default_filter_policy_impl(uint32_t pattern_bits,
-                                                                    Hash hash)
+  __host__ __device__ constexpr default_filter_policy(uint32_t pattern_bits = words_per_block,
+                                                      Hash hash             = {})
     : pattern_bits_{pattern_bits},
       min_bits_per_word_{pattern_bits_ / words_per_block},
       remainder_bits_{pattern_bits_ % words_per_block},
