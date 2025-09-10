@@ -75,7 +75,17 @@ void test_variable_cg_size(Filter& filter, size_type num_keys)
     REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
-  // TODO adaptive vs. adaptive and fallback add vs. adaptive contains (requires #673)
+  filter.clear();
+  thrust::fill(contained.begin(), contained.end(), false);  // reset output vector
+
+  SECTION("Check if fallback add kernel works with adaptive contains kernel.")
+  {
+    cuco::detail::bloom_filter_ns::add_if_n<AddCGSize, block_size>
+      <<<grid_size, block_size>>>(keys.begin(), num_keys, always_true, cuda::std::identity{}, ref);
+    cuco::detail::bloom_filter_ns::contains<block_size>
+      <<<grid_size, block_size>>>(keys.begin(), num_keys, contained.begin(), ref);
+    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
+  }
 }
 
 TEMPLATE_TEST_CASE_SIG(
