@@ -471,6 +471,7 @@ class bloom_filter_impl {
     } else {
       typename policy_type::hash_result_type hash_value;
       size_type block_index;
+      bool result_out;
 
       auto const rank        = group.thread_rank();
       auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
@@ -478,6 +479,7 @@ class bloom_filter_impl {
       if constexpr (num_threads <= horizontal_layout) {
         for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
           auto const group_offset = i * num_threads;
+          // coalesced input read
           if (group_offset + rank < num_keys) {
             typename cuda::std::iterator_traits<InputIt>::value_type const& key{
               *(first + group_offset + rank)};
@@ -485,18 +487,27 @@ class bloom_filter_impl {
             block_index = policy_.block_index(hash_value, num_blocks_);
           }
 
+          // group-wise cooperative lookup
           for (uint32_t j = 0; (j < num_threads) and (group_offset + j < num_keys); ++j) {
-            *(output_begin + group_offset + j) =
+            bool result =
               this->contains_impl(group, group.shfl(hash_value, j), group.shfl(block_index, j));
+            if (j == rank) { result_out = result; }
+          }
+
+          // coalesced output write
+          if (group_offset + rank < num_keys) {
+            *(output_begin + group_offset + rank) = result_out;
           }
         }
       } else /* num_threads > horizontal_layout */ {
         // subdivide given CG into multiple optimal CGs
         auto const worker_group = cooperative_groups::tiled_partition<horizontal_layout, CG>(group);
         auto const worker_offset = horizontal_layout * worker_group.meta_group_rank();
+        auto const worker_rank   = worker_group.thread_rank();
 
         for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
           auto const group_offset = i * num_threads;
+          // coalesced input read
           if (group_offset + rank < num_keys) {
             typename cuda::std::iterator_traits<InputIt>::value_type const& key{
               *(first + group_offset + rank)};
@@ -504,11 +515,18 @@ class bloom_filter_impl {
             block_index = policy_.block_index(hash_value, num_blocks_);
           }
 
+          // group-wise cooperative lookup
           for (uint32_t j = 0;
                (j < horizontal_layout) and (group_offset + worker_offset + j < num_keys);
                ++j) {
-            *(output_begin + group_offset + worker_offset + j) = this->contains_impl(
+            bool result = this->contains_impl(
               worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
+            if (j == worker_rank) { result_out = result; }
+          }
+
+          // coalesced output write
+          if (group_offset + rank < num_keys) {
+            *(output_begin + group_offset + rank) = result_out;
           }
         }
       }
