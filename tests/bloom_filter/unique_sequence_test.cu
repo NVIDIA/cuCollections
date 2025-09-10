@@ -127,3 +127,26 @@ TEMPLATE_TEST_CASE_SIG("bloom_filter arrow policy tests",
 
   test_unique_sequence(filter, num_keys);
 }
+
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter parametric policy tests",
+  "",
+  ((class Key, class Policy), Key, Policy),
+  (int32_t,
+   cuco::experimental::
+     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
+  (uint64_t,
+   cuco::experimental::
+     parametric_filter_policy<cuco::xxhash_64<uint64_t>, uint32_t, 8, 12, 8, 1, 4, 2>),
+  (float,
+   cuco::experimental::
+     parametric_filter_policy<cuco::xxhash_64<float>, uint64_t, 4, 4, 2, 2, 1, 2>))
+{
+  using filter_type =
+    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
+  constexpr size_type num_keys{400};
+
+  auto filter = filter_type{1000};
+
+  test_unique_sequence(filter, num_keys);
+}
