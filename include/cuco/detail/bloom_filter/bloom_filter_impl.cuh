@@ -356,7 +356,7 @@ class bloom_filter_impl {
         auto const word_offset      = i * vertical_layout + j;
         auto const expected_pattern = policy_.word_pattern(hash_value, word_offset);
         // TODO we can replace this with a check against "is 0" if we negate the filter bits
-        if ((stored_pattern[word_offset] & expected_pattern) != expected_pattern) { return false; }
+        if ((stored_pattern[j] & expected_pattern) != expected_pattern) { return false; }
       }
     }
     return true;
