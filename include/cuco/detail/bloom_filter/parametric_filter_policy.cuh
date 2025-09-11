@@ -23,6 +23,8 @@
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 
+#include <sys/types.h>
+
 #include <cstdint>
 
 namespace cuco::experimental::detail {
@@ -111,7 +113,10 @@ class parametric_filter_policy {
                   "block");
     /// KEVIN: Requiring 64b hash return type for now
     static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
-                  "Currently only 64b hash_result_type is supported");
+                  "currently only 64b hash_result_type is supported");
+    /// KEVIN: We can increase the number of salts if needed
+    static_assert(pattern_bits <= salts.size(),
+                  "pattern_bits exceeds the number of available salts");
   }
 
   __device__ constexpr hash_result_type hash(hash_argument_type const& key) const
@@ -119,7 +124,7 @@ class parametric_filter_policy {
     return hash_(key);
   }
 
-  // returns {upper 32b, lower 32b} of 64b hash
+  // Return {upper 32b, lower 32b} of 64b hash
   __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(
     hash_argument_type const& key) const
   {
@@ -128,69 +133,57 @@ class parametric_filter_policy {
   }
 
   template <class Extent>
-  __device__ constexpr auto block_index(hash_result_type hash, Extent num_blocks) const
+  __device__ constexpr auto block_index(uint32_t upper_hash_value, Extent num_blocks) const
   {
-    return hash % num_blocks;
+    return upper_hash_value % num_blocks;
   }
 
-  template <uint32_t LoopIndex>
-  __device__ constexpr add_pattern_array_t add_pattern(hash_result_type hash) const
+  template <uint32_t LoopIndex, uint32_t VerticalLayout>
+  __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
   {
-    static_assert(add_horizontal_layout == 1,
-                  "This add_pattern overload can only be used when add_horizontal_layout == 1");
-    return pattern_impl<LoopIndex, add_vertical_layout>(hash);
+    return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
   }
 
-  template <uint32_t LoopIndex>
-  __device__ constexpr add_pattern_array_t add_pattern(hash_result_type hash,
-                                                       uint32_t thread_index) const
+  template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
+  __device__ constexpr auto array_pattern(uint32_t lower_hash_value, uint32_t thread_index) const
   {
-    static_assert(add_horizontal_layout > 1,
-                  "This add_pattern overload can only be used when add_horizontal_layout > 1");
-    return pattern_impl<LoopIndex, add_horizontal_layout, add_vertical_layout>(hash, thread_index);
-  }
-
-  template <uint32_t LoopIndex>
-  __device__ constexpr contains_pattern_array_t contains_pattern(hash_result_type hash) const
-  {
-    static_assert(
-      contains_horizontal_layout == 1,
-      "This contains_pattern overload can only be used when contains_horizontal_layout == 1");
-    return pattern_impl<LoopIndex, contains_vertical_layout>(hash);
-  }
-
-  template <uint32_t LoopIndex>
-  __device__ constexpr contains_pattern_array_t contains_pattern(hash_result_type hash,
-                                                                 uint32_t thread_index) const
-  {
-    static_assert(
-      contains_horizontal_layout > 1,
-      "This contains_pattern overload can only be used when contains_horizontal_layout > 1");
-    return pattern_impl<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
-      hash, thread_index);
+    return pattern_impl<LoopIndex, HorizontalLayout, VerticalLayout>(lower_hash_value,
+                                                                     thread_index);
   }
 
  private:
   hasher hash_;
 
-  // when <add/contains>_horizontal_layout == 1
+  /**
+   * @brief pattern_impl - Computes the bit pattern for a vertical layout of words.
+   * I use the terminology of a `virtual thread` to refer to an ordering of the vertical layouts,
+   * namely virtual_thread_index = LoopIndex * HorizontalLayout + thread_index, where LoopIndex is
+   * the index of the outermost loop in the range:
+   *     [0, words_per_block / (HorizontalLayout * VerticalLayout)).
+   * @param hash
+   * @return cuda::std::array<word_type, VerticalLayout> - The bit pattern for the vertical layout
+   * defined by the LoopIndex.
+   */
+
+  // Precondition: <add/contains>_horizontal_layout == 1
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto pattern_impl(uint32_t hash) const
   {
     using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
 
-    // Sanity checks
+    // Sanity check
     constexpr uint32_t num_iterations = words_per_block / VerticalLayout;
     static_assert(LoopIndex < num_iterations,
-                  "The loop index cannot exceed the number of loop iterations");
+                  "the loop index cannot exceed the number of loop iterations");
 
     pattern_array_t pattern_array{0};
-    constexpr uint32_t salt_start_index = max_bits_per_word * VerticalLayout * LoopIndex;
-    set_bits<salt_start_index, 0>(hash, pattern_array);
+    constexpr uint32_t salt_start_index          = max_bits_per_word * VerticalLayout * LoopIndex;
+    constexpr uint32_t pattern_array_start_index = 0;
+    set_bits<salt_start_index, pattern_array_start_index>(hash, pattern_array);
     return pattern_array;
   }
 
-  // when <add/contains>_horizontal_layout > 1
+  // Precondition: <add/contains>_horizontal_layout > 1
   template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto pattern_impl(uint32_t hash, uint32_t thread_index) const
   {
@@ -199,15 +192,15 @@ class parametric_filter_policy {
     // Sanity check
     constexpr uint32_t num_iterations = words_per_block / (HorizontalLayout * VerticalLayout);
     static_assert(LoopIndex < num_iterations,
-                  "The loop index cannot exceed the number of loop iterations");
+                  "the loop index cannot exceed the number of loop iterations");
 
     // [lower_bound, upper_bound) defines the range of virtual thread indices for this loop
-    // iteration
+    // iteration.
     constexpr uint32_t lower_bound = LoopIndex * HorizontalLayout;
     constexpr uint32_t upper_bound = lower_bound + HorizontalLayout;
 
-    // a virtual thread flips max_bits_per_virtual_thread bits in the pattern array, excepting
-    // potentially the last virtual thread (if pattern_bits % words_per_block != 0)
+    // A virtual thread flips max_bits_per_virtual_thread bits in the pattern array, excepting
+    // potentially some of the last virtual threads (if pattern_bits % words_per_block != 0)
     constexpr uint32_t max_bits_per_virtual_thread = max_bits_per_word * VerticalLayout;
 
     pattern_array_t pattern_array{0};
@@ -222,15 +215,16 @@ class parametric_filter_policy {
     return pattern_array;
   }
 
-  // dispatches a dynamic thread index to a static virtual thread index by building a compile-time
-  // decision tree over the range [LowerBound, UpperBound) for the virtual thread index
+  // Dispatches a dynamic thread index to a static virtual thread index by building a compile-time
+  // decision tree over the range [LowerBound, UpperBound) for the virtual thread index.
+  // This method is only used when <add/contains>_horizontal_layout > 1.
   template <uint32_t MaxBitsPerVirtualThread,
             uint32_t LowerBound,
             uint32_t UpperBound,
             class PatternArrayT>
   __device__ constexpr void thread_dispatch(uint32_t hash,
                                             uint32_t thread_index,
-                                            PatternArrayT& pattern_array)
+                                            PatternArrayT& pattern_array) const
   {
     // Sanity check
     static_assert(LowerBound < UpperBound);
@@ -251,18 +245,19 @@ class parametric_filter_policy {
     }
   }
 
+  // Set bits in the pattern array using salts starting from SaltIndex.
   template <uint32_t SaltIndex, uint32_t PatternArrayIndex, class PatternArrayT>
-  __device__ constexpr void set_bits(uint32_t hash, PatternArrayT& pattern_array)
+  __device__ constexpr void set_bits(uint32_t hash, PatternArrayT& pattern_array) const
   {
     if constexpr (SaltIndex < pattern_bits) {
-      // Select top bit_index_width bits from salted hash to determine the bit index
+      // Select top bit_index_width bits from salted hash to determine the bit index.
       const uint32_t bit_index =
         (cuda::std::get<SaltIndex>(salts) * hash) >> (32 - bit_index_width);
 
-      // Set the bit in the pattern array
+      // Set the bit in the pattern array.
       cuda::std::get<PatternArrayIndex>(pattern_array) |= word_type{1} << bit_index;
 
-      // Recursive call
+      // Recurse.
       constexpr uint32_t next_salt_index = SaltIndex + 1;
       constexpr uint32_t next_pattern_array_index =
         PatternArrayIndex + (next_salt_index % max_bits_per_word == 0 ? 1 : 0);
