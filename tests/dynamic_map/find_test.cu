@@ -23,9 +23,9 @@
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/sequence.h>
-#include <thrust/iterator/zip_iterator.h>
 #include <thrust/iterator/constant_iterator.h>
+#include <thrust/iterator/zip_iterator.h>
+#include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -153,8 +153,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map find tests",
       cuco::test::all_of(first_half_empty_zip, first_half_empty_zip + num_keys / 2, zip_equal));
 
     // Second half should return correct values (not erased)
-    auto second_half_zip = thrust::make_zip_iterator(cuda::std::tuple{
-      d_values.begin() + num_keys / 2, d_found_values.begin() + num_keys / 2});
+    auto second_half_zip = thrust::make_zip_iterator(
+      cuda::std::tuple{d_values.begin() + num_keys / 2, d_found_values.begin() + num_keys / 2});
     REQUIRE(cuco::test::all_of(second_half_zip, second_half_zip + num_keys / 2, zip_equal));
   }
 
@@ -163,7 +163,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map find tests",
 
   SECTION("Check find in a all erased submap")
   {
-    constexpr float default_load_factor = 0.60;
+    constexpr float default_load_factor     = 0.60;
     constexpr std::size_t first_insert_size = num_keys * default_load_factor;
 
     thrust::device_vector<Key> d_keys(num_keys);
@@ -193,8 +193,9 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map find tests",
       d_keys.begin() + first_insert_size, d_keys.end(), cuco::identity_hash<Key>());
     REQUIRE(indentity_hash_map.get_size() == 0);
 
-    // we've construct a dynamic_map with one submap whose keys are all erased keys (-2 in this case)
-    // this find would run forever if we don't check whether we have iterated all keys in a submap
+    // we've construct a dynamic_map with one submap whose keys are all erased keys (-2 in this
+    // case) this find would run forever if we don't check whether we have iterated all keys in a
+    // submap
     indentity_hash_map.find(
       d_keys.begin(), d_keys.end(), d_found_values.begin(), cuco::identity_hash<Key>());
     // all d_found_values should be empty value sentinel (-1 in this case)

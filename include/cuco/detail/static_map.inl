@@ -639,7 +639,7 @@ template <typename CG, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::erase(
   CG g, key_type const& k, Hash hash, KeyEqual key_equal) noexcept
 {
-  auto current_slot = this->initial_slot(g, k, hash);
+  auto current_slot    = this->initial_slot(g, k, hash);
   auto const init_slot = current_slot;
   value_type const insert_pair =
     make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
@@ -701,7 +701,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) noexcept
 {
-  auto current_slot = this->initial_slot(k, hash);
+  auto current_slot    = this->initial_slot(k, hash);
   auto const init_slot = current_slot;
 
   while (true) {
@@ -726,7 +726,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             Hash hash,
                                                             KeyEqual key_equal) const noexcept
 {
-  auto current_slot = this->initial_slot(k, hash);
+  auto current_slot    = this->initial_slot(k, hash);
   auto const init_slot = current_slot;
 
   while (true) {
@@ -752,7 +752,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             Hash hash,
                                                             KeyEqual key_equal) noexcept
 {
-  auto current_slot = this->initial_slot(g, k, hash);
+  auto current_slot    = this->initial_slot(g, k, hash);
   auto const init_slot = current_slot;
 
   while (true) {
@@ -792,7 +792,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             Hash hash,
                                                             KeyEqual key_equal) const noexcept
 {
-  auto current_slot = this->initial_slot(g, k, hash);
+  auto current_slot    = this->initial_slot(g, k, hash);
   auto const init_slot = current_slot;
 
   while (true) {
@@ -831,7 +831,7 @@ template <typename ProbeKey, typename Hash, typename KeyEqual>
 __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   ProbeKey const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
-  auto current_slot = this->initial_slot(k, hash);
+  auto current_slot    = this->initial_slot(k, hash);
   auto const init_slot = current_slot;
 
   while (true) {
@@ -854,7 +854,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG g,
                                                                 Hash hash,
                                                                 KeyEqual key_equal) const noexcept
 {
-  auto current_slot = this->initial_slot(g, k, hash);
+  auto current_slot    = this->initial_slot(g, k, hash);
   auto const init_slot = current_slot;
 
   while (true) {
