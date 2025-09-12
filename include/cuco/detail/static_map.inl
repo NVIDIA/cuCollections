@@ -589,6 +589,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
   key_type const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot{this->initial_slot(k, hash)};
+  auto const init_slot = current_slot;
 
   value_type const insert_pair =
     make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
@@ -628,6 +629,8 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     }
 
     current_slot = this->next_slot(current_slot);
+    // if all keys in this map has been erased, return false
+    if (current_slot == init_slot) { return false; }
   }
 }
 
@@ -637,6 +640,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
   CG g, key_type const& k, Hash hash, KeyEqual key_equal) noexcept
 {
   auto current_slot = this->initial_slot(g, k, hash);
+  auto const init_slot = current_slot;
   value_type const insert_pair =
     make_pair<Key, Value>(this->get_erased_key_sentinel(), this->get_empty_value_sentinel());
 
@@ -686,6 +690,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_mutable_view::e
     if (g.ballot(slot_is_empty)) { return false; }
 
     current_slot = this->next_slot(g, current_slot);
+    if (current_slot == init_slot) { return false; }
   }
 }
 
@@ -697,6 +702,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             KeyEqual key_equal) noexcept
 {
   auto current_slot = this->initial_slot(k, hash);
+  auto const init_slot = current_slot;
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -709,6 +715,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
     if (key_equal(existing_key, k)) { return current_slot; }
 
     current_slot = this->next_slot(current_slot);
+    if (current_slot == init_slot) { return this->end(); }
   }
 }
 
@@ -720,6 +727,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
                                                             KeyEqual key_equal) const noexcept
 {
   auto current_slot = this->initial_slot(k, hash);
+  auto const init_slot = current_slot;
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -732,6 +740,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(Key const& k,
     if (key_equal(existing_key, k)) { return current_slot; }
 
     current_slot = this->next_slot(current_slot);
+    if (current_slot == init_slot) { return this->end(); }
   }
 }
 
@@ -744,6 +753,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             KeyEqual key_equal) noexcept
 {
   auto current_slot = this->initial_slot(g, k, hash);
+  auto const init_slot = current_slot;
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -770,6 +780,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
     // otherwise, all slots in the current bucket are full with other keys, so we move onto the
     // next bucket
     current_slot = this->next_slot(g, current_slot);
+    if (current_slot == init_slot) { return this->end(); }
   }
 }
 
@@ -782,6 +793,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
                                                             KeyEqual key_equal) const noexcept
 {
   auto current_slot = this->initial_slot(g, k, hash);
+  auto const init_slot = current_slot;
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -810,6 +822,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::find(CG g,
     // so we move onto the next bucket in the current submap
 
     current_slot = this->next_slot(g, current_slot);
+    if (current_slot == init_slot) { return this->end(); }
   }
 }
 
@@ -819,6 +832,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
   ProbeKey const& k, Hash hash, KeyEqual key_equal) const noexcept
 {
   auto current_slot = this->initial_slot(k, hash);
+  auto const init_slot = current_slot;
 
   while (true) {
     auto const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -828,6 +842,7 @@ __device__ bool static_map<Key, Value, Scope, Allocator>::device_view::contains(
     if (key_equal(existing_key, k)) { return true; }
 
     current_slot = this->next_slot(current_slot);
+    if (current_slot == init_slot) { return false; }
   }
 }
 
@@ -840,6 +855,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG g,
                                                                 KeyEqual key_equal) const noexcept
 {
   auto current_slot = this->initial_slot(g, k, hash);
+  auto const init_slot = current_slot;
 
   while (true) {
     key_type const existing_key = current_slot->first.load(cuda::std::memory_order_relaxed);
@@ -859,6 +875,7 @@ static_map<Key, Value, Scope, Allocator>::device_view::contains(CG g,
     // otherwise, all slots in the current bucket are full with other keys, so we move onto the
     // next bucket
     current_slot = this->next_slot(g, current_slot);
+    if (current_slot == init_slot) { return false; }
   }
 }
 }  // namespace cuco::legacy
