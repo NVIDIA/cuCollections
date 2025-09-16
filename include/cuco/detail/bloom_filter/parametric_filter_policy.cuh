@@ -57,12 +57,6 @@ class parametric_filter_policy {
   static constexpr uint32_t contains_vertical_layout =
     ContainsVerticalLayout;  ///< vertical vectorization layout for contains operation
 
-  using contains_pattern_array_t =
-    cuda::std::array<word_type,
-                     ContainsVerticalLayout>;  ///< array of pattern bits for contains
-  using add_pattern_array_t =
-    cuda::std::array<word_type, AddVerticalLayout>;  ///< array of pattern bits for add
-
   static constexpr size_t max_filter_bytes  = cuda::std::numeric_limits<size_t>::max();
   static constexpr size_t max_filter_blocks = cuda::std::numeric_limits<size_t>::max();
 
@@ -71,10 +65,6 @@ class parametric_filter_policy {
   static constexpr std::uint32_t bit_index_width   = cuda::std::bit_width(word_bits - 1);
   static constexpr std::uint32_t max_bits_per_word = cuda::ceil_div(pattern_bits, words_per_block);
 
-  static constexpr std::uint32_t add_num_iterations =
-    words_per_block / (add_horizontal_layout * add_vertical_layout);
-  static constexpr std::uint32_t contains_num_iterations =
-    words_per_block / (contains_horizontal_layout * contains_vertical_layout);
   static constexpr cuda::std::array<uint32_t, 16> salts = {0x47b6137bU,
                                                            0x44974d91U,
                                                            0x8824ad5bU,
@@ -200,7 +190,7 @@ class parametric_filter_policy {
     constexpr uint32_t upper_bound = lower_bound + HorizontalLayout;
 
     // A virtual thread flips max_bits_per_virtual_thread bits in the pattern array, excepting
-    // potentially some of the last virtual threads (if pattern_bits % words_per_block != 0)
+    // potentially some of the last virtual threads (if pattern_bits % words_per_block != 0).
     constexpr uint32_t max_bits_per_virtual_thread = max_bits_per_word * VerticalLayout;
 
     pattern_array_t pattern_array{0};
@@ -208,7 +198,7 @@ class parametric_filter_policy {
       thread_dispatch<max_bits_per_virtual_thread, lower_bound, upper_bound>(
         hash, thread_index, pattern_array);
     } else {
-      uint32_t virtual_thread_index = LoopIndex * HorizontalLayout + thread_index;
+      const uint32_t virtual_thread_index = LoopIndex * HorizontalLayout + thread_index;
       thread_dispatch<max_bits_per_virtual_thread, lower_bound, upper_bound>(
         hash, virtual_thread_index, pattern_array);
     }
@@ -238,9 +228,9 @@ class parametric_filter_policy {
       // Recursive case: thread_index > LowerBound
       constexpr uint32_t mid = (LowerBound + UpperBound) / 2;
       if (thread_index < mid) {
-        return thread_dispatch<MaxBitsPerVirtualThread, LowerBound, mid>(hash, thread_index);
+        thread_dispatch<MaxBitsPerVirtualThread, LowerBound, mid>(hash, thread_index, pattern_array);
       } else {
-        return thread_dispatch<MaxBitsPerVirtualThread, mid, UpperBound>(hash, thread_index);
+        thread_dispatch<MaxBitsPerVirtualThread, mid, UpperBound>(hash, thread_index, pattern_array);
       }
     }
   }
