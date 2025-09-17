@@ -38,6 +38,8 @@
 
 #include <cooperative_groups.h>
 
+#include <fcntl.h>
+
 #include <cstdint>
 
 namespace cuco::detail {
@@ -58,6 +60,15 @@ class bloom_filter_impl {
 
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
+
+  static constexpr auto add_vertical_layout        = policy_type::add_vertical_layout;
+  static constexpr auto add_horizontal_layout      = policy_type::add_horizontal_layout;
+  static constexpr auto contains_vertical_layout   = policy_type::contains_vertical_layout;
+  static constexpr auto contains_horizontal_layout = policy_type::contains_horizontal_layout;
+  static constexpr auto add_loop_count =
+    words_per_block / (add_vertical_layout * add_horizontal_layout);
+  static constexpr auto contains_loop_count =
+    words_per_block / (contains_vertical_layout * contains_horizontal_layout);
 
   // TODO static_assert layout, word type, etc.
 
@@ -616,6 +627,110 @@ class bloom_filter_impl {
     return num_blocks_;
   }
 
+  //===--------------------------------------------------===//
+  // Parametric Filter Policy
+  //===--------------------------------------------------===//
+  // NOTE: Only implementing the <add/contains>_async() host-side entry points for now.
+
+  // Single Thread Add
+  template <class HashValue>
+  __device__ bool add_exp(HashValue hash_value) const
+  {
+    // Sanity checks. TODO: remove redundant checks.
+    static_assert(cuda::std::is_same_v<HashValue, uint64_t>,
+                  "For multiplicative hashing, only uint64_t hashes are supported.");
+    static_assert(policy_type::add_horizontal_layout == 1,
+                  "This add_exp() requires add_horizontal_layout == 1");
+
+    auto const [upper_hash, lower_hash] = policy_.split_hash(hash_value);
+    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    add_pattern<0>(block_index, lower_hash);
+  }
+
+  // Multi Thread Add
+  template <class CG, class HashValue>
+  __device__ bool add_exp(CG group, HashValue hash_value) const
+  {
+    // Sanity checks. TODO: remove redundant checks.
+    static_assert(cuda::std::is_same_v<HashValue, uint64_t>,
+                  "For multiplicative hashing, only uint64_t hashes are supported.");
+    static_assert(policy_type::add_horizontal_layout == 1,
+                  "This add_exp() requires add_horizontal_layout == 1");
+
+    auto const [upper_hash, lower_hash] = policy_.split_hash(hash_value);
+    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    add_patterns<0>(block_index, lower_hash, group.thread_rank());
+  }
+
+  // Host-side Add Entry Point
+  template <class InputIt>
+  __host__ void add_exp_async(InputIt first, InputIt last, cuda::stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto constexpr block_size = cuco::detail::default_block_size();
+    auto constexpr cg_size    = static_cast<int32_t>(policy_type::add_horizontal_layout);
+
+    auto const grid_size =
+      cuda::ceil_div(num_keys, static_cast<decltype(num_keys)>(block_size * cg_size));
+
+    detail::bloom_filter_ns::add_exp_n<cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+  }
+
+  // Single Thread Contains
+  template <class HashValue>
+  __device__ bool contains_exp(HashValue hash_value) const
+  {
+    // Sanity checks. TODO: remove redundant checks.
+    static_assert(cuda::std::is_same_v<HashValue, uint64_t>,
+                  "For multiplicative hashing, only uint64_t hashes are supported.");
+    static_assert(policy_type::contains_horizontal_layout == 1,
+                  "This contains_exp() requires contains_horizontal_layout == 1");
+
+    auto const [upper_hash, lower_hash] = policy_.split_hash(hash_value);
+    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    return compare_pattern<0>(block_index, lower_hash);
+  }
+
+  // Multi Thread Contains
+  template <class CG, class HashValue>
+  __device__ bool contains_exp(CG group, HashValue hash_value) const
+  {
+    // Sanity checks. TODO: remove redundant checks.
+    static_assert(cuda::std::is_same_v<HashValue, uint64_t>,
+                  "For multiplicative hashing, only uint64_t hashes are supported.");
+    static_assert(policy_type::contains_horizontal_layout > 1,
+                  "This contains_exp() requires contains_horizontal_layout > 1");
+    static_assert(tile_size_v<CG> == policy_type::contains_horizontal_layout,
+                  "This contains_exp() requires CG with size equal to contains_horizontal_layout");
+
+    auto const [upper_hash, lower_hash] = policy_.split_hash(hash_value);
+    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    return compare_patterns<0>(group, block_index, lower_hash, group.thread_rank());
+  }
+
+  // Host-side Contains Entry Point
+  template <class InputIt, class OutputIt>
+  __host__ void contains_exp_async(InputIt first,
+                                   InputIt last,
+                                   OutputIt output_begin,
+                                   cuda::stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto constexpr block_size = cuco::detail::default_block_size();
+    auto constexpr cg_size    = static_cast<int32_t>(policy_type::contains_horizontal_layout);
+
+    auto const grid_size =
+      cuda::ceil_div(num_keys, static_cast<decltype(num_keys)>(block_size * cg_size));
+
+    detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+  }
+
   // TODO
   // [[nodiscard]] __host__ double occupancy() const;
   // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const
@@ -630,6 +745,137 @@ class bloom_filter_impl {
   {
     return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(
       __builtin_assume_aligned(words_ + index, alignment()));
+  }
+
+  //===--------------------------------------------------===//
+  // Parametric Filter Policy
+  //===--------------------------------------------------===//
+  /// Insert the given pattern into the filter
+  // Precondition: add_horizontal_layout == 1
+  template <uint32_t LoopIndex>
+  __device__ constexpr void add_pattern(uint32_t block_index, uint32_t lower_hash) const
+  {
+    // Sanity check. TODO: remove redundant checks.
+    static_assert(add_horizontal_layout == 1, "add_pattern() requires add_horizontal_layout == 1");
+
+    if constexpr (LoopIndex < add_loop_count) {
+      auto const pattern =
+        policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
+#pragma unroll add_vertical_layout
+      for (int i = 0; i < add_vertical_layout; ++i) {
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+          *(words_ + block_index * words_per_block + LoopIndex * add_vertical_layout + i)};
+        atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
+      }
+    }
+  }
+
+  // Precondition: add_horizontal_layout > 1
+  template <uint32_t LoopIndex>
+  __device__ constexpr void add_patterns(uint32_t block_index,
+                                         uint32_t lower_hash,
+                                         uint32_t thread_index) const
+  {
+    // Sanity check. TODO: remove redundant checks.
+    static_assert(add_horizontal_layout > 1, "add_pattern() requires add_horizontal_layout == 1");
+
+    if constexpr (LoopIndex < add_loop_count) {
+      auto const pattern =
+        policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
+          lower_hash, thread_index);
+#pragma unroll add_vertical_layout
+      for (int i = 0; i < add_vertical_layout; ++i) {
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+          *(words_ + block_index * words_per_block +
+            LoopIndex * add_vertical_layout * add_horizontal_layout +
+            thread_index * add_vertical_layout + i)};
+        atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
+      }
+    }
+  }
+
+  /// Compare the stored pattern against the expected pattern for the given hash value.
+  // Precondition: contains_horizontal_layout == 1
+  template <uint32_t LoopIndex>
+  __device__ constexpr bool compare_pattern(uint32_t block_index, uint32_t lower_hash) const
+  {
+    // Sanity check. TODO: remove redundant checks.
+    static_assert(contains_horizontal_layout == 1,
+                  "compare_pattern() requires contains_horizontal_layout == 1");
+
+    if constexpr (LoopIndex < contains_loop_count) {
+      auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
+        block_index * words_per_block + LoopIndex * contains_vertical_layout);
+      auto const expected_pattern =
+        policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
+
+      bool match = true;
+#pragma unroll contains_vertical_layout
+      for (int i = 0; i < contains_vertical_layout; ++i) {
+        match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
+      }
+
+      // Recurse.
+      // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
+      // words.
+      if constexpr (use_early_exit) {
+        return match &&
+               compare_pattern<LoopIndex + 1, contains_loop_count, contains_vertical_layout>(
+                 block_index, lower_hash);
+      } else {
+        return compare_pattern<LoopIndex + 1, contains_loop_count, contains_vertical_layout>(
+                 block_index, lower_hash) &&
+               match;
+      }
+    } else {
+      return true;
+    }
+  }
+  // Precondition: contains_horizontal_layout > 1
+  template <uint32_t LoopIndex, class CG>
+  __device__ constexpr bool compare_patterns(CG group,  // NOTE: this is only needed for early exit
+                                             uint32_t block_index,
+                                             uint32_t lower_hash,
+                                             uint32_t thread_index)
+  {
+    // Sanity check
+    static_assert(contains_horizontal_layout > 1,
+                  "compare_patterns() requires HorizontalLayout > 1");
+
+    if constexpr (LoopIndex < contains_loop_count) {
+      auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
+        block_index * words_per_block +
+        LoopIndex * contains_vertical_layout * contains_horizontal_layout + thread_index);
+      auto const expected_pattern =
+        policy_
+          .template array_pattern<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
+            lower_hash, thread_index);
+
+      bool match = true;
+#pragma unroll contains_vertical_layout
+      for (uint32_t i = 0; i < contains_vertical_layout; ++i) {
+        match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
+      }
+
+      // Recurse.
+      // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
+      // words.
+      if constexpr (use_early_exit) {
+        if (group.all(match)) {
+          // This will degrade performance in high-selectivity regimes
+          return compare_patterns<LoopIndex + 1, contains_loop_count, contains_vertical_layout>(
+            block_index, lower_hash);
+        } else {
+          return false;
+        }
+      } else {
+        return compare_patterns<LoopIndex + 1, contains_loop_count, contains_vertical_layout>(
+                 block_index, lower_hash) &&
+               match;
+      }
+    } else {
+      return true;
+    }
   }
 
   word_type* words_;

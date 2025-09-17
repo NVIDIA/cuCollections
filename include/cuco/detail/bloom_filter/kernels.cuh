@@ -138,4 +138,55 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   }
 }
 
+//===--------------------------------------------------===//
+// Parametric Filter Policy
+//===--------------------------------------------------===//
+template <int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
+                                                        cuco::detail::index_type n,
+                                                        Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  auto const idx = cuco::detail::global_thread_id() / CGSize;
+
+  if constexpr (CGSize == 1) {
+    if (idx < n) {
+      typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+      ref.add_exp(ref.hash(key));
+    }
+  } else {
+    auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    if (idx < n) {
+      typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+      ref.add_exp(group, ref.hash(key));
+    }
+  }
+}
+
+template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_n(InputIt first,
+                                                             cuco::detail::index_type n,
+                                                             OutputIt output_begin,
+                                                             Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  auto const idx = cuco::detail::global_thread_id() / CGSize;
+
+  if constexpr (CGSize == 1) {
+    if (idx < n) {
+      typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+      *(output_begin + idx) = ref.contains_exp(ref.hash(key));
+    }
+  } else {
+    auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    if (idx < n) {
+      typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
+      auto const found = group.all(ref.contains_exp(group, ref.hash(key)));
+      if (group.thread_rank() == 0) { *(output_begin + idx) = found; }
+    }
+  }
+}
+
 }  // namespace cuco::detail::bloom_filter_ns

@@ -116,10 +116,9 @@ class parametric_filter_policy {
 
   // Return {upper 32b, lower 32b} of 64b hash
   __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(
-    hash_argument_type const& key) const
+    hash_result_type hash_value) const
   {
-    uint64_t full_hash = hash_(key);
-    return {static_cast<uint32_t>(full_hash >> 32), static_cast<uint32_t>(full_hash)};
+    return {static_cast<uint32_t>(hash_value >> 32), static_cast<uint32_t>(hash_value)};
   }
 
   template <class Extent>
@@ -228,9 +227,11 @@ class parametric_filter_policy {
       // Recursive case: thread_index > LowerBound
       constexpr uint32_t mid = (LowerBound + UpperBound) / 2;
       if (thread_index < mid) {
-        thread_dispatch<MaxBitsPerVirtualThread, LowerBound, mid>(hash, thread_index, pattern_array);
+        thread_dispatch<MaxBitsPerVirtualThread, LowerBound, mid>(
+          hash, thread_index, pattern_array);
       } else {
-        thread_dispatch<MaxBitsPerVirtualThread, mid, UpperBound>(hash, thread_index, pattern_array);
+        thread_dispatch<MaxBitsPerVirtualThread, mid, UpperBound>(
+          hash, thread_index, pattern_array);
       }
     }
   }
