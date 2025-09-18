@@ -61,11 +61,14 @@ int main()
   thrust::sequence(probe_keys.begin(), probe_keys.end(), 1, 2);  // odd probe keys
   thrust::device_vector<bool> output_flags(num_keys, false);
 
+  auto stream = cuda::stream_ref();  // default stream
+
   // Insert the build keys
-  filter.add(build_keys.begin(), build_keys.end());
+  filter.add_async(build_keys.begin(), build_keys.end(), stream);
 
   // Probe the filter
-  filter.contains(probe_keys.begin(), probe_keys.end(), output_flags.begin());
+  filter.contains_async(probe_keys.begin(), probe_keys.end(), output_flags.begin(), stream);
+  stream.wait();
 
   // Calcuate the FPR
   float fp_rate =

@@ -109,15 +109,11 @@ class parametric_filter_policy {
                   "pattern_bits exceeds the number of available salts");
   }
 
-  __device__ constexpr hash_result_type hash(hash_argument_type const& key) const
-  {
-    return hash_(key);
-  }
-
   // Return {upper 32b, lower 32b} of 64b hash
   __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(
-    hash_result_type hash_value) const
+    hash_argument_type key) const
   {
+    auto const hash_value = hash_(key);
     return {static_cast<uint32_t>(hash_value >> 32), static_cast<uint32_t>(hash_value)};
   }
 

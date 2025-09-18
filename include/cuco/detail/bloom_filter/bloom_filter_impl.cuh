@@ -633,38 +633,34 @@ class bloom_filter_impl {
   // NOTE: Only implementing the <add/contains>_async() host-side entry points for now.
 
   // Single Thread Add
-  template <class HashValue>
-  __device__ bool add_exp(HashValue hash_value) const
+  template <class BuildKey>
+  __device__ void add_exp(BuildKey build_key)
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(cuda::std::is_same_v<HashValue, uint64_t>,
-                  "For multiplicative hashing, only uint64_t hashes are supported.");
     static_assert(policy_type::add_horizontal_layout == 1,
                   "This add_exp() requires add_horizontal_layout == 1");
 
-    auto const [upper_hash, lower_hash] = policy_.split_hash(hash_value);
+    auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
     add_pattern<0>(block_index, lower_hash);
   }
 
   // Multi Thread Add
-  template <class CG, class HashValue>
-  __device__ bool add_exp(CG group, HashValue hash_value) const
+  template <class CG, class BuildKey>
+  __device__ void add_exp(CG group, BuildKey build_key)
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(cuda::std::is_same_v<HashValue, uint64_t>,
-                  "For multiplicative hashing, only uint64_t hashes are supported.");
     static_assert(policy_type::add_horizontal_layout == 1,
                   "This add_exp() requires add_horizontal_layout == 1");
 
-    auto const [upper_hash, lower_hash] = policy_.split_hash(hash_value);
+    auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
     add_patterns<0>(block_index, lower_hash, group.thread_rank());
   }
 
   // Host-side Add Entry Point
   template <class InputIt>
-  __host__ void add_exp_async(InputIt first, InputIt last, cuda::stream_ref stream) const noexcept
+  __host__ void add_exp_async(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -680,33 +676,29 @@ class bloom_filter_impl {
   }
 
   // Single Thread Contains
-  template <class HashValue>
-  __device__ bool contains_exp(HashValue hash_value) const
+  template <class ProbeKey>
+  __device__ bool contains_exp(ProbeKey probe_key) const
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(cuda::std::is_same_v<HashValue, uint64_t>,
-                  "For multiplicative hashing, only uint64_t hashes are supported.");
     static_assert(policy_type::contains_horizontal_layout == 1,
                   "This contains_exp() requires contains_horizontal_layout == 1");
 
-    auto const [upper_hash, lower_hash] = policy_.split_hash(hash_value);
+    auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
     return compare_pattern<0>(block_index, lower_hash);
   }
 
   // Multi Thread Contains
-  template <class CG, class HashValue>
-  __device__ bool contains_exp(CG group, HashValue hash_value) const
+  template <class CG, class ProbeKey>
+  __device__ bool contains_exp(CG group, ProbeKey probe_key) const
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(cuda::std::is_same_v<HashValue, uint64_t>,
-                  "For multiplicative hashing, only uint64_t hashes are supported.");
     static_assert(policy_type::contains_horizontal_layout > 1,
                   "This contains_exp() requires contains_horizontal_layout > 1");
     static_assert(tile_size_v<CG> == policy_type::contains_horizontal_layout,
                   "This contains_exp() requires CG with size equal to contains_horizontal_layout");
 
-    auto const [upper_hash, lower_hash] = policy_.split_hash(hash_value);
+    auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
     return compare_patterns<0>(group, block_index, lower_hash, group.thread_rank());
   }
@@ -753,7 +745,7 @@ class bloom_filter_impl {
   /// Insert the given pattern into the filter
   // Precondition: add_horizontal_layout == 1
   template <uint32_t LoopIndex>
-  __device__ constexpr void add_pattern(uint32_t block_index, uint32_t lower_hash) const
+  __device__ constexpr void add_pattern(uint32_t block_index, uint32_t lower_hash)
   {
     // Sanity check. TODO: remove redundant checks.
     static_assert(add_horizontal_layout == 1, "add_pattern() requires add_horizontal_layout == 1");
@@ -777,7 +769,7 @@ class bloom_filter_impl {
   template <uint32_t LoopIndex>
   __device__ constexpr void add_patterns(uint32_t block_index,
                                          uint32_t lower_hash,
-                                         uint32_t thread_index) const
+                                         uint32_t thread_index)
   {
     // Sanity check. TODO: remove redundant checks.
     static_assert(add_horizontal_layout > 1, "add_pattern() requires add_horizontal_layout == 1");
@@ -819,19 +811,17 @@ class bloom_filter_impl {
 #pragma unroll contains_vertical_layout
       for (int i = 0; i < contains_vertical_layout; ++i) {
         match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
+        // Alternatively: match &= (~stored_pattern[i] & expected_pattern[i]) == 0;
       }
 
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
       // words.
       if constexpr (use_early_exit) {
-        return match &&
-               compare_pattern<LoopIndex + 1, contains_loop_count, contains_vertical_layout>(
-                 block_index, lower_hash);
+        if (!match) { return false; }
+        return compare_pattern<LoopIndex + 1>(block_index, lower_hash);
       } else {
-        return compare_pattern<LoopIndex + 1, contains_loop_count, contains_vertical_layout>(
-                 block_index, lower_hash) &&
-               match;
+        return compare_pattern<LoopIndex + 1>(block_index, lower_hash) && match;
       }
     } else {
       return true;
@@ -842,7 +832,7 @@ class bloom_filter_impl {
   __device__ constexpr bool compare_patterns(CG group,  // NOTE: this is only needed for early exit
                                              uint32_t block_index,
                                              uint32_t lower_hash,
-                                             uint32_t thread_index)
+                                             uint32_t thread_index) const
   {
     // Sanity check
     static_assert(contains_horizontal_layout > 1,
@@ -859,25 +849,20 @@ class bloom_filter_impl {
 
       bool match = true;
 #pragma unroll contains_vertical_layout
-      for (uint32_t i = 0; i < contains_vertical_layout; ++i) {
+      for (int i = 0; i < contains_vertical_layout; ++i) {
         match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
+        // Alternatively: match &= (~stored_pattern[i] & expected_pattern[i]) == 0;
       }
 
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
       // words.
       if constexpr (use_early_exit) {
-        if (group.all(match)) {
-          // This will degrade performance in high-selectivity regimes
-          return compare_patterns<LoopIndex + 1, contains_loop_count, contains_vertical_layout>(
-            block_index, lower_hash);
-        } else {
-          return false;
-        }
+        // This will degrade performance in selective regimes
+        if (group.any(!match)) { return false; }
+        return compare_patterns<LoopIndex + 1>(block_index, lower_hash);
       } else {
-        return compare_patterns<LoopIndex + 1, contains_loop_count, contains_vertical_layout>(
-                 block_index, lower_hash) &&
-               match;
+        return compare_patterns<LoopIndex + 1>(block_index, lower_hash) && match;
       }
     } else {
       return true;
