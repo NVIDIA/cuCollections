@@ -767,6 +767,9 @@ class bloom_filter_impl {
           *(words_ + block_index * words_per_block + LoopIndex * add_vertical_layout + i)};
         atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
       }
+
+      // Recurse.
+      add_pattern<LoopIndex + 1>(block_index, lower_hash);
     }
   }
 
@@ -791,6 +794,9 @@ class bloom_filter_impl {
             thread_index * add_vertical_layout + i)};
         atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
       }
+
+      // Recurse.
+      add_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index);
     }
   }
 
