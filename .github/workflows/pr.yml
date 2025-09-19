@@ -37,17 +37,9 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
-      - name: Install Doxygen
+      - name: Run Doxygen Check with CI Script
         run: |
-          sudo apt-get update -q
-          sudo apt-get install -y doxygen
-      - name: Check Doxygen docs
-        run: |
-          ./ci/pre-commit/doxygen.sh
-          if [ $? -ne 0 ]; then
-            echo "Doxygen check failed"
-            exit 1
-          fi
+          ./ci/doxygen_check.sh
         shell: bash -euxo pipefail {0}
 
   compute-matrix:

@@ -233,6 +233,8 @@ struct MurmurHash3_32 {
         k1 = rotl32(k1, 15);
         k1 *= c2;
         h1 ^= k1;
+        [[fallthrough]];
+      case 0: break;
     };
     //----------
     // finalization
@@ -382,6 +384,8 @@ struct MurmurHash3_x64_128 {
         k1 = rotl64(k1, 31);
         k1 *= c2;
         h1 ^= k1;
+        [[fallthrough]];
+      case 0: break;
     };
     //----------
     // finalization
@@ -583,6 +587,8 @@ struct MurmurHash3_x86_128 {
         k1 = rotl32(k1, 15);
         k1 *= c2;
         h1 ^= k1;
+        [[fallthrough]];
+      case 0: break;
     };
     //----------
     // finalization

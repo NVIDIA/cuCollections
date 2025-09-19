@@ -75,7 +75,7 @@ void dispatch_insert_or_apply(
                                              Allocator,
                                              cuco::storage<1>>;
 
-    using shared_map_ref_type = typename shared_map_type::ref_type<>;
+    using shared_map_ref_type = typename shared_map_type::template ref_type<>;
     auto constexpr bucket_extent =
       cuco::make_valid_extent<typename shared_map_ref_type::probing_scheme_type,
                               typename shared_map_ref_type::storage_ref_type>(extent_type{});

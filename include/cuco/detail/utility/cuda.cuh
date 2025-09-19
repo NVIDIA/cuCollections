@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,9 @@
 
 #pragma once
 
-#include <cuco/detail/utility/cuda.hpp>
+#include <cuda/std/cstdint>
 
 #include <cooperative_groups.h>
-
-#include <cstdint>
 
 #if defined(CUCO_DISABLE_KERNEL_VISIBILITY_WARNING_SUPPRESSION)
 #define CUCO_SUPPRESS_KERNEL_WARNINGS
@@ -40,15 +38,18 @@ _Pragma("GCC diagnostic ignored \"-Wattributes\"")
 namespace cuco {
 namespace detail {
 
+using index_type = cuda::std::int64_t;  ///< CUDA thread index type
+
+/// Default block size
 /// CUDA warp size
-__device__ constexpr int32_t warp_size() noexcept { return 32; }
+[[nodiscard]] __device__ constexpr cuda::std::int32_t warp_size() noexcept { return 32; }
 
 /**
  * @brief Returns the global thread index in a 1D scalar grid
  *
  * @return The global thread index
  */
-__device__ static index_type global_thread_id() noexcept
+[[nodiscard]] __device__ inline index_type global_thread_id() noexcept
 {
   return index_type{threadIdx.x} + index_type{blockDim.x} * index_type{blockIdx.x};
 }
@@ -58,7 +59,7 @@ __device__ static index_type global_thread_id() noexcept
  *
  * @return The grid stride
  */
-__device__ static index_type grid_stride() noexcept
+[[nodiscard]] __device__ inline index_type grid_stride() noexcept
 {
   return index_type{gridDim.x} * index_type{blockDim.x};
 }

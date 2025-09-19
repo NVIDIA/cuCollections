@@ -106,7 +106,6 @@ class static_set {
   using storage_ref_type    = typename impl_type::storage_ref_type;
   using probing_scheme_type = typename impl_type::probing_scheme_type;  ///< Probing scheme type
   using hasher              = typename probing_scheme_type::hasher;     ///< Hash function type
-
   template <typename... Operators>
   using ref_type = cuco::static_set_ref<key_type,
                                         thread_scope,
@@ -933,6 +932,13 @@ class static_set {
    * @return The maximum number of elements the hash set can hold
    */
   [[nodiscard]] constexpr auto capacity() const noexcept;
+
+  /**
+   * @brief Gets a pointer to the underlying slot storage.
+   *
+   * @return Pointer to the underlying slot storage
+   */
+  [[nodiscard]] __host__ value_type* data() const;
 
   /**
    * @brief Gets the sentinel value used to represent an empty key slot.

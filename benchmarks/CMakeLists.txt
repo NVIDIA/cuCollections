@@ -28,7 +28,11 @@ function(ConfigureBench BENCH_NAME)
     target_include_directories(${BENCH_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_options(${BENCH_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      -Wno-deprecated-gpu-targets --expt-extended-lambda -Xcompiler -Wno-subobject-linkage -lineinfo)
+      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda -lineinfo)
+    # Add GCC-specific warning suppression only for GCC
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      target_compile_options(${BENCH_NAME} PRIVATE -Xcompiler -Wno-subobject-linkage)
+    endif()
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
                                         pthread
@@ -100,3 +104,8 @@ ConfigureBench(HYPERLOGLOG_BENCH
 ConfigureBench(BLOOM_FILTER_BENCH
   bloom_filter/add_bench.cu
   bloom_filter/contains_bench.cu)
+
+###################################################################################################
+# - roaring_bitmap benchmarks ---------------------------------------------------------------------
+ConfigureBench(ROARING_BITMAP_BENCH
+  roaring_bitmap/contains_bench.cu)

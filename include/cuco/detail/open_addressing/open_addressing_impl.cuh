@@ -37,6 +37,7 @@
 #include <thrust/iterator/transform_iterator.h>
 
 #include <cmath>
+#include <cstdint>
 
 namespace cuco {
 namespace detail {
@@ -834,7 +835,7 @@ class open_addressing_impl {
     using temp_allocator_type =
       typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
 
-    cuco::detail::index_type constexpr stride = std::numeric_limits<int32_t>::max();
+    cuco::detail::index_type constexpr stride = std::numeric_limits<std::int32_t>::max();
 
     cuco::detail::index_type h_num_out{0};
     auto temp_allocator = temp_allocator_type{this->allocator()};
@@ -860,7 +861,7 @@ class open_addressing_impl {
                                           begin,
                                           output_begin + h_num_out,
                                           d_num_out,
-                                          static_cast<int32_t>(num_items),
+                                          static_cast<std::int32_t>(num_items),
                                           is_filled,
                                           stream.get()));
 
@@ -872,17 +873,15 @@ class open_addressing_impl {
                                           begin,
                                           output_begin + h_num_out,
                                           d_num_out,
-                                          static_cast<int32_t>(num_items),
+                                          static_cast<std::int32_t>(num_items),
                                           is_filled,
                                           stream.get()));
 
-      size_type* temp_count;
-      CUCO_CUDA_TRY(cudaMallocHost(&temp_count, sizeof(size_type)));
+      size_type temp_count;
       CUCO_CUDA_TRY(cudaMemcpyAsync(
-        temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
       stream.wait();
-      h_num_out += *temp_count;
-      CUCO_CUDA_TRY(cudaFreeHost(temp_count));
+      h_num_out += temp_count;
       temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
     }
 
@@ -1089,6 +1088,13 @@ class open_addressing_impl {
   [[nodiscard]] constexpr auto capacity() const noexcept { return storage_.capacity(); }
 
   /**
+   * @brief Gets a pointer to the underlying slot storage.
+   *
+   * @return Pointer to the underlying slot storage
+   */
+  [[nodiscard]] __host__ value_type* data() const { return storage_.data(); }
+
+  /**
    * @brief Gets the sentinel value used to represent an empty key slot.
    *
    * @return The sentinel value used to represent an empty key slot
@@ -1276,7 +1282,7 @@ class open_addressing_impl {
     auto counter       = counter_type{this->allocator()};
     counter.reset(stream.get());
 
-    int32_t constexpr block_size = cuco::detail::default_block_size();
+    auto constexpr block_size = cuco::detail::default_block_size();
 
     auto constexpr grid_stride = 1;
     auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
@@ -1299,7 +1305,7 @@ class open_addressing_impl {
    */
   [[nodiscard]] constexpr key_type const& extract_key(value_type const& slot) const noexcept
   {
-    if constexpr (this->has_payload) {
+    if constexpr (has_payload) {
       return slot.first;
     } else {
       return slot;

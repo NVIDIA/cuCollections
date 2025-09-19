@@ -21,11 +21,10 @@
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/cmath>
+#include <cuda/std/cstdint>
 #include <cuda/std/limits>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
-
-#include <cstddef>
 
 namespace cuco {
 namespace detail {
@@ -34,7 +33,8 @@ namespace detail {
  * @brief For the `n` least significant bits in the given unsigned 32-bit integer `x`,
  * returns the number of set bits.
  */
-__device__ __forceinline__ int32_t count_least_significant_bits(uint32_t x, int32_t n)
+__device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda::std::uint32_t x,
+                                                                           cuda::std::int32_t n)
 {
   return __popc(x & (1 << n) - 1);
 }
@@ -131,7 +131,7 @@ __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
  * @return Converted hash value
  */
 template <typename SizeType, typename CG, typename HashType>
-__device__ constexpr SizeType sanitize_hash(CG const& group, HashType hash) noexcept
+__device__ constexpr SizeType sanitize_hash(CG group, HashType hash) noexcept
 {
   auto const base_hash = sanitize_hash<SizeType>(hash);
   auto const max_size  = cuda::std::numeric_limits<SizeType>::max();

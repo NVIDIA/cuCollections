@@ -271,7 +271,7 @@ class static_multiset_ref
    */
   template <typename CG, cuda::thread_scope NewScope = thread_scope>
   [[nodiscard]] __device__ constexpr auto make_copy(
-    CG const& tile,
+    CG tile,
     bucket_type* const memory_to_use,
     cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
@@ -285,7 +285,7 @@ class static_multiset_ref
    * @param tile The cooperative thread group used to initialize the set
    */
   template <typename CG>
-  __device__ constexpr void initialize(CG const& tile) noexcept;
+  __device__ constexpr void initialize(CG tile) noexcept;
 
  private:
   impl_type impl_;

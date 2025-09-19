@@ -119,7 +119,7 @@ constexpr std::size_t hyperloglog<T, Scope, Hash, Allocator>::estimate(
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
-constexpr typename hyperloglog<T, Scope, Hash, Allocator>::ref_type<>
+constexpr typename hyperloglog<T, Scope, Hash, Allocator>::template ref_type<>
 hyperloglog<T, Scope, Hash, Allocator>::ref() const noexcept
 {
   return {this->sketch(), this->hash_function()};

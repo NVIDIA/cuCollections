@@ -15,7 +15,7 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
-set(rapids-cmake-version 25.08)
+set(rapids-cmake-version 25.10)
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
     file(DOWNLOAD
       https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-${rapids-cmake-version}/RAPIDS.cmake
@@ -87,6 +87,12 @@ target_include_directories(cuco INTERFACE
                 $<INSTALL_INTERFACE:include>)
 target_link_libraries(cuco INTERFACE CCCL::CCCL CUDA::toolkit)
 target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
+
+###################################################################################################
+# - Optionally download RoaringFormatSpec test data -----------------------------------------------
+
+option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ON)
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
 
 ###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------

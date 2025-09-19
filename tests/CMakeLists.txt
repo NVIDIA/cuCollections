@@ -39,7 +39,11 @@ function(ConfigureTest TEST_NAME)
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      -Wno-deprecated-gpu-targets --expt-extended-lambda -Xcompiler -Wno-subobject-linkage)
+      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda)
+    # Add GCC-specific warning suppression only for GCC
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      target_compile_options(${TEST_NAME} PRIVATE -Xcompiler -Wno-subobject-linkage)
+    endif()
     catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
@@ -67,6 +71,7 @@ ConfigureTest(STATIC_SET_TEST
     static_set/large_input_test.cu
     static_set/retrieve_test.cu
     static_set/retrieve_all_test.cu
+    static_set/retrieve_if_test.cu
     static_set/rehash_test.cu
     static_set/size_test.cu
     static_set/shared_memory_test.cu
@@ -91,7 +96,8 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
     static_map/rehash_test.cu
-    static_map/retrieve_test.cu)
+    static_map/retrieve_test.cu
+    static_map/retrieve_if_test.cu)
 
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------
@@ -99,6 +105,7 @@ ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
     dynamic_map/unique_sequence_test_experimental.cu
     dynamic_map/erase_test.cu
+    dynamic_map/find_test.cu
     dynamic_map/retrieve_all_test.cu)
 
 ###################################################################################################
@@ -111,6 +118,7 @@ ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/insert_test.cu
     static_multiset/for_each_test.cu
     static_multiset/retrieve_test.cu
+    static_multiset/retrieve_if_test.cu
     static_multiset/large_input_test.cu
     static_multiset/load_factor_test.cu)
 
@@ -124,7 +132,8 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
     static_multimap/for_each_test.cu
-    static_multimap/retrieve_test.cu)
+    static_multimap/retrieve_test.cu
+    static_multimap/retrieve_if_test.cu)
 
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------
@@ -148,3 +157,8 @@ ConfigureTest(BLOOM_FILTER_TEST
     bloom_filter/unique_sequence_test.cu
     bloom_filter/arrow_policy_test.cu
     bloom_filter/variable_cg_test.cu)
+
+###################################################################################################
+# - roaring_bitmap ---------------------------------------------------------------------------------
+ConfigureTest(ROARING_BITMAP_TEST
+    roaring_bitmap/contains_test.cu)

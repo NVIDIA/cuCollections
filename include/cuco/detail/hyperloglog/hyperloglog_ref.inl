@@ -25,7 +25,7 @@ __host__ __device__ constexpr hyperloglog_ref<T, Scope, Hash>::hyperloglog_ref(
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class CG>
-__device__ constexpr void hyperloglog_ref<T, Scope, Hash>::clear(CG const& group) noexcept
+__device__ constexpr void hyperloglog_ref<T, Scope, Hash>::clear(CG group) noexcept
 {
   impl_.clear(group);
 }
@@ -70,7 +70,7 @@ __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::add(InputIt first,
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class CG, cuda::thread_scope OtherScope>
 __device__ constexpr void hyperloglog_ref<T, Scope, Hash>::merge(
-  CG const& group, hyperloglog_ref<T, OtherScope, Hash> const& other)
+  CG group, hyperloglog_ref<T, OtherScope, Hash> const& other)
 {
   impl_.merge(group, other.impl_);
 }

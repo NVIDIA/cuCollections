@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,7 +42,7 @@ void static_multiset_retrieve(nvbench::state& state, nvbench::type_list<Key, Dis
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen;
+  key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);

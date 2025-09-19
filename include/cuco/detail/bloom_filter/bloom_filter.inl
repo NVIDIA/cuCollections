@@ -163,7 +163,7 @@ template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
-  typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::ref_type<>
+  typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::template ref_type<>
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::ref() const noexcept
 {
   return ref_;

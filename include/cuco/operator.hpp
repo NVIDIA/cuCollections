@@ -56,13 +56,14 @@ inline namespace op {
  * template <typename Value>
  * __device__ bool insert(Value const& value) noexcept
  *
- * template <typename Value>
- * __device__ bool insert(cooperative_groups::thread_block_tile<cg_size> const& group,
+ * template <typename Value, typename ParentCG>
+ * __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
  *                        Value const& value) noexcept
  * ```
  *
  * Where:
  * @see @tparam Value Input type which is convertible to the container's `value_type`
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param value The element to insert
@@ -85,13 +86,14 @@ struct insert_tag {
  * template <typename Value>
  * __device__ cuda::std::pair<iterator, bool> insert_and_find(Value const& value) noexcept
  *
- * template <typename Value>
+ * template <typename Value, typename ParentCG>
  * __device__ cuda::std::pair<iterator, bool> insert_and_find(
- *   cooperative_groups::thread_block_tile<cg_size> const& group, Value const& value) noexcept
+ *   cooperative_groups::thread_block_tile<cg_size, ParentCG> group, Value const& value) noexcept
  * ```
  *
  * Where:
  * @see @tparam Value Input type which is convertible to the container's `value_type`
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param value The element to insert
@@ -114,13 +116,14 @@ struct insert_and_find_tag {
  * template <typename Value>
  * __device__ void insert_or_assign(Value const& value) noexcept
  *
- * template <typename Value>
- * __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size> const& group,
+ * template <typename Value, typename ParentCG>
+ * __device__ void insert_or_assign(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
  *                                  Value const& value) noexcept
  * ```
  *
  * Where:
  * @see @tparam Value Input type which is convertible to the container's `value_type`
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param value The element to insert
@@ -144,13 +147,13 @@ struct insert_or_assign_tag {
  *           typename Op>
  * __device__ bool insert_or_apply(Value const& value, Init init, Op op)
  *
- * template <typename Value, typename Op>
- * __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+ * template <typename Value, typename Op, typename ParentCG>
+ * __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
  *                                 Value const& value,
  *                                 Op op)
  *
- * template <typename Value, typename Init, typename Op>
- * __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size> const& group,
+ * template <typename Value, typename Init, typename Op, typename ParentCG>
+ * __device__ bool insert_or_apply(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
  *                                 Value const& value,
  *                                 Init init,
  *                                 Op op)
@@ -162,6 +165,7 @@ struct insert_or_assign_tag {
  * @see @tparam Op Callable type which is used as `apply` operation and can be
  *   called with arguments as `Op(cuda::atomic_ref<T, Scope>, T)`. `Op` strictly must
  *   have this signature to atomically apply the operation.
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param value The element to insert
@@ -182,13 +186,14 @@ struct insert_or_apply_tag {
  * template <typename ProbeKey>
  * __device__ bool erase(ProbeKey const& key) noexcept
  *
- * template <typename ProbeKey>
- * __device__ bool erase(cooperative_groups::thread_block_tile<cg_size> const& group,
+ * template <typename ProbeKey, typename ParentCG>
+ * __device__ bool erase(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
  *                       ProbeKey const& key) noexcept
  * ```
  *
  * Where:
- * @see @tparam ProbeKey Input key type which is convertible to the containser's 'key_type'
+ * @see @tparam ProbeKey Input key type which is convertible to the container's 'key_type'
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param key The key to search for
@@ -207,14 +212,15 @@ struct erase_tag {
  * template <typename ProbeKey>
  * __device__ bool contains(ProbeKey const& key) const noexcept
  *
- * template <typename ProbeKey>
+ * template <typename ProbeKey, typename ParentCG>
  * __device__ bool contains(
- *   cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const
+ *   cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey const& key) const
  * noexcept
  * ```
  *
  * Where:
  * @see @tparam ProbeKey Input key type which is convertible to the containser's 'key_type'
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param key The key to search for
@@ -233,13 +239,14 @@ struct contains_tag {
  * template <typename ProbeKey>
  * __device__ size_type count(ProbeKey const& key) const noexcept
  *
- * template <typename ProbeKey>
- * __device__ size_type count(cooperative_groups::thread_block_tile<cg_size> const& group,
+ * template <typename ProbeKey, typename ParentCG>
+ * __device__ size_type count(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
  *                            ProbeKey const& key) const noexcept
  * ```
  *
  * Where:
  * @see @tparam ProbeKey Input key type which is convertible to the containser's 'key_type'
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param key The key to search for
@@ -258,9 +265,9 @@ struct count_tag {
  * template <typename ProbeKey>
  * __device__ const_iterator find(ProbeKey const& key) const noexcept
  *
- * template <typename ProbeKey>
+ * template <typename ProbeKey, typename ParentCG>
  * __device__ const_iterator find(
- *   cooperative_groups::thread_block_tile<cg_size> const& group, ProbeKey const& key) const
+ *   cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey const& key) const
  * noexcept
  * ```
  *
@@ -288,25 +295,47 @@ struct find_tag {
  * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
  * Use `count()` to determine the size of the output range.
  *
- * API Signature:
+ * API Signatures:
  * ```cpp
- * template <int32_t BlockSize,
+ * // Basic retrieve
+ * template <int BlockSize,
  *           class InputProbeIt,
  *           class OutputProbeIt,
  *           class OutputMatchIt,
  *           class AtomicCounter>
- * __device__ void retrieve(cooperative_groups::thread_block const& block,
+ * __device__ void retrieve(cooperative_groups::thread_block  const& block,
  *                          InputProbeIt input_probe_begin,
  *                          InputProbeIt input_probe_end,
  *                          OutputProbeIt output_probe,
  *                          OutputMatchIt output_match,
  *                          AtomicCounter* atomic_counter) const
+ *
+ * // Conditional retrieve with predicate
+ * template <int BlockSize,
+ *           class InputProbeIt,
+ *           class StencilIt,
+ *           class Predicate,
+ *           class OutputProbeIt,
+ *           class OutputMatchIt,
+ *           class AtomicCounter>
+ * __device__ void retrieve_if(cooperative_groups::thread_block  const& block,
+ *                             InputProbeIt input_probe_begin,
+ *                             InputProbeIt input_probe_end,
+ *                             StencilIt stencil,
+ *                             Predicate pred,
+ *                             OutputProbeIt output_probe,
+ *                             OutputMatchIt output_match,
+ *                             AtomicCounter* atomic_counter) const
  * ```
  *
  * Where:
+
  * @see @tparam BlockSize Size of the thread block this operation is executed in
  * @see @tparam InputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the container's `key_type`
+ * @see @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type (retrieve_if only)
+ * @see @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
  * @see @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the container's `key_type`
  * @see @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -317,6 +346,9 @@ struct find_tag {
  * @see @param block Thread block this operation is executed in
  * @see @param input_probe_begin Beginning of the input sequence of keys
  * @see @param input_probe_end End of the input sequence of keys
+ * @see @param stencil Beginning of the stencil sequence (retrieve_if only)
+ * @see @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ (retrieve_if only)
  * @see @param output_probe Beginning of the sequence of keys corresponding to matching elements in
  * `output_match`
  * @see @param output_match Beginning of the sequence of matching elements
@@ -349,13 +381,13 @@ struct retrieve_tag {
  * template <class ProbeKey, class CallbackOp>
  * __device__ void for_each(ProbeKey const& key, CallbackOp&& callback_op) const noexcept
  *
- * template <class ProbeKey, class CallbackOp>
- * __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+ * template <class ProbeKey, class CallbackOp, typename ParentCG>
+ * __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
  *                          ProbeKey const& key,
  *                          CallbackOp&& callback_op) const noexcept
  *
- * template <class ProbeKey, class CallbackOp, class SyncOp>
- * __device__ void for_each(cooperative_groups::thread_block_tile<cg_size> const& group,
+ * template <class ProbeKey, class CallbackOp, class SyncOp, typename ParentCG>
+ * __device__ void for_each(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
  *                          ProbeKey const& key,
  *                          CallbackOp&& callback_op,
  *                          SyncOp&& sync_op) const noexcept
@@ -365,6 +397,7 @@ struct retrieve_tag {
  * @see @tparam ProbeKey Probe key type
  * @see @tparam CallbackOp Type of unary callback function object
  * @see @tparam SyncOp Functor or device lambda which accepts the current `group` object
+ * @see @tparam ParentCG Type of parent Cooperative Group
  *
  * @see @param group The Cooperative Group used to perform this operation
  * @see @param key The key to search for

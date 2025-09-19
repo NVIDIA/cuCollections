@@ -92,14 +92,11 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
    */
   [[nodiscard]] constexpr size_type load_to_host(cuda::stream_ref stream) const
   {
-    size_type* h_count;
-    CUCO_CUDA_TRY(cudaMallocHost(&h_count, sizeof(size_type)));
+    size_type h_count;
     CUCO_CUDA_TRY(cudaMemcpyAsync(
-      h_count, this->data(), sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
-    stream.sync();
-    size_type result = *h_count;
-    CUCO_CUDA_TRY(cudaFreeHost(h_count));
-    return result;
+      &h_count, this->data(), sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+    stream.wait();
+    return h_count;
   }
 
  private:

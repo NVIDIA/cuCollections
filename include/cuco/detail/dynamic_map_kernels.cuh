@@ -166,7 +166,7 @@ CUCO_KERNEL void insert(InputIt first,
   __shared__ typename BlockReduce::TempStorage temp_storage;
   std::size_t thread_num_successes = 0;
 
-  auto tile = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   auto tid  = blockDim.x * blockIdx.x + threadIdx.x;
   auto it   = first + tid / tile_size;
 
@@ -312,7 +312,7 @@ CUCO_KERNEL void erase(InputIt first,
   extern __shared__ unsigned long long submap_block_num_successes[];
 
   auto block = cg::this_thread_block();
-  auto tile  = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile  = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   auto tid   = block_size * block.group_index().x + block.thread_rank();
   auto it    = first + tid / tile_size;
 
@@ -456,9 +456,9 @@ CUCO_KERNEL void find(InputIt first,
                       Hash hash,
                       KeyEqual key_equal)
 {
-  auto tile                 = cg::tiled_partition<tile_size>(cg::this_thread_block());
-  auto tid                  = blockDim.x * blockIdx.x + threadIdx.x;
-  auto key_idx              = tid / tile_size;
+  auto tile    = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
+  auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
+  auto key_idx = tid / tile_size;
   auto empty_value_sentinel = submap_views[0].get_empty_value_sentinel();
   __shared__ Value writeBuffer[block_size];
 
@@ -677,7 +677,7 @@ CUCO_KERNEL void contains(InputIt first,
                           Hash hash,
                           KeyEqual key_equal)
 {
-  auto tile    = cg::tiled_partition<tile_size>(cg::this_thread_block());
+  auto tile    = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
   auto tid     = blockDim.x * blockIdx.x + threadIdx.x;
   auto key_idx = tid / tile_size;
   __shared__ bool writeBuffer[block_size];

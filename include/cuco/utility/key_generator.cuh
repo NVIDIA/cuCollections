@@ -100,7 +100,9 @@ struct generate_uniform_fn {
    * @param dist Random number distribution
    * @param seed Random seed
    */
-  __host__ __device__ constexpr generate_uniform_fn(std::size_t num, Dist dist, std::size_t seed)
+  __host__ __device__ constexpr generate_uniform_fn(cuda::std::size_t num,
+                                                    Dist dist,
+                                                    cuda::std::size_t seed)
     : num_{num}, dist_{dist}, seed_{seed}
   {
   }
@@ -112,7 +114,7 @@ struct generate_uniform_fn {
    *
    * @return A resulting random number
    */
-  __host__ __device__ constexpr T operator()(std::size_t idx) const noexcept
+  __host__ __device__ constexpr T operator()(cuda::std::size_t idx) const noexcept
   {
     RNG rng;
     // Improved seeding using a linear congruential generator
@@ -126,9 +128,9 @@ struct generate_uniform_fn {
     return uniform_dist(rng);
   }
 
-  std::size_t num_;   ///< Number of elements to generate
-  Dist dist_;         ///< Random number distribution
-  std::size_t seed_;  ///< Random seed
+  cuda::std::size_t num_;   ///< Number of elements to generate
+  Dist dist_;               ///< Random number distribution
+  cuda::std::size_t seed_;  ///< Random seed
 };
 
 /**
@@ -146,7 +148,7 @@ struct generate_gaussian_fn {
    * @param num Number of elements to generate
    * @param dist Random number distribution
    */
-  __host__ __device__ constexpr generate_gaussian_fn(std::size_t num, Dist dist)
+  __host__ __device__ constexpr generate_gaussian_fn(cuda::std::size_t num, Dist dist)
     : num_{num}, dist_{dist}
   {
   }
@@ -158,7 +160,7 @@ struct generate_gaussian_fn {
    *
    * @return A resulting random number
    */
-  __host__ __device__ constexpr T operator()(std::size_t seed) const noexcept
+  __host__ __device__ T operator()(cuda::std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::normal_distribution<> normal_dist(static_cast<double>(num_ / 2), num_ * dist_.value);
@@ -173,8 +175,8 @@ struct generate_gaussian_fn {
     return val;
   }
 
-  std::size_t num_;  ///< Number of elements to generate
-  Dist dist_;        ///< Random number distribution
+  cuda::std::size_t num_;  ///< Number of elements to generate
+  Dist dist_;              ///< Random number distribution
 };
 
 /**
@@ -190,7 +192,7 @@ struct dropout_fn {
    *
    * @param num Number of elements to generate
    */
-  __host__ __device__ constexpr dropout_fn(std::size_t num) : num_{num} {}
+  __host__ __device__ constexpr dropout_fn(cuda::std::size_t num) : num_{num} {}
 
   /**
    * @brief Generates a random number of type `T` based on the given `seed`
@@ -199,7 +201,7 @@ struct dropout_fn {
    *
    * @return A resulting random number
    */
-  __host__ __device__ constexpr T operator()(std::size_t seed) const noexcept
+  __host__ __device__ T operator()(cuda::std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::uniform_int_distribution<T> non_match_dist{static_cast<T>(num_),
@@ -208,7 +210,7 @@ struct dropout_fn {
     return non_match_dist(rng);
   }
 
-  std::size_t num_;  ///< Number of elements to generate
+  cuda::std::size_t num_;  ///< Number of elements to generate
 };
 
 /**
@@ -232,7 +234,7 @@ struct dropout_pred {
    *
    * @return A random boolean value
    */
-  __host__ __device__ constexpr bool operator()(std::size_t seed) const noexcept
+  __host__ __device__ bool operator()(cuda::std::size_t seed) const noexcept
   {
     RNG rng;
     thrust::uniform_real_distribution<double> rate_dist{0.0, 1.0};

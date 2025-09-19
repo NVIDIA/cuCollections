@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -23,8 +23,7 @@ on:
 
 jobs:
   # Using a matrix to dispatch to the build-and-test reusable workflow for each build configuration
-  # ensures that the build/test steps can overlap across different configurations. For example,
-  # the build step for CUDA 12.1 + gcc 9.3 can run at the same time as the test step for CUDA 11.0 + clang 11.
+  # ensures that the build/test steps can overlap across different configurations.
   build_and_test:
     name: ${{matrix.cpu}}
     uses: ./.github/workflows/build-and-test.yml
