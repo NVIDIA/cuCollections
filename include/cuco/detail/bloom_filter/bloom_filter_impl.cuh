@@ -49,7 +49,7 @@ class bloom_filter_impl {
   // TODO remove these once we settled on a setup which works best
   static constexpr bool use_invoke_one  = true;
   static constexpr bool use_early_exit  = false;
-  static constexpr bool use_cub_kernels = true;
+  static constexpr bool use_cub_kernels = false;
 
  public:
   using key_type    = Key;
@@ -358,19 +358,37 @@ class bloom_filter_impl {
   {
     constexpr auto vertical_layout = policy_type::contains_vertical_layout;
 
+    if constexpr (use_early_exit) {
 #pragma unroll words_per_block / vertical_layout
-    for (uint32_t i = 0; i < words_per_block / vertical_layout; ++i) {
-      auto const stored_pattern =
-        this->vec_load_words<vertical_layout>(block_index * words_per_block + i * vertical_layout);
+      for (uint32_t i = 0; i < words_per_block / vertical_layout; ++i) {
+        auto const stored_pattern = this->vec_load_words<vertical_layout>(
+          block_index * words_per_block + i * vertical_layout);
 #pragma unroll vertical_layout
-      for (uint32_t j = 0; j < vertical_layout; ++j) {
-        auto const word_offset      = i * vertical_layout + j;
-        auto const expected_pattern = policy_.word_pattern(hash_value, word_offset);
-        // TODO we can replace this with a check against "is 0" if we negate the filter bits
-        if ((stored_pattern[j] & expected_pattern) != expected_pattern) { return false; }
+        for (uint32_t j = 0; j < vertical_layout; ++j) {
+          auto const word_offset      = i * vertical_layout + j;
+          auto const expected_pattern = policy_.word_pattern(hash_value, word_offset);
+          // TODO we can replace this with a check against "is 0" if we negate the filter bits
+          if ((stored_pattern[j] & expected_pattern) != expected_pattern) { return false; }
+        }
       }
+      return true;
+    } else {  /// DEBUG ///
+      bool success = true;
+
+#pragma unroll words_per_block / vertical_layout
+      for (uint32_t i = 0; i < words_per_block / vertical_layout; ++i) {
+        auto const stored_pattern = this->vec_load_words<vertical_layout>(
+          block_index * words_per_block + i * vertical_layout);
+#pragma unroll vertical_layout
+        for (uint32_t j = 0; j < vertical_layout; ++j) {
+          auto const word_offset      = i * vertical_layout + j;
+          auto const expected_pattern = policy_.word_pattern(hash_value, word_offset);
+          success &= ((stored_pattern[j] & expected_pattern) == expected_pattern);
+        }
+      }
+      return success;
+      /// DEBUG ///
     }
-    return true;
   }
 
   template <class CG, class HashValue, class BlockIndex>
@@ -573,9 +591,15 @@ class bloom_filter_impl {
         stream.get());
     } else {
       auto constexpr block_size = cuco::detail::default_block_size();
-      void const* kernel        = reinterpret_cast<void const*>(
-        detail::bloom_filter_ns::contains<block_size, InputIt, OutputIt, bloom_filter_impl>);
-      auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel);
+      // void const* kernel        = reinterpret_cast<void const*>(
+      //   detail::bloom_filter_ns::contains<block_size, InputIt, OutputIt, bloom_filter_impl>);
+      // auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel);
+
+      /// DEBUG ///
+      auto constexpr cg_size = static_cast<int32_t>(policy_type::contains_horizontal_layout);
+      auto const grid_size   = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
+                                            static_cast<decltype(num_keys)>(block_size));
+      /// DEBUG ///
 
       detail::bloom_filter_ns::contains<block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
@@ -720,14 +744,24 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto constexpr block_size = cuco::detail::default_block_size();
-    auto constexpr cg_size    = static_cast<int32_t>(policy_type::contains_horizontal_layout);
+    if constexpr (use_cub_kernels and
+                  ((words_per_block / policy_type::contains_vertical_layout) == 1)) {
+      cub::DeviceTransform::Transform(
+        first,
+        output_begin,
+        num_keys,
+        [*this] __device__(auto const key) { return this->contains_exp(key); },
+        stream.get());
+    } else {
+      auto constexpr block_size = cuco::detail::default_block_size();
+      auto constexpr cg_size    = static_cast<int32_t>(policy_type::contains_horizontal_layout);
 
-    auto const grid_size = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
-                                          static_cast<decltype(num_keys)>(block_size));
+      auto const grid_size = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
+                                            static_cast<decltype(num_keys)>(block_size));
 
-    detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+      detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+    }
   }
 
   template <class InputIt, class OutputIt>
