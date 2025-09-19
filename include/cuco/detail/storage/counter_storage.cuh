@@ -95,7 +95,11 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
     size_type h_count;
     CUCO_CUDA_TRY(cudaMemcpyAsync(
       &h_count, this->data(), sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
     return h_count;
   }
 

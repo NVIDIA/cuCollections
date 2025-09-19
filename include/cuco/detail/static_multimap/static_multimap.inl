@@ -156,7 +156,11 @@ void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
   InputIt first, InputIt last, cuda::stream_ref stream)
 {
   this->insert_async(first, last, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -222,7 +226,11 @@ void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   this->contains_async(first, last, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -261,7 +269,11 @@ void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
               cuda::stream_ref stream) const
 {
   this->contains_if_async(first, last, stencil, pred, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -297,7 +309,11 @@ void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   this->find_async(first, last, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -333,7 +349,11 @@ void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
   cuda::stream_ref stream) const
 {
   this->find_if_async(first, last, stencil, pred, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -369,7 +389,11 @@ void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
   CallbackOp&& callback_op, cuda::stream_ref stream) const
 {
   impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -401,7 +425,11 @@ void static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
 {
   impl_->for_each_async(
     first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
