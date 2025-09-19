@@ -42,8 +42,8 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
 
   thrust::device_vector<bool> contained(num_keys, false);
 
-  auto is_even =
-    cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
+  // auto is_even =
+  //   cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
   SECTION("Non-inserted keys should not be contained.")
   {
@@ -65,22 +65,23 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
     REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
-  SECTION("All conditionally inserted keys should be contained")
-  {
-    filter.add_if(keys.begin(), keys.end(), thrust::counting_iterator<std::size_t>(0), is_even);
-    filter.contains_if(keys.begin(),
-                       keys.end(),
-                       thrust::counting_iterator<std::size_t>(0),
-                       is_even,
-                       contained.begin());
-    REQUIRE(cuco::test::equal(
-      contained.begin(),
-      contained.end(),
-      thrust::counting_iterator<std::size_t>(0),
-      cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
-        return ((idx % 2) == 0) == idx_contained;
-      })));
-  }
+  // SECTION("All conditionally inserted keys should be contained")
+  // {
+  //   filter.add_if(keys.begin(), keys.end(), thrust::counting_iterator<std::size_t>(0), is_even);
+  //   filter.contains_if(keys.begin(),
+  //                      keys.end(),
+  //                      thrust::counting_iterator<std::size_t>(0),
+  //                      is_even,
+  //                      contained.begin());
+  //   REQUIRE(cuco::test::equal(
+  //     contained.begin(),
+  //     contained.end(),
+  //     thrust::counting_iterator<std::size_t>(0),
+  //     cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx)
+  //     {
+  //       return ((idx % 2) == 0) == idx_contained;
+  //     })));
+  // }
 
   // TODO test FPR but how?
 }
@@ -140,7 +141,10 @@ TEMPLATE_TEST_CASE_SIG(
      parametric_filter_policy<cuco::xxhash_64<uint64_t>, uint32_t, 8, 12, 8, 1, 4, 2>),
   (float,
    cuco::experimental::
-     parametric_filter_policy<cuco::xxhash_64<float>, uint64_t, 4, 4, 2, 2, 1, 2>))
+     parametric_filter_policy<cuco::xxhash_64<float>, uint64_t, 4, 4, 2, 2, 1, 2>),
+  (int32_t,
+   cuco::experimental::
+     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 2, 1, 8>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;

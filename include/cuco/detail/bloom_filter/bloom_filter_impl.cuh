@@ -673,7 +673,6 @@ class bloom_filter_impl {
 
     detail::bloom_filter_ns::add_exp_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
-    CubDebugExit(cudaGetLastError());
   }
 
   template <class InputIt>
@@ -729,7 +728,6 @@ class bloom_filter_impl {
 
     detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
-    CubDebugExit(cudaGetLastError());
   }
 
   template <class InputIt, class OutputIt>
@@ -739,8 +737,7 @@ class bloom_filter_impl {
                              cuda::stream_ref stream) const noexcept
   {
     this->contains_exp_async(first, last, output_begin, stream);
-    CubDebugExit(cudaStreamSynchronize(stream.get()));
-    // stream.wait();
+    stream.wait();
   }
 
   // TODO
