@@ -90,6 +90,8 @@ class arrow_filter_policy {
 
   static constexpr uint32_t bits_set_per_block = 8;  ///< hardcoded bits set per Arrow filter block
   static constexpr uint32_t words_per_block    = 8;  ///< hardcoded words per Arrow filter block
+  /// KEVIN: temporary hack flag to dispatch to different code paths based on policy
+  static constexpr bool is_parametric_policy = false;
 
   // TODO this could be expressed as two cuda::std::extents<uint32_t, HORIZONTAL, VERTICAL> instead
   static constexpr uint32_t add_horizontal_layout =

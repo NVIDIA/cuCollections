@@ -48,7 +48,7 @@ template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 class bloom_filter_impl {
   // TODO remove these once we settled on a setup which works best
   static constexpr bool use_invoke_one  = true;
-  static constexpr bool use_early_exit  = true;
+  static constexpr bool use_early_exit  = false;
   static constexpr bool use_cub_kernels = true;
 
  public:
@@ -650,15 +650,15 @@ class bloom_filter_impl {
   __device__ void add_exp(CG group, BuildKey build_key)
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(policy_type::add_horizontal_layout == 1,
-                  "This add_exp() requires add_horizontal_layout == 1");
+    static_assert(policy_type::add_horizontal_layout > 1,
+                  "This add_exp() requires add_horizontal_layout > 1");
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
     add_patterns<0>(block_index, lower_hash, group.thread_rank());
   }
 
-  // Host-side Add Entry Point
+  // Host-side Add Entry Points
   template <class InputIt>
   __host__ void add_exp_async(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
   {
@@ -668,11 +668,19 @@ class bloom_filter_impl {
     auto constexpr block_size = cuco::detail::default_block_size();
     auto constexpr cg_size    = static_cast<int32_t>(policy_type::add_horizontal_layout);
 
-    auto const grid_size =
-      cuda::ceil_div(num_keys, static_cast<decltype(num_keys)>(block_size * cg_size));
+    auto const grid_size = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
+                                          static_cast<decltype(num_keys)>(block_size));
 
     detail::bloom_filter_ns::add_exp_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+    CubDebugExit(cudaGetLastError());
+  }
+
+  template <class InputIt>
+  __host__ void add_exp(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
+  {
+    this->add_exp_async(first, last, stream);
+    stream.wait();
   }
 
   // Single Thread Contains
@@ -703,7 +711,7 @@ class bloom_filter_impl {
     return compare_patterns<0>(group, block_index, lower_hash, group.thread_rank());
   }
 
-  // Host-side Contains Entry Point
+  // Host-side Contains Entry Points
   template <class InputIt, class OutputIt>
   __host__ void contains_exp_async(InputIt first,
                                    InputIt last,
@@ -716,11 +724,23 @@ class bloom_filter_impl {
     auto constexpr block_size = cuco::detail::default_block_size();
     auto constexpr cg_size    = static_cast<int32_t>(policy_type::contains_horizontal_layout);
 
-    auto const grid_size =
-      cuda::ceil_div(num_keys, static_cast<decltype(num_keys)>(block_size * cg_size));
+    auto const grid_size = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
+                                          static_cast<decltype(num_keys)>(block_size));
 
     detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+    CubDebugExit(cudaGetLastError());
+  }
+
+  template <class InputIt, class OutputIt>
+  __host__ void contains_exp(InputIt first,
+                             InputIt last,
+                             OutputIt output_begin,
+                             cuda::stream_ref stream) const noexcept
+  {
+    this->contains_exp_async(first, last, output_begin, stream);
+    CubDebugExit(cudaStreamSynchronize(stream.get()));
+    // stream.wait();
   }
 
   // TODO
@@ -753,10 +773,10 @@ class bloom_filter_impl {
     if constexpr (LoopIndex < add_loop_count) {
       auto const pattern =
         policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
-#pragma unroll add_vertical_layout
+      auto* word_base = words_ + block_index * words_per_block + LoopIndex * add_vertical_layout;
+
       for (int i = 0; i < add_vertical_layout; ++i) {
-        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
-          *(words_ + block_index * words_per_block + LoopIndex * add_vertical_layout + i)};
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
         atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
       }
 
@@ -778,12 +798,12 @@ class bloom_filter_impl {
       auto const pattern =
         policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
           lower_hash, thread_index);
-#pragma unroll add_vertical_layout
+      auto* word_base = words_ + block_index * words_per_block +
+                        LoopIndex * add_vertical_layout * add_horizontal_layout +
+                        thread_index * add_vertical_layout;
+
       for (int i = 0; i < add_vertical_layout; ++i) {
-        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
-          *(words_ + block_index * words_per_block +
-            LoopIndex * add_vertical_layout * add_horizontal_layout +
-            thread_index * add_vertical_layout + i)};
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
         atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
       }
 
@@ -808,7 +828,6 @@ class bloom_filter_impl {
         policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
 
       bool match = true;
-#pragma unroll contains_vertical_layout
       for (int i = 0; i < contains_vertical_layout; ++i) {
         match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
         // Alternatively: match &= (~stored_pattern[i] & expected_pattern[i]) == 0;
@@ -841,14 +860,14 @@ class bloom_filter_impl {
     if constexpr (LoopIndex < contains_loop_count) {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
         block_index * words_per_block +
-        LoopIndex * contains_vertical_layout * contains_horizontal_layout + thread_index);
+        LoopIndex * contains_vertical_layout * contains_horizontal_layout +
+        thread_index * contains_vertical_layout);
       auto const expected_pattern =
         policy_
           .template array_pattern<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
             lower_hash, thread_index);
 
       bool match = true;
-#pragma unroll contains_vertical_layout
       for (int i = 0; i < contains_vertical_layout; ++i) {
         match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
         // Alternatively: match &= (~stored_pattern[i] & expected_pattern[i]) == 0;
@@ -858,11 +877,12 @@ class bloom_filter_impl {
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
       // words.
       if constexpr (use_early_exit) {
-        // This will degrade performance in selective regimes
+        // This will degrade performance in selective contexts
         if (group.any(!match)) { return false; }
-        return compare_patterns<LoopIndex + 1>(block_index, lower_hash);
+        return compare_patterns<LoopIndex + 1>(group, block_index, lower_hash, thread_index);
       } else {
-        return compare_patterns<LoopIndex + 1>(block_index, lower_hash) && match;
+        return compare_patterns<LoopIndex + 1>(group, block_index, lower_hash, thread_index) &&
+               match;
       }
     } else {
       return true;

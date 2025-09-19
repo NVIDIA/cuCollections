@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuda/__cmath/ceil_div.h>
+#include <cuda/std/__algorithm/min.h>
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/limits>
@@ -46,6 +47,8 @@ class parametric_filter_policy {
 
   static constexpr uint32_t words_per_block = WordsPerBlock;
   static constexpr uint32_t pattern_bits    = PatternBits;
+  /// KEVIN: temporary hack flag to dispatch to different code paths based on policy
+  static constexpr bool is_parametric_policy = true;
 
   // TODO this could be expressed as two cuda::std::extents<uint32_t, HORIZONTAL, VERTICAL> instead
   static constexpr uint32_t add_horizontal_layout =
@@ -110,8 +113,7 @@ class parametric_filter_policy {
   }
 
   // Return {upper 32b, lower 32b} of 64b hash
-  __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(
-    hash_argument_type key) const
+  __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(hash_argument_type key) const
   {
     auto const hash_value = hash_(key);
     return {static_cast<uint32_t>(hash_value >> 32), static_cast<uint32_t>(hash_value)};
@@ -162,9 +164,11 @@ class parametric_filter_policy {
                   "the loop index cannot exceed the number of loop iterations");
 
     pattern_array_t pattern_array{0};
-    constexpr uint32_t salt_start_index          = max_bits_per_word * VerticalLayout * LoopIndex;
+    constexpr uint32_t salt_start_index = max_bits_per_word * VerticalLayout * LoopIndex;
+    constexpr uint32_t salt_end_index =
+      cuda::std::min(salt_start_index + max_bits_per_word * VerticalLayout, pattern_bits);
     constexpr uint32_t pattern_array_start_index = 0;
-    set_bits<salt_start_index, pattern_array_start_index>(hash, pattern_array);
+    set_bits<salt_start_index, salt_end_index, pattern_array_start_index>(hash, pattern_array);
     return pattern_array;
   }
 
@@ -200,9 +204,9 @@ class parametric_filter_policy {
     return pattern_array;
   }
 
-  // Dispatches a dynamic thread index to a static virtual thread index by building a compile-time
-  // decision tree over the range [LowerBound, UpperBound) for the virtual thread index.
-  // This method is only used when <add/contains>_horizontal_layout > 1.
+  // Dispatches a dynamic virtual thread index to a static virtual thread index by building a
+  // compile-time decision tree over the range [LowerBound, UpperBound) for the virtual thread
+  // index. This method is only used when <add/contains>_horizontal_layout > 1.
   template <uint32_t MaxBitsPerVirtualThread,
             uint32_t LowerBound,
             uint32_t UpperBound,
@@ -216,9 +220,11 @@ class parametric_filter_policy {
 
     if constexpr (LowerBound + 1 == UpperBound) {
       // Base case: thread_index == LowerBound
-      constexpr uint32_t salt_start_index          = MaxBitsPerVirtualThread * LowerBound;
+      constexpr uint32_t salt_start_index = MaxBitsPerVirtualThread * LowerBound;
+      constexpr uint32_t salt_end_index =
+        cuda::std::min(salt_start_index + MaxBitsPerVirtualThread, pattern_bits);
       constexpr uint32_t pattern_array_start_index = 0;
-      set_bits<salt_start_index, pattern_array_start_index>(hash, pattern_array);
+      set_bits<salt_start_index, salt_end_index, pattern_array_start_index>(hash, pattern_array);
     } else {
       // Recursive case: thread_index > LowerBound
       constexpr uint32_t mid = (LowerBound + UpperBound) / 2;
@@ -233,10 +239,13 @@ class parametric_filter_policy {
   }
 
   // Set bits in the pattern array using salts starting from SaltIndex.
-  template <uint32_t SaltIndex, uint32_t PatternArrayIndex, class PatternArrayT>
+  template <uint32_t SaltIndex,
+            uint32_t SaltEndIndex,
+            uint32_t PatternArrayIndex,
+            class PatternArrayT>
   __device__ constexpr void set_bits(uint32_t hash, PatternArrayT& pattern_array) const
   {
-    if constexpr (SaltIndex < pattern_bits) {
+    if constexpr (SaltIndex < SaltEndIndex) {
       // Select top bit_index_width bits from salted hash to determine the bit index.
       const uint32_t bit_index =
         (cuda::std::get<SaltIndex>(salts) * hash) >> (32 - bit_index_width);
@@ -248,7 +257,7 @@ class parametric_filter_policy {
       constexpr uint32_t next_salt_index = SaltIndex + 1;
       constexpr uint32_t next_pattern_array_index =
         PatternArrayIndex + (next_salt_index % max_bits_per_word == 0 ? 1 : 0);
-      set_bits<next_salt_index, next_pattern_array_index>(hash, pattern_array);
+      set_bits<next_salt_index, SaltEndIndex, next_pattern_array_index>(hash, pattern_array);
     }
   }
 };

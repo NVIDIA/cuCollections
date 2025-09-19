@@ -37,6 +37,8 @@ class default_filter_policy {
   using hash_result_type   = decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));
 
   static constexpr std::uint32_t words_per_block = WordsPerBlock;
+  /// KEVIN: temporary hack flag to dispatch to different code paths based on policy
+  static constexpr bool is_parametric_policy = false;
 
   // TODO this could be expressed as two cuda::std::extents<uint32_t, HORIZONTAL, VERTICAL> instead
   static constexpr uint32_t add_horizontal_layout =

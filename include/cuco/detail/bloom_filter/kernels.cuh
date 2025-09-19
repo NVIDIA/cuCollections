@@ -159,7 +159,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
     auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
     if (idx < n) {
       typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-      ref.add_exp(key);
+      ref.add_exp(group, key);
     }
   }
 }

@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#define CUB_STDERR
+
 #include <cuco/bloom_filter.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cub/cub.cuh>
 
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
@@ -24,19 +27,29 @@
 
 #include <iostream>
 
-// TODO: Hook up user interface with new kernels.
-
 int main()
 {
-  using key_type                                = int;
-  using hasher                                  = cuco::xxhash_64<key_type>;
+  using key_type = int;
+  using hasher   = cuco::xxhash_64<key_type>;
+  /**
+   * CURRENT CONFIGURATION:
+   * - Block Size: 256b
+   * - Sector Size: 64b
+   * - k: 8
+   * - Add Horizontal Layout: 2
+   * - Add Vertical Layout: 1
+   * - Add Loop Iterations: 2
+   * - Contains Horizontal Layout: 1
+   * - Contains Vertical Layout: 2
+   * - Contains Loop Iterations: 2
+   */
   using word_type                               = uint64_t;
-  uint32_t constexpr words_per_block            = 1;
+  uint32_t constexpr words_per_block            = 4;
   uint32_t constexpr pattern_bits               = 8;
-  uint32_t constexpr add_horizontal_layout      = 1;
+  uint32_t constexpr add_horizontal_layout      = 2;
   uint32_t constexpr add_vertical_layout        = 1;
   uint32_t constexpr contains_horizontal_layout = 1;
-  uint32_t constexpr contains_vertical_layout   = 1;
+  uint32_t constexpr contains_vertical_layout   = 2;
   using policy_t = cuco::experimental::detail::parametric_filter_policy<hasher,
                                                                         word_type,
                                                                         words_per_block,
@@ -49,31 +62,46 @@ int main()
     cuco::bloom_filter<key_type, cuco::extent<size_t>, cuda::thread_scope_device, policy_t>;
 
   // Create the filter.
-  constexpr size_t num_keys     = 100;
-  constexpr size_t bits_per_key = 2 * words_per_block;
-  constexpr size_t num_blocks   = cuda::ceil_div(num_keys * bits_per_key, sizeof(word_type) * 8);
+  size_t constexpr num_build_keys = 1'000'000;
+  size_t constexpr bits_per_key   = 2 * pattern_bits;
+  size_t constexpr num_blocks =
+    cuda::ceil_div(num_build_keys * bits_per_key, sizeof(word_type) * 8);
   filter_t filter(num_blocks);
 
   // Generate the data.
-  thrust::device_vector<key_type> build_keys(num_keys);
-  thrust::device_vector<key_type> probe_keys(num_keys);
-  thrust::sequence(build_keys.begin(), build_keys.end(), 0, 2);  // even build keys
-  thrust::sequence(probe_keys.begin(), probe_keys.end(), 1, 2);  // odd probe keys
-  thrust::device_vector<bool> output_flags(num_keys, false);
-
-  auto stream = cuda::stream_ref();  // default stream
+  size_t constexpr num_probe_keys = 2 * num_build_keys;
+  thrust::device_vector<key_type> build_keys(num_build_keys);
+  thrust::device_vector<key_type> probe_keys(num_probe_keys);
+  thrust::sequence(build_keys.begin(), build_keys.end(), 0);
+  thrust::sequence(probe_keys.begin(), probe_keys.end(), 0);
+  thrust::device_vector<bool> tp_result(num_build_keys, false);  // ground truth positives
+  thrust::device_vector<bool> tn_result(num_build_keys, false);  // ground truth negatives
 
   // Insert the build keys
-  filter.add_async(build_keys.begin(), build_keys.end(), stream);
+  filter.add(build_keys.begin(), build_keys.end());
+  std::cout << "Add done.\n";
 
   // Probe the filter
-  filter.contains_async(probe_keys.begin(), probe_keys.end(), output_flags.begin(), stream);
-  stream.wait();
+  filter.contains(probe_keys.begin(), probe_keys.begin() + num_build_keys, tp_result.begin());
+  filter.contains(probe_keys.begin() + num_build_keys, probe_keys.end(), tn_result.begin());
+  std::cout << "Contains done.\n";
+
+  // Ensure no false negatives
+  auto const num_fns = thrust::count(tp_result.begin(), tp_result.end(), false);
+  if (num_fns != 0) {
+    std::cout << "Error: False negatives detected: " << num_fns << "\n";
+    // Show the false negatives
+    for (size_t i = 0; i < num_build_keys; ++i) {
+      if (!tp_result[i]) { std::cout << "False negative: " << probe_keys[i] << "\n"; }
+    }
+  } else {
+    std::cout << "No false negatives detected.\n";
+  }
 
   // Calcuate the FPR
-  float fp_rate =
-    float(thrust::count(output_flags.begin(), output_flags.end(), true)) / float(num_keys);
-
+  auto const num_fps = thrust::count(tn_result.begin(), tn_result.end(), true);
+  auto const fp_rate = float(num_fps) / float(num_build_keys);
+  std::cout << "Num FPs=" << num_fps << "\n";
   std::cout << "FPR=" << fp_rate << "\n";
 
   return 0;

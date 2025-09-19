@@ -93,7 +93,12 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add(InputI
                                                                           InputIt last,
                                                                           cuda::stream_ref stream)
 {
-  impl_.add(first, last, stream);
+  // KEVIN: manual override
+  if constexpr (Policy::is_parametric_policy) {
+    impl_.add_exp(first, last, stream);
+  } else {
+    impl_.add(first, last, stream);
+  }
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -102,8 +107,11 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add_async(
   InputIt first, InputIt last, cuda::stream_ref stream) noexcept
 {
   // KEVIN: manual override
-  // impl_.add_async(first, last, stream);
-  impl_.add_exp_async(first, last, stream);
+  if constexpr (Policy::is_parametric_policy) {
+    impl_.add_exp_async(first, last, stream);
+  } else {
+    impl_.add_async(first, last, stream);
+  }
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -162,7 +170,12 @@ template <class InputIt, class OutputIt>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  impl_.contains(first, last, output_begin, stream);
+  // KEVIN: manual override
+  if constexpr (Policy::is_parametric_policy) {
+    impl_.contains_exp(first, last, output_begin, stream);
+  } else {
+    impl_.contains(first, last, output_begin, stream);
+  }
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -171,8 +184,11 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::contains_a
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const noexcept
 {
   // KEVIN: manual override
-  // impl_.contains_async(first, last, output_begin, stream);
-  impl_.contains_exp_async(first, last, output_begin, stream);
+  if constexpr (Policy::is_parametric_policy) {
+    impl_.contains_exp_async(first, last, output_begin, stream);
+  } else {
+    impl_.contains_async(first, last, output_begin, stream);
+  }
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
