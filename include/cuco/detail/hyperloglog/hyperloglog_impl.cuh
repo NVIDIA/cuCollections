@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -124,7 +124,11 @@ class hyperloglog_impl {
   __host__ constexpr void clear(cuda::stream_ref stream)
   {
     this->clear_async(stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   /**
@@ -265,7 +269,11 @@ class hyperloglog_impl {
   __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->add_async(first, last, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   /**
@@ -329,7 +337,11 @@ class hyperloglog_impl {
                                 cuda::stream_ref stream)
   {
     this->merge_async(other, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   /**
@@ -413,7 +425,11 @@ class hyperloglog_impl {
                                   sizeof(register_type) * num_regs,
                                   cudaMemcpyDefault,
                                   stream.get()));
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
 
     fp_type sum = 0;
     int zeroes  = 0;

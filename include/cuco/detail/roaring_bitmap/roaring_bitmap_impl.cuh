@@ -64,7 +64,11 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
                          cuda::stream_ref stream = {}) const
   {
     this->contains_async(first, last, contained, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   template <class InputIt, class OutputIt>
@@ -303,7 +307,11 @@ class roaring_bitmap_impl<cuda::std::uint64_t> {
                          cuda::stream_ref stream = {}) const
   {
     this->contains_async(first, last, contained, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   template <class InputIt, class OutputIt>

@@ -880,7 +880,11 @@ class open_addressing_impl {
       size_type temp_count;
       CUCO_CUDA_TRY(cudaMemcpyAsync(
         &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+      stream.sync();
+#else
       stream.wait();
+#endif
       h_num_out += temp_count;
       temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
     }
@@ -994,7 +998,11 @@ class open_addressing_impl {
   void rehash(Container const& container, cuda::stream_ref stream)
   {
     this->rehash_async(container, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   /**
@@ -1023,7 +1031,11 @@ class open_addressing_impl {
   void rehash(extent_type extent, Container const& container, cuda::stream_ref stream)
   {
     this->rehash_async(extent, container, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   /**
