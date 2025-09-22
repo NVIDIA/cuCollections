@@ -27,6 +27,7 @@
 #include <cuda/std/limits>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/sequence.h>
 
 #include <exception>
 #include <limits>
@@ -68,11 +69,17 @@ void bloom_filter_contains(
   }
 
   std::size_t const num_sub_filters = (filter_size_mb * 1024 * 1024) / filter_block_size;
+  std::size_t const num_build_keys  = (filter_size_mb * 1024 * 1024 * 8) / (2 * WordsPerBlock);
 
   if (num_sub_filters > std::numeric_limits<size_type>::max()) {
     state.skip("num_sub_filters too large for size_type");  // skip invalid configurations
   }
 
+  thrust::device_vector<Key> build_keys(num_build_keys);
+  thrust::sequence(build_keys.begin(),
+                   build_keys.end(),
+                   static_cast<int64_t>(0),
+                   static_cast<int64_t>(num_keys / num_build_keys));
   thrust::counting_iterator<Key> keys(0);
   thrust::device_vector<bool> result(num_keys, false);
 
@@ -86,7 +93,7 @@ void bloom_filter_contains(
 
   add_fpr_summary(state, filter);
 
-  filter.add(keys, keys + num_keys);
+  filter.add(build_keys.begin(), build_keys.end());
 
   state.exec([&](nvbench::launch& launch) {
     filter.contains_async(keys, keys + num_keys, result.begin(), {launch.get_stream()});
@@ -113,12 +120,19 @@ void arrow_bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, 
   std::size_t const num_sub_filters =
     (filter_size_mb * 1024 * 1024) /
     (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
+  std::size_t const num_build_keys =
+    (filter_size_mb * 1024 * 1024 * 8) / (2 * policy_type::bits_set_per_block);
 
   if (num_sub_filters > policy_type::max_filter_blocks) {
     state.skip("bloom filter with arrow policy should have <= 4194304 blocks");  // skip invalid
                                                                                  // configurations
   }
 
+  thrust::device_vector<Key> build_keys(num_build_keys);
+  thrust::sequence(build_keys.begin(),
+                   build_keys.end(),
+                   static_cast<int64_t>(0),
+                   static_cast<int64_t>(num_keys / num_build_keys));
   thrust::counting_iterator<Key> keys(0);
   thrust::device_vector<bool> result(num_keys, false);
 
@@ -131,7 +145,67 @@ void arrow_bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, 
 
   add_fpr_summary(state, filter);
 
-  filter.add(keys, keys + num_keys);
+  filter.add(build_keys.begin(), build_keys.end());
+
+  state.exec([&](nvbench::launch& launch) {
+    filter.contains_async(keys, keys + num_keys, result.begin(), {launch.get_stream()});
+  });
+}
+
+/**
+ * @brief A benchmark evaluating `cuco::bloom_filter::contains_async` performance with
+ * `parametric_filter_policy`
+ */
+template <typename Key,
+          typename Word,
+          nvbench::int32_t PatternBits,
+          nvbench::int32_t WordsPerBlock,
+          typename Dist>
+void pfp_bloom_filter_contains(
+  nvbench::state& state,
+  nvbench::
+    type_list<Key, Word, nvbench::enum_type<PatternBits>, nvbench::enum_type<WordsPerBlock>, Dist>)
+{
+  // cudaDeviceSetLimit(cudaLimitMaxL2FetchGranularity, 32); // slightly improves peformance if
+  // filter block fits into a 32B sector
+  using size_type   = std::uint32_t;
+  using hasher      = cuco::xxhash_64<Key>;
+  using policy_type = cuco::experimental::detail::
+    parametric_filter_policy<hasher, Word, WordsPerBlock, PatternBits, 8, 1, 1, 8>;
+  using filter_type =
+    cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
+
+  auto const num_keys       = state.get_int64("NumInputs");
+  auto const filter_size_mb = state.get_int64("FilterSizeMB");
+
+  std::size_t const num_sub_filters =
+    (filter_size_mb * 1024 * 1024) /
+    (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
+  auto const num_build_keys = (filter_size_mb * 1024 * 1024 * 8) / (2 * PatternBits);
+
+  if (num_sub_filters > std::numeric_limits<size_type>::max()) {
+    // skip invalid configurations
+    state.skip("bloom filter with arrow policy should have <= 4194304 blocks");
+  }
+
+  thrust::device_vector<Key> build_keys(num_build_keys);
+  thrust::sequence(build_keys.begin(),
+                   build_keys.end(),
+                   static_cast<int64_t>(0),
+                   static_cast<int64_t>(num_keys / num_build_keys));
+  thrust::counting_iterator<Key> keys(0);
+  thrust::device_vector<bool> result(num_keys, false);
+
+  state.add_element_count(num_keys);
+
+  filter_type filter{static_cast<size_type>(num_sub_filters)};
+
+  state.collect_dram_throughput();
+  state.collect_l2_hit_rates();
+
+  add_fpr_summary(state, filter);
+
+  filter.add(build_keys.begin(), build_keys.end());
 
   state.exec([&](nvbench::launch& launch) {
     filter.contains_async(keys, keys + num_keys, result.begin(), {launch.get_stream()});
@@ -150,35 +224,47 @@ NVBENCH_BENCH_TYPES(bloom_filter_contains,
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
-NVBENCH_BENCH_TYPES(bloom_filter_contains,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                                      defaults::HASH_RANGE,
-                                      nvbench::type_list<defaults::BF_WORD>,
-                                      nvbench::enum_type_list<defaults::BF_WORDS_PER_BLOCK>,
-                                      nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_contains_unique_hash")
-  .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
+// NVBENCH_BENCH_TYPES(bloom_filter_contains,
+//                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+//                                       defaults::HASH_RANGE,
+//                                       nvbench::type_list<defaults::BF_WORD>,
+//                                       nvbench::enum_type_list<defaults::BF_WORDS_PER_BLOCK>,
+//                                       nvbench::type_list<distribution::unique>))
+//   .set_name("bloom_filter_contains_unique_hash")
+//   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
+//   .set_max_noise(defaults::MAX_NOISE)
+//   .add_int64_axis("NumInputs", {defaults::BF_N})
+//   .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
 
-NVBENCH_BENCH_TYPES(bloom_filter_contains,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                                      nvbench::type_list<defaults::BF_HASH>,
-                                      nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
-                                      nvbench::enum_type_list<1, 2, 4, 8>,
-                                      nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_contains_unique_block_dim")
-  .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
+// NVBENCH_BENCH_TYPES(bloom_filter_contains,
+//                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+//                                       nvbench::type_list<defaults::BF_HASH>,
+//                                       nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
+//                                       nvbench::enum_type_list<1, 2, 4, 8>,
+//                                       nvbench::type_list<distribution::unique>))
+//   .set_name("bloom_filter_contains_unique_block_dim")
+//   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
+//   .set_max_noise(defaults::MAX_NOISE)
+//   .add_int64_axis("NumInputs", {defaults::BF_N})
+//   .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
 
 NVBENCH_BENCH_TYPES(arrow_bloom_filter_contains,
                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("arrow_bloom_filter_contains_unique_size")
   .set_type_axes_names({"Key", "Distribution"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
+
+NVBENCH_BENCH_TYPES(pfp_bloom_filter_contains,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+                                      nvbench::type_list<defaults::BF_WORD>,
+                                      nvbench::enum_type_list<defaults::BF_PATTERN_BITS>,
+                                      nvbench::enum_type_list<defaults::BF_WORDS_PER_BLOCK>,
+                                      nvbench::type_list<distribution::unique>))
+  .set_name("pfp_bloom_filter_contains_unique_size")
+  .set_type_axes_names({"Key", "Word", "Pattern Bits", "Key", "Distribution"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);

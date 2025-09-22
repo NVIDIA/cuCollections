@@ -654,7 +654,7 @@ class bloom_filter_impl {
   //===--------------------------------------------------===//
   // Parametric Filter Policy
   //===--------------------------------------------------===//
-  // NOTE: Only implementing the <add/contains>_async() host-side entry points for now.
+  // NOTE: Not implementing the <add/contains>_if() host-side entry points for now.
 
   // Single Thread Add
   template <class BuildKey>
