@@ -157,7 +157,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
     }
   } else {
     auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
-    if (idx < n) {
+    while (idx < n) {
       typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       ref.add_exp(group, key);
     }
@@ -181,7 +181,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_n(InputIt first,
     }
   } else {
     auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
-    if (idx < n) {
+    while (idx < n) {
       typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       auto const found = group.all(ref.contains_exp(group, key));
       if (group.thread_rank() == 0) { *(output_begin + idx) = found; }

@@ -372,7 +372,8 @@ class bloom_filter_impl {
         }
       }
       return true;
-    } else {  /// DEBUG ///
+    } else {
+      /// NON-EARLY EXIT CODE PATH ///
       bool success = true;
 
 #pragma unroll words_per_block / vertical_layout
@@ -387,7 +388,6 @@ class bloom_filter_impl {
         }
       }
       return success;
-      /// DEBUG ///
     }
   }
 
@@ -595,11 +595,10 @@ class bloom_filter_impl {
       //   detail::bloom_filter_ns::contains<block_size, InputIt, OutputIt, bloom_filter_impl>);
       // auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel);
 
-      /// DEBUG ///
+      /// LINEAR GRID ///
       auto constexpr cg_size = static_cast<int32_t>(policy_type::contains_horizontal_layout);
       auto const grid_size   = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
                                             static_cast<decltype(num_keys)>(block_size));
-      /// DEBUG ///
 
       detail::bloom_filter_ns::contains<block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
