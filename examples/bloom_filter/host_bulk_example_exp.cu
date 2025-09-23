@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define CUB_STDERR
-
 #include <cuco/bloom_filter.cuh>
 #include <cuco/hash_functions.cuh>
 
@@ -79,14 +77,14 @@ int main()
 
   // Insert the build keys
   filter.add(build_keys.begin(), build_keys.end());
-  CubDebugExit(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
   std::cout << "Add done.\n";
 
   // Probe the filter
   filter.contains(probe_keys.begin(), probe_keys.begin() + num_build_keys, tp_result.begin());
-  CubDebugExit(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
   filter.contains(probe_keys.begin() + num_build_keys, probe_keys.end(), tn_result.begin());
-  CubDebugExit(cudaDeviceSynchronize());
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
   std::cout << "Contains done.\n";
 
   /// DEBUG ///

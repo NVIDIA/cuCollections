@@ -16,6 +16,7 @@
 #pragma once
 
 #include <cuco/detail/utility/cuda.cuh>
+#include <cuco/detail/utility/math.cuh>
 
 #include <cuda/std/iterator>
 

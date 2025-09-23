@@ -16,15 +16,14 @@
 
 #pragma once
 
-#include <cuda/__cmath/ceil_div.h>
+#include <cuco/detail/utility/math.cuh>
+
 #include <cuda/std/__algorithm/min.h>
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/limits>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
-
-#include <sys/types.h>
 
 #include <cstdint>
 
@@ -64,9 +63,10 @@ class parametric_filter_policy {
   static constexpr size_t max_filter_blocks = cuda::std::numeric_limits<size_t>::max();
 
  private:
-  static constexpr std::uint32_t word_bits         = cuda::std::numeric_limits<word_type>::digits;
-  static constexpr std::uint32_t bit_index_width   = cuda::std::bit_width(word_bits - 1);
-  static constexpr std::uint32_t max_bits_per_word = cuda::ceil_div(pattern_bits, words_per_block);
+  static constexpr std::uint32_t word_bits       = cuda::std::numeric_limits<word_type>::digits;
+  static constexpr std::uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
+  static constexpr std::uint32_t max_bits_per_word =
+    cuco::detail::int_div_ceil(pattern_bits, words_per_block);
 
   static constexpr cuda::std::array<uint32_t, 16> salts = {0x47b6137bU,
                                                            0x44974d91U,
@@ -144,8 +144,9 @@ class parametric_filter_policy {
   /**
    * @brief pattern_impl - Computes the bit pattern for a vertical layout of words.
    * I use the terminology of a `virtual thread` to refer to an ordering of the vertical layouts,
-   * namely virtual_thread_index = LoopIndex * HorizontalLayout + thread_index, where LoopIndex is
-   * the index of the outermost loop in the range:
+   * namely 
+   *   virtual_thread_index = LoopIndex * HorizontalLayout + thread_index, 
+   * where LoopIndex is the index of the outermost loop in the range:
    *     [0, words_per_block / (HorizontalLayout * VerticalLayout)).
    * @param hash
    * @return cuda::std::array<word_type, VerticalLayout> - The bit pattern for the vertical layout

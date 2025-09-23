@@ -20,6 +20,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utility/math.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
@@ -37,8 +38,6 @@
 #include <thrust/iterator/constant_iterator.h>
 
 #include <cooperative_groups.h>
-
-#include <fcntl.h>
 
 #include <cstdint>
 
@@ -74,8 +73,7 @@ class bloom_filter_impl {
 
   __host__ __device__ static constexpr size_t alignment() noexcept
   {
-    return cuda::std::max(policy_type::add_vertical_layout, policy_type::contains_vertical_layout) *
-           sizeof(word_type);
+    return cuda::std::max(add_vertical_layout, contains_vertical_layout) * sizeof(word_type);
   }
 
   struct filter_block_type {
@@ -138,14 +136,13 @@ class bloom_filter_impl {
   template <class HashValue, class BlockIndex>
   __device__ void add_impl(HashValue hash_value, BlockIndex block_index)
   {
-    constexpr auto vertical_layout = policy_type::add_vertical_layout;
-    auto const block_offset        = block_index * words_per_block;
+    auto const block_offset = block_index * words_per_block;
 
-#pragma unroll words_per_block / vertical_layout
-    for (uint32_t i = 0; i < words_per_block / vertical_layout; ++i) {
-#pragma unroll vertical_layout
-      for (uint32_t j = 0; j < vertical_layout; ++j) {
-        auto const word_offset = i * vertical_layout + j;
+#pragma unroll words_per_block / add_vertical_layout
+    for (uint32_t i = 0; i < words_per_block / add_vertical_layout; ++i) {
+#pragma unroll add_vertical_layout
+      for (uint32_t j = 0; j < add_vertical_layout; ++j) {
+        auto const word_offset = i * add_vertical_layout + j;
         auto const word        = policy_.word_pattern(hash_value, word_offset);
         if (word != 0) {  // TODO necessary?
           auto atom_word =
@@ -159,17 +156,16 @@ class bloom_filter_impl {
   template <class CG, class HashValue, class BlockIndex>
   __device__ void add_impl(CG group, HashValue hash_value, BlockIndex block_index)
   {
-    constexpr auto num_threads     = tile_size_v<CG>;
-    constexpr auto vertical_layout = policy_type::add_vertical_layout;
+    constexpr auto num_threads = tile_size_v<CG>;
 
     auto const block_offset = block_index * words_per_block;
 
     if constexpr (num_threads == 1) {
       this->add_impl(hash_value, block_index);
-    } else if constexpr (num_threads == (words_per_block / vertical_layout)) {
-      auto const thread_offset = group.thread_rank() * vertical_layout;
-#pragma unroll vertical_layout
-      for (uint32_t j = 0; j < vertical_layout; ++j) {
+    } else if constexpr (num_threads == (words_per_block / add_vertical_layout)) {
+      auto const thread_offset = group.thread_rank() * add_vertical_layout;
+#pragma unroll add_vertical_layout
+      for (uint32_t j = 0; j < add_vertical_layout; ++j) {
         auto const word = policy_.word_pattern(hash_value, thread_offset + j);
         auto atom_word =
           cuda::atomic_ref<word_type, thread_scope>{*(words_ + block_offset + thread_offset + j)};
@@ -177,11 +173,11 @@ class bloom_filter_impl {
       }
     } else {
 #pragma unroll
-      for (uint32_t i = group.thread_rank(); i < words_per_block / vertical_layout;
+      for (uint32_t i = group.thread_rank(); i < words_per_block / add_vertical_layout;
            i += num_threads) {
-        auto const thread_offset = i * vertical_layout;
-#pragma unroll vertical_layout
-        for (uint32_t j = 0; j < vertical_layout; ++j) {
+        auto const thread_offset = i * add_vertical_layout;
+#pragma unroll add_vertical_layout
+        for (uint32_t j = 0; j < add_vertical_layout; ++j) {
           auto const word = policy_.word_pattern(hash_value, thread_offset + j);
           auto atom_word =
             cuda::atomic_ref<word_type, thread_scope>{*(words_ + block_offset + thread_offset + j)};
@@ -236,8 +232,7 @@ class bloom_filter_impl {
   template <class CG, class InputIt>
   __device__ void add(CG group, InputIt first, InputIt last)
   {
-    constexpr auto num_threads       = tile_size_v<CG>;
-    constexpr auto horizontal_layout = policy_type::add_horizontal_layout;
+    constexpr auto num_threads = tile_size_v<CG>;
 
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -254,7 +249,7 @@ class bloom_filter_impl {
       auto const rank        = group.thread_rank();
       auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
 
-      if constexpr (num_threads <= horizontal_layout) {
+      if constexpr (num_threads <= add_horizontal_layout) {
         for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
           auto const group_offset = i * num_threads;
           if (group_offset + rank < num_keys) {
@@ -270,8 +265,9 @@ class bloom_filter_impl {
         }
       } else /* num_threads > horizontal_layout */ {
         // subdivide given CG into multiple optimal CGs
-        auto const worker_group = cooperative_groups::tiled_partition<horizontal_layout, CG>(group);
-        auto const worker_offset = horizontal_layout * worker_group.meta_group_rank();
+        auto const worker_group =
+          cooperative_groups::tiled_partition<add_horizontal_layout, CG>(group);
+        auto const worker_offset = add_horizontal_layout * worker_group.meta_group_rank();
 
         for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
           auto const group_offset = i * num_threads;
@@ -283,7 +279,7 @@ class bloom_filter_impl {
           }
 
           for (uint32_t j = 0;
-               (j < horizontal_layout) and (group_offset + worker_offset + j < num_keys);
+               (j < add_horizontal_layout) and (group_offset + worker_offset + j < num_keys);
                ++j) {
             this->add_impl(
               worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
@@ -306,7 +302,7 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    if constexpr (use_cub_kernels and ((words_per_block / policy_type::add_vertical_layout) == 1)) {
+    if constexpr (use_cub_kernels and ((words_per_block / add_vertical_layout) == 1)) {
       cub::DeviceFor::ForEachCopyN(
         first,
         num_keys,
@@ -344,7 +340,7 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto constexpr cg_size    = policy_type::add_horizontal_layout;
+    auto constexpr cg_size    = add_horizontal_layout;
     auto constexpr block_size = cuco::detail::default_block_size();
     auto const grid_size =
       cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
@@ -356,16 +352,14 @@ class bloom_filter_impl {
   template <class HashValue, class BlockIndex>
   __device__ bool contains_impl(HashValue hash_value, BlockIndex block_index) const
   {
-    constexpr auto vertical_layout = policy_type::contains_vertical_layout;
-
     if constexpr (use_early_exit) {
-#pragma unroll words_per_block / vertical_layout
-      for (uint32_t i = 0; i < words_per_block / vertical_layout; ++i) {
-        auto const stored_pattern = this->vec_load_words<vertical_layout>(
-          block_index * words_per_block + i * vertical_layout);
-#pragma unroll vertical_layout
-        for (uint32_t j = 0; j < vertical_layout; ++j) {
-          auto const word_offset      = i * vertical_layout + j;
+#pragma unroll words_per_block / contains_vertical_layout
+      for (uint32_t i = 0; i < words_per_block / contains_vertical_layout; ++i) {
+        auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
+          block_index * words_per_block + i * contains_vertical_layout);
+#pragma unroll contains_vertical_layout
+        for (uint32_t j = 0; j < contains_vertical_layout; ++j) {
+          auto const word_offset      = i * contains_vertical_layout + j;
           auto const expected_pattern = policy_.word_pattern(hash_value, word_offset);
           // TODO we can replace this with a check against "is 0" if we negate the filter bits
           if ((stored_pattern[j] & expected_pattern) != expected_pattern) { return false; }
@@ -376,13 +370,13 @@ class bloom_filter_impl {
       /// NON-EARLY EXIT CODE PATH ///
       bool success = true;
 
-#pragma unroll words_per_block / vertical_layout
-      for (uint32_t i = 0; i < words_per_block / vertical_layout; ++i) {
-        auto const stored_pattern = this->vec_load_words<vertical_layout>(
-          block_index * words_per_block + i * vertical_layout);
-#pragma unroll vertical_layout
-        for (uint32_t j = 0; j < vertical_layout; ++j) {
-          auto const word_offset      = i * vertical_layout + j;
+#pragma unroll words_per_block / contains_vertical_layout
+      for (uint32_t i = 0; i < words_per_block / contains_vertical_layout; ++i) {
+        auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
+          block_index * words_per_block + i * contains_vertical_layout);
+#pragma unroll contains_vertical_layout
+        for (uint32_t j = 0; j < contains_vertical_layout; ++j) {
+          auto const word_offset      = i * contains_vertical_layout + j;
           auto const expected_pattern = policy_.word_pattern(hash_value, word_offset);
           success &= ((stored_pattern[j] & expected_pattern) == expected_pattern);
         }
@@ -394,8 +388,7 @@ class bloom_filter_impl {
   template <class CG, class HashValue, class BlockIndex>
   __device__ bool contains_impl(CG group, HashValue hash_value, BlockIndex block_index) const
   {
-    constexpr auto num_threads     = tile_size_v<CG>;
-    constexpr auto vertical_layout = policy_type::contains_vertical_layout;
+    constexpr auto num_threads = tile_size_v<CG>;
 
     auto const block_offset = block_index * words_per_block;
 
@@ -406,14 +399,15 @@ class bloom_filter_impl {
       bool success    = true;
       if constexpr (use_early_exit) {
 #pragma unroll
-        for (uint32_t i = 0; i < int_div_ceil(words_per_block / vertical_layout, num_threads);
+        for (uint32_t i = 0;
+             i < int_div_ceil(words_per_block / contains_vertical_layout, num_threads);
              ++i) {
-          auto const thread_offset = (i * num_threads + rank) * vertical_layout;
+          auto const thread_offset = (i * num_threads + rank) * contains_vertical_layout;
           if (thread_offset < words_per_block) {
             auto const stored_pattern =
-              this->vec_load_words<vertical_layout>(block_offset + thread_offset);
-#pragma unroll vertical_layout
-            for (uint32_t j = 0; j < vertical_layout; ++j) {
+              this->vec_load_words<contains_vertical_layout>(block_offset + thread_offset);
+#pragma unroll contains_vertical_layout
+            for (uint32_t j = 0; j < contains_vertical_layout; ++j) {
               auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
               // TODO we can replace this with a check against "is 0" if we negate the filter bits
               if ((stored_pattern[j] & expected_pattern) != expected_pattern) { success = false; }
@@ -424,12 +418,12 @@ class bloom_filter_impl {
         return true;
       } else {
 #pragma unroll
-        for (uint32_t i = rank; i < words_per_block / vertical_layout; i += num_threads) {
-          auto const thread_offset = i * vertical_layout;
+        for (uint32_t i = rank; i < words_per_block / contains_vertical_layout; i += num_threads) {
+          auto const thread_offset = i * contains_vertical_layout;
           auto const stored_pattern =
-            this->vec_load_words<vertical_layout>(block_offset + thread_offset);
-#pragma unroll vertical_layout
-          for (uint32_t j = 0; j < vertical_layout; ++j) {
+            this->vec_load_words<contains_vertical_layout>(block_offset + thread_offset);
+#pragma unroll contains_vertical_layout
+          for (uint32_t j = 0; j < contains_vertical_layout; ++j) {
             auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
             // TODO we can replace this with a check against "is 0" if we negate the filter bits
             if ((stored_pattern[j] & expected_pattern) != expected_pattern) { success = false; }
@@ -486,8 +480,7 @@ class bloom_filter_impl {
   template <class CG, class InputIt, class OutputIt>
   __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin) const
   {
-    constexpr auto num_threads       = tile_size_v<CG>;
-    constexpr auto horizontal_layout = policy_type::contains_horizontal_layout;
+    constexpr auto num_threads = tile_size_v<CG>;
 
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
@@ -505,7 +498,7 @@ class bloom_filter_impl {
       auto const rank        = group.thread_rank();
       auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
 
-      if constexpr (num_threads <= horizontal_layout) {
+      if constexpr (num_threads <= contains_horizontal_layout) {
         for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
           auto const group_offset = i * num_threads;
           // coalesced input read
@@ -530,8 +523,9 @@ class bloom_filter_impl {
         }
       } else /* num_threads > horizontal_layout */ {
         // subdivide given CG into multiple optimal CGs
-        auto const worker_group = cooperative_groups::tiled_partition<horizontal_layout, CG>(group);
-        auto const worker_offset = horizontal_layout * worker_group.meta_group_rank();
+        auto const worker_group =
+          cooperative_groups::tiled_partition<contains_horizontal_layout, CG>(group);
+        auto const worker_offset = contains_horizontal_layout * worker_group.meta_group_rank();
         auto const worker_rank   = worker_group.thread_rank();
 
         for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
@@ -546,7 +540,7 @@ class bloom_filter_impl {
 
           // group-wise cooperative lookup
           for (uint32_t j = 0;
-               (j < horizontal_layout) and (group_offset + worker_offset + j < num_keys);
+               (j < contains_horizontal_layout) and (group_offset + worker_offset + j < num_keys);
                ++j) {
             bool result = this->contains_impl(
               worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
@@ -581,8 +575,7 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    if constexpr (use_cub_kernels and
-                  ((words_per_block / policy_type::contains_vertical_layout) == 1)) {
+    if constexpr (use_cub_kernels and ((words_per_block / contains_vertical_layout) == 1)) {
       cub::DeviceTransform::Transform(
         first,
         output_begin,
@@ -596,9 +589,9 @@ class bloom_filter_impl {
       // auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel);
 
       /// LINEAR GRID ///
-      auto constexpr cg_size = static_cast<int32_t>(policy_type::contains_horizontal_layout);
-      auto const grid_size   = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
-                                            static_cast<decltype(num_keys)>(block_size));
+      auto constexpr cg_size = static_cast<int32_t>(contains_horizontal_layout);
+      auto const grid_size =
+        cuco::detail::int_div_ceil(num_keys * static_cast<decltype(num_keys)>(cg_size), block_size);
 
       detail::bloom_filter_ns::contains<block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
@@ -628,7 +621,7 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto constexpr cg_size    = policy_type::contains_horizontal_layout;
+    auto constexpr cg_size    = contains_horizontal_layout;
     auto constexpr block_size = cuco::detail::default_block_size();
     auto const grid_size =
       cuco::detail::grid_size(num_keys, cg_size, cuco::detail::default_stride(), block_size);
@@ -660,8 +653,7 @@ class bloom_filter_impl {
   __device__ void add_exp(BuildKey build_key)
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(policy_type::add_horizontal_layout == 1,
-                  "This add_exp() requires add_horizontal_layout == 1");
+    static_assert(add_horizontal_layout == 1, "This add_exp() requires add_horizontal_layout == 1");
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
@@ -673,8 +665,7 @@ class bloom_filter_impl {
   __device__ void add_exp(CG group, BuildKey build_key)
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(policy_type::add_horizontal_layout > 1,
-                  "This add_exp() requires add_horizontal_layout > 1");
+    static_assert(add_horizontal_layout > 1, "This add_exp() requires add_horizontal_layout > 1");
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
@@ -689,10 +680,10 @@ class bloom_filter_impl {
     if (num_keys == 0) { return; }
 
     auto constexpr block_size = cuco::detail::default_block_size();
-    auto constexpr cg_size    = static_cast<int32_t>(policy_type::add_horizontal_layout);
+    auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
 
-    auto const grid_size = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
-                                          static_cast<decltype(num_keys)>(block_size));
+    auto const grid_size =
+      cuco::detail::int_div_ceil(num_keys * static_cast<decltype(num_keys)>(cg_size), block_size);
 
     detail::bloom_filter_ns::add_exp_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
@@ -710,7 +701,7 @@ class bloom_filter_impl {
   __device__ bool contains_exp(ProbeKey probe_key) const
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(policy_type::contains_horizontal_layout == 1,
+    static_assert(contains_horizontal_layout == 1,
                   "This contains_exp() requires contains_horizontal_layout == 1");
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
@@ -723,9 +714,9 @@ class bloom_filter_impl {
   __device__ bool contains_exp(CG group, ProbeKey probe_key) const
   {
     // Sanity checks. TODO: remove redundant checks.
-    static_assert(policy_type::contains_horizontal_layout > 1,
+    static_assert(contains_horizontal_layout > 1,
                   "This contains_exp() requires contains_horizontal_layout > 1");
-    static_assert(tile_size_v<CG> == policy_type::contains_horizontal_layout,
+    static_assert(tile_size_v<CG> == contains_horizontal_layout,
                   "This contains_exp() requires CG with size equal to contains_horizontal_layout");
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
@@ -743,8 +734,7 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    if constexpr (use_cub_kernels and
-                  ((words_per_block / policy_type::contains_vertical_layout) == 1)) {
+    if constexpr (use_cub_kernels and ((words_per_block / contains_vertical_layout) == 1)) {
       cub::DeviceTransform::Transform(
         first,
         output_begin,
@@ -753,10 +743,10 @@ class bloom_filter_impl {
         stream.get());
     } else {
       auto constexpr block_size = cuco::detail::default_block_size();
-      auto constexpr cg_size    = static_cast<int32_t>(policy_type::contains_horizontal_layout);
+      auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
 
-      auto const grid_size = cuda::ceil_div(num_keys * static_cast<decltype(num_keys)>(cg_size),
-                                            static_cast<decltype(num_keys)>(block_size));
+      auto const grid_size =
+        cuco::detail::int_div_ceil(num_keys * static_cast<decltype(num_keys)>(cg_size), block_size);
 
       detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
