@@ -72,7 +72,7 @@ int main()
   // Create the filter.
   size_t constexpr bits_per_key = 2 * pattern_bits;  // ~50% LF
   size_t constexpr num_blocks =
-    cuda::ceil_div(num_build_keys * bits_per_key, sizeof(word_type) * 8);
+    cuda::ceil_div(num_build_keys * bits_per_key, words_per_block * sizeof(word_type) * 8);
   filter_t filter(num_blocks);
   std::cout << "Filter size (bytes): "
             << filter.block_extent() * filter_t::words_per_block * sizeof(word_type) << "\n";
