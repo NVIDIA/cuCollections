@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define DEBUG_FPS
-
 #include <cuco/bloom_filter.cuh>
 #include <cuco/hash_functions.cuh>
 
@@ -36,20 +34,20 @@ int main()
    * - Block Size: 256b
    * - Sector Size: 32b
    * - k: 8
-   * - Add Horizontal Layout: 8
-   * - Add Vertical Layout: 1
-   * - Add Loop Count: 1
-   * - Contains Horizontal Layout: 1
-   * - Contains Vertical Layout: 8
-   * - Contains Loop Count: 1
+   * - Add Horizontal Layout: 2
+   * - Add Vertical Layout: 2
+   * - Add Loop Count: 2
+   * - Contains Horizontal Layout: 2
+   * - Contains Vertical Layout: 2
+   * - Contains Loop Count: 2
    */
   using word_type                               = uint32_t;
   uint32_t constexpr words_per_block            = 8;
   uint32_t constexpr pattern_bits               = 8;
-  uint32_t constexpr add_horizontal_layout      = 8;
-  uint32_t constexpr add_vertical_layout        = 1;
-  uint32_t constexpr contains_horizontal_layout = 8;
-  uint32_t constexpr contains_vertical_layout   = 1;
+  uint32_t constexpr add_horizontal_layout      = 2;
+  uint32_t constexpr add_vertical_layout        = 2;
+  uint32_t constexpr contains_horizontal_layout = 2;
+  uint32_t constexpr contains_vertical_layout   = 2;
   using policy_t = cuco::experimental::detail::parametric_filter_policy<hasher,
                                                                         word_type,
                                                                         words_per_block,
@@ -62,7 +60,7 @@ int main()
     cuco::bloom_filter<key_type, cuco::extent<size_t>, cuda::thread_scope_device, policy_t>;
 
   // Create the filter.
-  size_t constexpr num_build_keys = 100;
+  size_t constexpr num_build_keys = 1'000'000;
   size_t constexpr bits_per_key   = 2 * pattern_bits;
   size_t constexpr num_blocks =
     cuda::ceil_div(num_build_keys * bits_per_key, sizeof(word_type) * 8);
@@ -89,19 +87,18 @@ int main()
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
   std::cout << "Contains done.\n";
 
-  /// DEBUG ///
   // Ensure no false negatives
   auto const num_fns = thrust::count(tp_result.begin(), tp_result.end(), false);
   if (num_fns != 0) {
     std::cout << "Error: False negatives detected: " << num_fns << "\n";
-    // Show the false negatives
+#ifdef DEBUG_FNS
     for (size_t i = 0; i < num_build_keys; ++i) {
       if (!tp_result[i]) { std::cout << "False negative: " << probe_keys[i] << "\n"; }
     }
+#endif
   } else {
     std::cout << "No false negatives detected.\n";
   }
-  /// DEBUG ///
 
   // Calcuate the FPR
   auto const num_fps = thrust::count(tn_result.begin(), tn_result.end(), true);
