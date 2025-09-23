@@ -148,18 +148,21 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
 {
   namespace cg = cooperative_groups;
 
-  auto const idx = cuco::detail::global_thread_id() / CGSize;
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   if constexpr (CGSize == 1) {
-    if (idx < n) {
+    while (idx < n) {
       typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       ref.add_exp(key);
+      idx += loop_stride;
     }
   } else {
     auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
     while (idx < n) {
       typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       ref.add_exp(group, key);
+      idx += loop_stride;
     }
   }
 }
@@ -172,12 +175,14 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_n(InputIt first,
 {
   namespace cg = cooperative_groups;
 
-  auto const idx = cuco::detail::global_thread_id() / CGSize;
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   if constexpr (CGSize == 1) {
-    if (idx < n) {
+    while (idx < n) {
       typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       *(output_begin + idx)                                               = ref.contains_exp(key);
+      idx += loop_stride;
     }
   } else {
     auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
@@ -185,6 +190,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_n(InputIt first,
       typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
       auto const found = group.all(ref.contains_exp(group, key));
       if (group.thread_rank() == 0) { *(output_begin + idx) = found; }
+      idx += loop_stride;
     }
   }
 }
