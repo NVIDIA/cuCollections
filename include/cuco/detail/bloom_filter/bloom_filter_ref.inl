@@ -93,7 +93,7 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add(InputI
                                                                           InputIt last,
                                                                           cuda::stream_ref stream)
 {
-  // KEVIN: manual override
+  // KEVIN: manual override (is this necessary? I think I'm bypassing the reference in the exp code)
   if constexpr (Policy::is_parametric_policy) {
     impl_.add_exp(first, last, stream);
   } else {

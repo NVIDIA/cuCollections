@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define DEBUG_FPS
+
 #include <cuco/bloom_filter.cuh>
 #include <cuco/hash_functions.cuh>
 
@@ -36,18 +38,18 @@ int main()
    * - k: 8
    * - Add Horizontal Layout: 8
    * - Add Vertical Layout: 1
-   * - Add Loop Iterations: 1
+   * - Add Loop Count: 1
    * - Contains Horizontal Layout: 1
    * - Contains Vertical Layout: 8
-   * - Contains Loop Iterations: 1
+   * - Contains Loop Count: 1
    */
   using word_type                               = uint32_t;
   uint32_t constexpr words_per_block            = 8;
   uint32_t constexpr pattern_bits               = 8;
   uint32_t constexpr add_horizontal_layout      = 8;
   uint32_t constexpr add_vertical_layout        = 1;
-  uint32_t constexpr contains_horizontal_layout = 1;
-  uint32_t constexpr contains_vertical_layout   = 8;
+  uint32_t constexpr contains_horizontal_layout = 8;
+  uint32_t constexpr contains_vertical_layout   = 1;
   using policy_t = cuco::experimental::detail::parametric_filter_policy<hasher,
                                                                         word_type,
                                                                         words_per_block,
@@ -60,7 +62,7 @@ int main()
     cuco::bloom_filter<key_type, cuco::extent<size_t>, cuda::thread_scope_device, policy_t>;
 
   // Create the filter.
-  size_t constexpr num_build_keys = 1'000'000;
+  size_t constexpr num_build_keys = 100;
   size_t constexpr bits_per_key   = 2 * pattern_bits;
   size_t constexpr num_blocks =
     cuda::ceil_div(num_build_keys * bits_per_key, sizeof(word_type) * 8);
@@ -103,8 +105,12 @@ int main()
 
   // Calcuate the FPR
   auto const num_fps = thrust::count(tn_result.begin(), tn_result.end(), true);
+#ifdef DEBUG_FPS
+  for (size_t i = 0; i < num_build_keys; ++i) {
+    if (tn_result[i]) { std::cout << "False positive: " << probe_keys[num_build_keys + i] << "\n"; }
+  }
+#endif
   auto const fp_rate = float(num_fps) / float(num_build_keys);
-  /// std::cout << "Num FPs=" << num_fps << "\n";
   std::cout << "FPR=" << fp_rate << "\n";
 
   return 0;

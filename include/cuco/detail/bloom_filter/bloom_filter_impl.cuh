@@ -57,6 +57,10 @@ class bloom_filter_impl {
   using policy_type = Policy;
   using word_type   = typename policy_type::word_type;
 
+  // These knobs need to be public for exposure to the kernel definitions
+  static constexpr bool use_warp_cooperative_add_kernel      = true;
+  static constexpr bool use_warp_cooperative_contains_kernel = true;
+
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
 
@@ -672,6 +676,64 @@ class bloom_filter_impl {
     add_patterns<0>(block_index, lower_hash, group.thread_rank());
   }
 
+  // Warp-cooperative Bulk Add
+  template <class CG, class InputIt>
+  __device__ void add_exp(CG group, InputIt first, InputIt last)
+  {
+    constexpr auto num_threads = tile_size_v<CG>;
+    static_assert(num_threads >= add_horizontal_layout && add_horizontal_layout > 1,
+                  "Warp-cooperative add_exp() requires cg size >= add_horizontal_layout > 1.");
+
+    auto const num_keys = cuco::detail::distance(first, last);
+
+    uint32_t lower_hash;
+    uint32_t block_index;
+
+    auto const rank        = group.thread_rank();
+    auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+
+    if constexpr (num_threads == add_horizontal_layout) {
+      for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
+        auto const group_offset = i * num_threads;
+        if (group_offset + rank < num_keys) {
+          typename cuda::std::iterator_traits<InputIt>::value_type const& key{
+            *(first + group_offset + rank)};
+          const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
+          lower_hash                                    = lower_hash_temp;
+          block_index = policy_.block_index(upper_hash_temp, num_blocks_);
+        }
+
+        for (uint32_t j = 0; (j < num_threads) and (group_offset + j < num_keys); ++j) {
+          add_patterns<0>(group.shfl(block_index, j), group.shfl(lower_hash, j), rank);
+        }
+      }
+    } else /* num_threads > horizontal_layout */ {
+      // subdivide given CG into multiple optimal CGs
+      auto const worker_group =
+        cooperative_groups::tiled_partition<add_horizontal_layout, CG>(group);
+      auto const worker_offset = add_horizontal_layout * worker_group.meta_group_rank();
+
+      for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
+        auto const group_offset = i * num_threads;
+        if (group_offset + rank < num_keys) {
+          typename cuda::std::iterator_traits<InputIt>::value_type const& key{
+            *(first + group_offset + rank)};
+          const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
+          lower_hash                                    = lower_hash_temp;
+          block_index = policy_.block_index(upper_hash_temp, num_blocks_);
+        }
+
+        for (uint32_t j = 0;
+             (j < add_horizontal_layout) and (group_offset + worker_offset + j < num_keys);
+             ++j) {
+          add_patterns<0>(worker_group.shfl(block_index, j),
+                          worker_group.shfl(lower_hash, j),
+                          worker_group.thread_rank());
+        }
+      }
+    }
+  }
+
   // Host-side Add Entry Points
   template <class InputIt>
   __host__ void add_exp_async(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
@@ -682,8 +744,9 @@ class bloom_filter_impl {
     auto constexpr block_size = cuco::detail::default_block_size();
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
 
-    auto const grid_size =
-      cuco::detail::int_div_ceil(num_keys * static_cast<decltype(num_keys)>(cg_size), block_size);
+    auto const grid_size = use_warp_cooperative_add_kernel
+                             ? cuco::detail::int_div_ceil(num_keys, block_size)
+                             : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
     detail::bloom_filter_ns::add_exp_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
@@ -724,6 +787,81 @@ class bloom_filter_impl {
     return compare_patterns<0>(group, block_index, lower_hash, group.thread_rank());
   }
 
+  // Warp-cooperative Bulk Contains
+  template <class CG, class InputIt, class OutputIt>
+  __device__ void contains_exp(CG group, InputIt first, InputIt last, OutputIt output_begin) const
+  {
+    constexpr auto num_threads = tile_size_v<CG>;
+    static_assert(
+      num_threads >= contains_horizontal_layout && contains_horizontal_layout > 1,
+      "Warp-cooperative contains_exp() requires cg size >= contains_horizontal_layout > 1.");
+
+    auto const num_keys = cuco::detail::distance(first, last);
+
+    uint32_t lower_hash;
+    uint32_t block_index;
+    bool result_out;
+
+    auto const rank        = group.thread_rank();
+    auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+
+    if constexpr (num_threads == contains_horizontal_layout) {
+      for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
+        auto const group_offset = i * num_threads;
+        // coalesced input read
+        if (group_offset + rank < num_keys) {
+          typename cuda::std::iterator_traits<InputIt>::value_type const& key{
+            *(first + group_offset + rank)};
+          const auto [upper_hash_temp, lower_hash_temp] = policy_.hash(key);
+          lower_hash                                    = lower_hash_temp;
+          block_index = policy_.block_index(upper_hash_temp, num_blocks_);
+        }
+
+        // group-wise cooperative lookup
+        for (uint32_t j = 0; (j < num_threads) and (group_offset + j < num_keys); ++j) {
+          bool result = group.all(compare_patterns<0>(
+            group, group.shfl(block_index, j), group.shfl(lower_hash, j), rank));
+          if (j == rank) { result_out = result; }
+        }
+
+        // coalesced output write
+        if (group_offset + rank < num_keys) { *(output_begin + group_offset + rank) = result_out; }
+      }
+    } else /* num_threads > horizontal_layout */ {
+      // subdivide given CG into multiple optimal CGs
+      auto const worker_group =
+        cooperative_groups::tiled_partition<contains_horizontal_layout, CG>(group);
+      auto const worker_offset = contains_horizontal_layout * worker_group.meta_group_rank();
+      auto const worker_rank   = worker_group.thread_rank();
+
+      for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
+        auto const group_offset = i * num_threads;
+        // coalesced input read
+        if (group_offset + rank < num_keys) {
+          typename cuda::std::iterator_traits<InputIt>::value_type const& key{
+            *(first + group_offset + rank)};
+          const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
+          lower_hash                                    = lower_hash_temp;
+          block_index = policy_.block_index(upper_hash_temp, num_blocks_);
+        }
+
+        // group-wise cooperative lookup
+        for (uint32_t j = 0;
+             (j < contains_horizontal_layout) and (group_offset + worker_offset + j < num_keys);
+             ++j) {
+          bool result = worker_group.all(compare_patterns<0>(worker_group,
+                                                             worker_group.shfl(block_index, j),
+                                                             worker_group.shfl(lower_hash, j),
+                                                             worker_rank));
+          if (j == worker_rank) { result_out = result; }
+        }
+
+        // coalesced output write
+        if (group_offset + rank < num_keys) { *(output_begin + group_offset + rank) = result_out; }
+      }
+    }
+  }
+
   // Host-side Contains Entry Points
   template <class InputIt, class OutputIt>
   __host__ void contains_exp_async(InputIt first,
@@ -745,8 +883,9 @@ class bloom_filter_impl {
       auto constexpr block_size = cuco::detail::default_block_size();
       auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
 
-      auto const grid_size =
-        cuco::detail::int_div_ceil(num_keys * static_cast<decltype(num_keys)>(cg_size), block_size);
+      auto const grid_size = use_warp_cooperative_contains_kernel
+                               ? cuco::detail::int_div_ceil(num_keys, block_size)
+                               : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
       detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
@@ -812,7 +951,7 @@ class bloom_filter_impl {
                                          uint32_t thread_index)
   {
     // Sanity check. TODO: remove redundant checks.
-    static_assert(add_horizontal_layout > 1, "add_pattern() requires add_horizontal_layout == 1");
+    static_assert(add_horizontal_layout > 1, "add_patterns() requires add_horizontal_layout == 1");
 
     if constexpr (LoopIndex < add_loop_count) {
       auto const pattern =
