@@ -63,27 +63,22 @@ class parametric_filter_policy {
   static constexpr size_t max_filter_blocks = cuda::std::numeric_limits<size_t>::max();
 
  private:
-  static constexpr std::uint32_t word_bits       = cuda::std::numeric_limits<word_type>::digits;
-  static constexpr std::uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
-  static constexpr std::uint32_t max_bits_per_word =
+  static constexpr uint32_t word_bits       = cuda::std::numeric_limits<word_type>::digits;
+  static constexpr uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
+  static constexpr uint32_t max_bits_per_word =
     cuco::detail::int_div_ceil(pattern_bits, words_per_block);
-
-  static constexpr cuda::std::array<uint32_t, 16> salts = {0x47b6137bU,
-                                                           0x44974d91U,
-                                                           0x8824ad5bU,
-                                                           0xa2b7289dU,
-                                                           0x705495c7U,
-                                                           0x2df1424bU,
-                                                           0x9efc4947U,
-                                                           0x5c6bfb31U,
-                                                           0x3a5d6b07U,
-                                                           0x7f24a931U,
-                                                           0x1b8c93edU,
-                                                           0x61e24f7bU,
-                                                           0xd35f8a5fU,
-                                                           0xb9ac37b3U,
-                                                           0xf26a19e1U,
-                                                           0x8e3b7d9fU};
+  static constexpr uint32_t max_salts                          = 64;
+  static constexpr cuda::std::array<uint32_t, max_salts> salts = {
+    0x47b6137bU, 0x44974d91U, 0x8824ad5bU, 0xa2b7289dU, 0x705495c7U, 0x2df1424bU, 0x9efc4947U,
+    0x5c6bfb31U, 0xb24bcdffU, 0xb6843d6dU, 0x6db04543U, 0x3a12efddU, 0xb0ddd463U, 0x8d22f6e7U,
+    0xb82f1e53U, 0x7db9f86bU, 0xc7afe639U, 0xfb135cd7U, 0x693256e1U, 0x9466d871U, 0x23d3d02fU,
+    0x6461d049U, 0x66a91621U, 0xbaa3006fU, 0x52fb8d99U, 0x3ea88b4fU, 0xf470cfdU,  0xb1db79a5U,
+    0x9809fcd1U, 0xbced4445U, 0x2eb7c737U, 0x2cea6803U, 0x156f1955U, 0x8813c027U, 0xa26819f9U,
+    0x4c3b57bdU, 0x7df94487U, 0xb975e769U, 0xb8f20cb5U, 0x5c9e2e77U, 0x5fb1735fU, 0x3a6f759bU,
+    0x3c090923U, 0xfced424dU, 0xa187a6a9U, 0x6f070a41U, 0x2c85233bU, 0x7e62258bU, 0x2771ef17U,
+    0x13bbf093U, 0x4ff059e5U, 0xe3ce3d0fU, 0xf1b4789fU, 0x9fbb6173U, 0x6a320cf5U, 0x1be2c481U,
+    0x7ba8222bU, 0x6fd619b3U, 0x7b1bbf0dU, 0x8b8993adU, 0x448eca95U, 0x82ab09d9U, 0x2ce53909U,
+    0x4f548685U};
 
  public:
   __host__ __device__ constexpr parametric_filter_policy(Hash hash = {}) : hash_{hash}
@@ -99,12 +94,11 @@ class parametric_filter_policy {
                   "pattern_bits must be at least words_per_block");
     static_assert(pattern_bits <= max_pattern_bits,
                   "pattern_bits must be less than the total number of bits in a filter block");
+                      static_assert(pattern_bits <= salts.size(),
+                  "pattern_bits exceeds the number of available salts");
     /// KEVIN: Requiring 64b hash return type for now
     static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
                   "currently only 64b hash_result_type is supported");
-    /// KEVIN: We can increase the number of salts if needed
-    static_assert(pattern_bits <= salts.size(),
-                  "pattern_bits exceeds the number of available salts");
   }
 
   // Return {upper 32b, lower 32b} of 64b hash
