@@ -228,50 +228,50 @@ void pfp_bloom_filter_contains(nvbench::state& state,
   });
 }
 
-NVBENCH_BENCH_TYPES(bloom_filter_contains,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                                      nvbench::type_list<defaults::BF_HASH>,
-                                      nvbench::type_list<defaults::BF_WORD>,
-                                      nvbench::enum_type_list<defaults::BF_WORDS_PER_BLOCK>,
-                                      nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_contains_unique_size")
-  .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
+// NVBENCH_BENCH_TYPES(bloom_filter_contains,
+//                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+//                                       nvbench::type_list<defaults::BF_HASH>,
+//                                       nvbench::type_list<defaults::BF_WORD>,
+//                                       nvbench::enum_type_list<defaults::BF_WORDS_PER_BLOCK>,
+//                                       nvbench::type_list<distribution::unique>))
+//   .set_name("bloom_filter_contains_unique_size")
+//   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
+//   .set_max_noise(defaults::MAX_NOISE)
+//   .add_int64_axis("NumInputs", {defaults::BF_N})
+//   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
-NVBENCH_BENCH_TYPES(bloom_filter_contains,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                                      defaults::HASH_RANGE,
-                                      nvbench::type_list<defaults::BF_WORD>,
-                                      nvbench::enum_type_list<defaults::BF_WORDS_PER_BLOCK>,
-                                      nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_contains_unique_hash")
-  .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
+// NVBENCH_BENCH_TYPES(bloom_filter_contains,
+//                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+//                                       defaults::HASH_RANGE,
+//                                       nvbench::type_list<defaults::BF_WORD>,
+//                                       nvbench::enum_type_list<defaults::BF_WORDS_PER_BLOCK>,
+//                                       nvbench::type_list<distribution::unique>))
+//   .set_name("bloom_filter_contains_unique_hash")
+//   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
+//   .set_max_noise(defaults::MAX_NOISE)
+//   .add_int64_axis("NumInputs", {defaults::BF_N})
+//   .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
 
-NVBENCH_BENCH_TYPES(bloom_filter_contains,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                                      nvbench::type_list<defaults::BF_HASH>,
-                                      nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
-                                      nvbench::enum_type_list<1, 2, 4, 8>,
-                                      nvbench::type_list<distribution::unique>))
-  .set_name("bloom_filter_contains_unique_block_dim")
-  .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
+// NVBENCH_BENCH_TYPES(bloom_filter_contains,
+//                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+//                                       nvbench::type_list<defaults::BF_HASH>,
+//                                       nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,
+//                                       nvbench::enum_type_list<1, 2, 4, 8>,
+//                                       nvbench::type_list<distribution::unique>))
+//   .set_name("bloom_filter_contains_unique_block_dim")
+//   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
+//   .set_max_noise(defaults::MAX_NOISE)
+//   .add_int64_axis("NumInputs", {defaults::BF_N})
+//   .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
 
-NVBENCH_BENCH_TYPES(arrow_bloom_filter_contains,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                                      nvbench::type_list<distribution::unique>))
-  .set_name("arrow_bloom_filter_contains_unique_size")
-  .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
+// NVBENCH_BENCH_TYPES(arrow_bloom_filter_contains,
+//                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+//                                       nvbench::type_list<distribution::unique>))
+//   .set_name("arrow_bloom_filter_contains_unique_size")
+//   .set_type_axes_names({"Key", "Distribution"})
+//   .set_max_noise(defaults::MAX_NOISE)
+//   .add_int64_axis("NumInputs", {defaults::BF_N})
+//   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
 NVBENCH_BENCH_TYPES(pfp_bloom_filter_contains,
                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
@@ -280,8 +280,8 @@ NVBENCH_BENCH_TYPES(pfp_bloom_filter_contains,
                                       nvbench::enum_type_list<defaults::BF_PATTERN_BITS>,
                                       nvbench::enum_type_list<8>,  ///< AddHorizontalLayout
                                       nvbench::enum_type_list<1>,  ///< AddVerticalLayout
-                                      nvbench::enum_type_list<1>,  ///< ContainsHorizontalLayout
-                                      nvbench::enum_type_list<8>,  ///< ContainsVerticalLayout
+                                      nvbench::enum_type_list<8>,  ///< ContainsHorizontalLayout
+                                      nvbench::enum_type_list<1>,  ///< ContainsVerticalLayout
                                       nvbench::type_list<distribution::unique>))
   .set_name("pfp_bloom_filter_contains_unique_size")
   .set_type_axes_names({"Key",
