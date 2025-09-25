@@ -58,8 +58,8 @@ class bloom_filter_impl {
   using word_type   = typename policy_type::word_type;
 
   // These knobs need to be public for exposure to the kernel definitions
-  static constexpr bool use_warp_cooperative_add_kernel      = true;
-  static constexpr bool use_warp_cooperative_contains_kernel = true;
+  static constexpr bool use_warp_cooperative_add_kernel      = false;
+  static constexpr bool use_warp_cooperative_contains_kernel = false;
 
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
@@ -594,8 +594,7 @@ class bloom_filter_impl {
 
       /// LINEAR GRID ///
       auto constexpr cg_size = static_cast<int32_t>(contains_horizontal_layout);
-      auto const grid_size =
-        cuco::detail::int_div_ceil(num_keys * static_cast<decltype(num_keys)>(cg_size), block_size);
+      auto const grid_size   = cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
       detail::bloom_filter_ns::contains<block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
@@ -989,7 +988,6 @@ class bloom_filter_impl {
       bool match = true;
       for (int i = 0; i < contains_vertical_layout; ++i) {
         match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
-        // Alternatively: match &= (~stored_pattern[i] & expected_pattern[i]) == 0;
       }
 
       // Recurse.
@@ -1029,7 +1027,6 @@ class bloom_filter_impl {
       bool match = true;
       for (int i = 0; i < contains_vertical_layout; ++i) {
         match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
-        // Alternatively: match &= (~stored_pattern[i] & expected_pattern[i]) == 0;
       }
 
       // Recurse.

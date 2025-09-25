@@ -95,15 +95,10 @@ class parametric_filter_policy {
     // the filter block
     constexpr uint32_t max_pattern_bits = word_bits * words_per_block;
 
-    constexpr uint32_t hash_bits = cuda::std::numeric_limits<hash_result_type>::digits;
-    constexpr uint32_t max_pattern_bits_from_hash = hash_bits / bit_index_width;
-    static_assert(pattern_bits <= max_pattern_bits_from_hash,
-                  "hash_result_type too narrow to generate the requested number of pattern_bits");
     static_assert(pattern_bits >= min_pattern_bits,
                   "pattern_bits must be at least words_per_block");
     static_assert(pattern_bits <= max_pattern_bits,
-                  "pattern_bits must be less than the total number of bits in a filter "
-                  "block");
+                  "pattern_bits must be less than the total number of bits in a filter block");
     /// KEVIN: Requiring 64b hash return type for now
     static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
                   "currently only 64b hash_result_type is supported");
@@ -144,8 +139,8 @@ class parametric_filter_policy {
   /**
    * @brief pattern_impl - Computes the bit pattern for a vertical layout of words.
    * I use the terminology of a `virtual thread` to refer to an ordering of the vertical layouts,
-   * namely 
-   *   virtual_thread_index = LoopIndex * HorizontalLayout + thread_index, 
+   * namely
+   *   virtual_thread_index = LoopIndex * HorizontalLayout + thread_index,
    * where LoopIndex is the index of the outermost loop in the range:
    *     [0, words_per_block / (HorizontalLayout * VerticalLayout)).
    * @param hash
