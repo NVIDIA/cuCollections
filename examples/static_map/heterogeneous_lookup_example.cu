@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,37 +31,53 @@
  *
  * @brief Demonstrates how to perform heterogeneous lookups with `cuco::static_map`.
  *
+ * This example demonstrates heterogeneous lookup, which allows you to perform lookups with a key
+ * type that is different from the container's key type, without having to first construct an
+ * object of the container's key type.
+ *
  * In many workflows the format of the keys used when inserting into a hash table differs from the
- * format that is available at query time. `cuco` supports this scenario by allowing custom hash and
- * equality functors that can compare and hash "compatible" key types. This example stores keys as
- * two-field tuples `(sensor_id, channel)` and performs lookups using tuples that include an extra
- * timestamp `(sensor_id, channel, timestamp)`. The hash map only considers the first two elements
- * so both tuple types can interoperate transparently.
+ * format that is available at query time. This example stores keys as `cuco::pair<int, int>`
+ * representing `(sensor_id, channel)` but performs lookups directly using 3-element tuples
+ * `(sensor_id, channel, timestamp)` without needing to construct intermediate `cuco::pair` objects.
+ *
+ * Heterogeneous lookup is enabled by custom hash and equality functors that can operate on
+ * "compatible" key types. The functors only consider the first two elements, allowing both
+ * the stored `cuco::pair` and query `tuple` types to interoperate transparently and efficiently.
  */
 
-using stored_key = cuda::std::tuple<int, int>;
-using probe_key  = cuda::std::tuple<int, int, int>;
+using stored_key = cuco::pair<int, int>;  // Key type used for insertion: (sensor_id, channel)
+using probe_key =
+  cuda::std::tuple<int, int, int>;  // Key type used for querying: (sensor_id, channel, timestamp)
 using value_type = float;
 
+// Declare that value_type is bitwise comparable since float doesn't have unique object
+// representations
+CUCO_DECLARE_BITWISE_COMPARABLE(value_type);
+
+// Heterogeneous hasher that can hash both cuco::pair and tuple types without conversion.
+// The template allows it to accept any key type and extract the first two elements.
 struct heterogeneous_hasher {
   template <typename Key>
   __device__ std::size_t operator()(Key const& key) const
   {
     auto const& ref  = thrust::raw_reference_cast(key);
-    auto const major = cuda::std::get<0>(ref);
-    auto const minor = cuda::std::get<1>(ref);
+    auto const major = cuda::std::get<0>(ref);  // Works for both pair.first and get<0>(tuple)
+    auto const minor = cuda::std::get<1>(ref);  // Works for both pair.second and get<1>(tuple)
     return static_cast<std::size_t>(major * 131 + minor);
   }
 };
 
+// Heterogeneous equality functor that can compare cuco::pair and tuple types without conversion.
+// The template allows it to accept any combination of key types and compare their first two
+// elements.
 struct heterogeneous_key_equal {
   template <typename LHS, typename RHS>
   __device__ bool operator()(LHS const& lhs, RHS const& rhs) const
   {
     auto const& left  = thrust::raw_reference_cast(lhs);
     auto const& right = thrust::raw_reference_cast(rhs);
-    return (cuda::std::get<0>(left) == cuda::std::get<0>(right)) and
-           (cuda::std::get<1>(left) == cuda::std::get<1>(right));
+    return (cuda::std::get<0>(left) == cuda::std::get<0>(right)) and  // Compare first elements
+           (cuda::std::get<1>(left) == cuda::std::get<1>(right));     // Compare second elements
   }
 };
 
@@ -79,7 +95,7 @@ int main()
                      heterogeneous_key_equal{},
                      cuco::linear_probing<1, heterogeneous_hasher>{heterogeneous_hasher{}}};
 
-  // Host data describing the sensor readings we want to store.
+  // Host data describing the sensor readings we want to store using cuco::pair keys.
   thrust::host_vector<stored_key> h_keys{
     stored_key{101, 3},
     stored_key{104, 8},
@@ -100,8 +116,9 @@ int main()
 
   map.insert(pairs_begin, pairs_begin + num_entries);
 
-  // Probe keys include an additional timestamp field, but we only care about the first two
-  // components when hashing / comparing.
+  // Query using 3-element tuples that include an additional timestamp field.
+  // The heterogeneous hash and equality functors only consider the first two components
+  // (sensor_id, channel) when comparing against the stored cuco::pair keys.
   thrust::host_vector<probe_key> h_queries{
     probe_key{101, 3, 1210},  // present in the map
     probe_key{215, 1, 1345},  // present in the map
@@ -122,8 +139,9 @@ int main()
   for (std::size_t i = 0; i < h_queries.size(); ++i) {
     auto const& query  = h_queries[i];
     auto const present = h_contains[i];
-    std::cout << "Lookup (sensor " << cuda::std::get<0>(query) << ", channel "
-              << cuda::std::get<1>(query) << ") -> " << (present ? "found" : "missing");
+    std::cout << "Lookup tuple (sensor " << cuda::std::get<0>(query) << ", channel "
+              << cuda::std::get<1>(query) << ", timestamp " << cuda::std::get<2>(query) << ") -> "
+              << (present ? "found" : "missing");
 
     if (present) { std::cout << ", stored value = " << h_found[i]; }
 
