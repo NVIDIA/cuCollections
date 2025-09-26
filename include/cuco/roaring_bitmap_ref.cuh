@@ -84,7 +84,7 @@ class roaring_bitmap_ref {
   __host__ void contains(InputIt first,
                          InputIt last,
                          OutputIt contained,
-                         cuda::stream_ref stream = {}) const;
+                         cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Asynchronously performs a bulk membership query for keys in `[first, last)`.
@@ -102,7 +102,8 @@ class roaring_bitmap_ref {
   __host__ void contains_async(InputIt first,
                                InputIt last,
                                OutputIt contained,
-                               cuda::stream_ref stream = {}) const noexcept;
+                               cuda::stream_ref stream = cuda::stream_ref{
+                                 cudaStream_t{nullptr}}) const noexcept;
 
   /**
    * @brief Device-side membership query for a single key.
