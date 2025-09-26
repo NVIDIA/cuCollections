@@ -35,8 +35,8 @@
  * format that is available at query time. `cuco` supports this scenario by allowing custom hash and
  * equality functors that can compare and hash "compatible" key types. This example stores keys as
  * two-field tuples `(sensor_id, channel)` and performs lookups using tuples that include an extra
- * timestamp `(sensor_id, channel, timestamp)`. The hash map only considers the first two elements so
- * both tuple types can interoperate transparently.
+ * timestamp `(sensor_id, channel, timestamp)`. The hash map only considers the first two elements
+ * so both tuple types can interoperate transparently.
  */
 
 using stored_key = cuda::std::tuple<int, int>;
@@ -68,15 +68,16 @@ struct heterogeneous_key_equal {
 int main()
 {
   constexpr std::size_t num_entries = 4;
-  auto constexpr empty_key   = stored_key{-1, -1};
-  auto constexpr empty_value = value_type{-1.0f};
+  auto constexpr empty_key          = stored_key{-1, -1};
+  auto constexpr empty_value        = value_type{-1.0f};
 
   // Allocate a map with ~50% load factor.
-  auto map = cuco::static_map{cuco::extent<std::size_t>{num_entries * 2},
-                              cuco::empty_key{empty_key},
-                              cuco::empty_value{empty_value},
-                              heterogeneous_key_equal{},
-                              cuco::linear_probing<1, heterogeneous_hasher>{heterogeneous_hasher{}}};
+  auto map =
+    cuco::static_map{cuco::extent<std::size_t>{num_entries * 2},
+                     cuco::empty_key{empty_key},
+                     cuco::empty_value{empty_value},
+                     heterogeneous_key_equal{},
+                     cuco::linear_probing<1, heterogeneous_hasher>{heterogeneous_hasher{}}};
 
   // Host data describing the sensor readings we want to store.
   thrust::host_vector<stored_key> h_keys{
@@ -119,11 +120,10 @@ int main()
   thrust::host_vector<value_type> h_found = d_found;
 
   for (std::size_t i = 0; i < h_queries.size(); ++i) {
-    auto const& query = h_queries[i];
+    auto const& query  = h_queries[i];
     auto const present = h_contains[i];
     std::cout << "Lookup (sensor " << cuda::std::get<0>(query) << ", channel "
-              << cuda::std::get<1>(query) << ") -> "
-              << (present ? "found" : "missing");
+              << cuda::std::get<1>(query) << ") -> " << (present ? "found" : "missing");
 
     if (present) { std::cout << ", stored value = " << h_found[i]; }
 
