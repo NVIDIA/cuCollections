@@ -95,20 +95,16 @@ int main()
                      heterogeneous_key_equal{},
                      cuco::linear_probing<1, heterogeneous_hasher>{heterogeneous_hasher{}}};
 
-  // Host data describing the sensor readings we want to store using cuco::pair keys.
-  thrust::host_vector<stored_key> h_keys{
+  thrust::device_vector<stored_key> d_keys = {
     stored_key{101, 3},
     stored_key{104, 8},
     stored_key{215, 1},
     stored_key{305, 0},
   };
-  thrust::host_vector<value_type> h_values{36.5f, 41.2f, 27.1f, 33.8f};
-
-  thrust::device_vector<stored_key> d_keys   = h_keys;
-  thrust::device_vector<value_type> d_values = h_values;
+  thrust::device_vector<value_type> d_values = {36.5f, 41.2f, 27.1f, 33.8f};
 
   auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0),
+    thrust::counting_iterator{0},
     cuda::proclaim_return_type<cuco::pair<stored_key, value_type>>(
       [keys = d_keys.begin(), values = d_values.begin()] __device__(int i) {
         return cuco::pair<stored_key, value_type>{keys[i], values[i]};
@@ -119,22 +115,22 @@ int main()
   // Query using 3-element tuples that include an additional timestamp field.
   // The heterogeneous hash and equality functors only consider the first two components
   // (sensor_id, channel) when comparing against the stored cuco::pair keys.
-  thrust::host_vector<probe_key> h_queries{
+  thrust::device_vector<probe_key> d_queries{
     probe_key{101, 3, 1210},  // present in the map
     probe_key{215, 1, 1345},  // present in the map
     probe_key{999, 4, 2000},  // missing entry
   };
 
-  thrust::device_vector<probe_key> d_queries = h_queries;
-
-  thrust::device_vector<bool> d_contains(h_queries.size());
+  thrust::device_vector<bool> d_contains(d_queries.size());
   map.contains(d_queries.begin(), d_queries.end(), d_contains.begin());
 
-  thrust::device_vector<value_type> d_found(h_queries.size());
+  thrust::device_vector<value_type> d_found(d_queries.size());
   map.find(d_queries.begin(), d_queries.end(), d_found.begin());
 
-  thrust::host_vector<bool> h_contains    = d_contains;
-  thrust::host_vector<value_type> h_found = d_found;
+  // Copy results back to host for printing
+  thrust::host_vector<probe_key> h_queries = d_queries;
+  thrust::host_vector<bool> h_contains     = d_contains;
+  thrust::host_vector<value_type> h_found  = d_found;
 
   for (std::size_t i = 0; i < h_queries.size(); ++i) {
     auto const& query  = h_queries[i];
