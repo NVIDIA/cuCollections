@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define BITWISE_COMPARE
+
 #include <cuco/bloom_filter.cuh>
 #include <cuco/hash_functions.cuh>
 
@@ -115,6 +117,26 @@ int main()
   auto const fp_rate_arrow = float(num_fps_arrow) / float(num_probe_keys);
   std::cout << "Arrow Num FPs=" << num_fps_arrow << "\n";
   std::cout << "Arrow FPR=" << fp_rate_arrow << "\n";
+
+#ifdef BITWISE_COMPARE
+#include <thrust/mismatch.h>
+  if (num_fps != num_fps_arrow) {
+    std::cout << "Mismatch in number of false positives between policies!\n";
+    return -1;
+  }
+  auto const mismatch_iter = thrust::mismatch(
+    thrust::device,
+    arrow_filter.data(),
+    arrow_filter.data() + arrow_filter.block_extent() * arrow_filter_t::words_per_block,
+    filter.data());
+  if (mismatch_iter.first !=
+      arrow_filter.data() + arrow_filter.block_extent() * arrow_filter_t::words_per_block) {
+    auto const mismatch_index = thrust::distance(arrow_filter.data(), mismatch_iter.first);
+    std::cout << "Mismatch at index: " << mismatch_index << "\n";
+    return -1;
+  }
+  std::cout << "Output bitwise match between policies!\n";
+#endif
 
   return 0;
 }

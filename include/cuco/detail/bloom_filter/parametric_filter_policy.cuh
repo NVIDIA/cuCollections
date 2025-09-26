@@ -94,7 +94,7 @@ class parametric_filter_policy {
                   "pattern_bits must be at least words_per_block");
     static_assert(pattern_bits <= max_pattern_bits,
                   "pattern_bits must be less than the total number of bits in a filter block");
-                      static_assert(pattern_bits <= salts.size(),
+    static_assert(pattern_bits <= salts.size(),
                   "pattern_bits exceeds the number of available salts");
     /// KEVIN: Requiring 64b hash return type for now
     static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
@@ -111,7 +111,8 @@ class parametric_filter_policy {
   template <class Extent>
   __device__ constexpr auto block_index(uint32_t upper_hash_value, Extent num_blocks) const
   {
-    return upper_hash_value % num_blocks;
+    // return upper_hash_value % num_blocks;
+    return static_cast<uint32_t>((static_cast<uint64_t>(upper_hash_value) * num_blocks) >> 32);
   }
 
   template <uint32_t LoopIndex, uint32_t VerticalLayout>

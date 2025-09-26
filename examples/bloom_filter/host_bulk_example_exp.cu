@@ -31,15 +31,15 @@ int main()
   using hasher   = cuco::xxhash_64<key_type>;
   /**
    * CURRENT CONFIGURATION:
-   * - Block Size: 256b
+   * - Block Size: 512b
    * - Sector Size: 32b
-   * - k: 8
-   * - Add Horizontal Layout: 2
-   * - Add Vertical Layout: 2
-   * - Add Loop Count: 2
+   * - k: 16
+   * - Add Horizontal Layout: 16
+   * - Add Vertical Layout: 1
+   * -> Add Loop Count: 1
    * - Contains Horizontal Layout: 2
-   * - Contains Vertical Layout: 2
-   * - Contains Loop Count: 2
+   * - Contains Vertical Layout: 8
+   * -> Contains Loop Count: 1
    */
   using word_type                               = uint32_t;
   uint32_t constexpr words_per_block            = 8;
