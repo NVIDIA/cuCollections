@@ -87,10 +87,17 @@ def update_readme_with_urls(readme_path, url_table, args):
             if file_name in line:
                 # Look for the specific godbolt link format and replace the URL
                 updated_line = re.sub(
-                    r"\(see \[live example in godbolt\]\(https?://[^\)]+\)\)",
+                    r"\(see \[live example in godbolt\]\(https?://[^\)]*\)\)",
                     f"(see [live example in godbolt]({url}))",
                     line
                 )
+                # Also handle empty godbolt links
+                if updated_line == line:
+                    updated_line = re.sub(
+                        r"\(see \[live example in godbolt\]\(\)\)",
+                        f"(see [live example in godbolt]({url}))",
+                        line
+                    )
                 if updated_line != line:
                     mismatched_files.append(file_name)
 

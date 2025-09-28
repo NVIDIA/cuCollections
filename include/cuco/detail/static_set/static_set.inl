@@ -189,7 +189,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   cuda::stream_ref stream)
 {
   insert_and_find_async(first, last, found_begin, inserted_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -223,7 +227,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt first, InputIt last, cuda::stream_ref stream)
 {
   erase_async(first, last, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -252,7 +260,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   contains_async(first, last, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -286,7 +298,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   cuda::stream_ref stream) const
 {
   contains_if_async(first, last, stencil, pred, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -320,7 +336,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
   find_async(first, last, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -377,7 +397,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   cuda::stream_ref stream) const
 {
   this->find_if_async(first, last, stencil, pred, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -443,7 +467,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   CallbackOp&& callback_op, cuda::stream_ref stream) const
 {
   impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,
@@ -473,7 +501,11 @@ void static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 {
   impl_->for_each_async(
     first, last, std::forward<CallbackOp>(callback_op), ref(op::for_each), stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <class Key,

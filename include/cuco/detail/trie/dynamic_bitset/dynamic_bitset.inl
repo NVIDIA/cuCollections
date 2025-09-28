@@ -1,6 +1,6 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights
+ * reserved. SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -212,7 +212,11 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
   size_type num_selects{};
   CUCO_CUDA_TRY(
     cudaMemcpyAsync(&num_selects, d_sum, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
   std::allocator_traits<temp_allocator_type>::deallocate(
     temp_allocator, thrust::device_ptr<char>{reinterpret_cast<char*>(d_sum)}, sizeof(size_type));
   temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);

@@ -130,7 +130,11 @@ void bucket_storage<T, BucketSize, Extent, Allocator>::initialize(value_type key
                                                                   cuda::stream_ref stream)
 {
   this->initialize_async(key, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+  stream.sync();
+#else
   stream.wait();
+#endif
 }
 
 template <typename T, int BucketSize, typename Extent, typename Allocator>

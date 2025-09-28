@@ -125,7 +125,11 @@ class bloom_filter_impl {
   __host__ constexpr void clear(cuda::stream_ref stream)
   {
     this->clear_async(stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   __host__ constexpr void clear_async(cuda::stream_ref stream) noexcept
@@ -297,7 +301,11 @@ class bloom_filter_impl {
   __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->add_async(first, last, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   template <class InputIt>
@@ -331,7 +339,11 @@ class bloom_filter_impl {
     InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
   {
     this->add_if_async(first, last, stencil, pred, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   template <class InputIt, class StencilIt, class Predicate>
@@ -567,7 +579,11 @@ class bloom_filter_impl {
                          cuda::stream_ref stream) const
   {
     this->contains_async(first, last, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   template <class InputIt, class OutputIt>
@@ -610,7 +626,11 @@ class bloom_filter_impl {
                             cuda::stream_ref stream) const
   {
     this->contains_if_async(first, last, stencil, pred, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
