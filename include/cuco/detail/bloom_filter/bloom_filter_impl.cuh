@@ -117,7 +117,8 @@ class bloom_filter_impl {
   __device__ constexpr void clear(CG group)
   {
     // TODO optimize this
-    for (int i = group.thread_rank(); i < num_blocks_ * words_per_block; i += group.size()) {
+    for (int i = group.thread_rank(); i < static_cast<size_type>(num_blocks_) * words_per_block;
+         i += group.size()) {
       words_[i] = 0;
     }
   }
@@ -136,7 +137,7 @@ class bloom_filter_impl {
   {
     cub::DeviceFor::ForEachN(
       words_,
-      num_blocks_ * words_per_block,
+      static_cast<size_type>(num_blocks_) * words_per_block,
       [] __device__(word_type & word) { word = 0; },
       stream.get());
   }

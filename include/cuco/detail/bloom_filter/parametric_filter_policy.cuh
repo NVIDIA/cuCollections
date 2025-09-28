@@ -112,7 +112,9 @@ class parametric_filter_policy {
   __device__ constexpr auto block_index(uint32_t upper_hash_value, Extent num_blocks) const
   {
     // return upper_hash_value % num_blocks;
-    return static_cast<uint32_t>((static_cast<uint64_t>(upper_hash_value) * num_blocks) >> 32);
+    return static_cast<uint32_t>((static_cast<uint64_t>(upper_hash_value) *
+                                  static_cast<typename Extent::value_type>(num_blocks)) >>
+                                 32);
   }
 
   template <uint32_t LoopIndex, uint32_t VerticalLayout>

@@ -18,6 +18,7 @@
 
 #include <cuco/bloom_filter.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cuco/utility/fast_int.cuh>
 
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
@@ -68,16 +69,17 @@ int main()
                                                                         add_vertical_layout,
                                                                         contains_horizontal_layout,
                                                                         contains_vertical_layout>;
-  using filter_t =
-    cuco::bloom_filter<key_type, cuco::extent<size_t>, cuda::thread_scope_device, policy_t>;
+  using filter_t = cuco::
+    bloom_filter<key_type, cuco::utility::fast_int<uint32_t>, cuda::thread_scope_device, policy_t>;
 
   // Create the filter.
-  size_t constexpr bits_per_key = 2 * pattern_bits;  // ~50% LF
-  size_t constexpr num_blocks =
+  uint32_t constexpr bits_per_key = 2 * pattern_bits;  // ~50% LF
+  uint32_t constexpr num_blocks =
     cuda::ceil_div(num_build_keys * bits_per_key, words_per_block * sizeof(word_type) * 8);
-  filter_t filter(num_blocks);
+  filter_t filter(cuco::utility::fast_int<uint32_t>{num_blocks});
   std::cout << "Filter size (bytes): "
-            << filter.block_extent() * filter_t::words_per_block * sizeof(word_type) << "\n";
+            << filter.block_extent().value() * filter_t::words_per_block * sizeof(word_type)
+            << "\n";
 
   // Build
   filter.add(build_keys.begin(), build_keys.end());
