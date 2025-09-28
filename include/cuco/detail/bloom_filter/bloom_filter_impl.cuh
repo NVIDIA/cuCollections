@@ -58,8 +58,8 @@ class bloom_filter_impl {
   using word_type   = typename policy_type::word_type;
 
   // These knobs need to be public for exposure to the kernel definitions
-  static constexpr bool use_warp_cooperative_add_kernel      = false;
-  static constexpr bool use_warp_cooperative_contains_kernel = false;
+  static constexpr bool use_warp_cooperative_add_kernel      = true;
+  static constexpr bool use_warp_cooperative_contains_kernel = true;
 
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
@@ -77,7 +77,11 @@ class bloom_filter_impl {
 
   __host__ __device__ static constexpr size_t alignment() noexcept
   {
-    return cuda::std::max(add_vertical_layout, contains_vertical_layout) * sizeof(word_type);
+    // Maximum alignment is 32 bytes which is equivalent to one sector
+    return cuda::std::min(
+      static_cast<size_t>(32),
+      static_cast<size_t>(cuda::std::max(add_vertical_layout, contains_vertical_layout) *
+                          sizeof(word_type)));
   }
 
   struct filter_block_type {
