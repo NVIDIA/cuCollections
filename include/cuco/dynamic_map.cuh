@@ -111,7 +111,7 @@ class dynamic_map {
                         cuda_thread_scope<Scope> scope      = {},
                         Storage storage                     = {},
                         Allocator const& alloc              = {},
-                        cuda::stream_ref stream             = {});
+                        cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Grows the capacity of the map so there is enough space for `n` key/value pairs.
@@ -136,7 +136,9 @@ class dynamic_map {
    * @param stream Stream used for executing the kernels
    */
   template <typename InputIt>
-  void insert(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  void insert(InputIt first,
+              InputIt last,
+              cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Indicates whether the keys in the range `[first, last)` are contained in the map.
@@ -156,7 +158,7 @@ class dynamic_map {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt output_begin,
-                cuda::stream_ref stream = {}) const;
+                cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
  private:
   size_type size_{};      ///< Number of keys in the map
