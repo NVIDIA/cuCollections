@@ -25,7 +25,9 @@
 #include <nvbench/nvbench.cuh>
 
 #include <cuda/std/limits>
+#include <thrust/device_vector.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/sequence.h>
 
 #include <cstdint>
 #include <exception>
@@ -125,72 +127,157 @@ void arrow_bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Dist>
 }
 
 /**
- * @brief A benchmark evaluating `cuco::bloom_filter::add_async` performance with
+ * @brief Implementation of `cuco::bloom_filter::add_async` with
  * `parametric_filter_policy`
+ */
+template <bool ExcludeIO,
+          typename Key,
+          typename Word,
+          nvbench::int32_t BlockBits,
+          nvbench::int32_t PatternBitsPerWord,
+          nvbench::int32_t AddHorizontalLayout,
+          nvbench::int32_t AddVerticalLayout>
+void pfp_bloom_filter_add_impl(nvbench::state& state,
+                               nvbench::type_list<Key,
+                                                  Word,
+                                                  nvbench::enum_type<BlockBits>,
+                                                  nvbench::enum_type<PatternBitsPerWord>,
+                                                  nvbench::enum_type<AddHorizontalLayout>,
+                                                  nvbench::enum_type<AddVerticalLayout>>)
+{
+  auto constexpr words_per_block = BlockBits / cuda::std::numeric_limits<Word>::digits;
+
+  // Check for a valid configuration
+  if constexpr ((not cuda::std::has_single_bit(static_cast<uint32_t>(BlockBits))) or
+                (words_per_block == 0)) {
+    state.skip("Invalid filter block size");
+  } else if constexpr (AddHorizontalLayout * AddVerticalLayout > words_per_block) {
+    state.skip("Invalid vectorization layout");
+  } else if constexpr ((PatternBitsPerWord <= 0) or
+                       (PatternBitsPerWord > cuda::std::numeric_limits<Word>::digits) or
+                       (PatternBitsPerWord * words_per_block > 64)) {
+    state.skip("Invalid pattern bits per word");
+  } else {
+    using size_type                           = std::uint32_t;
+    using hasher                              = cuco::xxhash_64<Key>;
+    auto constexpr pattern_bits               = words_per_block * PatternBitsPerWord;
+    auto constexpr contains_vertical_layout   = words_per_block;
+    auto constexpr contains_horizontal_layout = 1;
+    using policy_type =
+      cuco::experimental::detail::parametric_filter_policy<hasher,
+                                                           Word,
+                                                           words_per_block,
+                                                           pattern_bits,
+                                                           AddHorizontalLayout,
+                                                           AddVerticalLayout,
+                                                           contains_horizontal_layout,
+                                                           contains_vertical_layout>;
+    using filter_type =
+      cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
+
+    auto const num_keys       = state.get_int64("NumInputs");
+    auto const filter_size_mb = state.get_int64("FilterSizeMB");
+
+    std::size_t const num_sub_filters =
+      (filter_size_mb * 1024 * 1024) /
+      (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
+
+    if (num_sub_filters > policy_type::max_filter_blocks) {
+      // skip invalid configurations
+      state.skip("num_sub_filters exceeds max_filter_blocks");
+    }
+
+    state.add_element_count(num_keys);
+
+    filter_type filter{static_cast<size_type>(num_sub_filters)};
+
+    if constexpr (ExcludeIO) {
+      state.add_global_memory_writes<Word>(num_keys * words_per_block);
+
+      thrust::counting_iterator<Key> keys(0);
+
+      state.exec([&](nvbench::launch& launch) {
+        filter.add_async(keys, keys + num_keys, {launch.get_stream()});
+      });
+    } else {
+      thrust::device_vector<Key> keys(num_keys);
+      thrust::sequence(keys.begin(), keys.end(), 0);
+
+      state.exec([&](nvbench::launch& launch) {
+        filter.add_async(keys.begin(), keys.end(), {launch.get_stream()});
+      });
+    }
+  }
+}
+
+/**
+ * @brief A benchmark evaluating `cuco::bloom_filter::add_async` performance with
+ * `parametric_filter_policy` with IO
  */
 template <typename Key,
           typename Word,
-          nvbench::int32_t WordsPerBlock,
+          nvbench::int32_t BlockBits,
+          nvbench::int32_t PatternBitsPerWord,
           nvbench::int32_t AddHorizontalLayout,
-          nvbench::int32_t AddVerticalLayout,
-          typename Dist>
+          nvbench::int32_t AddVerticalLayout>
 void pfp_bloom_filter_add(nvbench::state& state,
                           nvbench::type_list<Key,
                                              Word,
-                                             nvbench::enum_type<WordsPerBlock>,
+                                             nvbench::enum_type<BlockBits>,
+                                             nvbench::enum_type<PatternBitsPerWord>,
                                              nvbench::enum_type<AddHorizontalLayout>,
-                                             nvbench::enum_type<AddVerticalLayout>,
-                                             Dist>)
+                                             nvbench::enum_type<AddVerticalLayout>>)
 {
-  // Check for a valid configuration
-  if constexpr (AddHorizontalLayout * AddVerticalLayout > WordsPerBlock) {
-    state.skip("Invalid add layout configuration");
-  }
+  constexpr bool exclude_io = false;
+  pfp_bloom_filter_add_impl<exclude_io,
+                            Key,
+                            Word,
+                            BlockBits,
+                            PatternBitsPerWord,
+                            AddHorizontalLayout,
+                            AddVerticalLayout>(
+    state,
+    nvbench::type_list<Key,
+                       Word,
+                       nvbench::enum_type<BlockBits>,
+                       nvbench::enum_type<PatternBitsPerWord>,
+                       nvbench::enum_type<AddHorizontalLayout>,
+                       nvbench::enum_type<AddVerticalLayout>>{});
+}
 
-  using size_type                           = std::uint32_t;
-  using hasher                              = cuco::xxhash_64<Key>;
-  auto constexpr pattern_bits               = WordsPerBlock;
-  auto constexpr contains_vertical_layout   = WordsPerBlock;
-  auto constexpr contains_horizontal_layout = 1;
-  using policy_type =
-    cuco::experimental::detail::parametric_filter_policy<hasher,
-                                                         Word,
-                                                         WordsPerBlock,
-                                                         pattern_bits,
-                                                         AddHorizontalLayout,
-                                                         AddVerticalLayout,
-                                                         contains_horizontal_layout,
-                                                         contains_vertical_layout>;
-  using filter_type =
-    cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
-
-  auto const num_keys       = state.get_int64("NumInputs");
-  auto const filter_size_mb = state.get_int64("FilterSizeMB");
-
-  std::size_t const num_sub_filters =
-    (filter_size_mb * 1024 * 1024) /
-    (sizeof(typename filter_type::word_type) * filter_type::words_per_block);
-
-  if (num_sub_filters > std::numeric_limits<size_type>::max()) {
-    // skip invalid configurations
-    state.skip("bloom filter with parametric filter policy should not exceed 2^32 - 1 blocks");
-  }
-
-  thrust::counting_iterator<Key> keys(0);
-
-  state.add_element_count(num_keys);
-
-  filter_type filter{
-    static_cast<size_type>(num_sub_filters), {}, {static_cast<std::uint32_t>(pattern_bits)}};
-
-  state.collect_dram_throughput();
-  state.collect_l2_hit_rates();
-
-  add_fpr_summary(state, filter);
-
-  state.exec([&](nvbench::launch& launch) {
-    filter.add_async(keys, keys + num_keys, {launch.get_stream()});
-  });
+/**
+ * @brief A benchmark evaluating `cuco::bloom_filter::add_async` performance with
+ * `parametric_filter_policy` without IO
+ */
+template <typename Key,
+          typename Word,
+          nvbench::int32_t BlockBits,
+          nvbench::int32_t PatternBitsPerWord,
+          nvbench::int32_t AddHorizontalLayout,
+          nvbench::int32_t AddVerticalLayout>
+void pfp_bloom_filter_add_exclude_io(nvbench::state& state,
+                                     nvbench::type_list<Key,
+                                                        Word,
+                                                        nvbench::enum_type<BlockBits>,
+                                                        nvbench::enum_type<PatternBitsPerWord>,
+                                                        nvbench::enum_type<AddHorizontalLayout>,
+                                                        nvbench::enum_type<AddVerticalLayout>>)
+{
+  constexpr bool exclude_io = true;
+  pfp_bloom_filter_add_impl<exclude_io,
+                            Key,
+                            Word,
+                            BlockBits,
+                            PatternBitsPerWord,
+                            AddHorizontalLayout,
+                            AddVerticalLayout>(
+    state,
+    nvbench::type_list<Key,
+                       Word,
+                       nvbench::enum_type<BlockBits>,
+                       nvbench::enum_type<PatternBitsPerWord>,
+                       nvbench::enum_type<AddHorizontalLayout>,
+                       nvbench::enum_type<AddVerticalLayout>>{});
 }
 
 NVBENCH_BENCH_TYPES(bloom_filter_add,
@@ -241,14 +328,31 @@ NVBENCH_BENCH_TYPES(arrow_bloom_filter_add,
 NVBENCH_BENCH_TYPES(
   pfp_bloom_filter_add,
   NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                    nvbench::type_list<defaults::BF_WORD>,    ///< Word
-                    nvbench::enum_type_list<1, 2, 4, 8, 16>,  ///< WordsPerBlock
-                    nvbench::enum_type_list<1, 2, 4, 8, 16>,  /// <AddHorizontalLayout
-                    nvbench::enum_type_list<1, 2, 4, 8, 16>,  ///< AddVerticalLayout
-                    nvbench::type_list<distribution::unique>))
+                    nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,  ///< Word
+                    nvbench::enum_type_list<32, 64, 128, 256, 512>,            ///< BlockBits
+                    nvbench::enum_type_list<1>,           ///< PatternBitsPerWord
+                    nvbench::enum_type_list<1, 2, 4, 8>,  /// <HorizontalLayout
+                    nvbench::enum_type_list<1, 2, 4, 8>   ///< VerticalLayout
+                    ))
   .set_name("pfp_bloom_filter_add_unique_size")
   .set_type_axes_names(
-    {"Key", "Word", "WordsPerBlock", "AddHorizontalLayout", "AddVerticalLayout", "Distribution"})
+    {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
+  .set_max_noise(defaults::MAX_NOISE)
+  .add_int64_axis("NumInputs", {defaults::BF_N})
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
+
+NVBENCH_BENCH_TYPES(
+  pfp_bloom_filter_add_exclude_io,
+  NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+                    nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,  ///< Word
+                    nvbench::enum_type_list<32, 64, 128, 256, 512>,            ///< BlockBits
+                    nvbench::enum_type_list<1>,           ///< PatternBitsPerWord
+                    nvbench::enum_type_list<1, 2, 4, 8>,  /// <HorizontalLayout
+                    nvbench::enum_type_list<1, 2, 4, 8>   ///< VerticalLayout
+                    ))
+  .set_name("pfp_bloom_filter_add_unique_size_exclude_io")
+  .set_type_axes_names(
+    {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
   .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
