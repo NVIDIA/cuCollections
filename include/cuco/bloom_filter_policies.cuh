@@ -92,6 +92,21 @@ using parametric_filter_policy = detail::parametric_filter_policy<Hash,
                                                                   AddVerticalLayout,
                                                                   ContainsHorizontalLayout,
                                                                   ContainsVerticalLayout>;
+
+/**
+ * @brief An experimental policy that defines how Arrow Block-Split Bloom Filter generates and
+ * stores a key's fingerprint.
+ *
+ * @note Constructor signature: `arrow_filter_policy(hasher hash = {})`
+ *
+ * @tparam Key The type of the values to generate a fingerprint for.
+ * @tparam XXHash64 Custom (64 bit) XXHash hasher to generate a key's fingerprint.
+ * By default, cuco::xxhash_64 hasher will be used.
+ *
+ */
+template <class Key, template <typename> class XXHash64 = cuco::xxhash_64>
+using arrow_filter_policy = parametric_filter_policy<XXHash64<Key>, uint32_t, 8, 8, 8, 1, 1, 8>;
+
 }  // namespace experimental
 
 }  // namespace cuco

@@ -54,31 +54,36 @@ int main()
    * - Contains Vertical Layout: 8
    * - Contains Loop Iterations: 1
    */
-  using word_type                               = uint32_t;
-  uint32_t constexpr words_per_block            = 8;
-  uint32_t constexpr pattern_bits               = 8;
-  uint32_t constexpr add_horizontal_layout      = 8;
-  uint32_t constexpr add_vertical_layout        = 1;
-  uint32_t constexpr contains_horizontal_layout = 1;
-  uint32_t constexpr contains_vertical_layout   = 8;
-  using policy_t = cuco::experimental::detail::parametric_filter_policy<hasher,
-                                                                        word_type,
-                                                                        words_per_block,
-                                                                        pattern_bits,
-                                                                        add_horizontal_layout,
-                                                                        add_vertical_layout,
-                                                                        contains_horizontal_layout,
-                                                                        contains_vertical_layout>;
+  // using word_type                               = uint32_t;
+  // uint32_t constexpr words_per_block            = 8;
+  // uint32_t constexpr pattern_bits               = 8;
+  // uint32_t constexpr add_horizontal_layout      = 8;
+  // uint32_t constexpr add_vertical_layout        = 1;
+  // uint32_t constexpr contains_horizontal_layout = 1;
+  // uint32_t constexpr contains_vertical_layout   = 8;
+  // using policy_t = cuco::experimental::detail::parametric_filter_policy<hasher,
+  //                                                                       word_type,
+  //                                                                       words_per_block,
+  //                                                                       pattern_bits,
+  //                                                                       add_horizontal_layout,
+  //                                                                       add_vertical_layout,
+  //                                                                       contains_horizontal_layout,
+  //                                                                       contains_vertical_layout>;
+
+  using policy_t = cuco::experimental::arrow_filter_policy<key_type, cuco::xxhash_64>;
+
   using filter_t = cuco::
     bloom_filter<key_type, cuco::utility::fast_int<uint32_t>, cuda::thread_scope_device, policy_t>;
 
   // Create the filter.
-  uint32_t constexpr bits_per_key = 2 * pattern_bits;  // ~50% LF
+  uint32_t constexpr bits_per_key = 2 * policy_t::pattern_bits;  // ~50% LF
   uint32_t constexpr num_blocks =
-    cuda::ceil_div(num_build_keys * bits_per_key, words_per_block * sizeof(word_type) * 8);
+    cuda::ceil_div(num_build_keys * bits_per_key,
+                   policy_t::words_per_block * sizeof(typename policy_t::word_type) * 8);
   filter_t filter(cuco::utility::fast_int<uint32_t>{num_blocks});
   std::cout << "Filter size (bytes): "
-            << filter.block_extent().value() * filter_t::words_per_block * sizeof(word_type)
+            << filter.block_extent().value() * policy_t::words_per_block *
+                 sizeof(typename policy_t::word_type)
             << "\n";
 
   // Build
@@ -94,17 +99,17 @@ int main()
   std::cout << "FPR=" << fp_rate << "\n";
 
   //===----------Arrow Filter Policy----------===//
-  using arrow_filter_t =
-    cuco::bloom_filter<key_type,
-                       cuco::extent<size_t>,
-                       cuda::thread_scope_device,
-                       cuco::detail::arrow_filter_policy<key_type, cuco::xxhash_64>>;
+  using arrow_filter_t = cuco::bloom_filter<key_type,
+                                            cuco::extent<size_t>,
+                                            cuda::thread_scope_device,
+                                            cuco::arrow_filter_policy<key_type, cuco::xxhash_64>>;
   thrust::device_vector<bool> output_flags_arrow(num_probe_keys, false);
 
   // Create the Arrow filter.
   arrow_filter_t arrow_filter(num_blocks);
   std::cout << "Filter size (bytes): "
-            << arrow_filter.block_extent() * arrow_filter_t::words_per_block * sizeof(word_type)
+            << arrow_filter.block_extent() * arrow_filter_t::words_per_block *
+                 sizeof(typename arrow_filter_t::word_type)
             << "\n";
 
   // Build
