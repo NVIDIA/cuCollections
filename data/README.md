@@ -5,6 +5,7 @@
   - I've also added a flag that eliminates any IO, i.e., loading input keys and storing output bools. This works fine for `add` but unfortunately the compiler is smart enough to detect this trick and emit an empty kernel for `contains`. Fix is TBD. The benchmarks shown below include IO.
   - The `json` files include additional information, e.g., hardware info, benchmark arguments, etc.
   - ECC and sector promotion is enabled
+  - Commit SHA: `a177107c90014564160df57f5dd58dae6745df60`
 
 ## `pfp_fpr_sweep`
 ### Synopsis
