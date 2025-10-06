@@ -701,59 +701,93 @@ class bloom_filter_impl {
   }
 
   // Warp-cooperative Bulk Add
-  template <class CG, class InputIt>
-  __device__ void add_exp(CG group, InputIt first, InputIt last)
+  // template <class CG, class InputIt>
+  // __device__ void add_exp(CG group, InputIt first, InputIt last)
+  // {
+  //   constexpr auto num_threads = tile_size_v<CG>;
+  //   static_assert(num_threads >= add_horizontal_layout && add_horizontal_layout > 1,
+  //                 "Warp-cooperative add_exp() requires cg size >= add_horizontal_layout > 1.");
+
+  //   auto const num_keys = cuco::detail::distance(first, last);
+
+  //   uint32_t lower_hash;
+  //   uint32_t block_index;
+
+  //   auto const rank        = group.thread_rank();
+  //   auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+
+  //   if constexpr (num_threads == add_horizontal_layout) {
+  //     for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
+  //       auto const group_offset = i * num_threads;
+  //       if (group_offset + rank < num_keys) {
+  //         typename cuda::std::iterator_traits<InputIt>::value_type const& key{
+  //           *(first + group_offset + rank)};
+  //         const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
+  //         lower_hash                                    = lower_hash_temp;
+  //         block_index = policy_.block_index(upper_hash_temp, num_blocks_);
+  //       }
+
+  //       for (uint32_t j = 0; (j < num_threads) and (group_offset + j < num_keys); ++j) {
+  //         add_patterns<0>(group.shfl(block_index, j), group.shfl(lower_hash, j), rank);
+  //       }
+  //     }
+  //   } else /* num_threads > horizontal_layout */ {
+  //     // subdivide given CG into multiple optimal CGs
+  //     auto const worker_group =
+  //       cooperative_groups::tiled_partition<add_horizontal_layout, CG>(group);
+  //     auto const worker_offset = add_horizontal_layout * worker_group.meta_group_rank();
+
+  //     for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
+  //       auto const group_offset = i * num_threads;
+  //       if (group_offset + rank < num_keys) {
+  //         typename cuda::std::iterator_traits<InputIt>::value_type const& key{
+  //           *(first + group_offset + rank)};
+  //         const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
+  //         lower_hash                                    = lower_hash_temp;
+  //         block_index = policy_.block_index(upper_hash_temp, num_blocks_);
+  //       }
+
+  //       for (uint32_t j = 0;
+  //            (j < add_horizontal_layout) and (group_offset + worker_offset + j < num_keys);
+  //            ++j) {
+  //         if (threadIdx.x == 0) {
+  //           printf("Num keys: %u\n", (uint32_t)num_keys);
+  //           printf("Worker iteration %u\n", j);
+  //         }
+  //         add_patterns<0>(worker_group.shfl(block_index, j),
+  //                         worker_group.shfl(lower_hash, j),
+  //                         worker_group.thread_rank());
+  //       }
+  //     }
+  //   }
+  // }
+
+  template <class CG, class BuildKey>
+  __device__ void add_exp_coop(CG group, BuildKey build_key)
   {
     constexpr auto num_threads = tile_size_v<CG>;
-    static_assert(num_threads >= add_horizontal_layout && add_horizontal_layout > 1,
-                  "Warp-cooperative add_exp() requires cg size >= add_horizontal_layout > 1.");
 
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
+    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
-    uint32_t lower_hash;
-    uint32_t block_index;
+#pragma unroll num_threads
+    for (int i = 0; i < num_threads; ++i) {
+      add_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+    }
+  }
 
-    auto const rank        = group.thread_rank();
-    auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+  template <class CG, class BuildKey>
+  __device__ void add_exp_coop(CG group, BuildKey build_key, bool is_valid)
+  {
+    constexpr auto num_threads = tile_size_v<CG>;
 
-    if constexpr (num_threads == add_horizontal_layout) {
-      for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
-        auto const group_offset = i * num_threads;
-        if (group_offset + rank < num_keys) {
-          typename cuda::std::iterator_traits<InputIt>::value_type const& key{
-            *(first + group_offset + rank)};
-          const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
-          lower_hash                                    = lower_hash_temp;
-          block_index = policy_.block_index(upper_hash_temp, num_blocks_);
-        }
+    auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
+    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
-        for (uint32_t j = 0; (j < num_threads) and (group_offset + j < num_keys); ++j) {
-          add_patterns<0>(group.shfl(block_index, j), group.shfl(lower_hash, j), rank);
-        }
-      }
-    } else /* num_threads > horizontal_layout */ {
-      // subdivide given CG into multiple optimal CGs
-      auto const worker_group =
-        cooperative_groups::tiled_partition<add_horizontal_layout, CG>(group);
-      auto const worker_offset = add_horizontal_layout * worker_group.meta_group_rank();
-
-      for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
-        auto const group_offset = i * num_threads;
-        if (group_offset + rank < num_keys) {
-          typename cuda::std::iterator_traits<InputIt>::value_type const& key{
-            *(first + group_offset + rank)};
-          const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
-          lower_hash                                    = lower_hash_temp;
-          block_index = policy_.block_index(upper_hash_temp, num_blocks_);
-        }
-
-        for (uint32_t j = 0;
-             (j < add_horizontal_layout) and (group_offset + worker_offset + j < num_keys);
-             ++j) {
-          add_patterns<0>(worker_group.shfl(block_index, j),
-                          worker_group.shfl(lower_hash, j),
-                          worker_group.thread_rank());
-        }
+#pragma unroll num_threads
+    for (int i = 0; i < num_threads; ++i) {
+      if (group.shfl(is_valid, i)) {
+        add_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
       }
     }
   }
@@ -811,79 +845,120 @@ class bloom_filter_impl {
     return compare_patterns<0>(group, block_index, lower_hash, group.thread_rank());
   }
 
-  // Warp-cooperative Bulk Contains
-  template <class CG, class InputIt, class OutputIt>
-  __device__ void contains_exp(CG group, InputIt first, InputIt last, OutputIt output_begin) const
+  // // Warp-cooperative Bulk Contains
+  // template <class CG, class InputIt, class OutputIt>
+  // __device__ void contains_exp(CG group, InputIt first, InputIt last, OutputIt output_begin)
+  // const
+  // {
+  //   constexpr auto num_threads = tile_size_v<CG>;
+  //   static_assert(
+  //     num_threads >= contains_horizontal_layout && contains_horizontal_layout > 1,
+  //     "Warp-cooperative contains_exp() requires cg size >= contains_horizontal_layout > 1.");
+
+  //   auto const num_keys = cuco::detail::distance(first, last);
+
+  //   uint32_t lower_hash;
+  //   uint32_t block_index;
+  //   bool result_out;
+
+  //   auto const rank        = group.thread_rank();
+  //   auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+
+  //   if constexpr (num_threads == contains_horizontal_layout) {
+  //     for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
+  //       auto const group_offset = i * num_threads;
+  //       // coalesced input read
+  //       if (group_offset + rank < num_keys) {
+  //         typename cuda::std::iterator_traits<InputIt>::value_type const& key{
+  //           *(first + group_offset + rank)};
+  //         const auto [upper_hash_temp, lower_hash_temp] = policy_.hash(key);
+  //         lower_hash                                    = lower_hash_temp;
+  //         block_index = policy_.block_index(upper_hash_temp, num_blocks_);
+  //       }
+
+  //       // group-wise cooperative lookup
+  //       for (uint32_t j = 0; (j < num_threads) and (group_offset + j < num_keys); ++j) {
+  //         bool result = group.all(compare_patterns<0>(
+  //           group, group.shfl(block_index, j), group.shfl(lower_hash, j), rank));
+  //         if (j == rank) { result_out = result; }
+  //       }
+
+  //       // coalesced output write
+  //       if (group_offset + rank < num_keys) { *(output_begin + group_offset + rank) = result_out;
+  //       }
+  //     }
+  //   } else /* num_threads > horizontal_layout */ {
+  //     // subdivide given CG into multiple optimal CGs
+  //     auto const worker_group =
+  //       cooperative_groups::tiled_partition<contains_horizontal_layout, CG>(group);
+  //     auto const worker_offset = contains_horizontal_layout * worker_group.meta_group_rank();
+  //     auto const worker_rank   = worker_group.thread_rank();
+
+  //     for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
+  //       auto const group_offset = i * num_threads;
+  //       // coalesced input read
+  //       if (group_offset + rank < num_keys) {
+  //         typename cuda::std::iterator_traits<InputIt>::value_type const& key{
+  //           *(first + group_offset + rank)};
+  //         const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
+  //         lower_hash                                    = lower_hash_temp;
+  //         block_index = policy_.block_index(upper_hash_temp, num_blocks_);
+  //       }
+
+  //       // group-wise cooperative lookup
+  //       for (uint32_t j = 0;
+  //            (j < contains_horizontal_layout) and (group_offset + worker_offset + j < num_keys);
+  //            ++j) {
+  //         bool result = worker_group.all(compare_patterns<0>(worker_group,
+  //                                                            worker_group.shfl(block_index, j),
+  //                                                            worker_group.shfl(lower_hash, j),
+  //                                                            worker_rank));
+  //         if (j == worker_rank) { result_out = result; }
+  //       }
+
+  //       // coalesced output write
+  //       if (group_offset + rank < num_keys) { *(output_begin + group_offset + rank) = result_out;
+  //       }
+  //     }
+  //   }
+  // }
+
+  template <class CG, class ProbeKey>
+  __device__ bool contains_exp_coop(CG group, ProbeKey probe_key)
   {
     constexpr auto num_threads = tile_size_v<CG>;
-    static_assert(
-      num_threads >= contains_horizontal_layout && contains_horizontal_layout > 1,
-      "Warp-cooperative contains_exp() requires cg size >= contains_horizontal_layout > 1.");
 
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
+    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    bool result_out                     = false;
 
-    uint32_t lower_hash;
-    uint32_t block_index;
-    bool result_out;
+#pragma unroll num_threads
+    for (int i = 0; i < num_threads; ++i) {
+      auto const result = group.all(compare_patterns<0>(
+        group, group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+      if (i == group.thread_rank()) { result_out = result; }
+    }
+    return result_out;
+  }
 
-    auto const rank        = group.thread_rank();
-    auto const group_iters = cuco::detail::int_div_ceil(num_keys, num_threads);
+  template <class CG, class ProbeKey>
+  __device__ bool contains_exp_coop(CG group, ProbeKey probe_key, bool is_valid)
+  {
+    constexpr auto num_threads = tile_size_v<CG>;
 
-    if constexpr (num_threads == contains_horizontal_layout) {
-      for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
-        auto const group_offset = i * num_threads;
-        // coalesced input read
-        if (group_offset + rank < num_keys) {
-          typename cuda::std::iterator_traits<InputIt>::value_type const& key{
-            *(first + group_offset + rank)};
-          const auto [upper_hash_temp, lower_hash_temp] = policy_.hash(key);
-          lower_hash                                    = lower_hash_temp;
-          block_index = policy_.block_index(upper_hash_temp, num_blocks_);
-        }
+    auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
+    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    bool result_out                     = false;
 
-        // group-wise cooperative lookup
-        for (uint32_t j = 0; (j < num_threads) and (group_offset + j < num_keys); ++j) {
-          bool result = group.all(compare_patterns<0>(
-            group, group.shfl(block_index, j), group.shfl(lower_hash, j), rank));
-          if (j == rank) { result_out = result; }
-        }
-
-        // coalesced output write
-        if (group_offset + rank < num_keys) { *(output_begin + group_offset + rank) = result_out; }
-      }
-    } else /* num_threads > horizontal_layout */ {
-      // subdivide given CG into multiple optimal CGs
-      auto const worker_group =
-        cooperative_groups::tiled_partition<contains_horizontal_layout, CG>(group);
-      auto const worker_offset = contains_horizontal_layout * worker_group.meta_group_rank();
-      auto const worker_rank   = worker_group.thread_rank();
-
-      for (cuda::std::remove_const_t<decltype(num_keys)> i = 0; i < group_iters; ++i) {
-        auto const group_offset = i * num_threads;
-        // coalesced input read
-        if (group_offset + rank < num_keys) {
-          typename cuda::std::iterator_traits<InputIt>::value_type const& key{
-            *(first + group_offset + rank)};
-          const auto [upper_hash_temp, lower_hash_temp] = policy_.split_hash(key);
-          lower_hash                                    = lower_hash_temp;
-          block_index = policy_.block_index(upper_hash_temp, num_blocks_);
-        }
-
-        // group-wise cooperative lookup
-        for (uint32_t j = 0;
-             (j < contains_horizontal_layout) and (group_offset + worker_offset + j < num_keys);
-             ++j) {
-          bool result = worker_group.all(compare_patterns<0>(worker_group,
-                                                             worker_group.shfl(block_index, j),
-                                                             worker_group.shfl(lower_hash, j),
-                                                             worker_rank));
-          if (j == worker_rank) { result_out = result; }
-        }
-
-        // coalesced output write
-        if (group_offset + rank < num_keys) { *(output_begin + group_offset + rank) = result_out; }
+#pragma unroll num_threads
+    for (int i = 0; i < num_threads; ++i) {
+      if (group.shfl(is_valid, i)) {
+        auto const result = group.all(compare_patterns<0>(
+          group, group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+        if (i == group.thread_rank()) { result_out = result; }
       }
     }
+    return result_out;
   }
 
   // Host-side Contains Entry Points
@@ -975,7 +1050,7 @@ class bloom_filter_impl {
                                          uint32_t thread_index)
   {
     // Sanity check. TODO: remove redundant checks.
-    static_assert(add_horizontal_layout > 1, "add_patterns() requires add_horizontal_layout == 1");
+    static_assert(add_horizontal_layout > 1, "add_patterns() requires add_horizontal_layout > 1");
 
     if constexpr (LoopIndex < add_loop_count) {
       auto const pattern =

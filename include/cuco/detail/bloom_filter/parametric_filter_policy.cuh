@@ -95,6 +95,12 @@ class parametric_filter_policy {
                   "pattern_bits must be at least words_per_block");
     static_assert(pattern_bits <= max_pattern_bits,
                   "pattern_bits must be less than the total number of bits in a filter block");
+    static_assert(add_horizontal_layout * add_vertical_layout <= words_per_block,
+                  "the product of add_horizontal_layout and add_vertical_layout must be less than "
+                  "or equal to words_per_block");
+    static_assert(contains_horizontal_layout * contains_vertical_layout <= words_per_block,
+                  "the product of contains_horizontal_layout and contains_vertical_layout must be "
+                  "less than or equal to words_per_block");
     /// KEVIN: Requiring 64b hash return type for now
     static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
                   "currently only 64b hash_result_type is supported");
@@ -239,6 +245,7 @@ class parametric_filter_policy {
   {
     if constexpr (SaltIndex < SaltEndIndex) {
       // Select top bit_index_width bits from salted hash to determine the bit index.
+      // if (threadIdx.x == 0) { printf("Salt Idx: %u\n", SaltIndex); }
       const uint32_t bit_index =
         (cuda::std::get<SaltIndex>(salts) * hash) >> (32 - bit_index_width);
 
