@@ -61,7 +61,7 @@ def plot_sweep_filter_size(data_file_prefix, output_file_prefix, show_plots=Fals
         sns.lineplot(
             data=subset,
             x='Log2FilterBytes',
-            y='AddThroughput(GK/s)',
+            y=f'{add_or_contains}Throughput(GK/s)',
             hue='VectorizationConfig',
             style='VectorizationConfig',
             markers=True,
@@ -101,7 +101,7 @@ def plot_sweep_filter_size(data_file_prefix, output_file_prefix, show_plots=Fals
         sns.lineplot(
             data=subset,
             x='Log2FilterBytes',
-            y='AddThroughput(GK/s)',
+            y=f'{add_or_contains}Throughput(GK/s)',
             hue='VectorizationConfig',
             style='VectorizationConfig',
             markers=True,
