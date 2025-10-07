@@ -37,6 +37,7 @@ static constexpr auto BF_PATTERN_BITS    = 8;
 
 auto const BF_SIZE_MB_RANGE_CACHE =
   std::vector<nvbench::int64_t>{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
-auto const BF_PATTERN_BITS_RANGE = std::vector<nvbench::int64_t>{1, 2, 4, 6, 8, 16};
+auto const BF_SIZE_MB_RANGE_FRONTIER_CACHE = std::vector<nvbench::int64_t>{1, 1024};
+auto const BF_PATTERN_BITS_RANGE           = std::vector<nvbench::int64_t>{1, 2, 4, 6, 8, 16};
 
 }  // namespace cuco::benchmark::defaults

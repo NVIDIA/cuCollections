@@ -36,7 +36,8 @@ function(ConfigureBench BENCH_NAME)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
                                         pthread
-                                        cuco)
+                                        cuco
+                                        warpcore)
 endfunction(ConfigureBench)
 
 ###################################################################################################

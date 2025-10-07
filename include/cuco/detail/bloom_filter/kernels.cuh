@@ -204,21 +204,18 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_n(InputIt first,
       if (is_valid) { *(output_begin + idx) = result; }
     }
   } else {
-    auto const loop_stride = cuco::detail::grid_stride() / CGSize;
-    auto idx               = cuco::detail::global_thread_id() / CGSize;
+    auto idx = cuco::detail::global_thread_id() / CGSize;
     if constexpr (CGSize == 1) {
-      while (idx < n) {
+      if (idx < n) {
         key_type const& key   = *(first + idx);
         *(output_begin + idx) = ref.contains_exp(key);
-        idx += loop_stride;
       }
     } else {
       auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
-      while (idx < n) {
+      if (idx < n) {
         key_type const& key = *(first + idx);
         auto const found    = group.all(ref.contains_exp(group, key));
         if (group.thread_rank() == 0) { *(output_begin + idx) = found; }
-        idx += loop_stride;
       }
     }
   }
