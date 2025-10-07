@@ -77,7 +77,6 @@ NVBENCH_BENCH_TYPES(dynamic_map_retrieve_all,
                                       nvbench::type_list<distribution::unique>))
   .set_name("dynamic_map_retrieve_all_unique_capacity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", defaults::N_RANGE)
   .add_int64_axis("InitSize", {defaults::INITIAL_SIZE});
 
@@ -87,6 +86,5 @@ NVBENCH_BENCH_TYPES(dynamic_map_retrieve_all,
                                       nvbench::type_list<distribution::unique>))
   .set_name("dynamic_map_retrieve_all_fixed_capacity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("InitSize", {defaults::INITIAL_SIZE});

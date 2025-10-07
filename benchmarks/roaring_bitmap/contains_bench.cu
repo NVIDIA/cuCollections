@@ -78,19 +78,17 @@ void roaring_bitmap_contains(nvbench::state& state, nvbench::type_list<T>)
 NVBENCH_BENCH_TYPES(roaring_bitmap_contains,
                     NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::uint32_t>))
   .set_name("roaring_bitmap_contains")
-  .add_int64_power_of_two_axis("NumInputs", {32})
 // Default benchmark is only available if the Roaring bitmap testdata has been downloaded
 #ifdef CUCO_ROARING_DATA_DIR
   .add_string_axis("BitmapFile", {std::string(CUCO_ROARING_DATA_DIR) + "/bitmapwithruns.bin"})
 #endif
-  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE);
+  .add_int64_power_of_two_axis("NumInputs", {32});
 
 NVBENCH_BENCH_TYPES(roaring_bitmap_contains,
                     NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::uint64_t>))
   .set_name("roaring_bitmap_contains")
-  .add_int64_power_of_two_axis("NumInputs", {31})
 // Default benchmark is only available if the Roaring bitmap testdata has been downloaded
 #ifdef CUCO_ROARING_DATA_DIR
   .add_string_axis("BitmapFile", {std::string(CUCO_ROARING_DATA_DIR) + "/portable_bitmap64.bin"})
 #endif
-  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE);
+  .add_int64_power_of_two_axis("NumInputs", {31});

@@ -60,7 +60,6 @@ NVBENCH_BENCH_TYPES(static_multiset_insert,
                                       nvbench::type_list<distribution::uniform>))
   .set_name("static_multiset_insert_uniform_capacity")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", defaults::N_RANGE_CACHE)
   .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
   .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY});
@@ -70,7 +69,6 @@ NVBENCH_BENCH_TYPES(static_multiset_insert,
                                       nvbench::type_list<distribution::uniform>))
   .set_name("static_multiset_insert_uniform_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE)
   .add_int64_axis("Multiplicity", {defaults::MULTIPLICITY});
@@ -80,7 +78,6 @@ NVBENCH_BENCH_TYPES(static_multiset_insert,
                                       nvbench::type_list<distribution::uniform>))
   .set_name("static_multiset_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
   .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
@@ -90,7 +87,6 @@ NVBENCH_BENCH_TYPES(static_multiset_insert,
                                       nvbench::type_list<distribution::gaussian>))
   .set_name("static_multiset_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
   .add_float64_axis("Skew", defaults::SKEW_RANGE);

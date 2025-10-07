@@ -79,7 +79,6 @@ NVBENCH_BENCH_TYPES(dynamic_map_contains,
                                       nvbench::type_list<distribution::unique>))
   .set_name("dynamic_map_contains_unique_capacity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", defaults::N_RANGE)
   .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
   .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE});
@@ -90,7 +89,6 @@ NVBENCH_BENCH_TYPES(dynamic_map_contains,
                                       nvbench::type_list<distribution::unique>))
   .set_name("dynamic_map_contains_unique_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_int64_axis("InitSize", {defaults::INITIAL_SIZE})
   .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);

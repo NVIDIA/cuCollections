@@ -74,7 +74,6 @@ NVBENCH_BENCH_TYPES(static_set_find,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_set_find_unique_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE)
   .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE});
@@ -84,7 +83,6 @@ NVBENCH_BENCH_TYPES(static_set_find,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_set_find_unique_matching_rate")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::N})
   .add_float64_axis("Occupancy", {defaults::OCCUPANCY})
   .add_float64_axis("MatchingRate", defaults::MATCHING_RATE_RANGE);
