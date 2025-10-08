@@ -15,6 +15,8 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 ### Major Updates
 
+__10/08/2025__ Changed `cuda_allocator` to stream-ordered, requiring `cuda::stream_ref` parameter in `allocate`/`deallocate`.
+
 __06/04/2025__ Removed CUDA 11 support
 
 __11/01/2024__ Refined the term `window` as `bucket`
