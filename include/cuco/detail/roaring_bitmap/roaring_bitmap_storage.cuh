@@ -266,9 +266,9 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
                          cuda::stream_ref stream)
     : allocator_{alloc},
       metadata_{bitmap},
-      data_{allocator_.allocate(metadata_.size_bytes),
-            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes,
-                                                                            allocator_}},
+      data_{allocator_.allocate(metadata_.size_bytes, stream),
+            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
+              metadata_.size_bytes, allocator_, stream}},
       ref_{data_.get(), metadata_}
   {
     CUCO_CUDA_TRY(cudaMemcpyAsync(
@@ -362,12 +362,12 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
         [bitmap](std::vector<typename ref_type::metadata_type::bucket_metadata>& bucket_metadata) {
           return typename ref_type::metadata_type{bitmap, bucket_metadata};
         }(bucket_metadata_)},
-      data_{allocator_.allocate(metadata_.size_bytes),
-            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{metadata_.size_bytes,
-                                                                            allocator_}},
-      buckets_{bucket_allocator_.allocate(metadata_.num_buckets),
+      data_{allocator_.allocate(metadata_.size_bytes, stream),
+            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
+              metadata_.size_bytes, allocator_, stream}},
+      buckets_{bucket_allocator_.allocate(metadata_.num_buckets, stream),
                cuco::detail::custom_deleter<cuda::std::size_t, bucket_allocator_type>{
-                 metadata_.num_buckets, bucket_allocator_}},
+                 metadata_.num_buckets, bucket_allocator_, stream}},
       ref_{data_.get(), metadata_, buckets_.get()}
   {
     assert(metadata_.valid);

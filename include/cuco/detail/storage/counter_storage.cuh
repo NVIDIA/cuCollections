@@ -48,12 +48,13 @@ class counter_storage : public storage_base<cuco::extent<SizeType, 1>> {
    * @brief Constructor of counter storage.
    *
    * @param allocator Allocator used for (de)allocating device storage
+   * @param stream Stream to use for (de)allocating device storage
    */
-  explicit constexpr counter_storage(Allocator const& allocator)
+  explicit constexpr counter_storage(Allocator const& allocator, cuda::stream_ref stream)
     : storage_base<cuco::extent<SizeType, 1>>{cuco::extent<size_type, 1>{}},
       allocator_{allocator},
-      counter_{allocator_.allocate(this->capacity()),
-               counter_deleter_type{this->capacity(), allocator_}}
+      counter_{allocator_.allocate(this->capacity(), stream),
+               counter_deleter_type{this->capacity(), allocator_, stream}}
   {
   }
 

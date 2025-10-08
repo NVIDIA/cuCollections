@@ -164,8 +164,12 @@ class bucket_storage {
    *
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
+   * @param stream Stream to use for (de)allocating device storage
    */
-  explicit constexpr bucket_storage(Extent size, Allocator const& allocator = {});
+  explicit constexpr bucket_storage(Extent size,
+                                    Allocator const& allocator,
+                                    cuda::stream_ref stream = cuda::stream_ref{
+                                      cudaStream_t{nullptr}});
 
   bucket_storage(bucket_storage&&) = default;  ///< Move constructor
   /**
