@@ -903,27 +903,6 @@ class bloom_filter_impl {
 
       for (int i = 0; i < add_vertical_layout; ++i) {
         atomic_or<ConditionalAtomic>(word_base + i, pattern[i]);
-        // if constexpr (use_cuda_atomic_ref) {
-        //   if constexpr (ConditionalInsert) {
-        //     if (word_base[i] & pattern[i] != pattern[i]) {
-        //       auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
-        //       atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
-        //     }
-        //   } else {
-        //     auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
-        //     atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
-        //   }
-        // } else {
-        //   if constexpr (ConditionalInsert) {
-        //     if (word_base[i] & pattern[i] != pattern[i]) {
-        //       atomicOr(reinterpret_cast<atomic_word_type*>(word_base + i),
-        //                static_cast<atomic_word_type>(pattern[i]));
-        //     }
-        //   } else {
-        //     atomicOr(reinterpret_cast<atomic_word_type*>(word_base + i),
-        //              static_cast<atomic_word_type>(pattern[i]));
-        //   }
-        // }
       }
 
       // Recurse.
@@ -950,13 +929,6 @@ class bloom_filter_impl {
 
       for (int i = 0; i < add_vertical_layout; ++i) {
         atomic_or<ConditionalAtomic>(word_base + i, pattern[i]);
-        // if constexpr (use_cuda_atomic_ref) {
-        //   auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
-        //   atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
-        // } else {
-        //   atomicOr(reinterpret_cast<atomic_word_type*>(word_base + i),
-        //            static_cast<atomic_word_type>(pattern[i]));
-        // }
       }
 
       // Recurse.
