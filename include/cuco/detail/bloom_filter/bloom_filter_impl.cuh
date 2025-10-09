@@ -56,10 +56,14 @@ class bloom_filter_impl {
   using size_type   = typename extent_type::value_type;
   using policy_type = Policy;
   using word_type   = typename policy_type::word_type;
+  // uint64_t may be unsigned long, but atomicOr requires unsigned long long
+  using atomic_word_type = typename cuda::std::
+    conditional_t<cuda::std::is_same_v<word_type, unsigned long>, unsigned long long, word_type>;
 
   // These knobs need to be public for exposure to the kernel definitions
   static constexpr bool use_warp_cooperative_add_kernel      = true;
   static constexpr bool use_warp_cooperative_contains_kernel = true;
+  static constexpr bool use_cuda_atomic_ref                  = false;
 
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
@@ -74,6 +78,18 @@ class bloom_filter_impl {
     words_per_block / (contains_vertical_layout * contains_horizontal_layout);
 
   // TODO static_assert layout, word type, etc.
+  static_assert((not use_cuda_atomic_ref) or (Scope == cuda::thread_scope::thread_scope_device),
+                "atomicOr requires device scope");
+  static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
+                "Number of words per block must be a power-of-two and less than or equal to 32");
+  static_assert(
+    cuda::std::is_constructible_v<cuda::atomic_ref<word_type, Scope>, word_type&> &&
+      cuda::std::is_invocable_r_v<word_type,
+                                  decltype(&cuda::atomic_ref<word_type, Scope>::fetch_or),
+                                  cuda::atomic_ref<word_type, Scope>*,
+                                  word_type,
+                                  cuda::std::memory_order>,
+    "Invalid word type");
 
   __host__ __device__ static constexpr size_t alignment() noexcept
   {
@@ -88,18 +104,6 @@ class bloom_filter_impl {
    private:
     alignas(alignment()) word_type data_[words_per_block];
   };
-
-  static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
-                "Number of words per block must be a power-of-two and less than or equal to 32");
-
-  static_assert(
-    cuda::std::is_constructible_v<cuda::atomic_ref<word_type, Scope>, word_type&> &&
-      cuda::std::is_invocable_r_v<word_type,
-                                  decltype(&cuda::atomic_ref<word_type, Scope>::fetch_or),
-                                  cuda::atomic_ref<word_type, Scope>*,
-                                  word_type,
-                                  cuda::std::memory_order>,
-    "Invalid word type");
 
   __host__ __device__ explicit constexpr bloom_filter_impl(filter_block_type* filter,
                                                            Extent num_blocks,
@@ -609,13 +613,8 @@ class bloom_filter_impl {
         stream.get());
     } else {
       auto constexpr block_size = cuco::detail::default_block_size();
-      // void const* kernel        = reinterpret_cast<void const*>(
-      //   detail::bloom_filter_ns::contains<block_size, InputIt, OutputIt, bloom_filter_impl>);
-      // auto const grid_size = cuco::detail::max_occupancy_grid_size(block_size, kernel);
-
-      /// LINEAR GRID ///
-      auto constexpr cg_size = static_cast<int32_t>(contains_horizontal_layout);
-      auto const grid_size   = cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+      auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
+      auto const grid_size      = cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
       detail::bloom_filter_ns::contains<block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
@@ -674,10 +673,10 @@ class bloom_filter_impl {
   //===--------------------------------------------------===//
   // Parametric Filter Policy
   //===--------------------------------------------------===//
-  // NOTE: Not implementing the <add/contains>_if() host-side entry points for now.
+  // Kevin: Not implementing the <add/contains>_if() host-side entry points for now.
 
   // Single Thread Add
-  template <class BuildKey>
+  template <bool ConditionalAtomic, class BuildKey>
   __device__ void add_exp(BuildKey build_key)
   {
     // Sanity checks. TODO: remove redundant checks.
@@ -685,11 +684,11 @@ class bloom_filter_impl {
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
-    add_pattern<0>(block_index, lower_hash);
+    add_pattern<ConditionalAtomic, 0>(block_index, lower_hash);
   }
 
   // Multi Thread Add
-  template <class CG, class BuildKey>
+  template <bool ConditionalAtomic, class CG, class BuildKey>
   __device__ void add_exp(CG group, BuildKey build_key)
   {
     // Sanity checks. TODO: remove redundant checks.
@@ -697,11 +696,11 @@ class bloom_filter_impl {
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
-    add_patterns<0>(block_index, lower_hash, group.thread_rank());
+    add_patterns<ConditionalAtomic, 0>(block_index, lower_hash, group.thread_rank());
   }
 
   // Warp-cooperative Add
-  template <class CG, class BuildKey>
+  template <bool ConditionalAtomic, class CG, class BuildKey>
   __device__ void add_exp_coop(CG group, BuildKey build_key)
   {
     constexpr auto num_threads = tile_size_v<CG>;
@@ -711,11 +710,12 @@ class bloom_filter_impl {
 
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      add_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      add_patterns<ConditionalAtomic, 0>(
+        group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
     }
   }
 
-  template <class CG, class BuildKey>
+  template <bool ConditionalAtomic, class CG, class BuildKey>
   __device__ void add_exp_coop(CG group, BuildKey build_key, bool is_valid)
   {
     constexpr auto num_threads = tile_size_v<CG>;
@@ -726,7 +726,8 @@ class bloom_filter_impl {
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
       if (group.shfl(is_valid, i)) {
-        add_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+        add_patterns<ConditionalAtomic, 0>(
+          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
       }
     }
   }
@@ -740,13 +741,19 @@ class bloom_filter_impl {
 
     auto constexpr block_size = cuco::detail::default_block_size();
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
+    auto const grid_size      = use_warp_cooperative_add_kernel
+                                  ? cuco::detail::int_div_ceil(num_keys, block_size)
+                                  : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+    auto const l2_cache_size  = static_cast<size_t>(cuco::detail::l2_cache_size());
+    auto const filter_size = static_cast<size_t>(num_blocks_) * words_per_block * sizeof(word_type);
 
-    auto const grid_size = use_warp_cooperative_add_kernel
-                             ? cuco::detail::int_div_ceil(num_keys, block_size)
-                             : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
-
-    detail::bloom_filter_ns::add_exp_n<cg_size, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+    if (2 * filter_size < l2_cache_size) {
+      detail::bloom_filter_ns::add_exp_n<false, cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+    } else {
+      detail::bloom_filter_ns::add_exp_n<true, cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+    }
   }
 
   template <class InputIt>
@@ -843,10 +850,9 @@ class bloom_filter_impl {
     } else {
       auto constexpr block_size = cuco::detail::default_block_size();
       auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
-
-      auto const grid_size = use_warp_cooperative_contains_kernel
-                               ? cuco::detail::int_div_ceil(num_keys, block_size)
-                               : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+      auto const grid_size      = use_warp_cooperative_contains_kernel
+                                    ? cuco::detail::int_div_ceil(num_keys, block_size)
+                                    : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
       detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
@@ -884,7 +890,7 @@ class bloom_filter_impl {
   //===--------------------------------------------------===//
   /// Insert the given pattern into the filter
   // Precondition: add_horizontal_layout == 1
-  template <uint32_t LoopIndex>
+  template <bool ConditionalAtomic, uint32_t LoopIndex>
   __device__ constexpr void add_pattern(uint32_t block_index, uint32_t lower_hash)
   {
     // Sanity check. TODO: remove redundant checks.
@@ -896,17 +902,37 @@ class bloom_filter_impl {
       auto* word_base = words_ + block_index * words_per_block + LoopIndex * add_vertical_layout;
 
       for (int i = 0; i < add_vertical_layout; ++i) {
-        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
-        atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
+        atomic_or<ConditionalAtomic>(word_base + i, pattern[i]);
+        // if constexpr (use_cuda_atomic_ref) {
+        //   if constexpr (ConditionalInsert) {
+        //     if (word_base[i] & pattern[i] != pattern[i]) {
+        //       auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
+        //       atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
+        //     }
+        //   } else {
+        //     auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
+        //     atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
+        //   }
+        // } else {
+        //   if constexpr (ConditionalInsert) {
+        //     if (word_base[i] & pattern[i] != pattern[i]) {
+        //       atomicOr(reinterpret_cast<atomic_word_type*>(word_base + i),
+        //                static_cast<atomic_word_type>(pattern[i]));
+        //     }
+        //   } else {
+        //     atomicOr(reinterpret_cast<atomic_word_type*>(word_base + i),
+        //              static_cast<atomic_word_type>(pattern[i]));
+        //   }
+        // }
       }
 
       // Recurse.
-      add_pattern<LoopIndex + 1>(block_index, lower_hash);
+      add_pattern<ConditionalAtomic, LoopIndex + 1>(block_index, lower_hash);
     }
   }
 
   // Precondition: add_horizontal_layout > 1
-  template <uint32_t LoopIndex>
+  template <bool ConditionalAtomic, uint32_t LoopIndex>
   __device__ constexpr void add_patterns(uint32_t block_index,
                                          uint32_t lower_hash,
                                          uint32_t thread_index)
@@ -923,12 +949,44 @@ class bloom_filter_impl {
                         thread_index * add_vertical_layout;
 
       for (int i = 0; i < add_vertical_layout; ++i) {
-        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
-        atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
+        atomic_or<ConditionalAtomic>(word_base + i, pattern[i]);
+        // if constexpr (use_cuda_atomic_ref) {
+        //   auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*(word_base + i)};
+        //   atom_word.fetch_or(pattern[i], cuda::memory_order_relaxed);
+        // } else {
+        //   atomicOr(reinterpret_cast<atomic_word_type*>(word_base + i),
+        //            static_cast<atomic_word_type>(pattern[i]));
+        // }
       }
 
       // Recurse.
-      add_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index);
+      add_patterns<ConditionalAtomic, LoopIndex + 1>(block_index, lower_hash, thread_index);
+    }
+  }
+
+  template <bool ConditionalAtomic>
+  __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
+  {
+    if constexpr (use_cuda_atomic_ref) {
+      if constexpr (ConditionalAtomic) {
+        if ((*word_ptr & pattern) != pattern) {
+          auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*word_ptr};
+          atom_word.fetch_or(pattern, cuda::memory_order_relaxed);
+        }
+      } else {
+        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*word_ptr};
+        atom_word.fetch_or(pattern, cuda::memory_order_relaxed);
+      }
+    } else {
+      if constexpr (ConditionalAtomic) {
+        if ((*word_ptr & pattern) != pattern) {
+          atomicOr(reinterpret_cast<atomic_word_type*>(word_ptr),
+                   static_cast<atomic_word_type>(pattern));
+        }
+      } else {
+        atomicOr(reinterpret_cast<atomic_word_type*>(word_ptr),
+                 static_cast<atomic_word_type>(pattern));
+      }
     }
   }
 

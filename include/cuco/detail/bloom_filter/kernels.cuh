@@ -142,7 +142,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
 //===--------------------------------------------------===//
 // Parametric Filter Policy
 //===--------------------------------------------------===//
-template <int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
                                                         cuco::detail::index_type n,
                                                         Ref ref)
@@ -157,24 +157,24 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
     auto const is_full_tile = (blockIdx.x + 1) * BlockSize <= n;
     if (is_full_tile) {
       key_type const& key = *(first + idx);
-      ref.add_exp_coop(group, key);
+      ref.add_exp_coop<ConditionalAtomic>(group, key);
     } else {
       auto const is_valid = idx < n;
       key_type const& key = is_valid ? *(first + idx) : key_type{};
-      ref.add_exp_coop(group, key, is_valid);
+      ref.add_exp_coop<ConditionalAtomic>(group, key, is_valid);
     }
   } else {
     auto const idx = cuco::detail::global_thread_id() / CGSize;
     if constexpr (CGSize == 1) {
       if (idx < n) {
         key_type const& key = *(first + idx);
-        ref.add_exp(key);
+        ref.add_exp<ConditionalAtomic>(key);
       }
     } else {
       auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
       if (idx < n) {
         key_type const& key = *(first + idx);
-        ref.add_exp(group, key);
+        ref.add_exp<ConditionalAtomic>(group, key);
       }
     }
   }
