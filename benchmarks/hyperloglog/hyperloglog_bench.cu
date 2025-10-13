@@ -150,8 +150,7 @@ NVBENCH_BENCH_TYPES(hyperloglog_e2e,
   .set_type_axes_names({"T", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
   .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})  // 256KB uses gmem fallback kernel
-  .add_int64_axis("Multiplicity", {1})
-  .set_max_noise(defaults::MAX_NOISE);
+  .add_int64_axis("Multiplicity", {1});
 
 NVBENCH_BENCH_TYPES(hyperloglog_add,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
@@ -159,5 +158,4 @@ NVBENCH_BENCH_TYPES(hyperloglog_add,
   .set_type_axes_names({"T", "Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
   .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})
-  .add_int64_axis("Multiplicity", {1})
-  .set_max_noise(defaults::MAX_NOISE);
+  .add_int64_axis("Multiplicity", {1});

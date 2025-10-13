@@ -58,6 +58,5 @@ NVBENCH_BENCH_TYPES(static_set_rehash,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_set_rehash_unique_occupancy")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("Capacity", {defaults::N})
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);

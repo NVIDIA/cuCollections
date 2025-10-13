@@ -192,7 +192,6 @@ NVBENCH_BENCH_TYPES(
                                        cuco::murmurhash3_x64_128<large_key<32>>>))
   .set_name("hash_function_eval")
   .set_type_axes_names({"Hash"})
-  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {cuco::benchmark::defaults::N * 10});
 
 NVBENCH_BENCH_TYPES(
@@ -204,7 +203,6 @@ NVBENCH_BENCH_TYPES(
                                        cuco::murmurhash3_x64_128<cuda::std::byte>>))
   .set_name("string_hash_function_eval")
   .set_type_axes_names({"Hash"})
-  .set_max_noise(cuco::benchmark::defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {cuco::benchmark::defaults::N / 4})
   .add_int64_axis("MinLength", {1, 4})
   .add_int64_axis("MaxLength", {4, 32, 64});

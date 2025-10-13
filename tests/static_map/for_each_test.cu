@@ -44,7 +44,7 @@ void test_for_each(Map& map, size_type num_keys)
       return cuco::pair<Key, Value>{i, i % 2 + 1};
     }));
 
-  cuda::stream_ref stream{};
+  cuda::stream_ref stream{cudaStream_t{nullptr}};
 
   map.insert(pairs_begin, pairs_begin + num_keys, stream);
 
