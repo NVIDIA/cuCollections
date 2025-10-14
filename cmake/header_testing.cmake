@@ -41,15 +41,13 @@ function(cuco_add_header_test label definitions)
 
   # List of headers that have known issues or are not meant to be included directly
   set(excluded_headers
-    # Headers with circular dependencies that are not meant to be included directly
-    cuco/detail/static_map/helpers.cuh
+    # Add any headers that should be excluded from testing here
+    # Example: cuco/internal_header.cuh
   )
   
   # Remove excluded headers
   if(excluded_headers)
     list(REMOVE_ITEM headers ${excluded_headers})
-    list(LENGTH headers headers_count_after_exclusion)
-    message(STATUS "After exclusion: ${headers_count_after_exclusion} headers remaining")
   endif()
 
   # Only test with CUDA compiler since cuco is device-only
