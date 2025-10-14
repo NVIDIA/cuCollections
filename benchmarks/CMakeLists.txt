@@ -36,8 +36,7 @@ function(ConfigureBench BENCH_NAME)
     target_link_libraries(${BENCH_NAME} PRIVATE
                                         nvbench::main
                                         pthread
-                                        cuco
-                                        warpcore)
+                                        cuco)
 endfunction(ConfigureBench)
 
 ###################################################################################################
@@ -105,6 +104,9 @@ ConfigureBench(HYPERLOGLOG_BENCH
 ConfigureBench(BLOOM_FILTER_BENCH
   bloom_filter/add_bench.cu
   bloom_filter/contains_bench.cu)
+
+# - thirdparty Bloom filter benchmarks --------------------------------------------------------------
+add_subdirectory(bloom_filter/thirdparty)
 
 ###################################################################################################
 # - roaring_bitmap benchmarks ---------------------------------------------------------------------

@@ -78,21 +78,6 @@ rapids_cpm_init()
 
 include(cmake/thirdparty/get_cccl.cmake)
 
-# - warpcore (for evaluation) ---------------------------------------------------------------------
-# Download CPM.cmake if not already present
-if(NOT EXISTS "${CMAKE_BINARY_DIR}/cmake/CPM.cmake")
-  file(DOWNLOAD
-    https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/CPM.cmake
-    "${CMAKE_BINARY_DIR}/cmake/CPM.cmake"
-  )
-endif()
-include("${CMAKE_BINARY_DIR}/cmake/CPM.cmake")
-CPMAddPackage(
-  NAME warpcore
-  GITHUB_REPOSITORY sleeepyjack/warpcore
-  GIT_TAG master
-)
-
 ###################################################################################################
 # - cuco target   ---------------------------------------------------------------------------------
 add_library(cuco INTERFACE)
