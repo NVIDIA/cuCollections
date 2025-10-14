@@ -20,14 +20,11 @@
 # .inl files are not globbed for, because they are not supposed to be used as public
 # entrypoints.
 
-# Meta target for all header builds:
 add_custom_target(cuco.all.headers)
 
 function(cuco_add_header_test label definitions)
   set(config_prefix "cuco")
   
-  # GLOB ALL THE THINGS - similar to Thrust's approach, including detail headers
-  # Use GLOB_RECURSE to find all headers recursively
   file(GLOB_RECURSE headers
     RELATIVE "${CUCO_SOURCE_DIR}/include"
     CONFIGURE_DEPENDS
@@ -35,7 +32,6 @@ function(cuco_add_header_test label definitions)
     "${CUCO_SOURCE_DIR}/include/cuco/*.hpp"
   )
   
-  # Debug: Print found headers
   list(LENGTH headers headers_count)
   message(STATUS "Found ${headers_count} headers for testing: ${headers}")
 
@@ -50,10 +46,9 @@ function(cuco_add_header_test label definitions)
     list(REMOVE_ITEM headers ${excluded_headers})
   endif()
 
-  # Only test with CUDA compiler since cuco is device-only
   set(headertest_target ${config_prefix}.headers.${label})
 
-  # Generate header test sources (simple approach since CCCL utilities aren't available)
+  # Generate header test sources
   set(header_srcs)
   foreach (header IN LISTS headers)
     set(header_src "${CMAKE_CURRENT_BINARY_DIR}/headers/${headertest_target}/${header}.cu")
@@ -79,9 +74,7 @@ function(cuco_add_header_test label definitions)
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
   )
 
-  # Disable macro checks for now since cuco has known issues with 'I' identifier
-  # This should be removed once the macro collision issues are fixed
-  target_compile_definitions(${headertest_target} PRIVATE CUCO_IGNORE_HEADER_MACRO_CHECKS)
+  # Macro collision checks are enabled to ensure cuco headers don't conflict with system headers
 
   add_dependencies(cuco.all.headers ${headertest_target})
 endfunction()
