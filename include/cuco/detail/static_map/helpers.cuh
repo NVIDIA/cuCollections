@@ -26,7 +26,6 @@
 #include <cuda/stream_ref>
 
 namespace cuco::detail::static_map_ns {
-
 /**
  * @brief Dispatches to shared memory map kernel if `num_elements_per_thread > 2`, else
  * fallbacks to global memory map kernel.
