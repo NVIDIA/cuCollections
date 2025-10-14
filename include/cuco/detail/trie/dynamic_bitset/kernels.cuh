@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <cuco/detail/trie/dynamic_bitset/dynamic_bitset.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 

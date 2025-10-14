@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuda/std/cstddef>
+#include <cuda/std/cstdint>
 
 namespace cuco::detail {
 
@@ -29,12 +30,14 @@ constexpr __host__ __device__ T load_chunk(U const* const data, Extent index) no
   return chunk;
 }
 
-constexpr __host__ __device__ std::uint32_t rotl32(std::uint32_t x, std::int8_t r) noexcept
+constexpr __host__ __device__ cuda::std::uint32_t rotl32(cuda::std::uint32_t x,
+                                                         cuda::std::int8_t r) noexcept
 {
   return (x << r) | (x >> (32 - r));
 }
 
-constexpr __host__ __device__ std::uint64_t rotl64(std::uint64_t x, std::int8_t r) noexcept
+constexpr __host__ __device__ cuda::std::uint64_t rotl64(cuda::std::uint64_t x,
+                                                         cuda::std::int8_t r) noexcept
 {
   return (x << r) | (x >> (64 - r));
 }

@@ -17,6 +17,13 @@
 
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.cuh>
+#include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utils.hpp>
+#include <cuco/extent.cuh>
+#include <cuco/static_map.cuh>
+#include <cuco/storage.cuh>
+
+#include <cuda/stream_ref>
 
 namespace cuco::detail::static_map_ns {
 
