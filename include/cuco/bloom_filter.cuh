@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -117,7 +117,8 @@ class bloom_filter {
                                            cuda_thread_scope<Scope> scope = {},
                                            Policy const& policy           = {},
                                            Allocator const& alloc         = {},
-                                           cuda::stream_ref stream        = {});
+                                           cuda::stream_ref stream        = cuda::stream_ref{
+                                             cudaStream_t{nullptr}});
 
   /**
    * @brief Erases all information from the filter.
@@ -127,14 +128,15 @@ class bloom_filter {
    *
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
-  __host__ constexpr void clear(cuda::stream_ref stream = {});
+  __host__ constexpr void clear(cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Asynchronously erases all information from the filter.
    *
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
-  __host__ constexpr void clear_async(cuda::stream_ref stream = {}) noexcept;
+  __host__ constexpr void clear_async(cuda::stream_ref stream = cuda::stream_ref{
+                                        cudaStream_t{nullptr}});
 
   /**
    * @brief Adds all keys in the range `[first, last)` to the filter.
@@ -148,7 +150,9 @@ class bloom_filter {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt>
-  __host__ constexpr void add(InputIt first, InputIt last, cuda::stream_ref stream = {});
+  __host__ constexpr void add(InputIt first,
+                              InputIt last,
+                              cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Asynchronously adds all keys in the range `[first, last)` to the filter.
@@ -160,9 +164,8 @@ class bloom_filter {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt>
-  __host__ constexpr void add_async(InputIt first,
-                                    InputIt last,
-                                    cuda::stream_ref stream = {}) noexcept;
+  __host__ constexpr void add_async(
+    InputIt first, InputIt last, cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns
@@ -186,8 +189,11 @@ class bloom_filter {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt, class StencilIt, class Predicate>
-  __host__ constexpr void add_if(
-    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream = {});
+  __host__ constexpr void add_if(InputIt first,
+                                 InputIt last,
+                                 StencilIt stencil,
+                                 Predicate pred,
+                                 cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Asynchronously adds keys in the range `[first, last)` if `pred` of the corresponding
@@ -213,7 +219,8 @@ class bloom_filter {
                                        InputIt last,
                                        StencilIt stencil,
                                        Predicate pred,
-                                       cuda::stream_ref stream = {}) noexcept;
+                                       cuda::stream_ref stream = cuda::stream_ref{
+                                         cudaStream_t{nullptr}}) noexcept;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the
@@ -234,7 +241,8 @@ class bloom_filter {
   __host__ constexpr void contains(InputIt first,
                                    InputIt last,
                                    OutputIt output_begin,
-                                   cuda::stream_ref stream = {}) const;
+                                   cuda::stream_ref stream = cuda::stream_ref{
+                                     cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Asynchronously tests all keys in the range `[first, last)` if their fingerprints are
@@ -252,7 +260,8 @@ class bloom_filter {
   __host__ constexpr void contains_async(InputIt first,
                                          InputIt last,
                                          OutputIt output_begin,
-                                         cuda::stream_ref stream = {}) const noexcept;
+                                         cuda::stream_ref stream = cuda::stream_ref{
+                                           cudaStream_t{nullptr}}) const noexcept;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the
@@ -283,7 +292,8 @@ class bloom_filter {
                                       StencilIt stencil,
                                       Predicate pred,
                                       OutputIt output_begin,
-                                      cuda::stream_ref stream = {}) const;
+                                      cuda::stream_ref stream = cuda::stream_ref{
+                                        cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Asynchronously tests all keys in the range `[first, last)` if their fingerprints are
@@ -312,7 +322,8 @@ class bloom_filter {
                                             StencilIt stencil,
                                             Predicate pred,
                                             OutputIt output_begin,
-                                            cuda::stream_ref stream = {}) const noexcept;
+                                            cuda::stream_ref stream = cuda::stream_ref{
+                                              cudaStream_t{nullptr}}) const noexcept;
 
   /**
    * @brief Gets a pointer to the underlying filter storage.

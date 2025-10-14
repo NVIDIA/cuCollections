@@ -61,7 +61,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   __host__ void contains(InputIt first,
                          InputIt last,
                          OutputIt contained,
-                         cuda::stream_ref stream = {}) const
+                         cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const
   {
     this->contains_async(first, last, contained, stream);
 #if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
@@ -75,7 +75,8 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   __host__ void contains_async(InputIt first,
                                InputIt last,
                                OutputIt contained,
-                               cuda::stream_ref stream = {}) const noexcept
+                               cuda::stream_ref stream = cuda::stream_ref{
+                                 cudaStream_t{nullptr}}) const noexcept
   {
     if (this->empty()) {
       cub::DeviceTransform::Transform(
@@ -304,7 +305,7 @@ class roaring_bitmap_impl<cuda::std::uint64_t> {
   __host__ void contains(InputIt first,
                          InputIt last,
                          OutputIt contained,
-                         cuda::stream_ref stream = {}) const
+                         cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const
   {
     this->contains_async(first, last, contained, stream);
 #if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
@@ -318,7 +319,8 @@ class roaring_bitmap_impl<cuda::std::uint64_t> {
   __host__ void contains_async(InputIt first,
                                InputIt last,
                                OutputIt contained,
-                               cuda::stream_ref stream = {}) const noexcept
+                               cuda::stream_ref stream = cuda::stream_ref{
+                                 cudaStream_t{nullptr}}) const noexcept
   {
     if (this->empty()) {
       cub::DeviceTransform::Transform(

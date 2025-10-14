@@ -35,7 +35,7 @@ void test_for_each(Set& set, size_type num_keys)
 
   REQUIRE(num_keys % 2 == 0);
 
-  cuda::stream_ref stream{};
+  cuda::stream_ref stream{cudaStream_t{nullptr}};
 
   // Insert keys
   auto keys_begin = thrust::make_transform_iterator(

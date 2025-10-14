@@ -58,7 +58,7 @@ class roaring_bitmap {
    */
   roaring_bitmap(cuda::std::byte const* bitmap,
                  Allocator const& alloc  = {},
-                 cuda::stream_ref stream = {});
+                 cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Copy constructor
@@ -112,7 +112,7 @@ class roaring_bitmap {
   void contains(InputIt first,
                 InputIt last,
                 OutputIt contained,
-                cuda::stream_ref stream = {}) const;
+                cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Asynchronously performs a bulk membership query for keys in `[first, last)`.
@@ -130,7 +130,8 @@ class roaring_bitmap {
   void contains_async(InputIt first,
                       InputIt last,
                       OutputIt contained,
-                      cuda::stream_ref stream = {}) const noexcept;
+                      cuda::stream_ref stream = cuda::stream_ref{
+                        cudaStream_t{nullptr}}) const noexcept;
 
   /**
    * @brief Number of keys stored in the bitmap.

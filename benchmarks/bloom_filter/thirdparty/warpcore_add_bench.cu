@@ -81,6 +81,5 @@ NVBENCH_BENCH_TYPES(
                     ))
   .set_name("warpcore_bloom_filter_add_unique_size_u64")
   .set_type_axes_names({"Key", "Word", "BlockBits", "PatternBitsPerWord"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);

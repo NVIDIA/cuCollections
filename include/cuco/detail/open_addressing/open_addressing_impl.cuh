@@ -452,7 +452,10 @@ class open_addressing_impl {
    * provided at construction
    */
   template <typename InputIt, typename Ref>
-  void erase_async(InputIt first, InputIt last, Ref container_ref, cuda::stream_ref stream = {})
+  void erase_async(InputIt first,
+                   InputIt last,
+                   Ref container_ref,
+                   cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}})
   {
     CUCO_EXPECTS(this->empty_key_sentinel() != this->erased_key_sentinel(),
                  "The empty key sentinel and erased key sentinel cannot be the same value.",

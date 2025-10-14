@@ -313,7 +313,6 @@ NVBENCH_BENCH_TYPES(bloom_filter_contains,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_contains_unique_size")
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
@@ -325,7 +324,6 @@ NVBENCH_BENCH_TYPES(bloom_filter_contains,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_contains_unique_hash")
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
 
@@ -337,7 +335,6 @@ NVBENCH_BENCH_TYPES(bloom_filter_contains,
                                       nvbench::type_list<distribution::unique>))
   .set_name("bloom_filter_contains_unique_block_dim")
   .set_type_axes_names({"Key", "Hash", "Word", "WordsPerBlock", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
 
@@ -346,7 +343,6 @@ NVBENCH_BENCH_TYPES(arrow_bloom_filter_contains,
                                       nvbench::type_list<distribution::unique>))
   .set_name("arrow_bloom_filter_contains_unique_size")
   .set_type_axes_names({"Key", "Distribution"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
@@ -362,7 +358,6 @@ NVBENCH_BENCH_TYPES(
   .set_name("pfp_bloom_filter_contains_unique_size_u32")
   .set_type_axes_names(
     {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
@@ -377,7 +372,6 @@ NVBENCH_BENCH_TYPES(pfp_bloom_filter_contains,
   .set_name("pfp_bloom_filter_contains_unique_size_u64")
   .set_type_axes_names(
     {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
@@ -393,7 +387,6 @@ NVBENCH_BENCH_TYPES(
   .set_name("pfp_bloom_filter_contains_unique_size_u32_exclude_io")
   .set_type_axes_names(
     {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
@@ -409,7 +402,6 @@ NVBENCH_BENCH_TYPES(
   .set_name("pfp_bloom_filter_contains_unique_size_u64_exclude_io")
   .set_type_axes_names(
     {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
 
@@ -444,6 +436,5 @@ NVBENCH_BENCH_TYPES(
   .set_name("pfp_bloom_filter_contains_pattern_bits")
   .set_type_axes_names(
     {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .set_max_noise(defaults::MAX_NOISE)
   .add_int64_axis("NumInputs", {defaults::BF_N})
   .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});

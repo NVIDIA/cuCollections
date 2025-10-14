@@ -1,5 +1,5 @@
 #!/bin/bash
-# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -84,6 +84,9 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+# IMPORTANT: The matrix file is located in a separate directory (ci/matrix.yml)
+# When updating CUDA versions, compiler versions, or Rapids devcontainer versions,
+# remember to update the matrix file at: ../ci/matrix.yml
 MATRIX_FILE="../ci/matrix.yml"
 
 # Enable verbose mode if requested
