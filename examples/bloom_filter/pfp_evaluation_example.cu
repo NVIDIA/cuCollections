@@ -138,7 +138,7 @@ int main()
     filter.data());
   if (mismatch_iter.first !=
       arrow_filter.data() + arrow_filter.block_extent() * arrow_filter_t::words_per_block) {
-    auto const mismatch_index = thrust::distance(arrow_filter.data(), mismatch_iter.first);
+    auto const mismatch_index = cuda::std::distance(arrow_filter.data(), mismatch_iter.first);
     std::cout << "Mismatch at index: " << mismatch_index << "\n";
     return -1;
   }

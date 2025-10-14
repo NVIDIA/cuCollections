@@ -65,9 +65,11 @@ void warpcore_bloom_filter_add(
     thrust::device_vector<Key> keys(num_keys);
     thrust::sequence(keys.begin(), keys.end(), 0);
 
-    // TODO clear inbetween runs
-    state.exec([&](nvbench::launch& launch) {
+    state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+      timer.start();
       filter.insert(thrust::raw_pointer_cast(keys.data()), num_keys, {launch.get_stream()});
+      timer.stop();
+      filter.init({launch.get_stream()});
     });
   }
 }

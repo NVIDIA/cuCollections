@@ -196,6 +196,12 @@ void pfp_bloom_filter_add_impl(nvbench::state& state,
 
       thrust::counting_iterator<Key> keys(0);
 
+      state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+        timer.start();
+        filter.add_async(keys, keys + num_keys, {launch.get_stream()});
+        timer.stop();
+        filter.clear_async({launch.get_stream()});
+      });
       state.exec([&](nvbench::launch& launch) {
         filter.add_async(keys, keys + num_keys, {launch.get_stream()});
       });
@@ -203,8 +209,11 @@ void pfp_bloom_filter_add_impl(nvbench::state& state,
       thrust::device_vector<Key> keys(num_keys);
       thrust::sequence(keys.begin(), keys.end(), 0);
 
-      state.exec([&](nvbench::launch& launch) {
+      state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+        timer.start();
         filter.add_async(keys.begin(), keys.end(), {launch.get_stream()});
+        timer.stop();
+        filter.clear_async({launch.get_stream()});
       });
     }
   }

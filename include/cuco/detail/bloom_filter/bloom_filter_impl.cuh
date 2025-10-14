@@ -745,7 +745,8 @@ class bloom_filter_impl {
                                   ? cuco::detail::int_div_ceil(num_keys, block_size)
                                   : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
     auto const l2_cache_size  = static_cast<size_t>(cuco::detail::l2_cache_size());
-    auto const filter_size = static_cast<size_t>(num_blocks_) * words_per_block * sizeof(word_type);
+    auto const filter_size    = static_cast<size_t>(static_cast<size_type>(num_blocks_)) *
+                             words_per_block * sizeof(word_type);
 
     if (2 * filter_size < l2_cache_size) {
       detail::bloom_filter_ns::add_exp_n<false, cg_size, block_size>
@@ -760,7 +761,11 @@ class bloom_filter_impl {
   __host__ void add_exp(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
   {
     this->add_exp_async(first, last, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   // Single Thread Contains
@@ -866,7 +871,11 @@ class bloom_filter_impl {
                              cuda::stream_ref stream) const noexcept
   {
     this->contains_exp_async(first, last, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
     stream.wait();
+#endif
   }
 
   // TODO
