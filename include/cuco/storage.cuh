@@ -21,6 +21,12 @@
 #include <cuda/std/cstdint>
 
 namespace cuco {
+// Forward declaration to avoid circular dependency
+template <typename T, int32_t BucketSize, typename Extent, typename Allocator>
+class bucket_storage;
+}  // namespace cuco
+
+namespace cuco {
 
 /**
  * @brief Public storage class.
@@ -44,6 +50,6 @@ class storage {
 
   /// Type of implementation details
   template <class T, class Extent, class Allocator>
-  using impl = bucket_storage<T, bucket_size, Extent, Allocator>;
+  using impl = bucket_storage<T, BucketSize, Extent, Allocator>;
 };
 }  // namespace cuco
