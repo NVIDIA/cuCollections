@@ -42,7 +42,6 @@ function(cuco_add_header_tests)
     list(REMOVE_ITEM headers ${excluded_headers})
   endif()
 
-  # Create a separate executable for each header to avoid multiple main() definitions
   foreach (header IN LISTS headers)
     # Create a safe target name by replacing path separators and dots
     string(REPLACE "/" "_" header_target_name "${header}")
@@ -65,19 +64,16 @@ function(cuco_add_header_tests)
     add_executable(${headertest_target} ${header_src})
     target_link_libraries(${headertest_target} PRIVATE cuco::cuco CUDA::cudart)
 
-    # Add required CUDA compiler flags for cuco
     target_compile_options(${headertest_target} PRIVATE
       $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
       --compiler-options=-Wall --compiler-options=-Wextra
       --compiler-options=-Werror -Wno-deprecated-gpu-targets
     )
 
-    # Add GCC-specific warning suppression only for GCC
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       target_compile_options(${headertest_target} PRIVATE -Xcompiler -Wno-subobject-linkage)
     endif()
 
-    # Place header test binaries in a subfolder
     set_target_properties(${headertest_target} PROPERTIES
       RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/headers"
     )
