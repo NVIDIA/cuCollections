@@ -46,7 +46,6 @@ endif()
 option(BUILD_TESTS "Configure CMake to build tests" ${default_build_option_state})
 option(BUILD_BENCHMARKS "Configure CMake to build (google) benchmarks" ${default_build_option_state})
 option(BUILD_EXAMPLES "Configure CMake to build examples" ${default_build_option_state})
-option(BUILD_HEADER_TESTS "Configure CMake to build header tests" ${default_build_option_state})
 option(INSTALL_CUCO "Enable CMake install rules for cuco" ${default_build_option_state})
 
 # Write the version header
@@ -99,7 +98,10 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
 # - optionally build tests ------------------------------------------------------------------------
 
 if(BUILD_TESTS)
+    include(CTest)
     add_subdirectory(tests)
+    # Include header tests as part of the regular test suite
+    include(cmake/header_testing.cmake)
 endif(BUILD_TESTS)
 
 ###################################################################################################
@@ -120,12 +122,6 @@ if(BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif(BUILD_EXAMPLES)
 
-###################################################################################################
-# - Optionally build header tests -----------------------------------------------------------------
-
-if(BUILD_HEADER_TESTS)
-    include(cmake/header_testing.cmake)
-endif(BUILD_HEADER_TESTS)
 
 ###################################################################################################
 # - Install targets -------------------------------------------------------------------------------

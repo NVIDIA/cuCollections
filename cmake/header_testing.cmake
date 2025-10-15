@@ -20,11 +20,7 @@
 # .inl files are not globbed for, because they are not supposed to be used as public
 # entrypoints.
 
-add_custom_target(cuco.all.headers)
-
-function(cuco_add_header_test label definitions)
-  set(config_prefix "cuco")
-  
+function(cuco_add_header_tests)
   file(GLOB_RECURSE headers
     RELATIVE "${CUCO_SOURCE_DIR}/include"
     CONFIGURE_DEPENDS
@@ -33,7 +29,7 @@ function(cuco_add_header_test label definitions)
   )
   
   list(LENGTH headers headers_count)
-  message(STATUS "Found ${headers_count} headers for testing: ${headers}")
+  message(STATUS "Found ${headers_count} headers for testing")
 
   # List of headers that have known issues or are not meant to be included directly
   set(excluded_headers
@@ -46,11 +42,16 @@ function(cuco_add_header_test label definitions)
     list(REMOVE_ITEM headers ${excluded_headers})
   endif()
 
-  set(headertest_target ${config_prefix}.headers.${label})
-
-  # Generate header test sources
-  set(header_srcs)
+  # Create a separate executable for each header to avoid multiple main() definitions
   foreach (header IN LISTS headers)
+    # Create a safe target name by replacing path separators and dots
+    string(REPLACE "/" "_" header_target_name "${header}")
+    string(REPLACE "." "_" header_target_name "${header_target_name}")
+    # Use a hash to ensure uniqueness in case of similar names
+    string(MD5 header_hash "${header}")
+    string(SUBSTRING "${header_hash}" 0 8 header_hash_short)
+    set(headertest_target "cuco_header_${header_target_name}_${header_hash_short}")
+    
     set(header_src "${CMAKE_CURRENT_BINARY_DIR}/headers/${headertest_target}/${header}.cu")
     
     # Create the directory if it doesn't exist
@@ -59,25 +60,31 @@ function(cuco_add_header_test label definitions)
     
     # Write simple test file that includes the header
     file(WRITE "${header_src}" "#include <${header}>\nint main() { return 0; }\n")
-    list(APPEND header_srcs ${header_src})
+
+    # Create executable test for this specific header
+    add_executable(${headertest_target} ${header_src})
+    target_link_libraries(${headertest_target} PRIVATE cuco::cuco CUDA::cudart)
+
+    # Add required CUDA compiler flags for cuco
+    target_compile_options(${headertest_target} PRIVATE
+      $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
+      --compiler-options=-Wall --compiler-options=-Wextra
+      --compiler-options=-Werror -Wno-deprecated-gpu-targets
+    )
+
+    # Add GCC-specific warning suppression only for GCC
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      target_compile_options(${headertest_target} PRIVATE -Xcompiler -Wno-subobject-linkage)
+    endif()
+
+    # Place header test binaries in a subfolder
+    set_target_properties(${headertest_target} PROPERTIES
+      RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/headers"
+    )
+
+    # Add as a CTest test
+    add_test(NAME ${headertest_target} COMMAND ${headertest_target})
   endforeach()
-
-  # Create object library that compiles each header
-  add_library(${headertest_target} OBJECT ${header_srcs})
-  target_link_libraries(${headertest_target} PUBLIC cuco::cuco)
-  if (definitions)
-    target_compile_definitions(${headertest_target} PRIVATE ${definitions})
-  endif()
-
-  # Add required CUDA compiler flags for cuco
-  target_compile_options(${headertest_target} PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
-  )
-
-  # Macro collision checks are enabled to ensure cuco headers don't conflict with system headers
-
-  add_dependencies(cuco.all.headers ${headertest_target})
 endfunction()
 
-# Base header test - ensure all headers compile cleanly
-cuco_add_header_test(base "")
+cuco_add_header_tests()
