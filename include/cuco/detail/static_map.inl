@@ -40,8 +40,8 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
     slot_allocator_{alloc},
     counter_allocator_{alloc}
 {
-  slots_         = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
-  num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
+  slots_         = slot_allocator_.allocate(capacity_, cuda::stream_ref{stream});
+  num_successes_ = counter_allocator_.allocate(1, cuda::stream_ref{stream});
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
@@ -69,8 +69,8 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
                "The empty key sentinel and erased key sentinel cannot be the same value.",
                std::runtime_error);
 
-  slots_         = std::allocator_traits<slot_allocator_type>::allocate(slot_allocator_, capacity_);
-  num_successes_ = std::allocator_traits<counter_allocator_type>::allocate(counter_allocator_, 1);
+  slots_         = slot_allocator_.allocate(capacity_, cuda::stream_ref{stream});
+  num_successes_ = counter_allocator_.allocate(1, cuda::stream_ref{stream});
 
   auto constexpr block_size = 256;
   auto constexpr stride     = 4;
@@ -83,8 +83,8 @@ static_map<Key, Value, Scope, Allocator>::static_map(std::size_t capacity,
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 static_map<Key, Value, Scope, Allocator>::~static_map()
 {
-  std::allocator_traits<slot_allocator_type>::deallocate(slot_allocator_, slots_, capacity_);
-  std::allocator_traits<counter_allocator_type>::deallocate(counter_allocator_, num_successes_, 1);
+  slot_allocator_.deallocate(slots_, capacity_, cuda::stream_ref{cudaStream_t{nullptr}});
+  counter_allocator_.deallocate(num_successes_, 1, cuda::stream_ref{cudaStream_t{nullptr}});
 }
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
@@ -226,7 +226,7 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
     typename std::allocator_traits<Allocator>::template rebind_alloc<char>;
   auto temp_allocator = temp_allocator_type{slot_allocator_};
   auto d_num_out      = reinterpret_cast<std::size_t*>(
-    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(std::size_t)));
+    temp_allocator.allocate(sizeof(std::size_t), cuda::stream_ref{stream}));
   cub::DeviceSelect::If(nullptr,
                         temp_storage_bytes,
                         begin,
@@ -237,8 +237,7 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
                         stream);
 
   // Allocate temporary storage
-  auto d_temp_storage =
-    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, temp_storage_bytes);
+  auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes, cuda::stream_ref{stream});
 
   cub::DeviceSelect::If(d_temp_storage,
                         temp_storage_bytes,
@@ -253,10 +252,9 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
   CUCO_CUDA_TRY(
     cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
-  std::allocator_traits<temp_allocator_type>::deallocate(
-    temp_allocator, reinterpret_cast<char*>(d_num_out), sizeof(std::size_t));
-  std::allocator_traits<temp_allocator_type>::deallocate(
-    temp_allocator, d_temp_storage, temp_storage_bytes);
+  temp_allocator.deallocate(
+    reinterpret_cast<char*>(d_num_out), sizeof(std::size_t), cuda::stream_ref{stream});
+  temp_allocator.deallocate(d_temp_storage, temp_storage_bytes, cuda::stream_ref{stream});
 
   return std::make_pair(keys_out + h_num_out, values_out + h_num_out);
 }

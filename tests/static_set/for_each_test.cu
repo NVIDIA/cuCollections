@@ -47,7 +47,7 @@ void test_for_each(Set& set, size_type num_keys)
 
   using Allocator = cuco::cuda_allocator<cuda::atomic<size_type, cuda::thread_scope_device>>;
   cuco::detail::counter_storage<size_type, cuda::thread_scope_device, Allocator> counter_storage(
-    Allocator{});
+    Allocator{}, stream);
   counter_storage.reset(stream);
 
   // count the sum of all even keys

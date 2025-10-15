@@ -18,6 +18,8 @@
 
 #include <cuco/bucket_storage.cuh>
 
+#include <cuda/stream_ref>
+
 namespace cuco::detail {
 /**
  * @brief Intermediate class internally used by data structures
@@ -53,8 +55,10 @@ class storage : StorageImpl::template impl<T, Extent, Allocator> {
    *
    * @param size Number of slots to (de)allocate
    * @param allocator Allocator used for (de)allocating device storage
+   * @param stream Stream to use for (de)allocating device storage
    */
-  explicit constexpr storage(Extent size, Allocator const& allocator) : impl_type{size, allocator}
+  explicit constexpr storage(Extent size, Allocator const& allocator, cuda::stream_ref stream)
+    : impl_type{size, allocator, stream}
   {
   }
 };
