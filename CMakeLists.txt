@@ -98,7 +98,10 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
 # - optionally build tests ------------------------------------------------------------------------
 
 if(BUILD_TESTS)
+    include(CTest)
     add_subdirectory(tests)
+    # Include header tests as part of the regular test suite
+    include(cmake/header_testing.cmake)
 endif(BUILD_TESTS)
 
 ###################################################################################################
@@ -118,6 +121,7 @@ endif(BUILD_BENCHMARKS)
 if(BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif(BUILD_EXAMPLES)
+
 
 ###################################################################################################
 # - Install targets -------------------------------------------------------------------------------

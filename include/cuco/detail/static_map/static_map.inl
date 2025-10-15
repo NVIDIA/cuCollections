@@ -15,12 +15,13 @@
  */
 
 #include <cuco/detail/bitwise_compare.cuh>
-#include <cuco/detail/static_map/helpers.cuh>
 #include <cuco/detail/static_map/kernels.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utils.hpp>
+#include <cuco/extent.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/static_map_ref.cuh>
+#include <cuco/storage.cuh>
 
 #include <cuda/std/tuple>
 #include <cuda/stream_ref>
@@ -352,7 +353,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 {
   auto constexpr has_init = false;
   auto const init = this->empty_value_sentinel();  // use empty_sentinel as unused init value
-  detail::static_map_ns::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
+  this->dispatch_insert_or_apply<has_init, cg_size, Allocator>(
     first, last, init, op, ref(op::insert_or_apply), stream);
 }
 
@@ -370,7 +371,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
     InputIt first, InputIt last, Init init, Op op, cuda::stream_ref stream) noexcept
 {
   auto constexpr has_init = true;
-  detail::static_map_ns::dispatch_insert_or_apply<has_init, cg_size, Allocator>(
+  this->dispatch_insert_or_apply<has_init, cg_size, Allocator>(
     first, last, init, op, ref(op::insert_or_apply), stream);
 }
 
@@ -959,5 +960,93 @@ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
                                     impl_->probing_scheme(),
                                     cuda_thread_scope<Scope>{},
                                     impl_->storage_ref()};
+}
+
+template <class Key,
+          class T,
+          class Extent,
+          cuda::thread_scope Scope,
+          class KeyEqual,
+          class ProbingScheme,
+          class Allocator,
+          class Storage>
+template <bool HasInit,
+          int32_t CGSize,
+          typename AllocatorType,
+          typename InputIt,
+          typename InitType,
+          typename OpType,
+          typename RefType>
+void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  dispatch_insert_or_apply(
+    InputIt first, InputIt last, InitType init, OpType op, RefType ref, cuda::stream_ref stream)
+{
+  auto const num = cuco::detail::distance(first, last);
+  if (num == 0) { return; }
+
+  int32_t const default_grid_size = cuco::detail::grid_size(num, CGSize);
+
+  if constexpr (CGSize == 1) {
+    using shmem_size_type = int32_t;
+
+    int32_t constexpr shmem_block_size                = 1024;
+    shmem_size_type constexpr cardinality_threshold   = shmem_block_size;
+    shmem_size_type constexpr shared_map_num_elements = cardinality_threshold + shmem_block_size;
+    float constexpr load_factor                       = 0.7;
+    shmem_size_type constexpr shared_map_size =
+      static_cast<shmem_size_type>((1.0 / load_factor) * shared_map_num_elements);
+
+    using extent_type     = cuco::extent<shmem_size_type, shared_map_size>;
+    using shared_map_type = cuco::static_map<typename RefType::key_type,
+                                             typename RefType::mapped_type,
+                                             extent_type,
+                                             cuda::thread_scope_block,
+                                             typename RefType::key_equal,
+                                             typename RefType::probing_scheme_type,
+                                             AllocatorType,
+                                             cuco::storage<1>>;
+
+    using shared_map_ref_type = typename shared_map_type::template ref_type<>;
+    auto constexpr bucket_extent =
+      cuco::make_valid_extent<typename shared_map_ref_type::probing_scheme_type,
+                              typename shared_map_ref_type::storage_ref_type>(extent_type{});
+
+    auto insert_or_apply_shmem_fn_ptr =
+      cuco::detail::static_map_ns::insert_or_apply_shmem<HasInit,
+                                                         CGSize,
+                                                         shmem_block_size,
+                                                         shared_map_ref_type,
+                                                         InputIt,
+                                                         InitType,
+                                                         OpType,
+                                                         RefType>;
+
+    int32_t const max_op_grid_size =
+      cuco::detail::max_occupancy_grid_size(shmem_block_size, insert_or_apply_shmem_fn_ptr);
+
+    int32_t const shmem_default_grid_size =
+      cuco::detail::grid_size(num, CGSize, cuco::detail::default_stride(), shmem_block_size);
+
+    auto const shmem_grid_size         = std::min(shmem_default_grid_size, max_op_grid_size);
+    auto const num_elements_per_thread = num / (shmem_grid_size * shmem_block_size);
+
+    // use shared_memory only if each thread has atleast 3 elements to process
+    if (num_elements_per_thread > 2) {
+      cuco::detail::static_map_ns::
+        insert_or_apply_shmem<HasInit, CGSize, shmem_block_size, shared_map_ref_type>
+        <<<shmem_grid_size, shmem_block_size, 0, stream.get()>>>(
+          first, num, init, op, ref, bucket_extent);
+    } else {
+      cuco::detail::static_map_ns::
+        insert_or_apply<HasInit, CGSize, cuco::detail::default_block_size()>
+        <<<default_grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+          first, num, init, op, ref);
+    }
+  } else {
+    cuco::detail::static_map_ns::
+      insert_or_apply<HasInit, CGSize, cuco::detail::default_block_size()>
+      <<<default_grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num, init, op, ref);
+  }
 }
 }  // namespace cuco

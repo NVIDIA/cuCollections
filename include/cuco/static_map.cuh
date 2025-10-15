@@ -1215,6 +1215,36 @@ class static_map {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
+  /**
+   * @brief Dispatches to shared memory map kernel if `num_elements_per_thread > 2`, else
+   * fallbacks to global memory map kernel.
+   *
+   * @tparam HasInit Boolean to dispatch based on init parameter
+   * @tparam CGSize Number of threads in each CG
+   * @tparam Allocator Allocator type used to created shared_memory map
+   * @tparam InputIt Device accessible input iterator whose `value_type` is
+   * convertible to the `value_type` of the data structure
+   * @tparam Init Type of init value convertible to payload type
+   * @tparam Op Callable type used to peform `apply` operation.
+   * @tparam Ref Type of non-owning device ref allowing access to storage
+   *
+   * @param first Beginning of the sequence of input elements
+   * @param last End of the sequence of input elements
+   * @param init The init value of the `op`
+   * @param op Callable object to perform apply operation.
+   * @param ref Non-owning container device ref used to access the slot storage
+   * @param stream CUDA stream used for insert_or_apply operation
+   */
+  template <bool HasInit,
+            int32_t CGSize,
+            typename AllocatorType,
+            typename InputIt,
+            typename InitType,
+            typename OpType,
+            typename RefType>
+  void dispatch_insert_or_apply(
+    InputIt first, InputIt last, InitType init, OpType op, RefType ref, cuda::stream_ref stream);
+
   std::unique_ptr<impl_type> impl_;   ///< Static map implementation
   mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
 };
