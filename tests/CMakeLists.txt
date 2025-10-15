@@ -75,6 +75,7 @@ ConfigureTest(STATIC_SET_TEST
     static_set/rehash_test.cu
     static_set/size_test.cu
     static_set/shared_memory_test.cu
+    static_set/stream_test.cu
     static_set/unique_sequence_test.cu)
 
 ###################################################################################################
@@ -120,7 +121,8 @@ ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/retrieve_test.cu
     static_multiset/retrieve_if_test.cu
     static_multiset/large_input_test.cu
-    static_multiset/load_factor_test.cu)
+    static_multiset/load_factor_test.cu
+    static_multiset/stream_test.cu)
 
 ###################################################################################################
 # - static_multimap tests -------------------------------------------------------------------------

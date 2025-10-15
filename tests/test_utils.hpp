@@ -45,7 +45,7 @@ int count_if(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
   using Allocator = cuco::cuda_allocator<cuda::atomic<int, cuda::thread_scope_device>>;
 
   cuco::detail::counter_storage<int, cuda::thread_scope_device, Allocator> counter_storage(
-    Allocator{});
+    Allocator{}, cuda::stream_ref(stream));
 
   counter_storage.reset(cuda::stream_ref(stream));
 
@@ -87,7 +87,7 @@ bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cuda
   using Allocator      = cuco::cuda_allocator<cuda::atomic<int, cuda::thread_scope_device>>;
 
   cuco::detail::counter_storage<int, cuda::thread_scope_device, Allocator> counter_storage(
-    Allocator{});
+    Allocator{}, cuda::stream_ref(stream));
 
   counter_storage.reset(cuda::stream_ref(stream));
 

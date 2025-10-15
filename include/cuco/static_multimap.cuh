@@ -1472,14 +1472,18 @@ class static_multimap {
    * @brief Custom deleter for unique pointer of slots.
    */
   struct slot_deleter {
-    slot_deleter(allocator_type& a, size_t& c) : allocator{a}, capacity{c} {}
+    slot_deleter(allocator_type& a, size_t& c, cuda::stream_ref s)
+      : allocator{a}, capacity{c}, stream{s}
+    {
+    }
 
     slot_deleter(slot_deleter const&) = default;
 
-    void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity); }
+    void operator()(pair_atomic_type* ptr) { allocator.deallocate(ptr, capacity, stream); }
 
     allocator_type& allocator;
     size_t& capacity;
+    cuda::stream_ref stream;
   };
 
   class device_view_impl_base;

@@ -34,8 +34,8 @@ __host__ constexpr bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_fi
   Allocator const& alloc,
   cuda::stream_ref stream)
   : allocator_{alloc},
-    data_{allocator_.allocate(num_blocks),
-          detail::custom_deleter<std::size_t, allocator_type>{num_blocks, allocator_}},
+    data_{allocator_.allocate(num_blocks, stream),
+          detail::custom_deleter<std::size_t, allocator_type>{num_blocks, allocator_, stream}},
     ref_{data_.get(), num_blocks, {}, policy}
 {
   this->clear_async(stream);

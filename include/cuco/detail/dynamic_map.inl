@@ -271,7 +271,8 @@ std::pair<KeyOut, ValueOut> dynamic_map<Key, Value, Scope, Allocator>::retrieve_
     size_t{0});
   thrust::device_vector<size_t> submap_cap_prefix_d(submap_cap_prefix);
 
-  auto counter = detail::counter_storage<size_t, Scope, Allocator>{this->alloc_};
+  auto counter =
+    detail::counter_storage<size_t, Scope, Allocator>{this->alloc_, cuda::stream_ref{stream}};
   counter.reset({stream});
 
   detail::retrieve_all<block_size>

@@ -159,7 +159,8 @@ int main()
   auto const total_num_slots = offsets.back();
 
   // Create a single bulk storage used by all subsets
-  auto set_storage = storage_type{total_num_slots};
+  auto set_storage = storage_type{
+    total_num_slots, cuco::cuda_allocator<key_type>{}, cuda::stream_ref{cudaStream_t{nullptr}}};
   // Initializes the storage with the given sentinel
   set_storage.initialize(empty_key_sentinel);
 

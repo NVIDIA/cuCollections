@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 #pragma once
+
+#include <cuda/stream_ref>
 
 #include <cstddef>
 
@@ -35,9 +37,10 @@ struct custom_deleter {
    *
    * @param size Number of values to deallocate
    * @param allocator Allocator used for deallocating device storage
+   * @param stream Stream to use for deallocation
    */
-  explicit constexpr custom_deleter(SizeType size, Allocator& allocator)
-    : size_{size}, allocator_{allocator}
+  explicit constexpr custom_deleter(SizeType size, Allocator& allocator, cuda::stream_ref stream)
+    : size_{size}, allocator_{allocator}, stream_{stream}
   {
   }
 
@@ -46,10 +49,11 @@ struct custom_deleter {
    *
    * @param ptr Pointer to the first value for deallocation
    */
-  void operator()(pointer ptr) { allocator_.deallocate(ptr, size_); }
+  void operator()(pointer ptr) { allocator_.deallocate(ptr, size_, stream_); }
 
-  SizeType size_;         ///< Number of values to delete
-  Allocator& allocator_;  ///< Allocator used deallocating values
+  SizeType size_;            ///< Number of values to delete
+  Allocator& allocator_;     ///< Allocator used deallocating values
+  cuda::stream_ref stream_;  ///< Stream used for deallocation
 };
 
 /**

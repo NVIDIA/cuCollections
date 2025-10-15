@@ -42,17 +42,19 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
     auto s = cuco::bucket_storage<cuco::pair<Key, Value>,
                                   bucket_size,
                                   cuco::extent<std::size_t>,
-                                  allocator_type>{cuco::extent<std::size_t>{0}, allocator};
+                                  allocator_type>{
+      cuco::extent<std::size_t>{0}, allocator, cuda::stream_ref{cudaStream_t{nullptr}}};
 
     s.initialize(cuco::pair<Key, Value>{1, 1});
   }
 
   SECTION("Allocate array of pairs with AoS storage.")
   {
-    auto s                 = cuco::bucket_storage<cuco::pair<Key, Value>,
-                                                  bucket_size,
-                                                  cuco::extent<std::size_t>,
-                                                  allocator_type>(cuco::extent{size}, allocator);
+    auto s = cuco::bucket_storage<cuco::pair<Key, Value>,
+                                  bucket_size,
+                                  cuco::extent<std::size_t>,
+                                  allocator_type>(
+      cuco::extent{size}, allocator, cuda::stream_ref{cudaStream_t{nullptr}});
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
@@ -64,7 +66,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
   {
     using extent_type = cuco::extent<std::size_t, size>;
     auto s = cuco::bucket_storage<cuco::pair<Key, Value>, bucket_size, extent_type, allocator_type>(
-      extent_type{}, allocator);
+      extent_type{}, allocator, cuda::stream_ref{cudaStream_t{nullptr}});
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
@@ -75,7 +77,7 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
   SECTION("Allocate array of keys with AoS storage.")
   {
     auto s = cuco::bucket_storage<Key, bucket_size, cuco::extent<std::size_t>, allocator_type>(
-      cuco::extent{size}, allocator);
+      cuco::extent{size}, allocator, cuda::stream_ref{cudaStream_t{nullptr}});
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 
@@ -86,8 +88,8 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
   SECTION("Allocate array of keys with AoS storage with static extent.")
   {
     using extent_type = cuco::extent<std::size_t, size>;
-    auto s =
-      cuco::bucket_storage<Key, bucket_size, extent_type, allocator_type>(extent_type{}, allocator);
+    auto s            = cuco::bucket_storage<Key, bucket_size, extent_type, allocator_type>(
+      extent_type{}, allocator, cuda::stream_ref{cudaStream_t{nullptr}});
     auto const num_buckets = s.num_buckets();
     auto const capacity    = s.capacity();
 

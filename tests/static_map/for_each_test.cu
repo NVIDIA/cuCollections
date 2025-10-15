@@ -50,7 +50,7 @@ void test_for_each(Map& map, size_type num_keys)
 
   using Allocator = cuco::cuda_allocator<cuda::atomic<size_type, cuda::thread_scope_device>>;
   cuco::detail::counter_storage<size_type, cuda::thread_scope_device, Allocator> counter_storage(
-    Allocator{});
+    Allocator{}, stream);
   counter_storage.reset(stream);
 
   // count all the keys which are even and whose payload has value 1
