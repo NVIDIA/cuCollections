@@ -17,18 +17,17 @@
 
 #include <cuco/detail/bitwise_compare.cuh>
 
-#include <cstddef>
+#include <cuda/std/cstdint>
 
-namespace cuco {
-namespace detail {
+namespace cuco::detail {
 
 /**
  * @brief Enum of equality comparison results
  */
 // ENUM VALUE MATTERS, DO NOT CHANGE
-enum class equal_result : int32_t { UNEQUAL = 0, EQUAL = 1, EMPTY = 2, AVAILABLE = 3 };
+enum class equal_result : cuda::std::int8_t { UNEQUAL = 0, EQUAL = 1, EMPTY = 2, AVAILABLE = 3 };
 
-enum class is_insert : bool { YES, NO };
+enum class is_insert : cuda::std::int8_t { YES, NO };
 
 /**
  * @brief Key equality wrapper.
@@ -116,5 +115,4 @@ struct equal_wrapper {
   }
 };
 
-}  // namespace detail
-}  // namespace cuco
+}  // namespace cuco::detail

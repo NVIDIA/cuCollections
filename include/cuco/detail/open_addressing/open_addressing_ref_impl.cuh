@@ -42,7 +42,7 @@ namespace cuco {
 namespace detail {
 
 /// Three-way insert result enum
-enum class insert_result : cuda::std::int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+enum class insert_result : cuda::std::int8_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 
 /**
  * @brief Helper struct to store intermediate bucket probing results.
