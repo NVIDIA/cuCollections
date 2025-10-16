@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,8 +37,9 @@ enum class is_insert : bool { YES, NO };
  *
  * @tparam T Right-hand side Element type
  * @tparam Equal Type of user-provided equality binary callable
+ * @tparam AllowsDuplicates Flag indicating whether duplicate keys are allowed
  */
-template <typename T, typename Equal>
+template <typename T, typename Equal, bool AllowsDuplicates>
 struct equal_wrapper {
   // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
   T empty_sentinel_;   ///< Empty sentinel value
@@ -97,10 +98,17 @@ struct equal_wrapper {
   __device__ constexpr equal_result operator()(LHS const& lhs, RHS const& rhs) const noexcept
   {
     if constexpr (IsInsert == is_insert::YES) {
-      return (cuco::detail::bitwise_compare(rhs, empty_sentinel_) or
-              cuco::detail::bitwise_compare(rhs, erased_sentinel_))
-               ? equal_result::AVAILABLE
-               : this->equal_to(lhs, rhs);
+      if (cuco::detail::bitwise_compare(rhs, empty_sentinel_) or
+          cuco::detail::bitwise_compare(rhs, erased_sentinel_)) {
+        return equal_result::AVAILABLE;
+      }
+      // Optimization: For containers that allow duplicates, skip expensive key equality check
+      // during insertion since we always insert regardless of whether the key already exists
+      if constexpr (AllowsDuplicates) {
+        return equal_result::UNEQUAL;
+      } else {
+        return this->equal_to(lhs, rhs);
+      }
     } else {
       return cuco::detail::bitwise_compare(rhs, empty_sentinel_) ? equal_result::EMPTY
                                                                  : this->equal_to(lhs, rhs);
