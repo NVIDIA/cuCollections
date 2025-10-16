@@ -20,6 +20,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utility/math.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/error.hpp>
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/std/cstddef>
