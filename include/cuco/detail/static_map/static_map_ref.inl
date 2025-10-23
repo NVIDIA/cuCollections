@@ -24,6 +24,7 @@
 #include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
+#include <cuda/utility>
 
 #include <cooperative_groups.h>
 
@@ -576,16 +577,17 @@ class operator_impl<
       auto const bucket_slots = storage_ref[*probing_iter];
 
       auto const [state, intra_bucket_index] = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < bucket_size; ++i) {
-          res =
-            ref_.impl_.predicate_.template operator()<is_insert::YES>(key, bucket_slots[i].first);
-          if (res != detail::equal_result::UNEQUAL) {
-            return detail::bucket_probing_results{res, i};
+        detail::bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
+        cuda::static_for<bucket_size>([&](auto i) {
+          if (result.state_ == detail::equal_result::UNEQUAL) {
+            auto res = ref_.impl_.predicate_.template operator()<is_insert::YES>(
+              key, bucket_slots[i()].first);
+            if (res != detail::equal_result::UNEQUAL) {
+              result = detail::bucket_probing_results{res, i()};
+            }
           }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return detail::bucket_probing_results{res, -1};
+        });
+        return result;
       }();
 
       auto slot_ptr = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);
@@ -978,16 +980,17 @@ class operator_impl<
       auto const bucket_slots = storage_ref[*probing_iter];
 
       auto const [state, intra_bucket_index] = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < bucket_size; ++i) {
-          res =
-            ref_.impl_.predicate_.template operator()<is_insert::YES>(key, bucket_slots[i].first);
-          if (res != detail::equal_result::UNEQUAL) {
-            return detail::bucket_probing_results{res, i};
+        detail::bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
+        cuda::static_for<bucket_size>([&](auto i) {
+          if (result.state_ == detail::equal_result::UNEQUAL) {
+            auto res = ref_.impl_.predicate_.template operator()<is_insert::YES>(
+              key, bucket_slots[i()].first);
+            if (res != detail::equal_result::UNEQUAL) {
+              result = detail::bucket_probing_results{res, i()};
+            }
           }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return detail::bucket_probing_results{res, -1};
+        });
+        return result;
       }();
 
       auto* slot_ptr = ref_.impl_.get_slot_ptr(*probing_iter, intra_bucket_index);

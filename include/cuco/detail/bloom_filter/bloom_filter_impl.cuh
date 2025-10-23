@@ -34,6 +34,7 @@
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 #include <cuda/stream_ref>
+#include <cuda/utility>
 #include <thrust/iterator/constant_iterator.h>
 
 #include <cooperative_groups.h>
@@ -142,15 +143,14 @@ class bloom_filter_impl {
   template <class HashValue, class BlockIndex>
   __device__ void add_impl(HashValue const& hash_value, BlockIndex block_index)
   {
-#pragma unroll words_per_block
-    for (uint32_t i = 0; i < words_per_block; ++i) {
-      auto const word = policy_.word_pattern(hash_value, i);
+    cuda::static_for<words_per_block>([&](auto i) {
+      auto const word = policy_.word_pattern(hash_value, i());
       if (word != 0) {
         auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
-          *(words_ + (block_index * words_per_block + i))};
+          *(words_ + (block_index * words_per_block + i()))};
         atom_word.fetch_or(word, cuda::memory_order_relaxed);
       }
-    }
+    });
   }
 
   template <class CG, class ProbeKey>
@@ -205,9 +205,11 @@ class bloom_filter_impl {
           block_index = policy_.block_index(hash_value, num_blocks_);
         }
 
-        for (uint32_t j = 0; (j < num_threads) and (i + j < num_keys); ++j) {
-          this->add_impl(group, group.shfl(hash_value, j), group.shfl(block_index, j));
-        }
+        cuda::static_for<num_threads>([&](auto j) {
+          if ((j() < num_threads) and (i + j() < num_keys)) {
+            this->add_impl(group, group.shfl(hash_value, j()), group.shfl(block_index, j()));
+          }
+        });
       }
     } else {  // subdivide given CG into multiple optimal CGs
       typename policy_type::hash_result_type hash_value;
@@ -225,10 +227,13 @@ class bloom_filter_impl {
           block_index = policy_.block_index(hash_value, num_blocks_);
         }
 
-        for (uint32_t j = 0; (j < worker_num_threads) and (i + worker_offset + j < num_keys); ++j) {
-          this->add_impl(
-            worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
-        }
+        cuda::static_for<worker_num_threads>([&](auto j) {
+          if ((j() < worker_num_threads) and (i + worker_offset + j() < num_keys)) {
+            this->add_impl(worker_group,
+                           worker_group.shfl(hash_value, j()),
+                           worker_group.shfl(block_index, j()));
+          }
+        });
       }
     }
   }
@@ -245,12 +250,13 @@ class bloom_filter_impl {
         *(words_ + (block_index * words_per_block + rank))};
       atom_word.fetch_or(policy_.word_pattern(hash_value, rank), cuda::memory_order_relaxed);
     } else {
-#pragma unroll
-      for (auto i = rank; i < words_per_block; i += num_threads) {
-        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
-          *(words_ + (block_index * words_per_block + i))};
-        atom_word.fetch_or(policy_.word_pattern(hash_value, i), cuda::memory_order_relaxed);
-      }
+      cuda::static_for<words_per_block>([&](auto i) {
+        if (i() >= rank && (i() - rank) % num_threads == 0) {
+          auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
+            *(words_ + (block_index * words_per_block + i()))};
+          atom_word.fetch_or(policy_.word_pattern(hash_value, i()), cuda::memory_order_relaxed);
+        }
+      });
     }
   }
 
@@ -330,11 +336,12 @@ class bloom_filter_impl {
     auto const stored_pattern = this->vec_load_words<words_per_block>(
       policy_.block_index(hash_value, num_blocks_) * words_per_block);
 
-#pragma unroll words_per_block
-    for (uint32_t i = 0; i < words_per_block; ++i) {
-      auto const expected_pattern = policy_.word_pattern(hash_value, i);
-      if ((stored_pattern[i] & expected_pattern) != expected_pattern) { return false; }
-    }
+    bool result = true;
+    cuda::static_for<words_per_block>([&](auto i) {
+      auto const expected_pattern = policy_.word_pattern(hash_value, i());
+      if ((stored_pattern[i()] & expected_pattern) != expected_pattern) { result = false; }
+    });
+    if (!result) { return false; }
 
     return true;
   }
@@ -354,17 +361,17 @@ class bloom_filter_impl {
       auto const hash_value = policy_.hash(key);
       bool success          = true;
 
-#pragma unroll
-      for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
-        auto const thread_offset  = i * words_per_thread;
-        auto const stored_pattern = this->vec_load_words<words_per_thread>(
-          policy_.block_index(hash_value, num_blocks_) * words_per_block + thread_offset);
-#pragma unroll words_per_thread
-        for (uint32_t j = 0; j < words_per_thread; ++j) {
-          auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
-          if ((stored_pattern[j] & expected_pattern) != expected_pattern) { success = false; }
+      cuda::static_for<optimal_num_threads>([&](auto i) {
+        if (i() >= rank && (i() - rank) % num_threads == 0) {
+          auto const thread_offset  = i() * words_per_thread;
+          auto const stored_pattern = this->vec_load_words<words_per_thread>(
+            policy_.block_index(hash_value, num_blocks_) * words_per_block + thread_offset);
+          cuda::static_for<words_per_thread>([&](auto j) {
+            auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j());
+            if ((stored_pattern[j()] & expected_pattern) != expected_pattern) { success = false; }
+          });
         }
-      }
+      });
 
       return group.all(success);
     }

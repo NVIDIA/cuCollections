@@ -27,6 +27,7 @@
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/stream_ref>
+#include <cuda/utility>
 #include <thrust/iterator/constant_iterator.h>
 
 namespace cuco::experimental::detail {
