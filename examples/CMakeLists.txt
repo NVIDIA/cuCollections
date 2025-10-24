@@ -25,7 +25,7 @@ function(ConfigureExample EXAMPLE_NAME EXAMPLE_SRC)
     target_include_directories(${EXAMPLE_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_options(${EXAMPLE_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda)
+      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda -Xcudafe --promote_warnings)
     # Add GCC-specific warning suppression only for GCC
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       target_compile_options(${EXAMPLE_NAME} PRIVATE -Xcompiler -Wno-subobject-linkage)

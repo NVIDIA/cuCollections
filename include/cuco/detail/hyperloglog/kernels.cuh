@@ -72,14 +72,14 @@ CUCO_KERNEL void add_shmem_vectorized(typename RefType::value_type const* first,
 #if defined(CUCO_HAS_CG_INVOKE_ONE)
   cooperative_groups::invoke_one(grid, [&]() {
     auto const remainder = n % VectorSize;
-    cuda::static_for<VectorSize>([&](auto i) {
+    cuda::static_for<VectorSize>([&] __device__(auto i) {
       if (i() < remainder) { local_ref.add(*(first + n - i() - 1)); }
     });
   });
 #else
   if (grid.thread_rank() == 0) {
     auto const remainder = n % VectorSize;
-    cuda::static_for<VectorSize>([&](auto i) {
+    cuda::static_for<VectorSize>([&] __device__(auto i) {
       if (i() < remainder) { local_ref.add(*(first + n - i() - 1)); }
     });
   }

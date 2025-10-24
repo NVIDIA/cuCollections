@@ -55,7 +55,7 @@ void roaring_bitmap_contains(nvbench::state& state, nvbench::type_list<T>)
 
   thrust::device_vector<T> items(num_items);
 
-  key_generator gen{};
+  [[maybe_unused]] key_generator gen{};
   gen.generate(distribution::unique{}, items.begin(), items.end());
 
   thrust::device_vector<bool> contained(items.size(), false);

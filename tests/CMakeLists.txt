@@ -39,7 +39,7 @@ function(ConfigureTest TEST_NAME)
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
     target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda)
+      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda -Xcudafe --promote_warnings)
     # Add GCC-specific warning suppression only for GCC
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
       target_compile_options(${TEST_NAME} PRIVATE -Xcompiler -Wno-subobject-linkage)

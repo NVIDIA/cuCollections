@@ -578,7 +578,7 @@ class operator_impl<
 
       auto const [state, intra_bucket_index] = [&]() {
         detail::bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
-        cuda::static_for<bucket_size>([&](auto i) {
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = ref_.impl_.predicate_.template operator()<is_insert::YES>(
               key, bucket_slots[i()].first);
@@ -981,7 +981,7 @@ class operator_impl<
 
       auto const [state, intra_bucket_index] = [&]() {
         detail::bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
-        cuda::static_for<bucket_size>([&](auto i) {
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = ref_.impl_.predicate_.template operator()<is_insert::YES>(
               key, bucket_slots[i()].first);

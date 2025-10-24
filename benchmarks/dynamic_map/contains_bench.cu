@@ -43,7 +43,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_contains(
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen{};
+  [[maybe_unused]] key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   thrust::device_vector<pair_type> pairs(num_keys);
