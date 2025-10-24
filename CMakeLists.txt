@@ -95,6 +95,30 @@ option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ON)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
 
 ###################################################################################################
+# - common compile options function ---------------------------------------------------------------
+
+function(cuco_set_common_compile_options target_name)
+    # Parse optional arguments
+    cmake_parse_arguments(CUCO_OPTS "ADD_LINEINFO" "" "" ${ARGN})
+    
+    # Base compile options common to all targets
+    target_compile_options(${target_name} PRIVATE 
+        --compiler-options=-Wall --compiler-options=-Wextra --compiler-options=-Werror 
+        -Wno-deprecated-gpu-targets --expt-extended-lambda -Werror=all-warnings
+    )
+    
+    # Add lineinfo option if requested (typically for benchmarks)
+    if(CUCO_OPTS_ADD_LINEINFO)
+        target_compile_options(${target_name} PRIVATE -lineinfo)
+    endif()
+    
+    # Add GCC-specific warning suppression only for GCC
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target_name} PRIVATE -Xcompiler -Wno-subobject-linkage)
+    endif()
+endfunction()
+
+###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------
 
 if(BUILD_TESTS)
