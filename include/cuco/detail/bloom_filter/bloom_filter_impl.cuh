@@ -48,7 +48,7 @@ class bloom_filter_impl {
   // TODO remove these once we settled on a setup which works best
   static constexpr bool use_invoke_one  = true;
   static constexpr bool use_early_exit  = false;
-  static constexpr bool use_cub_kernels = false;
+  static constexpr bool use_cub_kernels = false;  // use in cache domain
 
  public:
   using key_type    = Key;
@@ -62,7 +62,9 @@ class bloom_filter_impl {
 
   // These knobs need to be public for exposure to the kernel definitions
   static constexpr bool use_warp_cooperative_add_kernel      = true;
-  static constexpr bool use_warp_cooperative_contains_kernel = true;
+  static constexpr bool use_warp_cooperative_contains_kernel = false;
+  static constexpr bool use_work_stealing_add_kernel         = false;  // TODO add guard for <sm_100
+  static constexpr bool use_work_stealing_contains_kernel    = false;
   static constexpr bool use_cuda_atomic_ref                  = false;
 
   static constexpr auto thread_scope    = Scope;
@@ -749,11 +751,21 @@ class bloom_filter_impl {
                              words_per_block * sizeof(word_type);
 
     if (2 * filter_size < l2_cache_size) {
-      detail::bloom_filter_ns::add_exp_n<false, cg_size, block_size>
-        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+      if constexpr (use_work_stealing_add_kernel) {
+        detail::bloom_filter_ns::add_exp_work_stealing_n<false, cg_size, block_size>
+          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+      } else {
+        detail::bloom_filter_ns::add_exp_n<false, cg_size, block_size>
+          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+      }
     } else {
-      detail::bloom_filter_ns::add_exp_n<true, cg_size, block_size>
-        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+      if constexpr (use_work_stealing_add_kernel) {
+        detail::bloom_filter_ns::add_exp_work_stealing_n<true, cg_size, block_size>
+          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+      } else {
+        detail::bloom_filter_ns::add_exp_n<true, cg_size, block_size>
+          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+      }
     }
   }
 
@@ -859,8 +871,13 @@ class bloom_filter_impl {
                                     ? cuco::detail::int_div_ceil(num_keys, block_size)
                                     : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
-      detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
-        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+      if constexpr (use_work_stealing_contains_kernel) {
+        detail::bloom_filter_ns::contains_exp_work_stealing_n<cg_size, block_size>
+          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+      } else {
+        detail::bloom_filter_ns::contains_exp_n<cg_size, block_size>
+          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+      }
     }
   }
 
