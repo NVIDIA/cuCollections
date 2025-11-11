@@ -65,7 +65,9 @@ struct lazy_discard {
   __device__ void device_dispatch(index_type index, value_type const& value) const
   {
     // pick some predicate that is always false, but depends on the runtime value
-    if (threadIdx.x > 2025 + *reinterpret_cast<char const*>(&value)) { *(it + index) = value; }
+    if (threadIdx.x > 2025 + *reinterpret_cast<char const*>(&value) + static_cast<int>(index)) {
+      *(it + index) = value;
+    }
   }
   __host__ __device__ void operator()(index_type index, value_type const& value) const
   {
