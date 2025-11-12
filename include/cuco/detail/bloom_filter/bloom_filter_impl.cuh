@@ -63,7 +63,7 @@ class bloom_filter_impl {
   // These knobs need to be public for exposure to the kernel definitions
   static constexpr bool use_warp_cooperative_add_kernel      = true;
   static constexpr bool use_warp_cooperative_contains_kernel = false;
-  static constexpr bool use_work_stealing_add_kernel         = false;  // TODO add guard for <sm_100
+  static constexpr bool use_work_stealing_add_kernel         = false;
   static constexpr bool use_work_stealing_contains_kernel    = false;
   static constexpr bool use_cuda_atomic_ref                  = false;
 

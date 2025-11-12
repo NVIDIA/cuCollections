@@ -24,6 +24,7 @@
 #include <cooperative_groups.h>
 
 #include <cstdint>
+#include <nv/target>
 
 namespace cuco::detail::bloom_filter_ns {
 
@@ -144,9 +145,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
 // Parametric Filter Policy
 //===--------------------------------------------------===//
 template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
-                                                        cuco::detail::index_type n,
-                                                        Ref ref)
+__device__ void add_exp_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
 {
   namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
@@ -182,9 +181,15 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
 }
 
 template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_work_stealing_n(InputIt first,
-                                                                      cuco::detail::index_type n,
-                                                                      Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_n(InputIt first,
+                                                        cuco::detail::index_type n,
+                                                        Ref ref)
+{
+  add_exp_n_impl<ConditionalAtomic, CGSize, BlockSize>(first, n, ref);
+}
+
+template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+__device__ void add_exp_work_stealing_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
 {
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
@@ -266,11 +271,22 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_work_stealing_n(InputIt fi
   }
 }
 
+template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void add_exp_work_stealing_n(InputIt first,
+                                                                      cuco::detail::index_type n,
+                                                                      Ref ref)
+{
+  NV_IF_ELSE_TARGET(
+    NV_PROVIDES_SM_100,
+    (add_exp_work_stealing_n_impl<ConditionalAtomic, CGSize, BlockSize>(first, n, ref);),
+    (add_exp_n_impl<ConditionalAtomic, CGSize, BlockSize>(first, n, ref);))
+}
+
 template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_n(InputIt first,
-                                                             cuco::detail::index_type n,
-                                                             OutputIt output_begin,
-                                                             Ref ref)
+__device__ void contains_exp_n_impl(InputIt first,
+                                    cuco::detail::index_type n,
+                                    OutputIt output_begin,
+                                    Ref ref)
 {
   namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
@@ -308,8 +324,19 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_n(InputIt first,
 }
 
 template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_work_stealing_n(
-  InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_n(InputIt first,
+                                                             cuco::detail::index_type n,
+                                                             OutputIt output_begin,
+                                                             Ref ref)
+{
+  contains_exp_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);
+}
+
+template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
+__device__ void contains_exp_work_stealing_n_impl(InputIt first,
+                                                  cuco::detail::index_type n,
+                                                  OutputIt output_begin,
+                                                  Ref ref)
 {
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
@@ -391,6 +418,17 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_work_stealing_n(
     ptx::fence_proxy_async_generic_sync_restrict(
       ptx::sem_release, ptx::space_shared, ptx::scope_cluster);
   }
+}
+
+template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_work_stealing_n(
+  InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
+{
+  // contains_exp_work_stealing_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);
+  NV_IF_ELSE_TARGET(
+    NV_PROVIDES_SM_100,
+    (contains_exp_work_stealing_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);),
+    (contains_exp_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);))
 }
 
 }  // namespace cuco::detail::bloom_filter_ns
