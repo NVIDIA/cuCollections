@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,8 +26,8 @@ struct tuple_size<volatile cuco::pair<T1, T2>> : tuple_size<cuco::pair<T1, T2>> 
 template <typename T1, typename T2>
 struct tuple_size<const volatile cuco::pair<T1, T2>> : tuple_size<cuco::pair<T1, T2>> {};
 
-template <std::size_t I, typename T1, typename T2>
-struct tuple_element<I, cuco::pair<T1, T2>> {
+template <std::size_t Index, typename T1, typename T2>
+struct tuple_element<Index, cuco::pair<T1, T2>> {
   using type = void;
 };
 
@@ -61,48 +61,48 @@ template <typename T1, typename T2>
 struct tuple_element<1, const volatile cuco::pair<T1, T2>> : tuple_element<1, cuco::pair<T1, T2>> {
 };
 
-template <std::size_t I, typename T1, typename T2>
+template <std::size_t Index, typename T1, typename T2>
 __host__ __device__ constexpr auto get(cuco::pair<T1, T2>& p) ->
-  typename tuple_element<I, cuco::pair<T1, T2>>::type&
+  typename tuple_element<Index, cuco::pair<T1, T2>>::type&
 {
-  static_assert(I < 2);
-  if constexpr (I == 0) {
+  static_assert(Index < 2);
+  if constexpr (Index == 0) {
     return p.first;
   } else {
     return p.second;
   }
 }
 
-template <std::size_t I, typename T1, typename T2>
+template <std::size_t Index, typename T1, typename T2>
 __host__ __device__ constexpr auto get(cuco::pair<T1, T2>&& p) ->
-  typename tuple_element<I, cuco::pair<T1, T2>>::type&&
+  typename tuple_element<Index, cuco::pair<T1, T2>>::type&&
 {
-  static_assert(I < 2);
-  if constexpr (I == 0) {
+  static_assert(Index < 2);
+  if constexpr (Index == 0) {
     return cuda::std::move(p.first);
   } else {
     return cuda::std::move(p.second);
   }
 }
 
-template <std::size_t I, typename T1, typename T2>
+template <std::size_t Index, typename T1, typename T2>
 __host__ __device__ constexpr auto get(cuco::pair<T1, T2> const& p) ->
-  typename tuple_element<I, cuco::pair<T1, T2>>::type const&
+  typename tuple_element<Index, cuco::pair<T1, T2>>::type const&
 {
-  static_assert(I < 2);
-  if constexpr (I == 0) {
+  static_assert(Index < 2);
+  if constexpr (Index == 0) {
     return p.first;
   } else {
     return p.second;
   }
 }
 
-template <std::size_t I, typename T1, typename T2>
+template <std::size_t Index, typename T1, typename T2>
 __host__ __device__ constexpr auto get(cuco::pair<T1, T2> const&& p) ->
-  typename tuple_element<I, cuco::pair<T1, T2>>::type const&&
+  typename tuple_element<Index, cuco::pair<T1, T2>>::type const&&
 {
-  static_assert(I < 2);
-  if constexpr (I == 0) {
+  static_assert(Index < 2);
+  if constexpr (Index == 0) {
     return cuda::std::move(p.first);
   } else {
     return cuda::std::move(p.second);

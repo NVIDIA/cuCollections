@@ -1,6 +1,6 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
- * SPDX-License-Identifier: Apache-2.0
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights
+ * reserved. SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #pragma once
 
+#include <cuco/detail/trie/dynamic_bitset/dynamic_bitset.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 

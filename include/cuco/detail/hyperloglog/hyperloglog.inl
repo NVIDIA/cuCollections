@@ -22,9 +22,9 @@ constexpr hyperloglog<T, Scope, Hash, Allocator>::hyperloglog(cuco::sketch_size_
                                                               Allocator const& alloc,
                                                               cuda::stream_ref stream)
   : allocator_{alloc},
-    sketch_{
-      allocator_.allocate(sketch_bytes(sketch_size_kb) / sizeof(register_type)),
-      detail::custom_deleter{sketch_bytes(sketch_size_kb) / sizeof(register_type), allocator_}},
+    sketch_{allocator_.allocate(sketch_bytes(sketch_size_kb) / sizeof(register_type), stream),
+            detail::custom_deleter{
+              sketch_bytes(sketch_size_kb) / sizeof(register_type), allocator_, stream}},
     ref_{cuda::std::span{reinterpret_cast<cuda::std::byte*>(sketch_.get()),
                          sketch_bytes(sketch_size_kb)},
          hash}
@@ -39,9 +39,9 @@ constexpr hyperloglog<T, Scope, Hash, Allocator>::hyperloglog(
   Allocator const& alloc,
   cuda::stream_ref stream)
   : allocator_{alloc},
-    sketch_{
-      allocator_.allocate(sketch_bytes(standard_deviation) / sizeof(register_type)),
-      detail::custom_deleter{sketch_bytes(standard_deviation) / sizeof(register_type), allocator_}},
+    sketch_{allocator_.allocate(sketch_bytes(standard_deviation) / sizeof(register_type), stream),
+            detail::custom_deleter{
+              sketch_bytes(standard_deviation) / sizeof(register_type), allocator_, stream}},
     ref_{cuda::std::span{reinterpret_cast<cuda::std::byte*>(sketch_.get()),
                          sketch_bytes(standard_deviation)},
          hash}

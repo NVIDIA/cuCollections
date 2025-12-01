@@ -787,8 +787,8 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::static_multimap(
     empty_key_sentinel_{empty_key_sentinel.value},
     empty_value_sentinel_{empty_value_sentinel.value},
     allocator_{alloc},
-    delete_slots_{allocator_, capacity_},
-    slots_{allocator_.allocate(capacity_), delete_slots_}
+    delete_slots_{allocator_, capacity_, cuda::stream_ref{stream}},
+    slots_{allocator_.allocate(capacity_, cuda::stream_ref{stream}), delete_slots_}
 {
   auto constexpr block_size = 128;
   auto constexpr stride     = 4;
@@ -909,7 +909,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count(
   auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
-  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_, stream};
   counter.reset(stream);
 
   detail::count<block_size, cg_size(), is_outer>
@@ -937,7 +937,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::count_
   auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_keys + stride * block_size - 1) / (stride * block_size);
 
-  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_, stream};
   counter.reset(stream);
 
   detail::count<block_size, cg_size(), is_outer>
@@ -965,7 +965,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_c
   auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
-  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_, stream};
   counter.reset(stream);
 
   detail::pair_count<block_size, cg_size(), is_outer>
@@ -993,7 +993,7 @@ std::size_t static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_c
   auto view            = get_device_view();
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
-  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_, stream};
   counter.reset(stream);
 
   detail::pair_count<block_size, cg_size(), is_outer>
@@ -1026,7 +1026,7 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve(
 
   auto const grid_size = detail::grid_size(num_keys, cg_size());
 
-  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_, stream};
   counter.reset(stream);
 
   detail::retrieve<detail::default_block_size(), flushing_cg_size, cg_size(), buffer_size, is_outer>
@@ -1060,7 +1060,7 @@ OutputIt static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::retrieve_
 
   auto const grid_size = detail::grid_size(num_keys, cg_size());
 
-  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_, stream};
   counter.reset(stream);
 
   detail::retrieve<detail::default_block_size(), flushing_cg_size, cg_size(), buffer_size, is_outer>
@@ -1101,7 +1101,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve(
   }();
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
-  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_, stream};
   counter.reset(stream);
 
   detail::pair_retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>
@@ -1148,7 +1148,7 @@ static_multimap<Key, Value, Scope, Allocator, ProbeSequence>::pair_retrieve_oute
   }();
   auto const grid_size = (cg_size() * num_pairs + stride * block_size - 1) / (stride * block_size);
 
-  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_};
+  auto counter = detail::counter_storage<size_type, Scope, allocator_type>{allocator_, stream};
   counter.reset(stream);
 
   detail::pair_retrieve<block_size, flushing_cg_size, cg_size(), buffer_size, is_outer>

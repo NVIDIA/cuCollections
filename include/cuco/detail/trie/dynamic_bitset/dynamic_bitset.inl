@@ -195,8 +195,8 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
                                     stream.get()>>>(
     bit_counts_begin, select_markers_begin, num_blocks, words_per_block, bits_per_block);
 
-  auto d_sum = reinterpret_cast<size_type*>(thrust::raw_pointer_cast(
-    std::allocator_traits<temp_allocator_type>::allocate(temp_allocator, sizeof(size_type))));
+  auto d_sum = reinterpret_cast<size_type*>(
+    thrust::raw_pointer_cast(temp_allocator.allocate(sizeof(size_type))));
   CUCO_CUDA_TRY(cub::DeviceReduce::Sum(
     nullptr, temp_storage_bytes, select_markers_begin, d_sum, num_blocks, stream.get()));
 
@@ -217,8 +217,8 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
 #else
   stream.wait();
 #endif
-  std::allocator_traits<temp_allocator_type>::deallocate(
-    temp_allocator, thrust::device_ptr<char>{reinterpret_cast<char*>(d_sum)}, sizeof(size_type));
+  temp_allocator.deallocate(thrust::device_ptr<char>{reinterpret_cast<char*>(d_sum)},
+                            sizeof(size_type));
   temp_allocator.deallocate(d_temp_storage, temp_storage_bytes);
 
   selects.resize(num_selects);

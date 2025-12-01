@@ -97,10 +97,11 @@ bucket_storage_ref<T, BucketSize, Extent>::extent() const noexcept
 
 template <typename T, int BucketSize, typename Extent, typename Allocator>
 constexpr bucket_storage<T, BucketSize, Extent, Allocator>::bucket_storage(
-  Extent size, Allocator const& allocator)
+  Extent size, Allocator const& allocator, cuda::stream_ref stream)
   : extent_{size},
     allocator_{allocator},
-    slots_{allocator_.allocate(capacity()), slot_deleter_type{capacity(), allocator_}}
+    slots_{allocator_.allocate(capacity(), stream),
+           slot_deleter_type{capacity(), allocator_, stream}}
 {
 }
 

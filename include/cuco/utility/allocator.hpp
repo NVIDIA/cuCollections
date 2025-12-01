@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2023, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,13 @@
 
 #include <cuco/detail/error.hpp>
 
+#include <cuda/stream_ref>
+
+#include <cstddef>
+
 namespace cuco {
 /**
- * @brief A device allocator using `cudaMalloc`/`cudaFree` to satisfy (de)allocations.
+ * @brief A stream-ordered device allocator using `cudaMallocAsync`/`cudaFreeAsync`.
  *
  * @tparam T The allocator's value type
  */
@@ -40,24 +44,29 @@ class cuda_allocator {
   }
 
   /**
-   * @brief Allocates storage for `n` objects of type `T` using `cudaMalloc`.
+   * @brief Allocates storage for `n` objects of type `T` using `cudaMallocAsync`.
    *
    * @param n The number of objects to allocate storage for
+   * @param stream The stream to order the allocation on
    * @return Pointer to the allocated storage
    */
-  value_type* allocate(std::size_t n)
+  value_type* allocate(std::size_t n, cuda::stream_ref stream)
   {
     value_type* p;
-    CUCO_CUDA_TRY(cudaMalloc(&p, sizeof(value_type) * n));
+    CUCO_CUDA_TRY(cudaMallocAsync(&p, sizeof(value_type) * n, stream.get()));
     return p;
   }
 
   /**
-   * @brief Deallocates storage pointed to by `p`.
+   * @brief Deallocates storage pointed to by `p` using `cudaFreeAsync`.
    *
    * @param p Pointer to memory to deallocate
+   * @param stream The stream to order the deallocation on
    */
-  void deallocate(value_type* p, std::size_t) { CUCO_CUDA_TRY(cudaFree(p)); }
+  void deallocate(value_type* p, std::size_t, cuda::stream_ref stream)
+  {
+    CUCO_CUDA_TRY(cudaFreeAsync(p, stream.get()));
+  }
 };
 
 /**

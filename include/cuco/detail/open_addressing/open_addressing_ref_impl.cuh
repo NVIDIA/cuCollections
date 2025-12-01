@@ -42,7 +42,7 @@ namespace cuco {
 namespace detail {
 
 /// Three-way insert result enum
-enum class insert_result : cuda::std::int32_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
+enum class insert_result : cuda::std::int8_t { CONTINUE = 0, SUCCESS = 1, DUPLICATE = 2 };
 
 /**
  * @brief Helper struct to store intermediate bucket probing results.
@@ -217,8 +217,9 @@ class open_addressing_ref_impl {
    *
    * @return The key equality predicate
    */
-  [[nodiscard]] __host__ __device__ constexpr detail::equal_wrapper<key_type, key_equal> predicate()
-    const noexcept
+  [[nodiscard]] __host__
+    __device__ constexpr detail::equal_wrapper<key_type, key_equal, allows_duplicates>
+    predicate() const noexcept
   {
     return this->predicate_;
   }
@@ -1927,9 +1928,10 @@ class open_addressing_ref_impl {
 
   // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
   value_type empty_slot_sentinel_;  ///< Sentinel value indicating an empty slot
-  detail::equal_wrapper<key_type, key_equal> predicate_;  ///< Key equality binary callable
-  probing_scheme_type probing_scheme_;                    ///< Probing scheme
-  storage_ref_type storage_ref_;                          ///< Slot storage ref
+  detail::equal_wrapper<key_type, key_equal, allows_duplicates>
+    predicate_;                         ///< Key equality binary callable
+  probing_scheme_type probing_scheme_;  ///< Probing scheme
+  storage_ref_type storage_ref_;        ///< Slot storage ref
 };
 
 }  // namespace detail

@@ -18,6 +18,7 @@
 
 #include <cuco/detail/error.hpp>
 
+#include <cuda/std/__algorithm/min.h>
 #include <cuda/std/bit>
 #include <cuda/std/limits>
 #include <cuda/std/tuple>
