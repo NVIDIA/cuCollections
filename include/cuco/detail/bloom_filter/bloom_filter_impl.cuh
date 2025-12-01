@@ -45,11 +45,6 @@ namespace cuco::detail {
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 class bloom_filter_impl {
-  // TODO remove these once we settled on a setup which works best
-  static constexpr bool use_invoke_one  = true;
-  static constexpr bool use_early_exit  = false;
-  static constexpr bool use_cub_kernels = false;  // use in cache domain
-
  public:
   using key_type    = Key;
   using extent_type = Extent;
@@ -61,10 +56,14 @@ class bloom_filter_impl {
     conditional_t<cuda::std::is_same_v<word_type, unsigned long>, unsigned long long, word_type>;
 
   // These knobs need to be public for exposure to the kernel definitions
+  // TODO remove these once we settled on a setup which works best
+  static constexpr bool use_invoke_one                       = true;
+  static constexpr bool use_early_exit                       = false;
+  static constexpr bool use_cub_kernels                      = true;
   static constexpr bool use_warp_cooperative_add_kernel      = true;
-  static constexpr bool use_warp_cooperative_contains_kernel = false;
-  static constexpr bool use_work_stealing_add_kernel         = false;
-  static constexpr bool use_work_stealing_contains_kernel    = false;
+  static constexpr bool use_warp_cooperative_contains_kernel = true;
+  static constexpr bool use_work_stealing_add_kernel         = true;
+  static constexpr bool use_work_stealing_contains_kernel    = true;
   static constexpr bool use_cuda_atomic_ref                  = false;
 
   static constexpr auto thread_scope    = Scope;
@@ -741,7 +740,7 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    auto constexpr block_size = cuco::detail::default_block_size();
+    auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
     auto const grid_size      = use_warp_cooperative_add_kernel
                                   ? cuco::detail::int_div_ceil(num_keys, block_size)
@@ -862,10 +861,10 @@ class bloom_filter_impl {
         first,
         output_begin,
         num_keys,
-        [*this] __device__(auto const key) { return this->contains_exp(key); },
+        [*this] __device__(auto const& key) { return this->contains_exp(key); },
         stream.get());
     } else {
-      auto constexpr block_size = cuco::detail::default_block_size();
+      auto constexpr block_size = 256;
       auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
       auto const grid_size      = use_warp_cooperative_contains_kernel
                                     ? cuco::detail::int_div_ceil(num_keys, block_size)
@@ -903,7 +902,7 @@ class bloom_filter_impl {
   // [[nodiscard]] __device__ constexpr auto make_copy(CG group, word_type* const
   // memory_to_use, cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
- private:
+  //  private:
   template <uint32_t NumWords>
   __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {

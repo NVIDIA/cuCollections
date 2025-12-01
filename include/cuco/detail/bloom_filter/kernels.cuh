@@ -424,7 +424,6 @@ template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, clas
 CUCO_KERNEL __launch_bounds__(BlockSize) void contains_exp_work_stealing_n(
   InputIt first, cuco::detail::index_type n, OutputIt output_begin, Ref ref)
 {
-  // contains_exp_work_stealing_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);
   NV_IF_ELSE_TARGET(
     NV_PROVIDES_SM_100,
     (contains_exp_work_stealing_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);),
