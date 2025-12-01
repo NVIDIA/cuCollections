@@ -30,6 +30,10 @@
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 
+// REMOVE sort keys by hash
+#include <thrust/sort.h>
+#include <thrust/transform.h>
+
 #include <exception>
 #include <limits>
 
@@ -161,39 +165,39 @@ template <bool ExcludeIO,
           typename Key,
           typename Word,
           nvbench::int32_t BlockBits,
-          nvbench::int32_t PatternBitsPerWord,
+          nvbench::int32_t PatternBits,
           nvbench::int32_t HorizontalLayout,
           nvbench::int32_t VerticalLayout>
 void pfp_bloom_filter_contains_impl(nvbench::state& state,
                                     nvbench::type_list<Key,
                                                        Word,
                                                        nvbench::enum_type<BlockBits>,
-                                                       nvbench::enum_type<PatternBitsPerWord>,
+                                                       nvbench::enum_type<PatternBits>,
                                                        nvbench::enum_type<HorizontalLayout>,
                                                        nvbench::enum_type<VerticalLayout>>)
 {
-  auto constexpr words_per_block = BlockBits / cuda::std::numeric_limits<Word>::digits;
+  auto constexpr words_per_block       = BlockBits / cuda::std::numeric_limits<Word>::digits;
+  auto constexpr pattern_bits_per_word = PatternBits / words_per_block;
 
   // Check for a valid configuration
   if constexpr ((not cuda::std::has_single_bit(static_cast<uint32_t>(BlockBits))) or
                 (words_per_block == 0)) {
     state.skip("Invalid filter block size");
   } else if constexpr (HorizontalLayout * VerticalLayout > words_per_block) {
-    state.skip("Invalid vectorization layout");
-  } else if constexpr ((PatternBitsPerWord <= 0) or
-                       (PatternBitsPerWord > cuda::std::numeric_limits<Word>::digits) or
-                       (PatternBitsPerWord * words_per_block > 64)) {
+    state.skip("Invalid vectorization layout");  // TODO check if this is correct
+  } else if constexpr ((pattern_bits_per_word <= 0) or
+                       (pattern_bits_per_word > cuda::std::numeric_limits<Word>::digits) or
+                       (pattern_bits_per_word * words_per_block > 64)) {
     state.skip("Invalid pattern bits per word");
   } else {
     using size_type                      = std::uint32_t;
     using hasher                         = cuco::xxhash_64<Key>;
-    auto constexpr pattern_bits          = words_per_block * PatternBitsPerWord;
     auto constexpr add_vertical_layout   = 1;
     auto constexpr add_horizontal_layout = words_per_block;
     using policy_type = cuco::experimental::detail::parametric_filter_policy<hasher,
                                                                              Word,
                                                                              words_per_block,
-                                                                             pattern_bits,
+                                                                             PatternBits,
                                                                              add_horizontal_layout,
                                                                              add_vertical_layout,
                                                                              HorizontalLayout,
@@ -220,7 +224,7 @@ void pfp_bloom_filter_contains_impl(nvbench::state& state,
     thrust::counting_iterator<Key> key_it(0);
 
     // insert FPR-optimal number of keys
-    auto const num_build_keys = (filter_size_mb * 1024 * 1024 * 8) / (2 * pattern_bits);
+    auto const num_build_keys = (filter_size_mb * 1024 * 1024 * 8) / (2 * PatternBits);
     filter.add(key_it, key_it + num_build_keys);
 
     // FPR summary
@@ -235,14 +239,12 @@ void pfp_bloom_filter_contains_impl(nvbench::state& state,
     summ_fpr.set_string("description", "False-positive rate of the bloom filter.");
     summ_fpr.set_float64("value", fp / static_cast<double>(num_keys));
 
-    auto& summ_k = state.add_summary("PatternBits");
-    summ_k.set_string("hint", "K");
-    summ_k.set_string("short_name", "K");
-    summ_k.set_string("description", "Cardinality of a key's bit pattern.");
-    summ_k.set_int64("value", pattern_bits);
+    state.collect_dram_throughput();
+    state.collect_l2_hit_rates();
 
     if constexpr (ExcludeIO) {
       state.add_global_memory_reads<Word>(num_keys * words_per_block);
+      // state.collect_dram_throughput();
 
       auto result_it = make_lazy_discard_iterator(result.begin());
 
@@ -251,7 +253,17 @@ void pfp_bloom_filter_contains_impl(nvbench::state& state,
       });
     } else {
       thrust::device_vector<Key> keys(num_keys);
-      thrust::sequence(keys.begin(), keys.end(), 0);
+      thrust::sequence(thrust::device, keys.begin(), keys.end(), 0);
+
+      // sort keys by hash
+      // thrust::device_vector<uint64_t> hashes(num_keys);
+      // thrust::transform(thrust::device, keys.begin(), keys.end(), hashes.begin(), hasher());
+      // thrust::sort_by_key(thrust::device, hashes.begin(), hashes.end(), keys.begin());
+
+      state.add_global_memory_reads<char>(num_keys *
+                                          ((words_per_block * sizeof(Word)) + sizeof(Key)));
+      state.add_global_memory_writes<char>(num_keys * sizeof(bool));
+      // state.collect_dram_throughput();
 
       state.exec([&](nvbench::launch& launch) {
         filter.contains_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
@@ -349,92 +361,14 @@ NVBENCH_BENCH_TYPES(arrow_bloom_filter_contains,
 NVBENCH_BENCH_TYPES(
   pfp_bloom_filter_contains,
   NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                    nvbench::type_list<nvbench::uint32_t>,                 ///< Word
-                    nvbench::enum_type_list<32, 64, 128, 256, 512, 1024>,  ///< BlockBits
-                    nvbench::enum_type_list<1, 16>,                        ///< PatternBitsPerWord
-                    nvbench::enum_type_list<1, 2, 4, 8>,                   ///< HorizontalLayout
-                    nvbench::enum_type_list<1, 2, 4, 8>                    ///< VerticalLayout
+                    nvbench::type_list<nvbench::uint64_t>,             ///< Word
+                    nvbench::enum_type_list<64, 128, 256, 512, 1024>,  ///< BlockBits
+                    nvbench::enum_type_list<16>,                       ///< PatternBits
+                    nvbench::enum_type_list<1, 2, 4, 8, 16>,           /// <HorizontalLayout
+                    nvbench::enum_type_list<1, 2, 4, 8, 16>            ///< VerticalLayout
                     ))
-  .set_name("pfp_bloom_filter_contains_unique_size_u32")
-  .set_type_axes_names(
-    {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
-
-NVBENCH_BENCH_TYPES(pfp_bloom_filter_contains,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                                      nvbench::type_list<nvbench::uint64_t>,       ///< Word
-                                      nvbench::enum_type_list<64, 128, 256, 512>,  ///< BlockBits
-                                      nvbench::enum_type_list<1, 16>,       ///< PatternBitsPerWord
-                                      nvbench::enum_type_list<1, 2, 4, 8>,  /// <HorizontalLayout
-                                      nvbench::enum_type_list<1, 2, 4, 8>   ///< VerticalLayout
-                                      ))
   .set_name("pfp_bloom_filter_contains_unique_size_u64")
   .set_type_axes_names(
-    {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
+    {"Key", "Word", "BlockBits", "PatternBits", "HorizontalLayout", "VerticalLayout"})
   .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
-
-NVBENCH_BENCH_TYPES(
-  pfp_bloom_filter_contains_exclude_io,
-  NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                    nvbench::type_list<nvbench::uint32_t>,           ///< Word
-                    nvbench::enum_type_list<32, 64, 128, 256, 512>,  ///< BlockBits
-                    nvbench::enum_type_list<1, 20>,                  ///< PatternBitsPerWord
-                    nvbench::enum_type_list<1, 2, 4, 8>,             /// <HorizontalLayout
-                    nvbench::enum_type_list<1, 2, 4, 8>              ///< VerticalLayout
-                    ))
-  .set_name("pfp_bloom_filter_contains_unique_size_u32_exclude_io")
-  .set_type_axes_names(
-    {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
-
-NVBENCH_BENCH_TYPES(
-  pfp_bloom_filter_contains_exclude_io,
-  NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                    nvbench::type_list<nvbench::uint64_t>,           ///< Word
-                    nvbench::enum_type_list<32, 64, 128, 256, 512>,  ///< BlockBits
-                    nvbench::enum_type_list<1, 20>,                  ///< PatternBitsPerWord
-                    nvbench::enum_type_list<1, 2, 4, 8>,             /// <HorizontalLayout
-                    nvbench::enum_type_list<1, 2, 4, 8>              ///< VerticalLayout
-                    ))
-  .set_name("pfp_bloom_filter_contains_unique_size_u64_exclude_io")
-  .set_type_axes_names(
-    {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
-
-NVBENCH_BENCH_TYPES(
-  pfp_bloom_filter_contains,
-  NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                    nvbench::type_list<nvbench::uint32_t, nvbench::uint64_t>,  ///< Word
-                    nvbench::enum_type_list<32, 64, 128, 256, 512>,            ///< BlockBits
-                    nvbench::enum_type_list<1,
-                                            2,
-                                            3,
-                                            4,
-                                            5,
-                                            6,
-                                            7,
-                                            8,
-                                            9,
-                                            10,
-                                            11,
-                                            12,
-                                            13,
-                                            14,
-                                            15,
-                                            16,
-                                            17,
-                                            18,
-                                            19,
-                                            20>,  ///< PatternBitsPerWord
-                    nvbench::enum_type_list<1>,   /// <HorizontalLayout
-                    nvbench::enum_type_list<1>    ///< VerticalLayout
-                    ))
-  .set_name("pfp_bloom_filter_contains_pattern_bits")
-  .set_type_axes_names(
-    {"Key", "Word", "BlockBits", "PatternBitsPerWord", "HorizontalLayout", "VerticalLayout"})
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", {defaults::BF_SIZE_MB});
+  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_FRONTIER_CACHE);

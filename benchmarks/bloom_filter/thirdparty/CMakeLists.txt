@@ -59,3 +59,9 @@ ConfigureWarpcoreBench(WARPCORE_BLOOM_FILTER_BENCH
   warpcore_add_bench.cu
   warpcore_contains_bench.cu)
 
+###################################################################################################
+# - naive bloom_filter benchmarks --------------------------------------------------------------
+ConfigureWarpcoreBench(NAIVE_BLOOM_FILTER_BENCH
+  naive_add_bench.cu
+  naive_contains_bench.cu)
+
