@@ -60,9 +60,9 @@ class hyperloglog_impl {
  public:
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
-  using value_type    = T;     ///< Type of items to count
-  using hasher        = Hash;  ///< Hash function type
-  using register_type = int;   ///< HLL register type
+  using value_type    = T;                   ///< Type of items to count
+  using hasher        = Hash;                ///< Hash function type
+  using register_type = cuda::std::int32_t;  ///< HLL register type
 
   template <cuda::thread_scope NewScope>
   using with_scope = hyperloglog_impl<T, NewScope, Hash>;  ///< Ref type with different
