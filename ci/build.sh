@@ -208,12 +208,21 @@ CMAKE_OPTIONS="
     ${CMAKE_ARGS[*]}
 "
 
+# Decide generator
+GENERATOR="Unix Makefiles"
+GENERATOR_OPTION=""
+if command -v ninja >/dev/null 2>&1; then
+    GENERATOR="Ninja"
+    GENERATOR_OPTION="-G Ninja"
+fi
+
 echo "[INFO]=============================================="
 echo "-- TIMESTAMP: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
 echo "-- GIT_SHA: $(git rev-parse HEAD 2>/dev/null || echo 'N/A')"
 echo "-- SRC_DIR: ${REPO_ROOT}"
 echo "-- BUILD_DIR: ${BUILD_DIR}"
 echo "-- BUILD_TYPE: ${BUILD_TYPE}"
+echo "-- GENERATOR: ${GENERATOR}"
 echo "-- PARALLEL_LEVEL: ${PARALLEL_LEVEL}"
 echo "-- CUDA_ARCHS: ${CUDA_ARCHS}"
 echo "-- BUILD_TESTS: ${BUILD_TESTS}"
@@ -228,9 +237,13 @@ fi
 
 # configure
 echo "[CONFIGURE]========================================"
-cmake -S .. -B $BUILD_DIR $CMAKE_OPTIONS
+SECONDS=0
+cmake -S .. -B "$BUILD_DIR" $GENERATOR_OPTION $CMAKE_OPTIONS
+CONFIGURE_TIME=$SECONDS
+echo "Configure step completed in ${CONFIGURE_TIME}s"
 
-if command -v sccache >/dev/null; then
+# sccache stats (unchanged)
+if command -v sccache >/dev/null 2>&1; then
     source "./sccache_stats.sh" start
 else
     echo "sccache stats: N/A"
@@ -238,8 +251,10 @@ fi
 
 #build
 echo "[BUILD]============================================"
-cmake --build $BUILD_DIR --parallel $PARALLEL_LEVEL
-echo "Build complete"
+SECONDS=0
+cmake --build "$BUILD_DIR" --parallel "$PARALLEL_LEVEL"
+BUILD_TIME=$SECONDS
+echo "Build step completed in ${BUILD_TIME}s"
 
 if command -v sccache >/dev/null; then
     source "./sccache_stats.sh" end
