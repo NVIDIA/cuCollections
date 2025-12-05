@@ -36,7 +36,8 @@ template <class Hash,
           uint32_t AddHorizontalLayout,
           uint32_t AddVerticalLayout,
           uint32_t ContainsHorizontalLayout,
-          uint32_t ContainsVerticalLayout>
+          uint32_t ContainsVerticalLayout,
+          uint32_t GroupsPerBlock = WordsPerBlock>
 class parametric_filter_policy {
  public:
   using hasher             = Hash;
@@ -83,6 +84,16 @@ class parametric_filter_policy {
   // the filter block, as well as the number of available salts
   static constexpr auto max_pattern_bits = cuda::std::min(word_bits * words_per_block, max_salts);
 
+  //===----------Cache-Sectorized----------===//
+  static constexpr uint32_t groups_per_block = GroupsPerBlock;
+  static constexpr bool is_cache_sectorized  = groups_per_block != words_per_block ? true : false;
+  static constexpr uint32_t words_per_group  = words_per_block / groups_per_block;
+  static constexpr uint32_t max_bits_per_group =
+    cuco::detail::int_div_ceil(pattern_bits, groups_per_block);
+  static constexpr uint32_t add_groups_per_vertical_layout = add_vertical_layout / words_per_group;
+  static constexpr uint32_t contains_groups_per_vertical_layout =
+    contains_vertical_layout / words_per_group;  /// TODO: keep?
+
  private:
   static constexpr uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
   static constexpr uint32_t max_bits_per_word =
@@ -104,6 +115,18 @@ class parametric_filter_policy {
     /// KEVIN: Requiring 64b hash return type for now
     static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
                   "currently only 64b hash_result_type is supported");
+
+    //===----------Cache-Sectorized----------===//
+    /// KEVIN: there are probably some checks I'm missing here
+    static_assert(
+      is_cache_sectorized == false || (groups_per_block > 0 && groups_per_block < words_per_block &&
+                                       (words_per_block % groups_per_block == 0)),
+      "in cache-sectorized filter, the number of groups must be positive, be fewer "
+      "than words_per_block, and evenly divide words_per_block");
+    static_assert(is_cache_sectorized == false || (contains_vertical_layout >= words_per_group &&
+                                                   add_vertical_layout >= words_per_group),
+                  "in cache-sectorized filter, the vertical layout for add/contains must be at "
+                  "least the number of words per group");
   }
 
   // Return {upper 32b, lower 32b} of 64b hash
@@ -154,7 +177,12 @@ class parametric_filter_policy {
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto pattern_impl(uint32_t hash) const
   {
-    using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
+    // For cache-sectorized, we set bits for one word for each group per vertical layout.
+    constexpr uint32_t groups_per_vertical_layout = VerticalLayout / words_per_group;
+    using pattern_array_t =
+      cuda::std::conditional_t<is_cache_sectorized,
+                               cuda::std::array<word_type, groups_per_vertical_layout>,
+                               cuda::std::array<word_type, VerticalLayout>>;
 
     // Sanity check
     constexpr uint32_t num_iterations = words_per_block / VerticalLayout;
@@ -162,9 +190,14 @@ class parametric_filter_policy {
                   "the loop index cannot exceed the number of loop iterations");
 
     pattern_array_t pattern_array{0};
-    constexpr uint32_t salt_start_index = max_bits_per_word * VerticalLayout * LoopIndex;
+    constexpr uint32_t salt_start_index =
+      is_cache_sectorized ? max_bits_per_group * groups_per_vertical_layout * LoopIndex
+                          : max_bits_per_word * VerticalLayout * LoopIndex;
     constexpr uint32_t salt_end_index =
-      cuda::std::min(salt_start_index + max_bits_per_word * VerticalLayout, pattern_bits);
+      is_cache_sectorized
+        ? cuda::std::min(salt_start_index + max_bits_per_group * groups_per_vertical_layout,
+                         pattern_bits)
+        : cuda::std::min(salt_start_index + max_bits_per_word * VerticalLayout, pattern_bits);
     constexpr uint32_t pattern_array_start_index = 0;
     set_bits<salt_start_index, salt_end_index, pattern_array_start_index>(hash, pattern_array);
     return pattern_array;
@@ -174,7 +207,12 @@ class parametric_filter_policy {
   template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto pattern_impl(uint32_t hash, uint32_t thread_index) const
   {
-    using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
+    // For cache-sectorized, we set bits for one word for each group per vertical layout.
+    constexpr uint32_t groups_per_vertical_layout = VerticalLayout / words_per_group;
+    using pattern_array_t =
+      cuda::std::conditional_t<is_cache_sectorized,
+                               cuda::std::array<word_type, groups_per_vertical_layout>,
+                               cuda::std::array<word_type, VerticalLayout>>;
 
     // Sanity check
     constexpr uint32_t num_iterations = words_per_block / (HorizontalLayout * VerticalLayout);
@@ -187,8 +225,11 @@ class parametric_filter_policy {
     constexpr uint32_t upper_bound = lower_bound + HorizontalLayout;
 
     // A virtual thread flips max_bits_per_virtual_thread bits in the pattern array, excepting
-    // potentially some of the last virtual threads (if pattern_bits % words_per_block != 0).
-    constexpr uint32_t max_bits_per_virtual_thread = max_bits_per_word * VerticalLayout;
+    // potentially some of the last virtual threads (if [sectorized] pattern_bits % words_per_block
+    // != 0 or [cache-sectorized] pattern_bits & groups_per_block != 0).
+    constexpr uint32_t max_bits_per_virtual_thread =
+      is_cache_sectorized ? max_bits_per_group * groups_per_vertical_layout
+                          : max_bits_per_word * VerticalLayout;
 
     pattern_array_t pattern_array{0};
     if constexpr (num_iterations == 1) {
