@@ -21,6 +21,7 @@
 #include <cuco/detail/open_addressing/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utility/memcpy_async.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/operator.hpp>
@@ -882,8 +883,8 @@ class open_addressing_impl {
                                           stream.get()));
 
       size_type temp_count;
-      CUCO_CUDA_TRY(cudaMemcpyAsync(
-        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+      cuco::detail::memcpy_async(
+        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream);
 #if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
       stream.sync();
 #else

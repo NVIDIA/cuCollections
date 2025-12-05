@@ -16,6 +16,7 @@
 
 #include <cuco/detail/bitwise_compare.cuh>
 #include <cuco/detail/error.hpp>
+#include <cuco/detail/utility/memcpy_async.cuh>
 #include <cuco/detail/utils.cuh>
 #include <cuco/detail/utils.hpp>
 
@@ -108,8 +109,11 @@ void static_map<Key, Value, Scope, Allocator>::insert(
 
   detail::insert<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, num_keys, num_successes_, view, hash, key_equal);
-  CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+  cuco::detail::memcpy_async(&h_num_successes,
+                             num_successes_,
+                             sizeof(atomic_ctr_type),
+                             cudaMemcpyDeviceToHost,
+                             cuda::stream_ref{stream});
 
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 
@@ -146,8 +150,11 @@ void static_map<Key, Value, Scope, Allocator>::insert_if(InputIt first,
 
   detail::insert_if_n<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
     first, num_keys, num_successes_, view, stencil, pred, hash, key_equal);
-  CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+  cuco::detail::memcpy_async(&h_num_successes,
+                             num_successes_,
+                             sizeof(atomic_ctr_type),
+                             cudaMemcpyDeviceToHost,
+                             cuda::stream_ref{stream});
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
 
   size_ += h_num_successes;
@@ -178,8 +185,11 @@ void static_map<Key, Value, Scope, Allocator>::erase(
 
   detail::erase<block_size, tile_size>
     <<<grid_size, block_size, 0, stream>>>(first, num_keys, num_successes_, view, hash, key_equal);
-  CUCO_CUDA_TRY(cudaMemcpyAsync(
-    &h_num_successes, num_successes_, sizeof(atomic_ctr_type), cudaMemcpyDeviceToHost, stream));
+  cuco::detail::memcpy_async(&h_num_successes,
+                             num_successes_,
+                             sizeof(atomic_ctr_type),
+                             cudaMemcpyDeviceToHost,
+                             cuda::stream_ref{stream});
 
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));  // stream sync to ensure h_num_successes is updated
 
@@ -249,8 +259,8 @@ std::pair<KeyOut, ValueOut> static_map<Key, Value, Scope, Allocator>::retrieve_a
                         stream);
 
   std::size_t h_num_out;
-  CUCO_CUDA_TRY(
-    cudaMemcpyAsync(&h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, stream));
+  cuco::detail::memcpy_async(
+    &h_num_out, d_num_out, sizeof(std::size_t), cudaMemcpyDeviceToHost, cuda::stream_ref{stream});
   CUCO_CUDA_TRY(cudaStreamSynchronize(stream));
   temp_allocator.deallocate(
     reinterpret_cast<char*>(d_num_out), sizeof(std::size_t), cuda::stream_ref{stream});
