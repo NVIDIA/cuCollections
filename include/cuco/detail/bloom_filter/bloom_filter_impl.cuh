@@ -78,6 +78,13 @@ class bloom_filter_impl {
   static constexpr auto contains_loop_count =
     words_per_block / (contains_vertical_layout * contains_horizontal_layout);
 
+  //===----------Cache-Sectorized----------===//
+  static constexpr bool is_cache_sectorized = policy_type::is_cache_sectorized;
+  static constexpr uint32_t add_groups_per_vertical_layout =
+    policy_type::add_groups_per_vertical_layout;
+  static constexpr uint32_t contains_groups_per_vertical_layout =
+    policy_type::contains_groups_per_vertical_layout;
+
   // TODO static_assert layout, word type, etc.
   static_assert((not use_cuda_atomic_ref) or (Scope == cuda::thread_scope::thread_scope_device),
                 "atomicOr requires device scope");
@@ -960,6 +967,10 @@ class bloom_filter_impl {
       add_patterns<ConditionalAtomic, LoopIndex + 1>(block_index, lower_hash, thread_index);
     }
   }
+
+  //===----------Cache-Sectorized Add----------===//
+  /// STRATEGY: Use 1 salt on the hash to generate another 32b hash from which to extract group
+  /// indices.
 
   template <bool ConditionalAtomic>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
