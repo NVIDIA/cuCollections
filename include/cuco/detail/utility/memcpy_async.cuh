@@ -26,9 +26,10 @@ namespace cuco::detail {
  * @brief Asynchronous memory copy utility that works around cudaMemcpyAsync bugs
  *
  * This function provides a drop-in replacement for cudaMemcpyAsync that uses
- * cudaMemcpyBatchAsync internally to work around known issues with cudaMemcpyAsync.
- * The function automatically handles the different API signatures between CUDA
- * runtime versions.
+ * cudaMemcpyBatchAsync internally to work around known issues with cudaMemcpyAsync
+ * when available (CUDA 12.8+). For older CUDA versions, it falls back to the
+ * original cudaMemcpyAsync. The function automatically handles the different API
+ * signatures between CUDA runtime versions.
  *
  * @param dst Destination memory address
  * @param src Source memory address
@@ -39,7 +40,8 @@ namespace cuco::detail {
 inline void memcpy_async(
   void* dst, const void* src, size_t count, cudaMemcpyKind kind, cuda::stream_ref stream)
 {
-  // Use cudaMemcpyBatchAsync as a workaround for cudaMemcpyAsync bugs
+#if CUDART_VERSION >= 12080
+  // CUDA 12.8+ - Use cudaMemcpyBatchAsync as a workaround for cudaMemcpyAsync bugs
   void* dsts[1]                 = {dst};
   void* srcs[1]                 = {const_cast<void*>(src)};
   size_t sizes[1]               = {count};
@@ -50,10 +52,16 @@ inline void memcpy_async(
   // CUDA 13.0+ API - no failIdx parameter
   CUCO_CUDA_TRY(cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrsIdxs, 1, stream.get()));
 #else
-  // CUDA 12.x API - requires failIdx parameter
+  // CUDA 12.8-12.x API - requires failIdx parameter
   size_t failIdx;
   CUCO_CUDA_TRY(
     cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrsIdxs, 1, &failIdx, stream.get()));
+#endif
+
+#else
+  // CUDA 12.0-12.7 - Fall back to original cudaMemcpyAsync
+  // Note: This may still have the original bugs that cudaMemcpyBatchAsync was designed to fix
+  CUCO_CUDA_TRY(cudaMemcpyAsync(dst, src, count, kind, stream.get()));
 #endif
 }
 
