@@ -20,6 +20,7 @@
 
 #include <cuda/std/array>
 #include <cuda/std/span>
+#include <cuda/utility>
 
 #include <cooperative_groups.h>
 
@@ -71,16 +72,16 @@ CUCO_KERNEL void add_shmem_vectorized(typename RefType::value_type const* first,
 #if defined(CUCO_HAS_CG_INVOKE_ONE)
   cooperative_groups::invoke_one(grid, [&]() {
     auto const remainder = n % VectorSize;
-    for (int i = 0; i < remainder; ++i) {
-      local_ref.add(*(first + n - i - 1));
-    }
+    cuda::static_for<VectorSize>([&] __device__(auto i) {
+      if (i() < remainder) { local_ref.add(*(first + n - i() - 1)); }
+    });
   });
 #else
   if (grid.thread_rank() == 0) {
     auto const remainder = n % VectorSize;
-    for (int i = 0; i < remainder; ++i) {
-      local_ref.add(*(first + n - i - 1));
-    }
+    cuda::static_for<VectorSize>([&] __device__(auto i) {
+      if (i() < remainder) { local_ref.add(*(first + n - i() - 1)); }
+    });
   }
 #endif
   block.sync();

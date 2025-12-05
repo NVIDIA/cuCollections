@@ -34,6 +34,7 @@
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 #include <cuda/stream_ref>
+#include <cuda/utility>
 #include <thrust/iterator/constant_iterator.h>
 
 #include <cooperative_groups.h>
@@ -41,6 +42,204 @@
 #include <cstdint>
 
 namespace cuco::detail {
+
+/**
+ * @brief Device functor for adding a single key to the bloom filter
+ *
+ * This functor is used with cuda::static_for to iterate over all words in a filter block
+ * and set the appropriate bits for a given key's hash value. Each iteration processes
+ * one word in the block using atomic operations to ensure thread safety.
+ *
+ * @tparam HashValue Type of the hash value (typically uint64_t)
+ * @tparam BlockIndex Type of the block index (typically size_t or uint32_t)
+ * @tparam Policy Filter policy type that provides word pattern generation
+ * @tparam WordType Underlying word type of the filter (typically uint64_t)
+ * @tparam Scope CUDA thread scope for atomic operations
+ */
+template <typename HashValue,
+          typename BlockIndex,
+          typename Policy,
+          typename WordType,
+          cuda::thread_scope Scope>
+struct add_impl_functor {
+  HashValue hash_value;    ///< Hash value of the key being added
+  BlockIndex block_index;  ///< Index of the filter block to modify
+  Policy policy_;          ///< Filter policy for generating bit patterns
+  WordType* words_;        ///< Pointer to the filter's word array
+  size_t words_per_block;  ///< Number of words in each filter block
+
+  /**
+   * @brief Processes one word in the filter block for key insertion
+   *
+   * @tparam I Type of the integral constant passed by cuda::static_for
+   * @param i Integral constant representing the word index within the block
+   */
+  template <typename I>
+  __device__ void operator()(I i) const
+  {
+    auto const word = policy_.word_pattern(hash_value, i());
+    if (word != 0) {
+      auto atom_word =
+        cuda::atomic_ref<WordType, Scope>{*(words_ + (block_index * words_per_block + i()))};
+      atom_word.fetch_or(word, cuda::memory_order_relaxed);
+    }
+  }
+};
+
+/**
+ * @brief Device functor for cooperative group-based batch key insertion
+ *
+ * This functor is used with cuda::static_for to process multiple keys in parallel
+ * within a cooperative group. Each thread in the group processes a different key
+ * using shuffle operations to share hash values and block indices across threads.
+ *
+ * @tparam CG Cooperative group type (e.g., thread_block_tile)
+ * @tparam HashValue Type of the hash value
+ * @tparam BlockIndex Type of the block index
+ * @tparam BloomFilterImpl Type of the bloom filter implementation
+ */
+template <typename CG, typename HashValue, typename BlockIndex, typename BloomFilterImpl>
+struct add_group_functor {
+  CG group;                ///< Cooperative group for parallel processing
+  HashValue hash_value;    ///< Hash value of the current thread's key
+  BlockIndex block_index;  ///< Block index of the current thread's key
+  size_t i;                ///< Starting index in the key batch
+  size_t num_keys;         ///< Total number of keys to process
+  size_t num_threads;      ///< Number of threads in the group
+  BloomFilterImpl* self;   ///< Pointer to the bloom filter implementation
+
+  /**
+   * @brief Processes one thread's key in the cooperative group batch insertion
+   *
+   * @tparam J Type of the integral constant passed by cuda::static_for
+   * @param j Integral constant representing the thread index within the group
+   */
+  template <typename J>
+  __device__ void operator()(J j) const
+  {
+    if ((j() < num_threads) and (i + j() < num_keys)) {
+      self->add_impl(group, group.shfl(hash_value, j()), group.shfl(block_index, j()));
+    }
+  }
+};
+
+/**
+ * @brief Device functor for worker group-based batch key insertion
+ *
+ * This functor is used with cuda::static_for to process multiple keys in parallel
+ * within a worker group (subdivision of a larger cooperative group). Similar to
+ * add_group_functor but operates on a smaller worker group with offset handling
+ * for processing different portions of the key batch.
+ *
+ * @tparam WorkerGroup Worker group type (subdivision of cooperative group)
+ * @tparam HashValue Type of the hash value
+ * @tparam BlockIndex Type of the block index
+ * @tparam BloomFilterImpl Type of the bloom filter implementation
+ */
+template <typename WorkerGroup, typename HashValue, typename BlockIndex, typename BloomFilterImpl>
+struct add_worker_group_functor {
+  WorkerGroup worker_group;   ///< Worker group (subdivision of cooperative group)
+  HashValue hash_value;       ///< Hash value of the current thread's key
+  BlockIndex block_index;     ///< Block index of the current thread's key
+  size_t i;                   ///< Starting index in the key batch
+  size_t worker_offset;       ///< Offset for this worker group within the batch
+  size_t num_keys;            ///< Total number of keys to process
+  size_t worker_num_threads;  ///< Number of threads in the worker group
+  BloomFilterImpl* self;      ///< Pointer to the bloom filter implementation
+
+  /**
+   * @brief Processes one thread's key in the worker group batch insertion
+   *
+   * @tparam J Type of the integral constant passed by cuda::static_for
+   * @param j Integral constant representing the thread index within the worker group
+   */
+  template <typename J>
+  __device__ void operator()(J j) const
+  {
+    if ((j() < worker_num_threads) and (i + worker_offset + j() < num_keys)) {
+      self->add_impl(
+        worker_group, worker_group.shfl(hash_value, j()), worker_group.shfl(block_index, j()));
+    }
+  }
+};
+
+/**
+ * @brief Device functor for cooperative group-based single key insertion
+ *
+ * This functor is used with cuda::static_for to add a single key to the bloom filter
+ * using a cooperative group. Each thread in the group processes different words in
+ * the filter block based on thread rank and stride pattern. Used when the group size
+ * doesn't match the number of words per block.
+ *
+ * @tparam HashValue Type of the hash value
+ * @tparam BlockIndex Type of the block index
+ * @tparam WordType Underlying word type of the filter
+ * @tparam Scope CUDA thread scope for atomic operations
+ * @tparam Policy Filter policy type that provides word pattern generation
+ */
+template <typename HashValue,
+          typename BlockIndex,
+          typename WordType,
+          cuda::thread_scope Scope,
+          typename Policy>
+struct add_impl_group_functor {
+  HashValue hash_value;    ///< Hash value of the key being added
+  BlockIndex block_index;  ///< Index of the filter block to modify
+  WordType* words_;        ///< Pointer to the filter's word array
+  size_t words_per_block;  ///< Number of words in each filter block
+  size_t rank;             ///< Thread rank within the cooperative group
+  size_t num_threads;      ///< Number of threads in the cooperative group
+  Policy policy_;          ///< Filter policy for generating bit patterns
+
+  /**
+   * @brief Processes one word in the filter block using cooperative group stride pattern
+   *
+   * @tparam I Type of the integral constant passed by cuda::static_for
+   * @param i Integral constant representing the word index within the block
+   */
+  template <typename I>
+  __device__ void operator()(I i) const
+  {
+    if (i() >= rank && (i() - rank) % num_threads == 0) {
+      auto atom_word =
+        cuda::atomic_ref<WordType, Scope>{*(words_ + (block_index * words_per_block + i()))};
+      atom_word.fetch_or(policy_.word_pattern(hash_value, i()), cuda::memory_order_relaxed);
+    }
+  }
+};
+
+/**
+ * @brief Device functor for checking if a key exists in the bloom filter
+ *
+ * This functor is used with cuda::static_for to iterate over all words in a filter block
+ * and check if the expected bit patterns for a given key's hash value are present.
+ * If any expected bit is missing, the result is set to false, indicating the key
+ * is definitely not in the set.
+ *
+ * @tparam HashValue Type of the hash value
+ * @tparam StoredPattern Type of the stored pattern array (typically array of WordType)
+ * @tparam Policy Filter policy type that provides word pattern generation
+ */
+template <typename HashValue, typename StoredPattern, typename Policy>
+struct contains_functor {
+  HashValue hash_value;          ///< Hash value of the key being queried
+  StoredPattern stored_pattern;  ///< Array of stored bit patterns from the filter block
+  Policy policy_;                ///< Filter policy for generating expected bit patterns
+  bool* result;                  ///< Pointer to result flag (set to false if key not found)
+
+  /**
+   * @brief Checks one word in the filter block for the expected bit pattern
+   *
+   * @tparam I Type of the integral constant passed by cuda::static_for
+   * @param i Integral constant representing the word index within the block
+   */
+  template <typename I>
+  __device__ void operator()(I i) const
+  {
+    auto const expected_pattern = policy_.word_pattern(hash_value, i());
+    if ((stored_pattern[i()] & expected_pattern) != expected_pattern) { *result = false; }
+  }
+};
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 class bloom_filter_impl {
@@ -142,15 +341,9 @@ class bloom_filter_impl {
   template <class HashValue, class BlockIndex>
   __device__ void add_impl(HashValue const& hash_value, BlockIndex block_index)
   {
-#pragma unroll words_per_block
-    for (uint32_t i = 0; i < words_per_block; ++i) {
-      auto const word = policy_.word_pattern(hash_value, i);
-      if (word != 0) {
-        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
-          *(words_ + (block_index * words_per_block + i))};
-        atom_word.fetch_or(word, cuda::memory_order_relaxed);
-      }
-    }
+    add_impl_functor<HashValue, BlockIndex, policy_type, word_type, thread_scope> functor{
+      hash_value, block_index, policy_, words_, words_per_block};
+    cuda::static_for<words_per_block>(functor);
   }
 
   template <class CG, class ProbeKey>
@@ -205,9 +398,15 @@ class bloom_filter_impl {
           block_index = policy_.block_index(hash_value, num_blocks_);
         }
 
-        for (uint32_t j = 0; (j < num_threads) and (i + j < num_keys); ++j) {
-          this->add_impl(group, group.shfl(hash_value, j), group.shfl(block_index, j));
-        }
+        add_group_functor<CG, decltype(hash_value), decltype(block_index), bloom_filter_impl>
+          functor{group,
+                  hash_value,
+                  block_index,
+                  static_cast<size_t>(i),
+                  static_cast<size_t>(num_keys),
+                  static_cast<size_t>(num_threads),
+                  this};
+        cuda::static_for<num_threads>(functor);
       }
     } else {  // subdivide given CG into multiple optimal CGs
       typename policy_type::hash_result_type hash_value;
@@ -225,10 +424,19 @@ class bloom_filter_impl {
           block_index = policy_.block_index(hash_value, num_blocks_);
         }
 
-        for (uint32_t j = 0; (j < worker_num_threads) and (i + worker_offset + j < num_keys); ++j) {
-          this->add_impl(
-            worker_group, worker_group.shfl(hash_value, j), worker_group.shfl(block_index, j));
-        }
+        add_worker_group_functor<decltype(worker_group),
+                                 decltype(hash_value),
+                                 decltype(block_index),
+                                 bloom_filter_impl>
+          functor{worker_group,
+                  hash_value,
+                  block_index,
+                  static_cast<size_t>(i),
+                  static_cast<size_t>(worker_offset),
+                  static_cast<size_t>(num_keys),
+                  static_cast<size_t>(worker_num_threads),
+                  this};
+        cuda::static_for<worker_num_threads>(functor);
       }
     }
   }
@@ -245,12 +453,9 @@ class bloom_filter_impl {
         *(words_ + (block_index * words_per_block + rank))};
       atom_word.fetch_or(policy_.word_pattern(hash_value, rank), cuda::memory_order_relaxed);
     } else {
-#pragma unroll
-      for (auto i = rank; i < words_per_block; i += num_threads) {
-        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{
-          *(words_ + (block_index * words_per_block + i))};
-        atom_word.fetch_or(policy_.word_pattern(hash_value, i), cuda::memory_order_relaxed);
-      }
+      add_impl_group_functor<HashValue, BlockIndex, word_type, thread_scope, policy_type> functor{
+        hash_value, block_index, words_, words_per_block, rank, num_threads, policy_};
+      cuda::static_for<words_per_block>(functor);
     }
   }
 
@@ -330,11 +535,11 @@ class bloom_filter_impl {
     auto const stored_pattern = this->vec_load_words<words_per_block>(
       policy_.block_index(hash_value, num_blocks_) * words_per_block);
 
-#pragma unroll words_per_block
-    for (uint32_t i = 0; i < words_per_block; ++i) {
-      auto const expected_pattern = policy_.word_pattern(hash_value, i);
-      if ((stored_pattern[i] & expected_pattern) != expected_pattern) { return false; }
-    }
+    bool result = true;
+    contains_functor<decltype(hash_value), decltype(stored_pattern), policy_type> functor{
+      hash_value, stored_pattern, policy_, &result};
+    cuda::static_for<words_per_block>(functor);
+    if (!result) { return false; }
 
     return true;
   }
@@ -354,15 +559,19 @@ class bloom_filter_impl {
       auto const hash_value = policy_.hash(key);
       bool success          = true;
 
+// Use pragma unroll instead of cuda::static_for to avoid CUDA 12.0 compatibility issues
 #pragma unroll
-      for (uint32_t i = rank; i < optimal_num_threads; i += num_threads) {
-        auto const thread_offset  = i * words_per_thread;
-        auto const stored_pattern = this->vec_load_words<words_per_thread>(
-          policy_.block_index(hash_value, num_blocks_) * words_per_block + thread_offset);
-#pragma unroll words_per_thread
-        for (uint32_t j = 0; j < words_per_thread; ++j) {
-          auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
-          if ((stored_pattern[j] & expected_pattern) != expected_pattern) { success = false; }
+      for (size_type i = 0; i < optimal_num_threads; ++i) {
+        if (i >= rank && (i - rank) % num_threads == 0) {
+          auto const thread_offset  = i * words_per_thread;
+          auto const stored_pattern = this->vec_load_words<words_per_thread>(
+            policy_.block_index(hash_value, num_blocks_) * words_per_block + thread_offset);
+
+#pragma unroll
+          for (size_type j = 0; j < words_per_thread; ++j) {
+            auto const expected_pattern = policy_.word_pattern(hash_value, thread_offset + j);
+            if ((stored_pattern[j] & expected_pattern) != expected_pattern) { success = false; }
+          }
         }
       }
 
