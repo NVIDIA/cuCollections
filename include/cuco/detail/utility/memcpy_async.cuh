@@ -20,8 +20,6 @@
 
 #include <cuda/stream_ref>
 
-#include <cstring>
-
 namespace cuco::detail {
 
 /**
