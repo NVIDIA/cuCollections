@@ -20,49 +20,52 @@
 
 #include <cuda/stream_ref>
 
+#include <cstring>
+
 namespace cuco::detail {
 
 /**
- * @brief Asynchronous memory copy utility that works around cudaMemcpyAsync bugs
+ * @brief Asynchronous memory copy utility using cudaMemcpyBatchAsync when possible
  *
- * This function provides a drop-in replacement for cudaMemcpyAsync that uses
- * cudaMemcpyBatchAsync internally to work around known issues with cudaMemcpyAsync
- * when available (CUDA 12.8+). For older CUDA versions, it falls back to the
- * original cudaMemcpyAsync. The function automatically handles the different API
- * signatures between CUDA runtime versions.
+ * Uses cudaMemcpyBatchAsync for CUDA 12.8+ with proper edge case handling.
+ * Falls back to cudaMemcpyAsync for older CUDA versions or edge cases.
  *
  * @param dst Destination memory address
  * @param src Source memory address
  * @param count Number of bytes to copy
- * @param kind Type of memory copy (cudaMemcpyHostToDevice, cudaMemcpyDeviceToHost, etc.)
- * @param stream CUDA stream for the asynchronous operation
+ * @param kind Memory copy direction
+ * @param stream CUDA stream for the operation
  */
 inline void memcpy_async(
-  void* dst, const void* src, size_t count, cudaMemcpyKind kind, cuda::stream_ref stream)
+  void* dst, void const* src, size_t count, cudaMemcpyKind kind, cuda::stream_ref stream)
 {
+  if (dst == nullptr || src == nullptr || count == 0) { return; }
+
 #if CUDART_VERSION >= 12080
-  // CUDA 12.8+ - Use cudaMemcpyBatchAsync as a workaround for cudaMemcpyAsync bugs
-  void* dsts[1]                 = {dst};
-  void* srcs[1]                 = {const_cast<void*>(src)};
-  size_t sizes[1]               = {count};
-  cudaMemcpyAttributes attrs[1] = {{.srcAccessOrder = cudaMemcpySrcAccessOrderStream}};
-  size_t attrsIdxs[1]           = {0};
+  if (stream.get() == 0) {
+    CUCO_CUDA_TRY(cudaMemcpyAsync(dst, src, count, kind, stream.get()));
+    return;
+  }
+
+  void* dsts[1]             = {dst};
+  void* srcs[1]             = {const_cast<void*>(src)};
+  std::size_t sizes[1]      = {count};
+  std::size_t attrs_idxs[1] = {0};
+
+  cudaMemcpyAttributes attrs[1] = {};
+  attrs[0].srcAccessOrder       = cudaMemcpySrcAccessOrderStream;
+  attrs[0].flags                = cudaMemcpyFlagPreferOverlapWithCompute;
 
 #if CUDART_VERSION >= 13000
-  // CUDA 13.0+ API - no failIdx parameter
-  CUCO_CUDA_TRY(cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrsIdxs, 1, stream.get()));
+  CUCO_CUDA_TRY(cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrs_idxs, 1, stream.get()));
 #else
-  // CUDA 12.8-12.x API - requires failIdx parameter
-  size_t failIdx;
+  std::size_t fail_idx;
   CUCO_CUDA_TRY(
-    cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrsIdxs, 1, &failIdx, stream.get()));
-#endif
-
+    cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrs_idxs, 1, &fail_idx, stream.get()));
+#endif  // CUDART_VERSION >= 13000
 #else
-  // CUDA 12.0-12.7 - Fall back to original cudaMemcpyAsync
-  // Note: This may still have the original bugs that cudaMemcpyBatchAsync was designed to fix
+  // CUDA < 12.8 - use regular cudaMemcpyAsync
   CUCO_CUDA_TRY(cudaMemcpyAsync(dst, src, count, kind, stream.get()));
-#endif
+#endif  // CUDART_VERSION >= 12080
 }
-
 }  // namespace cuco::detail
