@@ -20,6 +20,8 @@
 
 #include <cuda/stream_ref>
 
+#include <cstddef>
+
 namespace cuco::detail {
 
 /**
@@ -41,7 +43,7 @@ namespace cuco::detail {
   if (dst == nullptr || src == nullptr || count == 0) { return cudaSuccess; }
 
 #if CUDART_VERSION >= 12080
-  if (stream.get() == 0) { return cudaMemcpyAsync(dst, src, count, kind, stream.get()); }
+  if (stream.get() == nullptr) { return cudaMemcpyAsync(dst, src, count, kind, stream.get()); }
 
   void* dsts[1]             = {dst};
   void* srcs[1]             = {const_cast<void*>(src)};
@@ -63,4 +65,5 @@ namespace cuco::detail {
   return cudaMemcpyAsync(dst, src, count, kind, stream.get());
 #endif  // CUDART_VERSION >= 12080
 }
+
 }  // namespace cuco::detail
