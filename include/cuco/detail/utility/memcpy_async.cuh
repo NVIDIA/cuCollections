@@ -33,17 +33,15 @@ namespace cuco::detail {
  * @param count Number of bytes to copy
  * @param kind Memory copy direction
  * @param stream CUDA stream for the operation
+ * @return cudaError_t Error code from the memory copy operation
  */
-inline void memcpy_async(
+[[nodiscard]] inline cudaError_t memcpy_async(
   void* dst, void const* src, size_t count, cudaMemcpyKind kind, cuda::stream_ref stream)
 {
-  if (dst == nullptr || src == nullptr || count == 0) { return; }
+  if (dst == nullptr || src == nullptr || count == 0) { return cudaSuccess; }
 
 #if CUDART_VERSION >= 12080
-  if (stream.get() == 0) {
-    CUCO_CUDA_TRY(cudaMemcpyAsync(dst, src, count, kind, stream.get()));
-    return;
-  }
+  if (stream.get() == 0) { return cudaMemcpyAsync(dst, src, count, kind, stream.get()); }
 
   void* dsts[1]             = {dst};
   void* srcs[1]             = {const_cast<void*>(src)};
@@ -55,15 +53,14 @@ inline void memcpy_async(
   attrs[0].flags                = cudaMemcpyFlagPreferOverlapWithCompute;
 
 #if CUDART_VERSION >= 13000
-  CUCO_CUDA_TRY(cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrs_idxs, 1, stream.get()));
+  return cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrs_idxs, 1, stream.get());
 #else
   std::size_t fail_idx;
-  CUCO_CUDA_TRY(
-    cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrs_idxs, 1, &fail_idx, stream.get()));
+  return cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrs_idxs, 1, &fail_idx, stream.get());
 #endif  // CUDART_VERSION >= 13000
 #else
   // CUDA < 12.8 - use regular cudaMemcpyAsync
-  CUCO_CUDA_TRY(cudaMemcpyAsync(dst, src, count, kind, stream.get()));
+  return cudaMemcpyAsync(dst, src, count, kind, stream.get());
 #endif  // CUDART_VERSION >= 12080
 }
 }  // namespace cuco::detail
