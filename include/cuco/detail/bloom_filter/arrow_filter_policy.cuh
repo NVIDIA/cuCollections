@@ -102,6 +102,7 @@ class arrow_filter_policy {
     1;  ///< horizontal vectorization layout for contains operation
   static constexpr uint32_t contains_vertical_layout =
     words_per_block;  ///< vertical vectorization layout for contains operation
+  static constexpr bool is_cache_sectorized = false;  ///< whether the filter is cache-sectorized
 
   static constexpr size_t bytes_per_filter_block =
     32;  ///< Number of bytes in one Arrow filter block

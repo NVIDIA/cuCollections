@@ -58,6 +58,8 @@ class parametric_filter_policy {
     0x13bbf093U, 0x4ff059e5U, 0xe3ce3d0fU, 0xf1b4789fU, 0x9fbb6173U, 0x6a320cf5U, 0x1be2c481U,
     0x7ba8222bU, 0x6fd619b3U, 0x7b1bbf0dU, 0x8b8993adU, 0x448eca95U, 0x82ab09d9U, 0x2ce53909U,
     0x4f548685U};
+  static constexpr uint32_t group_index_salt =
+    0x5bd1e995U;  ///< salt for cache-sectorized group indexing
   static constexpr uint32_t word_bits = cuda::std::numeric_limits<word_type>::digits;
 
  public:
@@ -92,7 +94,9 @@ class parametric_filter_policy {
     cuco::detail::int_div_ceil(pattern_bits, groups_per_block);
   static constexpr uint32_t add_groups_per_vertical_layout = add_vertical_layout / words_per_group;
   static constexpr uint32_t contains_groups_per_vertical_layout =
-    contains_vertical_layout / words_per_group;  /// TODO: keep?
+    contains_vertical_layout / words_per_group;
+  static constexpr uint32_t group_index_width = cuda::std::bit_width(words_per_group - 1);
+  static constexpr uint32_t group_index_mask  = words_per_group - 1;
 
  private:
   static constexpr uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
@@ -127,6 +131,9 @@ class parametric_filter_policy {
                                                    add_vertical_layout >= words_per_group),
                   "in cache-sectorized filter, the vertical layout for add/contains must be at "
                   "least the number of words per group");
+    static_assert(is_cache_sectorized == false || groups_per_block * group_index_width <= 32,
+                  "in cache-sectorized filter, the number of bits needed to index groups must fit "
+                  "within 32 bits");
   }
 
   // Return {upper 32b, lower 32b} of 64b hash

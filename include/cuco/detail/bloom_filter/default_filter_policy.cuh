@@ -52,6 +52,7 @@ class default_filter_policy {
   static constexpr uint32_t contains_horizontal_layout =
     words_per_block /
     contains_vertical_layout;  ///< horizontal vectorization layout for contains operation
+  static constexpr bool is_cache_sectorized = false;  ///< whether the filter is cache-sectorized
 
   static constexpr size_t max_filter_bytes  = cuda::std::numeric_limits<size_t>::max();
   static constexpr size_t max_filter_blocks = cuda::std::numeric_limits<size_t>::max();
