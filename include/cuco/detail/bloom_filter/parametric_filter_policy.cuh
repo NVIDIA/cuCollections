@@ -58,8 +58,6 @@ class parametric_filter_policy {
     0x13bbf093U, 0x4ff059e5U, 0xe3ce3d0fU, 0xf1b4789fU, 0x9fbb6173U, 0x6a320cf5U, 0x1be2c481U,
     0x7ba8222bU, 0x6fd619b3U, 0x7b1bbf0dU, 0x8b8993adU, 0x448eca95U, 0x82ab09d9U, 0x2ce53909U,
     0x4f548685U};
-  static constexpr uint32_t group_index_salt =
-    0x5bd1e995U;  ///< salt for cache-sectorized group indexing
   static constexpr uint32_t word_bits = cuda::std::numeric_limits<word_type>::digits;
 
  public:
@@ -95,6 +93,7 @@ class parametric_filter_policy {
   static constexpr uint32_t add_groups_per_vertical_layout = add_vertical_layout / words_per_group;
   static constexpr uint32_t contains_groups_per_vertical_layout =
     contains_vertical_layout / words_per_group;
+  static constexpr uint32_t group_index_salt  = 0x5bd1e995U;
   static constexpr uint32_t group_index_width = cuda::std::bit_width(words_per_group - 1);
   static constexpr uint32_t group_index_mask  = words_per_group - 1;
 
@@ -303,7 +302,9 @@ class parametric_filter_policy {
       // Recurse.
       constexpr uint32_t next_salt_index = SaltIndex + 1;
       constexpr uint32_t next_pattern_array_index =
-        PatternArrayIndex + (next_salt_index % max_bits_per_word == 0 ? 1 : 0);
+        is_cache_sectorized
+          ? PatternArrayIndex + (next_salt_index % max_bits_per_group == 0 ? 1 : 0)
+          : PatternArrayIndex + (next_salt_index % max_bits_per_word == 0 ? 1 : 0);
       set_bits<next_salt_index, SaltEndIndex, next_pattern_array_index>(hash, pattern_array);
     }
   }
