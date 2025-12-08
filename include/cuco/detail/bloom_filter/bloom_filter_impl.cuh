@@ -907,11 +907,11 @@ class bloom_filter_impl {
 #pragma unroll num_threads
       for (int i = 0; i < num_threads; ++i) {
         if (group.shfl(is_valid, i)) {
-          auto const result = group.all(compare_patterns<0>(group,
-                                                            group.shfl(block_index, i),
-                                                            group.shfl(lower_hash, i),
-                                                            group.shfl(group_hash, i),
-                                                            group.thread_rank()));
+          auto const result = group.all(compare_patterns_cs<0>(group,
+                                                               group.shfl(block_index, i),
+                                                               group.shfl(lower_hash, i),
+                                                               group.shfl(group_hash, i),
+                                                               group.thread_rank()));
           if (i == group.thread_rank()) { result_out = result; }
         }
       }
@@ -1278,8 +1278,9 @@ class bloom_filter_impl {
                   "compare_patterns() requires HorizontalLayout > 1");
 
     if constexpr (LoopIndex < contains_loop_count) {
-      auto const* word_base =
-        words_ + block_index * words_per_block + LoopIndex * contains_vertical_layout;
+      auto const* word_base = words_ + block_index * words_per_block +
+                              LoopIndex * contains_vertical_layout * contains_horizontal_layout +
+                              thread_index * contains_horizontal_layout;
       auto const expected_pattern =
         policy_
           .template array_pattern<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
@@ -1289,7 +1290,9 @@ class bloom_filter_impl {
       for (int i = 0; i < contains_groups_per_vertical_layout; ++i) {
         auto const group_index =
           (group_hash >>
-           (i + LoopIndex * contains_groups_per_vertical_layout) * group_index_width) &
+           (i + LoopIndex * contains_groups_per_vertical_layout * contains_horizontal_layout +
+            thread_index * contains_groups_per_vertical_layout) *
+             group_index_width) &
           group_index_mask;
         match &= (word_base[i * words_per_group + group_index] & expected_pattern[i]) ==
                  expected_pattern[i];
