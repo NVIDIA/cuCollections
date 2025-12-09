@@ -62,8 +62,8 @@ class bloom_filter_impl {
   static constexpr bool use_cub_kernels                      = true;
   static constexpr bool use_warp_cooperative_add_kernel      = true;
   static constexpr bool use_warp_cooperative_contains_kernel = true;
-  static constexpr bool use_work_stealing_add_kernel         = true;
-  static constexpr bool use_work_stealing_contains_kernel    = true;
+  static constexpr bool use_work_stealing_add_kernel         = false;  // DEBUG
+  static constexpr bool use_work_stealing_contains_kernel    = false;  // DEBUG
   static constexpr bool use_cuda_atomic_ref                  = false;
 
   static constexpr auto thread_scope    = Scope;
@@ -1280,7 +1280,7 @@ class bloom_filter_impl {
     if constexpr (LoopIndex < contains_loop_count) {
       auto const* word_base = words_ + block_index * words_per_block +
                               LoopIndex * contains_vertical_layout * contains_horizontal_layout +
-                              thread_index * contains_horizontal_layout;
+                              thread_index * contains_vertical_layout;
       auto const expected_pattern =
         policy_
           .template array_pattern<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
