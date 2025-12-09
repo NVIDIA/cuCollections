@@ -45,7 +45,12 @@ update_devcontainer() {
     local devcontainer_version="$8"
 
     local IMAGE_ROOT="rapidsai/devcontainers:${devcontainer_version}-cpp-"
-    local image="${IMAGE_ROOT}${compiler_name}${compiler_version}-cuda${cuda_version}-${os}"
+    # Add 'ext' suffix for CUDA 13.0 images
+    local cuda_suffix=""
+    if [[ "$cuda_version" == "13.0" ]]; then
+        cuda_suffix="ext"
+    fi
+    local image="${IMAGE_ROOT}${compiler_name}${compiler_version}-cuda${cuda_version}${cuda_suffix}-${os}"
 
     jq --arg image "$image" --arg name "$name" \
        --arg cuda_version "$cuda_version" --arg compiler_name "$compiler_name" \
