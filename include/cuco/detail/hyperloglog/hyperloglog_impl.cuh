@@ -98,16 +98,6 @@ class hyperloglog_impl {
   }
 
   /**
-   * @brief Copy constructor for hyperloglog_impl.
-   *
-   * @param other The hyperloglog_impl object to copy from
-   */
-  __host__ __device__ constexpr hyperloglog_impl(hyperloglog_impl const& other)
-    : hash_{other.hash_}, precision_{other.precision_}, sketch_{other.sketch_}
-  {
-  }
-
-  /**
    * @brief Resets the estimator, i.e., clears the current count estimate.
    *
    * @tparam CG CUDA Cooperative Group type
