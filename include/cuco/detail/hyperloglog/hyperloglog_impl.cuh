@@ -85,7 +85,6 @@ class hyperloglog_impl {
       precision_{cuda::std::countr_zero(
         sketch_bytes(cuco::sketch_size_kb(static_cast<double>(sketch_span.size() / 1024.0))) /
         sizeof(register_type))},
-      register_mask_{(1ull << this->precision_) - 1},
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
               this->sketch_bytes() / sizeof(register_type)}
   {
@@ -96,6 +95,16 @@ class hyperloglog_impl {
 
     CUCO_EXPECTS(this->precision_ >= 4, "Minimum required sketch size is 0.0625KB or 64B");
 #endif
+  }
+
+  /**
+   * @brief Copy constructor for hyperloglog_impl.
+   *
+   * @param other The hyperloglog_impl object to copy from
+   */
+  __host__ __device__ constexpr hyperloglog_impl(hyperloglog_impl const& other)
+    : hash_{other.hash_}, precision_{other.precision_}, sketch_{other.sketch_}
+  {
   }
 
   /**
@@ -150,8 +159,8 @@ class hyperloglog_impl {
   __device__ constexpr void add(T const& item) noexcept
   {
     auto const h      = this->hash_(item);
-    auto const reg    = h & this->register_mask_;
-    auto const zeroes = cuda::std::countl_zero(h | this->register_mask_) + 1;  // __clz
+    auto const reg    = h & this->register_mask();
+    auto const zeroes = cuda::std::countl_zero(h | this->register_mask()) + 1;  // __clz
 
     // reversed order (same one as Spark uses)
     // auto const reg    = h >> ((sizeof(hash_value_type) * 8) - this->precision_);
@@ -572,9 +581,18 @@ class hyperloglog_impl {
     }
   }
 
+  /**
+   * @brief Gets the register mask used to separate register index from count.
+   *
+   * @return The register mask
+   */
+  __host__ __device__ constexpr hash_value_type register_mask() const noexcept
+  {
+    return (1ull << this->precision_) - 1;
+  }
+
   hasher hash_;                            ///< Hash function used to hash items
   int32_t precision_;                      ///< HLL precision parameter
-  hash_value_type register_mask_;          ///< Mask used to separate register index from count
   cuda::std::span<register_type> sketch_;  ///< HLL sketch storage
 
   template <class T_, cuda::thread_scope Scope_, class Hash_>
