@@ -118,8 +118,9 @@ function(cuco_set_common_compile_options target_name)
     endif()
     
     # Add Clang-specific warning suppression for deprecated literal operators
-    # (Catch2 still uses deprecated syntax as of v3.9.1)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # (Catch2 and cuco code still use deprecated syntax)
+    # Only for Clang 15+ which introduced this warning
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15.0)
         target_compile_options(${target_name} PRIVATE -Xcompiler -Wno-deprecated-literal-operator)
     endif()
 endfunction()
