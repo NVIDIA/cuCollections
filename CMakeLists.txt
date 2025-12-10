@@ -116,6 +116,12 @@ function(cuco_set_common_compile_options target_name)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${target_name} PRIVATE -Xcompiler -Wno-subobject-linkage)
     endif()
+    
+    # Add Clang-specific warning suppression for deprecated literal operators
+    # (Catch2 still uses deprecated syntax as of v3.9.1)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(${target_name} PRIVATE -Xcompiler -Wno-deprecated-literal-operator)
+    endif()
 endfunction()
 
 ###################################################################################################
