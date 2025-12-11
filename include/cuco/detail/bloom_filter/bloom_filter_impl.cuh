@@ -59,7 +59,7 @@ class bloom_filter_impl {
   // TODO remove these once we settled on a setup which works best
   static constexpr bool use_invoke_one                       = true;
   static constexpr bool use_early_exit                       = false;
-  static constexpr bool use_cub_kernels                      = true;
+  static constexpr bool use_cub_kernels                      = false; // DEBUG
   static constexpr bool use_warp_cooperative_add_kernel      = true;
   static constexpr bool use_warp_cooperative_contains_kernel = true;
   static constexpr bool use_work_stealing_add_kernel         = false;  // DEBUG
