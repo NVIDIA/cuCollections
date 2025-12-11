@@ -42,7 +42,7 @@ namespace cuco {
  * - Host-side "bulk" operations
  * - Device-side "singular" operations
  *
- * The host-side bulk operations include `add`, `contains`, etc. These APIs should be used when
+ * The host-side bulk operations include add(), contains(), etc. These APIs should be used when
  * there are a large number of keys to add or lookup. For example, given a range of keys
  * specified by device-accessible iterators, the bulk `add` function will add all keys into
  * the filter.
@@ -124,7 +124,7 @@ class bloom_filter {
    * @brief Erases all information from the filter.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
-   * `clear_async`.
+   * clear_async().
    *
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
@@ -142,7 +142,7 @@ class bloom_filter {
    * @brief Adds all keys in the range `[first, last)` to the filter.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
-   * `add_async`.
+   * add_async().
    *
    * @tparam InputIt Device-accessible random access input key iterator
    * @param first Beginning of the sequence of keys
@@ -173,7 +173,7 @@ class bloom_filter {
    *
    * @note The key `*(first + i)` is added if `pred( *(stencil + i) )` returns `true`.
    * @note This function synchronizes the given stream and returns the number of successful
-   * insertions. For asynchronous execution use `add_if_async`.
+   * insertions. For asynchronous execution use add_if_async().
    *
    * @tparam InputIt Device-accessible random access input key iterator
    * @tparam StencilIt Device-accessible random-access iterator whose `value_type` is
@@ -227,7 +227,7 @@ class bloom_filter {
    * filter.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
-   * `contains_async`.
+   * contains_async().
    *
    * @tparam InputIt Device-accessible random access input key iterator
    * @tparam OutputIt Device-accessible output iterator assignable from `bool`
@@ -269,7 +269,7 @@ class bloom_filter {
    *
    * @note The key `*(first + i)` is queried if `pred( *(stencil + i) )` returns `true`.
    * @note This function synchronizes the given stream. For asynchronous execution use
-   * `contains_if_async`.
+   * contains_if_async().
    *
    * @tparam InputIt Device-accessible random access input key iterator
    * @tparam StencilIt Device-accessible random-access iterator whose `value_type` is
@@ -324,6 +324,85 @@ class bloom_filter {
                                             OutputIt output_begin,
                                             cuda::stream_ref stream = cuda::stream_ref{
                                               cudaStream_t{nullptr}}) const noexcept;
+
+  /**
+   * @brief Merge another bloom filter into this.
+   *
+   * @note Modifies `this` in place.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * merge_async().
+   *
+   * @note This performs the set union of the two filters. Let \f$f : X \to B\f$ denote the
+   * construction of a bloom filter on some set \f$X\f$, and let \f$A\f$ and \f$B\f$ be two sets,
+   * then it holds that \f$f(A \cup B) = f(A) \cup f(B)\f$.
+   *
+   * @param other Other filter with matching type to this.
+   * @param stream CUDA stream used for device memory operations and kernel launches.
+   *
+   * @throws cuco::logic_error If the other filter does not have the same number of blocks as this.
+   */
+  __host__ constexpr void merge(bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other,
+                                cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
+   * @brief Asynchronously merge another bloom filter into this.
+   *
+   * @note Modifies `this` in place.
+   *
+   * @note This performs the set union of the two filters. Let \f$f : X \to B\f$ denote the
+   * construction of a bloom filter on some set \f$X\f$, and let \f$A\f$ and \f$B\f$ be two sets,
+   * then it holds that \f$f(A \cup B) = f(A) \cup f(B)\f$
+   *
+   * @param other Other filter with matching type to this.
+   * @param stream CUDA stream used for device memory operations and kernel launches.
+   *
+   * @throws cuco::logic_error If the other filter does not have the same number of blocks as this.
+   */
+  __host__ constexpr void merge_async(
+    bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other,
+    cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
+   * @brief Intersect another bloom filter into this.
+   *
+   * @note Modifies `this` in place.
+   * @note This function synchronizes the given stream. For asynchronous execution use
+   * intersect_async().
+   *
+   * @note This performs the set intersection of the two filters. Unlike merge(), this operation
+   * does not distribute over filter construction and therefore only approximates the bloom filter
+   * of the intersection of the input sets. In other words, let \f$f : X \to B\f$ denote the
+   * construction of a bloom filter on some set \f$X\f$, and let \f$A\f$ and \f$B\f$ be two sets,
+   * then \f$(A \cap B) \ne f(A) \cap f(B)\f$.
+   *
+   * @param other Other filter with matching type to this.
+   * @param stream CUDA stream used for device memory operations and kernel launches.
+   *
+   * @throws cuco::logic_error If the other filter does not have the same number of blocks as this.
+   */
+  __host__ constexpr void intersect(
+    bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other,
+    cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
+   * @brief Asynchronously intersect another bloom filter into this.
+   *
+   * @note Modifies `this` in place.
+   *
+   * @note This performs the set intersection of the two filters. Unlike merge_async(), this
+   * operation does not distribute over filter construction and therefore only approximates the
+   * bloom filter of the intersection of the input sets. In other words, let \f$f : X \to B\f$
+   * denote the construction of a bloom filter on some set \f$X\f$, and let \f$A\f$ and \f$B\f$ be
+   * two sets, then \f$(A \cap B) \ne f(A) \cap f(B)\f$.
+   *
+   * @param other Other filter with matching type to this.
+   * @param stream CUDA stream used for device memory operations and kernel launches.
+   *
+   * @throws cuco::logic_error If the other filter does not have the same number of blocks as this.
+   */
+  __host__ constexpr void intersect_async(
+    bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other,
+    cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Gets a pointer to the underlying filter storage.

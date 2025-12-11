@@ -172,6 +172,34 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::contains_i
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+__host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::merge(
+  bloom_filter_ref<Key, Extent, Scope, Policy> const& other, cuda::stream_ref stream)
+{
+  impl_.merge(other.impl_, stream);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+__host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::merge_async(
+  bloom_filter_ref<Key, Extent, Scope, Policy> const& other, cuda::stream_ref stream)
+{
+  impl_.merge_async(other.impl_, stream);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+__host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::intersect(
+  bloom_filter_ref<Key, Extent, Scope, Policy> const& other, cuda::stream_ref stream)
+{
+  impl_.intersect(other.impl_, stream);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+__host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::intersect_async(
+  bloom_filter_ref<Key, Extent, Scope, Policy> const& other, cuda::stream_ref stream)
+{
+  impl_.intersect_async(other.impl_, stream);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 [[nodiscard]] __host__ __device__ constexpr
   typename bloom_filter_ref<Key, Extent, Scope, Policy>::word_type*
   bloom_filter_ref<Key, Extent, Scope, Policy>::data() noexcept
