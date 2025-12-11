@@ -392,7 +392,8 @@ class bloom_filter_ref {
    * construction of a bloom filter on some set \f$X\f$, and let \f$A\f$ and \f$B\f$ be two sets,
    * then it holds that \f$f(A \cup B) = f(A) \cup f(B)\f$.
    *
-   * @param other Other filter with matching type to this.
+   * @param other Other filter with matching type to this. The policy object must be equal to that
+   * of this filter, otherwise behavior is undefined.
    * @param stream CUDA stream used for device memory operations and kernel launches.
    *
    * @throws cuco::logic_error If the other filter does not have the same number of blocks as this.
@@ -409,7 +410,8 @@ class bloom_filter_ref {
    * construction of a bloom filter on some set \f$X\f$, and let \f$A\f$ and \f$B\f$ be two sets,
    * then it holds that \f$f(A \cup B) = f(A) \cup f(B)\f$
    *
-   * @param other Other filter with matching type to this.
+   * @param other Other filter with matching type to this. The policy object must be equal to that
+   * of this filter, otherwise behavior is undefined.
    * @param stream CUDA stream used for device memory operations and kernel launches.
    *
    * @throws cuco::logic_error If the other filter does not have the same number of blocks as this.
@@ -429,9 +431,11 @@ class bloom_filter_ref {
    * does not distribute over filter construction and therefore only approximates the bloom filter
    * of the intersection of the input sets. In other words, let \f$f : X \to B\f$ denote the
    * construction of a bloom filter on some set \f$X\f$, and let \f$A\f$ and \f$B\f$ be two sets,
-   * then \f$f(A \cap B) \ne f(A) \cap f(B)\f$.
+   * then \f$f(A \cap B) \ne f(A) \cap f(B)\f$. Despite this, it is guaranteed that for all \f$x \in
+   * (A \cap B)\f$, it holds \f$x \in f(A) \cap f(B)\f$.
    *
-   * @param other Other filter with matching type to this.
+   * @param other Other filter with matching type to this. The policy object must be equal to that
+   * of this filter, otherwise behavior is undefined.
    * @param stream CUDA stream used for device memory operations and kernel launches.
    *
    * @throws cuco::logic_error If the other filter does not have the same number of blocks as this.
@@ -449,9 +453,11 @@ class bloom_filter_ref {
    * operation does not distribute over filter construction and therefore only approximates the
    * bloom filter of the intersection of the input sets. In other words, let \f$f : X \to B\f$
    * denote the construction of a bloom filter on some set \f$X\f$, and let \f$A\f$ and \f$B\f$ be
-   * two sets, then \f$f(A \cap B) \ne f(A) \cap f(B)\f$.
+   * two sets, then \f$f(A \cap B) \ne f(A) \cap f(B)\f$. Despite this, it is guaranteed that for
+   * all \f$x \in (A \cap B)\f$, it holds \f$x \in f(A) \cap f(B)\f$.
    *
-   * @param other Other filter with matching type to this.
+   * @param other Other filter with matching type to this. The policy object must be equal to that
+   * of this filter, otherwise behavior is undefined.
    * @param stream CUDA stream used for device memory operations and kernel launches.
    *
    * @throws cuco::logic_error If the other filter does not have the same number of blocks as this.
