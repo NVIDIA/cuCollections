@@ -59,8 +59,8 @@ template <class OutputIt>
 struct lazy_discard {
   OutputIt it;
 
-  using index_type = typename thrust::iterator_traits<OutputIt>::difference_type;
-  using value_type = typename thrust::iterator_traits<OutputIt>::value_type;
+  using index_type = typename cuda::std::iterator_traits<OutputIt>::difference_type;
+  using value_type = typename cuda::std::iterator_traits<OutputIt>::value_type;
 
   __device__ void device_dispatch(index_type index, value_type const& value) const
   {
