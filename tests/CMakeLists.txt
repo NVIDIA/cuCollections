@@ -147,7 +147,8 @@ ConfigureTest(HYPERLOGLOG_TEST
     hyperloglog/unique_sequence_test.cu
     hyperloglog/spark_parity_test.cu
     hyperloglog/device_ref_test.cu
-    hyperloglog/type_deduction_test.cu)
+    hyperloglog/type_deduction_test.cu
+    hyperloglog/add_if_test.cu)
 
 ###################################################################################################
 # - bloom_filter ----------------------------------------------------------------------------------

@@ -157,6 +157,34 @@ class hyperloglog {
                      cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
+   * @brief Asynchronously adds items in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The item `*(first + i)` is added if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <class InputIt, class StencilIt, class Predicate>
+  constexpr void add_if_async(InputIt first,
+                              InputIt last,
+                              StencilIt stencil,
+                              Predicate pred,
+                              cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
    * @brief Asynchronously merges the result of `other` estimator into `*this` estimator.
    *
    * @throw If this->sketch_bytes() != other.sketch_bytes()

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,6 +65,14 @@ __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::add(InputIt first,
                                                              cuda::stream_ref stream)
 {
   impl_.add(first, last, stream);
+}
+
+template <class T, cuda::thread_scope Scope, class Hash>
+template <class InputIt, class StencilIt, class Predicate>
+__host__ constexpr void hyperloglog_ref<T, Scope, Hash>::add_if_async(
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
+{
+  impl_.add_if_async(first, last, stencil, pred, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
