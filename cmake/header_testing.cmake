@@ -63,16 +63,9 @@ function(cuco_add_header_tests)
     # Create executable test for this specific header
     add_executable(${headertest_target} ${header_src})
     target_link_libraries(${headertest_target} PRIVATE cuco::cuco CUDA::cudart)
-
-    target_compile_options(${headertest_target} PRIVATE
-      $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
-      --compiler-options=-Wall --compiler-options=-Wextra
-      --compiler-options=-Werror -Wno-deprecated-gpu-targets
-    )
-
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-      target_compile_options(${headertest_target} PRIVATE -Xcompiler -Wno-subobject-linkage)
-    endif()
+    
+    # Use common compile options (includes all compiler-specific warning suppressions)
+    cuco_set_common_compile_options(${headertest_target})
 
     set_target_properties(${headertest_target} PROPERTIES
       RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests/headers"
