@@ -29,9 +29,8 @@
 
 TEST_CASE("hyperloglog: add_if with stencil predicate")
 {
-  auto constexpr hll_precision  = 12;
-  auto constexpr sketch_size_kb = 4 * (1ull << hll_precision) / 1024;
-  auto constexpr num_items      = 100000;
+  auto constexpr hll_precision = 12;
+  auto constexpr num_items     = 100000;
 
   double constexpr tolerance_factor = 2.5;
   double const relative_standard_deviation =
@@ -49,7 +48,7 @@ TEST_CASE("hyperloglog: add_if with stencil predicate")
     auto pred = [] __device__(int x) { return x % 2 == 0; };
 
     cuco::hyperloglog<int64_t, cuda::thread_scope_device, cuco::xxhash_64<int64_t>> estimator{
-      cuco::sketch_size_kb(sketch_size_kb)};
+      cuco::precision(hll_precision)};
 
     REQUIRE(estimator.estimate() == 0);
 
@@ -71,7 +70,7 @@ TEST_CASE("hyperloglog: add_if with stencil predicate")
     auto pred = [] __device__(int x) { return x != 0; };
 
     cuco::hyperloglog<int64_t, cuda::thread_scope_device, cuco::xxhash_64<int64_t>> estimator{
-      cuco::sketch_size_kb(sketch_size_kb)};
+      cuco::precision(hll_precision)};
 
     estimator.add_if_async(items.begin(), items.end(), stencil.begin(), pred);
 
@@ -90,7 +89,7 @@ TEST_CASE("hyperloglog: add_if with stencil predicate")
     auto pred = [] __device__(int x) { return x != 0; };
 
     cuco::hyperloglog<int64_t, cuda::thread_scope_device, cuco::xxhash_64<int64_t>> estimator{
-      cuco::sketch_size_kb(sketch_size_kb)};
+      cuco::precision(hll_precision)};
 
     estimator.add_if_async(items.begin(), items.end(), stencil.begin(), pred);
 
