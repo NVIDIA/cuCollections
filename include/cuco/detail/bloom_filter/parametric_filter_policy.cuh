@@ -126,9 +126,11 @@ class parametric_filter_policy {
                                        (words_per_block % groups_per_block == 0)),
       "in cache-sectorized filter, the number of groups must be positive, be fewer "
       "than words_per_block, and evenly divide words_per_block");
-    static_assert(is_cache_sectorized == false || (contains_vertical_layout >= words_per_group &&
-                                                   add_vertical_layout >= words_per_group),
-                  "in cache-sectorized filter, the vertical layout for add/contains must be at "
+    static_assert(is_cache_sectorized == false || (add_vertical_layout >= words_per_group),
+                  "in cache-sectorized filter, the vertical layout for add must be at "
+                  "least the number of words per group");
+    static_assert(is_cache_sectorized == false || (contains_vertical_layout >= words_per_group),
+                  "in cache-sectorized filter, the vertical layout for contains must be at "
                   "least the number of words per group");
     static_assert(is_cache_sectorized == false || groups_per_block * group_index_width <= 32,
                   "in cache-sectorized filter, the number of bits needed to index groups must fit "
