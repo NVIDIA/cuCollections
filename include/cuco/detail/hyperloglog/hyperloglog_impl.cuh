@@ -175,8 +175,8 @@ class hyperloglog_impl {
   template <class InputIt>
   __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
   {
-    auto const always_true = thrust::constant_iterator<bool>(true);
-    this->add_if_async(first, last, always_true, cuda::std::identity{}, stream);
+    this->add_if_async(
+      first, last, thrust::constant_iterator<bool>{true}, cuda::std::identity{}, stream);
   }
 
   /**
