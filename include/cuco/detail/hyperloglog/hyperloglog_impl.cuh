@@ -54,9 +54,9 @@ namespace cuco::detail {
 template <class T, cuda::thread_scope Scope, class Hash>
 class hyperloglog_impl {
   // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
-  using fp_type = double;  ///< Floating point type used for reduction
-  using hash_value_type =
-    decltype(cuda::std::declval<Hash>()(cuda::std::declval<T>()));  ///< Hash value type
+  using fp_type         = double;  ///< Floating point type used for reduction
+  using hash_value_type = cuda::std::remove_cvref_t<decltype(cuda::std::declval<Hash>()(
+    cuda::std::declval<T>()))>;  ///< Hash value type
  public:
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 

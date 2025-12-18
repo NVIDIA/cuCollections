@@ -146,7 +146,8 @@ ConfigureTest(DYNAMIC_BITSET_TEST
 ConfigureTest(HYPERLOGLOG_TEST
     hyperloglog/unique_sequence_test.cu
     hyperloglog/spark_parity_test.cu
-    hyperloglog/device_ref_test.cu)
+    hyperloglog/device_ref_test.cu
+    hyperloglog/type_deduction_test.cu)
 
 ###################################################################################################
 # - bloom_filter ----------------------------------------------------------------------------------
