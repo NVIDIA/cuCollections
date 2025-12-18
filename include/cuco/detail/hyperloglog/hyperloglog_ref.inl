@@ -148,6 +148,13 @@ __host__ __device__ constexpr std::size_t hyperloglog_ref<T, Scope, Hash>::sketc
 }
 
 template <class T, cuda::thread_scope Scope, class Hash>
+__host__ __device__ constexpr std::size_t hyperloglog_ref<T, Scope, Hash>::sketch_bytes(
+  cuco::precision precision) noexcept
+{
+  return impl_type::sketch_bytes(precision);
+}
+
+template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr std::size_t
 hyperloglog_ref<T, Scope, Hash>::sketch_alignment() noexcept
 {

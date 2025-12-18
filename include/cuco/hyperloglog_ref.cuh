@@ -276,6 +276,16 @@ class hyperloglog_ref {
     cuco::standard_deviation standard_deviation) noexcept;
 
   /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param precision HyperLogLog precision parameter
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+    cuco::precision precision) noexcept;
+
+  /**
    * @brief Gets the alignment required for the sketch storage.
    *
    * @return The required alignment

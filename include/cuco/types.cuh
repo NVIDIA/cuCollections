@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,6 +57,15 @@ CUCO_DEFINE_STRONG_TYPE(sketch_size_kb, double);
  * deviation for the cardinality estimate of `cuco::hyperloglog(_ref)`.
  */
 CUCO_DEFINE_STRONG_TYPE(standard_deviation, double);
+
+/**
+ * @brief A strong type wrapper `cuco::precision` for specifying the HyperLogLog precision
+ * parameter of `cuco::hyperloglog(_ref)`.
+ *
+ * @note Precision `p` determines the number of registers as `2^p`. Valid range is typically [4,
+ * 18].
+ */
+CUCO_DEFINE_STRONG_TYPE(precision, int32_t);
 
 }  // namespace cuco
 

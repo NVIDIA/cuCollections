@@ -90,6 +90,22 @@ class hyperloglog {
                         Allocator const& alloc  = {},
                         cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
+  /**
+   * @brief Constructs a `hyperloglog` host object.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param precision HyperLogLog precision parameter (determines number of registers as
+   * 2^precision)
+   * @param hash The hash function used to hash items
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the object
+   */
+  constexpr hyperloglog(cuco::precision precision,
+                        Hash const& hash        = {},
+                        Allocator const& alloc  = {},
+                        cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
   ~hyperloglog() = default;
 
   hyperloglog(hyperloglog const&)            = delete;
@@ -307,6 +323,15 @@ class hyperloglog {
    */
   [[nodiscard]] static constexpr std::size_t sketch_bytes(
     cuco::standard_deviation standard_deviation) noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param precision HyperLogLog precision parameter
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_bytes(cuco::precision precision) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

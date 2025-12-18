@@ -519,12 +519,13 @@ class hyperloglog_impl {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ static constexpr size_t sketch_bytes(
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
     cuco::sketch_size_kb sketch_size_kb) noexcept
   {
     // minimum precision is 4 or 64 bytes
-    return cuda::std::max(static_cast<size_t>(sizeof(register_type) * 1ull << 4),
-                          cuda::std::bit_floor(static_cast<size_t>(sketch_size_kb * 1024)));
+    return cuda::std::max(
+      static_cast<cuda::std::size_t>(sizeof(register_type) * 1ull << 4),
+      cuda::std::bit_floor(static_cast<cuda::std::size_t>(sketch_size_kb * 1024)));
   }
 
   /**
@@ -534,7 +535,7 @@ class hyperloglog_impl {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
     cuco::standard_deviation standard_deviation) noexcept
   {
     // implementation taken from
@@ -542,8 +543,8 @@ class hyperloglog_impl {
 
     //  minimum precision is 4 or 64 bytes
     auto const precision = cuda::std::max(
-      static_cast<int32_t>(4),
-      static_cast<int32_t>(
+      static_cast<cuda::std::int32_t>(4),
+      static_cast<cuda::std::int32_t>(
         cuda::std::ceil(2.0 * cuda::std::log(1.106 / standard_deviation) / cuda::std::log(2.0))));
 
     // inverse of this function (ommitting the minimum precision constraint) is
@@ -553,13 +554,29 @@ class hyperloglog_impl {
   }
 
   /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param precision HyperLogLog precision parameter
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
+    cuco::precision precision) noexcept
+  {
+    // minimum precision is 4 or 64 bytes
+    auto const clamped_precision =
+      cuda::std::max(cuda::std::int32_t{4}, cuda::std::int32_t{precision});
+    return cuda::std::size_t{sizeof(register_type) * (1ull << clamped_precision)};
+  }
+
+  /**
    * @brief Gets the alignment required for the sketch storage.
    *
    * @return The required alignment
    */
-  [[nodiscard]] __host__ __device__ static constexpr size_t sketch_alignment() noexcept
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_alignment() noexcept
   {
-    return alignof(register_type);
+    return cuda::std::size_t{alignof(register_type)};
   }
 
  private:
