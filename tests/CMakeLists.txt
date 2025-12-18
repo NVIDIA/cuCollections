@@ -153,7 +153,8 @@ ConfigureTest(HYPERLOGLOG_TEST
 ConfigureTest(BLOOM_FILTER_TEST
     bloom_filter/unique_sequence_test.cu
     bloom_filter/arrow_policy_test.cu
-    bloom_filter/variable_cg_test.cu)
+    bloom_filter/variable_cg_test.cu
+    bloom_filter/merge_intersect_test.cu)
 
 ###################################################################################################
 # - roaring_bitmap ---------------------------------------------------------------------------------
