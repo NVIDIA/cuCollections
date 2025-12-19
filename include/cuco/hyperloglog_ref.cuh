@@ -17,13 +17,49 @@
 
 #include <cuco/detail/hyperloglog/hyperloglog_impl.cuh>
 #include <cuco/hash_functions.cuh>
-#include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
 #include <cooperative_groups.h>
+
+namespace cuco {
+/**
+ * @brief A strong type wrapper for specifying the upper-bound sketch size of
+ * `cuco::hyperloglog(_ref)` in KB.
+ *
+ * @note Underlying type is `double`. Values can also be specified as literals, e.g., 64.3_KB.
+ */
+using sketch_size_kb = detail::sketch_size_kb;
+
+/**
+ * @brief A strong type wrapper for specifying the desired standard deviation for the cardinality
+ * estimate of `cuco::hyperloglog(_ref)`.
+ *
+ * @note Underlying type is `double`.
+ */
+using standard_deviation = detail::standard_deviation;
+
+/**
+ * @brief A strong type wrapper for specifying the HyperLogLog precision parameter of
+ * `cuco::hyperloglog(_ref)`.
+ *
+ * @note Underlying type is `int32_t`. Precision `p` determines the number of registers as `2^p`.
+ * Valid range is typically [4, 18].
+ */
+using precision = detail::precision;
+}  // namespace cuco
+
+__host__ __device__ constexpr cuco::sketch_size_kb operator""_KB(long double value)
+{
+  return cuco::sketch_size_kb{static_cast<double>(value)};
+}
+
+__host__ __device__ constexpr cuco::sketch_size_kb operator""_KB(unsigned long long int value)
+{
+  return cuco::sketch_size_kb{static_cast<double>(value)};
+}
 
 namespace cuco {
 /**

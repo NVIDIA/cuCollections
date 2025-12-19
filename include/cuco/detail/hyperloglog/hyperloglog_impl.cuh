@@ -19,9 +19,9 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hyperloglog/finalizer.cuh>
 #include <cuco/detail/hyperloglog/kernels.cuh>
+#include <cuco/detail/utility/strong_type.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
-#include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
@@ -42,6 +42,9 @@
 #include <vector>
 
 namespace cuco::detail {
+CUCO_DEFINE_STRONG_TYPE(sketch_size_kb, double);
+CUCO_DEFINE_STRONG_TYPE(standard_deviation, double);
+CUCO_DEFINE_STRONG_TYPE(precision, int32_t);
 
 /**
  * @brief A GPU-accelerated utility for approximating the number of distinct items in a multiset.
@@ -84,9 +87,9 @@ class hyperloglog_impl {
   __host__ __device__ constexpr hyperloglog_impl(cuda::std::span<cuda::std::byte> sketch_span,
                                                  Hash const& hash)
     : hash_{hash},
-      precision_{cuda::std::countr_zero(
-        sketch_bytes(cuco::sketch_size_kb(static_cast<double>(sketch_span.size() / 1024.0))) /
-        sizeof(register_type))},
+      precision_{cuda::std::countr_zero(sketch_bytes(cuco::detail::sketch_size_kb(
+                                          static_cast<double>(sketch_span.size() / 1024.0))) /
+                                        sizeof(register_type))},
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
               this->sketch_bytes() / sizeof(register_type)}
   {
@@ -520,7 +523,7 @@ class hyperloglog_impl {
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
-    cuco::sketch_size_kb sketch_size_kb) noexcept
+    cuco::detail::sketch_size_kb sketch_size_kb) noexcept
   {
     // minimum precision is 4 or 64 bytes
     return cuda::std::max(
@@ -536,7 +539,7 @@ class hyperloglog_impl {
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
-    cuco::standard_deviation standard_deviation) noexcept
+    cuco::detail::standard_deviation standard_deviation) noexcept
   {
     // implementation taken from
     // https://github.com/apache/spark/blob/6a27789ad7d59cd133653a49be0bb49729542abe/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/util/HyperLogLogPlusPlusHelper.scala#L43
@@ -561,7 +564,7 @@ class hyperloglog_impl {
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
-    cuco::precision precision) noexcept
+    cuco::detail::precision precision) noexcept
   {
     // minimum precision is 4 or 64 bytes
     auto const clamped_precision =

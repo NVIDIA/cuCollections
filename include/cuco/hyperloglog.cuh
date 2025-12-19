@@ -18,7 +18,6 @@
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/hyperloglog_ref.cuh>
-#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
