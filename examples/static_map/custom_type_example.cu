@@ -94,8 +94,8 @@ int main(void)
   // map.contains(insert_keys, insert_keys + num_pairs, contained.begin());
 
   // All inserted keys are contained
-  auto const all_contained =
-    thrust::all_of(contained.begin(), contained.end(), [] __device__(auto const& b) { return b; });
+  auto const all_contained = thrust::all_of(
+    contained.begin(), contained.end(), [] __device__(auto const& b) -> bool { return b; });
   if (all_contained) { std::cout << "Success! Found all values.\n"; }
 
   return 0;

@@ -146,7 +146,7 @@ int main(void)
   auto insert_ref = map.ref(cuco::insert);
 
   // Predicate will only insert even keys
-  auto is_even = [] __device__(auto key) { return (key % 2) == 0; };
+  auto is_even = [] __device__(auto key) -> bool { return (key % 2) == 0; };
 
   // Allocate storage for count of number of inserted keys
   thrust::device_vector<int> num_inserted(1);
@@ -176,10 +176,12 @@ int main(void)
   auto tuple_iter =
     thrust::make_zip_iterator(cuda::std::tuple{contained_keys.begin(), contained_values.begin()});
   // Iterate over all slot contents and verify that `slot.key + 1 == slot.value` is always true.
-  auto result = thrust::all_of(
-    thrust::device, tuple_iter, tuple_iter + num_inserted[0], [] __device__(auto const& tuple) {
-      return cuda::std::get<0>(tuple) + 1 == cuda::std::get<1>(tuple);
-    });
+  auto result = thrust::all_of(thrust::device,
+                               tuple_iter,
+                               tuple_iter + num_inserted[0],
+                               [] __device__(auto const& tuple) -> bool {
+                                 return cuda::std::get<0>(tuple) + 1 == cuda::std::get<1>(tuple);
+                               });
 
   if (result) { std::cout << "Success! Target values are properly incremented.\n"; }
 
