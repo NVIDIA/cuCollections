@@ -19,19 +19,21 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/hyperloglog/finalizer.cuh>
 #include <cuco/detail/hyperloglog/kernels.cuh>
+#include <cuco/detail/utility/strong_type.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/hash_functions.cuh>
-#include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/atomic>
+#include <cuda/functional>
 #include <cuda/std/__algorithm/max.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/bit>
 #include <cuda/std/cstddef>
 #include <cuda/std/span>
 #include <cuda/std/utility>
 #include <cuda/stream_ref>
+#include <thrust/iterator/constant_iterator.h>
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
@@ -40,6 +42,9 @@
 #include <vector>
 
 namespace cuco::detail {
+CUCO_DEFINE_STRONG_TYPE(sketch_size_kb, double);
+CUCO_DEFINE_STRONG_TYPE(standard_deviation, double);
+CUCO_DEFINE_STRONG_TYPE(precision, int32_t);
 
 /**
  * @brief A GPU-accelerated utility for approximating the number of distinct items in a multiset.
@@ -54,9 +59,9 @@ namespace cuco::detail {
 template <class T, cuda::thread_scope Scope, class Hash>
 class hyperloglog_impl {
   // We use `int` here since this is the smallest type that supports native `atomicMax` on GPUs
-  using fp_type = double;  ///< Floating point type used for reduction
-  using hash_value_type =
-    decltype(cuda::std::declval<Hash>()(cuda::std::declval<T>()));  ///< Hash value type
+  using fp_type         = double;  ///< Floating point type used for reduction
+  using hash_value_type = cuda::std::remove_cvref_t<decltype(cuda::std::declval<Hash>()(
+    cuda::std::declval<T>()))>;  ///< Hash value type
  public:
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
@@ -82,9 +87,9 @@ class hyperloglog_impl {
   __host__ __device__ constexpr hyperloglog_impl(cuda::std::span<cuda::std::byte> sketch_span,
                                                  Hash const& hash)
     : hash_{hash},
-      precision_{cuda::std::countr_zero(
-        sketch_bytes(cuco::sketch_size_kb(static_cast<double>(sketch_span.size() / 1024.0))) /
-        sizeof(register_type))},
+      precision_{cuda::std::countr_zero(sketch_bytes(cuco::detail::sketch_size_kb(
+                                          static_cast<double>(sketch_span.size() / 1024.0))) /
+                                        sizeof(register_type))},
       sketch_{reinterpret_cast<register_type*>(sketch_span.data()),
               this->sketch_bytes() / sizeof(register_type)}
   {
@@ -173,81 +178,8 @@ class hyperloglog_impl {
   template <class InputIt>
   __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
   {
-    auto const num_items = cuco::detail::distance(first, last);
-    if (num_items == 0) { return; }
-
-    int grid_size         = 0;
-    int block_size        = 0;
-    int const shmem_bytes = sketch_bytes();
-    void const* kernel    = nullptr;
-
-    // In case the input iterator represents a contiguous memory segment we can employ efficient
-    // vectorized loads
-    if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
-      auto const ptr                  = thrust::raw_pointer_cast(&first[0]);
-      auto constexpr max_vector_bytes = 32;
-      auto const alignment =
-        1 << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(ptr) | max_vector_bytes);
-      auto const vector_size = alignment / sizeof(value_type);
-
-      switch (vector_size) {
-        case 2:
-          kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<2, hyperloglog_impl>);
-          break;
-        case 4:
-          kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<4, hyperloglog_impl>);
-          break;
-        case 8:
-          kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<8, hyperloglog_impl>);
-          break;
-        case 16:
-          kernel = reinterpret_cast<void const*>(
-            cuco::hyperloglog_ns::detail::add_shmem_vectorized<16, hyperloglog_impl>);
-          break;
-      };
-    }
-
-    if (kernel != nullptr and this->try_reserve_shmem(kernel, shmem_bytes)) {
-      if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
-        // We make use of the occupancy calculator to get the minimum number of blocks which still
-        // saturates the GPU. This reduces the shmem initialization overhead and atomic contention
-        // on the final register array during the merge phase.
-        CUCO_CUDA_TRY(
-          cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
-
-        auto const ptr      = thrust::raw_pointer_cast(&first[0]);
-        void* kernel_args[] = {
-          (void*)(&ptr),  // TODO can't use reinterpret_cast since it can't cast away const
-          (void*)(&num_items),
-          reinterpret_cast<void*>(this)};
-        CUCO_CUDA_TRY(
-          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream.get()));
-      }
-    } else {
-      kernel = reinterpret_cast<void const*>(
-        cuco::hyperloglog_ns::detail::add_shmem<InputIt, hyperloglog_impl>);
-      void* kernel_args[] = {(void*)(&first), (void*)(&num_items), reinterpret_cast<void*>(this)};
-      if (this->try_reserve_shmem(kernel, shmem_bytes)) {
-        CUCO_CUDA_TRY(
-          cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
-
-        CUCO_CUDA_TRY(
-          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream.get()));
-      } else {
-        // Computes sketch directly in global memory. (Fallback path in case there is not enough
-        // shared memory avalable)
-        kernel = reinterpret_cast<void const*>(
-          cuco::hyperloglog_ns::detail::add_gmem<InputIt, hyperloglog_impl>);
-
-        CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, 0));
-
-        CUCO_CUDA_TRY(
-          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, 0, stream.get()));
-      }
-    }
+    this->add_if_async(
+      first, last, thrust::constant_iterator<bool>{true}, cuda::std::identity{}, stream);
   }
 
   /**
@@ -273,6 +205,112 @@ class hyperloglog_impl {
 #else
     stream.wait();
 #endif
+  }
+
+  /**
+   * @brief Asynchronously adds items in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The item `*(first + i)` is added if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <class InputIt, class StencilIt, class Predicate>
+  __host__ constexpr void add_if_async(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
+  {
+    auto const num_items = cuco::detail::distance(first, last);
+    if (num_items == 0) { return; }
+
+    int grid_size         = 0;
+    int block_size        = 0;
+    int const shmem_bytes = sketch_bytes();
+    void const* kernel    = nullptr;
+
+    if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
+      auto const ptr                  = thrust::raw_pointer_cast(&first[0]);
+      auto constexpr max_vector_bytes = 32;
+      auto const alignment =
+        1 << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(ptr) | max_vector_bytes);
+      auto const vector_size = alignment / sizeof(value_type);
+
+      switch (vector_size) {
+        case 2:
+          kernel = reinterpret_cast<void const*>(
+            cuco::hyperloglog_ns::detail::
+              add_if_shmem_vectorized<2, StencilIt, Predicate, hyperloglog_impl>);
+          break;
+        case 4:
+          kernel = reinterpret_cast<void const*>(
+            cuco::hyperloglog_ns::detail::
+              add_if_shmem_vectorized<4, StencilIt, Predicate, hyperloglog_impl>);
+          break;
+        case 8:
+          kernel = reinterpret_cast<void const*>(
+            cuco::hyperloglog_ns::detail::
+              add_if_shmem_vectorized<8, StencilIt, Predicate, hyperloglog_impl>);
+          break;
+        case 16:
+          kernel = reinterpret_cast<void const*>(
+            cuco::hyperloglog_ns::detail::
+              add_if_shmem_vectorized<16, StencilIt, Predicate, hyperloglog_impl>);
+          break;
+      };
+    }
+
+    if (kernel != nullptr and this->try_reserve_shmem(kernel, shmem_bytes)) {
+      if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
+        CUCO_CUDA_TRY(
+          cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
+
+        auto const ptr      = thrust::raw_pointer_cast(&first[0]);
+        void* kernel_args[] = {(void*)(&ptr),
+                               (void*)(&num_items),
+                               (void*)(&stencil),
+                               (void*)(&pred),
+                               reinterpret_cast<void*>(this)};
+        CUCO_CUDA_TRY(
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream.get()));
+      }
+    } else {
+      kernel = reinterpret_cast<void const*>(
+        cuco::hyperloglog_ns::detail::
+          add_if_shmem<InputIt, StencilIt, Predicate, hyperloglog_impl>);
+      void* kernel_args[] = {(void*)(&first),
+                             (void*)(&num_items),
+                             (void*)(&stencil),
+                             (void*)(&pred),
+                             reinterpret_cast<void*>(this)};
+      if (this->try_reserve_shmem(kernel, shmem_bytes)) {
+        CUCO_CUDA_TRY(
+          cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
+
+        CUCO_CUDA_TRY(
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, shmem_bytes, stream.get()));
+      } else {
+        kernel = reinterpret_cast<void const*>(
+          cuco::hyperloglog_ns::detail::
+            add_if_gmem<InputIt, StencilIt, Predicate, hyperloglog_impl>);
+
+        CUCO_CUDA_TRY(cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, 0));
+
+        CUCO_CUDA_TRY(
+          cudaLaunchKernel(kernel, grid_size, block_size, kernel_args, 0, stream.get()));
+      }
+    }
   }
 
   /**
@@ -484,12 +522,13 @@ class hyperloglog_impl {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ static constexpr size_t sketch_bytes(
-    cuco::sketch_size_kb sketch_size_kb) noexcept
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
+    cuco::detail::sketch_size_kb sketch_size_kb) noexcept
   {
     // minimum precision is 4 or 64 bytes
-    return cuda::std::max(static_cast<size_t>(sizeof(register_type) * 1ull << 4),
-                          cuda::std::bit_floor(static_cast<size_t>(sketch_size_kb * 1024)));
+    return cuda::std::max(
+      static_cast<cuda::std::size_t>(sizeof(register_type) * 1ull << 4),
+      cuda::std::bit_floor(static_cast<cuda::std::size_t>(sketch_size_kb * 1024)));
   }
 
   /**
@@ -499,16 +538,16 @@ class hyperloglog_impl {
    *
    * @return The number of bytes required for the sketch
    */
-  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
-    cuco::standard_deviation standard_deviation) noexcept
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
+    cuco::detail::standard_deviation standard_deviation) noexcept
   {
     // implementation taken from
     // https://github.com/apache/spark/blob/6a27789ad7d59cd133653a49be0bb49729542abe/sql/catalyst/src/main/scala/org/apache/spark/sql/catalyst/util/HyperLogLogPlusPlusHelper.scala#L43
 
     //  minimum precision is 4 or 64 bytes
     auto const precision = cuda::std::max(
-      static_cast<int32_t>(4),
-      static_cast<int32_t>(
+      static_cast<cuda::std::int32_t>(4),
+      static_cast<cuda::std::int32_t>(
         cuda::std::ceil(2.0 * cuda::std::log(1.106 / standard_deviation) / cuda::std::log(2.0))));
 
     // inverse of this function (ommitting the minimum precision constraint) is
@@ -518,13 +557,29 @@ class hyperloglog_impl {
   }
 
   /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param precision HyperLogLog precision parameter
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_bytes(
+    cuco::detail::precision precision) noexcept
+  {
+    // minimum precision is 4 or 64 bytes
+    auto const clamped_precision =
+      cuda::std::max(cuda::std::int32_t{4}, cuda::std::int32_t{precision});
+    return cuda::std::size_t{sizeof(register_type) * (1ull << clamped_precision)};
+  }
+
+  /**
    * @brief Gets the alignment required for the sketch storage.
    *
    * @return The required alignment
    */
-  [[nodiscard]] __host__ __device__ static constexpr size_t sketch_alignment() noexcept
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_alignment() noexcept
   {
-    return alignof(register_type);
+    return cuda::std::size_t{alignof(register_type)};
   }
 
  private:
