@@ -25,6 +25,7 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cub/device/device_for.cuh>
+#include <cub/device/device_transform.cuh>
 #include <cuda/atomic>
 #include <cuda/std/__algorithm/max.h>
 #include <cuda/std/__algorithm/min.h>  // TODO #include <cuda/std/algorithm> once available
@@ -643,6 +644,54 @@ class bloom_filter_impl {
     detail::bloom_filter_ns::contains_if_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(
         first, num_keys, stencil, pred, output_begin, *this);
+  }
+
+  __host__ constexpr void merge(bloom_filter_impl<Key, Extent, Scope, Policy> const& other,
+                                cuda::stream_ref stream)
+  {
+    this->merge_async(other, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
+    stream.wait();
+#endif
+  }
+
+  __host__ constexpr void merge_async(bloom_filter_impl<Key, Extent, Scope, Policy> const& other,
+                                      cuda::stream_ref stream)
+  {
+    CUCO_EXPECTS(this->block_extent() == other.block_extent(),
+                 "mismatching num_blocks in merge_async");
+    CUCO_CUDA_TRY(cub::DeviceTransform::Transform(
+      cuda::std::tuple{this->data(), other.data()},
+      this->data(),
+      this->block_extent() * words_per_block,
+      [] __device__(word_type a, word_type b) { return a | b; },
+      stream.get()));
+  }
+
+  __host__ constexpr void intersect(bloom_filter_impl<Key, Extent, Scope, Policy> const& other,
+                                    cuda::stream_ref stream)
+  {
+    this->intersect_async(other, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
+    stream.wait();
+#endif
+  }
+
+  __host__ constexpr void intersect_async(
+    bloom_filter_impl<Key, Extent, Scope, Policy> const& other, cuda::stream_ref stream)
+  {
+    CUCO_EXPECTS(this->block_extent() == other.block_extent(),
+                 "mismatching num_blocks in intersect_async");
+    CUCO_CUDA_TRY(cub::DeviceTransform::Transform(
+      cuda::std::tuple{this->data(), other.data()},
+      this->data(),
+      this->block_extent() * words_per_block,
+      [] __device__(word_type a, word_type b) { return a & b; },
+      stream.get()));
   }
 
   [[nodiscard]] __host__ __device__ constexpr word_type* data() noexcept { return words_; }

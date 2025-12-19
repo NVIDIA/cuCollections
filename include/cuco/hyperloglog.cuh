@@ -18,7 +18,6 @@
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/hyperloglog_ref.cuh>
-#include <cuco/types.cuh>
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
@@ -90,6 +89,22 @@ class hyperloglog {
                         Allocator const& alloc  = {},
                         cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
+  /**
+   * @brief Constructs a `hyperloglog` host object.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @param precision HyperLogLog precision parameter (determines number of registers as
+   * 2^precision)
+   * @param hash The hash function used to hash items
+   * @param alloc Allocator used for allocating device storage
+   * @param stream CUDA stream used to initialize the object
+   */
+  constexpr hyperloglog(cuco::precision precision,
+                        Hash const& hash        = {},
+                        Allocator const& alloc  = {},
+                        cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
   ~hyperloglog() = default;
 
   hyperloglog(hyperloglog const&)            = delete;
@@ -155,6 +170,34 @@ class hyperloglog {
   constexpr void add(InputIt first,
                      InputIt last,
                      cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
+   * @brief Asynchronously adds items in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The item `*(first + i)` is added if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <class InputIt, class StencilIt, class Predicate>
+  constexpr void add_if_async(InputIt first,
+                              InputIt last,
+                              StencilIt stencil,
+                              Predicate pred,
+                              cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Asynchronously merges the result of `other` estimator into `*this` estimator.
@@ -279,6 +322,15 @@ class hyperloglog {
    */
   [[nodiscard]] static constexpr std::size_t sketch_bytes(
     cuco::standard_deviation standard_deviation) noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param precision HyperLogLog precision parameter
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] static constexpr std::size_t sketch_bytes(cuco::precision precision) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

@@ -17,13 +17,49 @@
 
 #include <cuco/detail/hyperloglog/hyperloglog_impl.cuh>
 #include <cuco/hash_functions.cuh>
-#include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/cstddef>
 #include <cuda/stream_ref>
 
 #include <cooperative_groups.h>
+
+namespace cuco {
+/**
+ * @brief A strong type wrapper for specifying the upper-bound sketch size of
+ * `cuco::hyperloglog(_ref)` in KB.
+ *
+ * @note Underlying type is `double`. Values can also be specified as literals, e.g., 64.3_KB.
+ */
+using sketch_size_kb = detail::sketch_size_kb;
+
+/**
+ * @brief A strong type wrapper for specifying the desired standard deviation for the cardinality
+ * estimate of `cuco::hyperloglog(_ref)`.
+ *
+ * @note Underlying type is `double`.
+ */
+using standard_deviation = detail::standard_deviation;
+
+/**
+ * @brief A strong type wrapper for specifying the HyperLogLog precision parameter of
+ * `cuco::hyperloglog(_ref)`.
+ *
+ * @note Underlying type is `int32_t`. Precision `p` determines the number of registers as `2^p`.
+ * Valid range is typically [4, 18].
+ */
+using precision = detail::precision;
+}  // namespace cuco
+
+__host__ __device__ constexpr cuco::sketch_size_kb operator""_KB(long double value)
+{
+  return cuco::sketch_size_kb{static_cast<double>(value)};
+}
+
+__host__ __device__ constexpr cuco::sketch_size_kb operator""_KB(unsigned long long int value)
+{
+  return cuco::sketch_size_kb{static_cast<double>(value)};
+}
 
 namespace cuco {
 /**
@@ -137,6 +173,35 @@ class hyperloglog_ref {
                               cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
+   * @brief Asynchronously adds items in the range `[first, last)` if `pred` of the corresponding
+   * stencil returns true.
+   *
+   * @note The item `*(first + i)` is added if `pred( *(stencil + i) )` returns true.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * T></tt> is `true`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   *
+   * @param first Beginning of the sequence of items
+   * @param last End of the sequence of items
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream this operation is executed in
+   */
+  template <class InputIt, class StencilIt, class Predicate>
+  __host__ constexpr void add_if_async(InputIt first,
+                                       InputIt last,
+                                       StencilIt stencil,
+                                       Predicate pred,
+                                       cuda::stream_ref stream = cuda::stream_ref{
+                                         cudaStream_t{nullptr}});
+
+  /**
    * @brief Merges the result of `other` estimator reference into `*this` estimator reference.
    *
    * @throw If this->sketch_bytes() != other.sketch_bytes() then behavior is undefined
@@ -245,6 +310,16 @@ class hyperloglog_ref {
    */
   [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
     cuco::standard_deviation standard_deviation) noexcept;
+
+  /**
+   * @brief Gets the number of bytes required for the sketch storage.
+   *
+   * @param precision HyperLogLog precision parameter
+   *
+   * @return The number of bytes required for the sketch
+   */
+  [[nodiscard]] __host__ __device__ static constexpr std::size_t sketch_bytes(
+    cuco::precision precision) noexcept;
 
   /**
    * @brief Gets the alignment required for the sketch storage.

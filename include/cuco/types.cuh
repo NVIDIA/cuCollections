@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,29 +44,4 @@ CUCO_DEFINE_TEMPLATE_STRONG_TYPE(empty_value);
  */
 CUCO_DEFINE_TEMPLATE_STRONG_TYPE(erased_key);
 
-/**
- * @brief A strong type wrapper `cuco::sketch_size_kb` for specifying the upper-bound sketch size of
- * `cuco::hyperloglog(_ref)` in KB.
- *
- * @note Values can also be specified as literals, e.g., 64.3_KB.
- */
-CUCO_DEFINE_STRONG_TYPE(sketch_size_kb, double);
-
-/**
- * @brief A strong type wrapper `cuco::standard_deviation` for specifying the desired standard
- * deviation for the cardinality estimate of `cuco::hyperloglog(_ref)`.
- */
-CUCO_DEFINE_STRONG_TYPE(standard_deviation, double);
-
 }  // namespace cuco
-
-// User-defined literal operators for `cuco::sketch_size_KB`
-__host__ __device__ constexpr cuco::sketch_size_kb operator""_KB(long double value)
-{
-  return cuco::sketch_size_kb{static_cast<double>(value)};
-}
-
-__host__ __device__ constexpr cuco::sketch_size_kb operator""_KB(unsigned long long int value)
-{
-  return cuco::sketch_size_kb{static_cast<double>(value)};
-}

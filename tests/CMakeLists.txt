@@ -146,14 +146,17 @@ ConfigureTest(DYNAMIC_BITSET_TEST
 ConfigureTest(HYPERLOGLOG_TEST
     hyperloglog/unique_sequence_test.cu
     hyperloglog/spark_parity_test.cu
-    hyperloglog/device_ref_test.cu)
+    hyperloglog/device_ref_test.cu
+    hyperloglog/type_deduction_test.cu
+    hyperloglog/add_if_test.cu)
 
 ###################################################################################################
 # - bloom_filter ----------------------------------------------------------------------------------
 ConfigureTest(BLOOM_FILTER_TEST
     bloom_filter/unique_sequence_test.cu
     bloom_filter/arrow_policy_test.cu
-    bloom_filter/variable_cg_test.cu)
+    bloom_filter/variable_cg_test.cu
+    bloom_filter/merge_intersect_test.cu)
 
 ###################################################################################################
 # - roaring_bitmap ---------------------------------------------------------------------------------
