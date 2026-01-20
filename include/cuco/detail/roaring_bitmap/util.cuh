@@ -66,6 +66,10 @@ template <>
 struct roaring_bitmap_metadata<cuda::std::uint32_t> {
   /// Maximum number of elements in an array container before converting to bitmap
   static constexpr cuda::std::uint32_t max_array_container_card = 4096;
+  /// Threshold for omitting container offsets in serialized format
+  static constexpr cuda::std::int32_t no_offset_threshold = 4;
+  /// Fixed size of a bitset container in bytes
+  static constexpr cuda::std::uint32_t bitset_container_bytes = 8192;
 
   /// Total size of the bitmap in bytes
   cuda::std::size_t size_bytes = 0;
@@ -75,14 +79,18 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
   cuda::std::uint32_t run_container_bitmap = 0;
   /// Offset to key cardinality data
   cuda::std::uint32_t key_cards = 0;
-  /// Offset to container offset data
+  /// Offset to container offset data (only valid when offsets_in_serialized_data is true)
   cuda::std::uint32_t container_offsets = 0;
+  /// Computed container offsets (used when offsets are not in serialized data)
+  cuda::std::uint32_t computed_offsets[4] = {0, 0, 0, 0};
   /// Number of containers in the bitmap
   cuda::std::int32_t num_containers = 0;
   /// Whether the bitmap contains run containers
   bool has_run = false;
   /// Whether the metadata is valid
   bool valid = false;
+  /// Whether container offsets are stored in the serialized data
+  bool offsets_in_serialized_data = true;
 
   /**
    * @brief Constructs metadata from a serialized bitmap
@@ -94,11 +102,9 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
     constexpr cuda::std::uint32_t serial_cookie                 = 12347;
     // constexpr cuda::std::uint32_t frozen_cookie                 = 13766; // not implemented
-    constexpr cuda::std::int32_t no_offset_threshold     = 4;
-    constexpr cuda::std::int32_t max_containers          = 1 << 16;
-    constexpr cuda::std::uint32_t cookie_mask            = 0xFFFF;
-    constexpr cuda::std::uint32_t cookie_shift           = 16;
-    constexpr cuda::std::uint32_t bitset_container_bytes = 8192;
+    constexpr cuda::std::int32_t max_containers = 1 << 16;
+    constexpr cuda::std::uint32_t cookie_mask   = 0xFFFF;
+    constexpr cuda::std::uint32_t cookie_shift  = 16;
 
     cuda::std::byte const* buf = bitmap;
 
@@ -147,14 +153,45 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     buf += num_containers * 2 * sizeof(cuda::std::uint16_t);
 
     if ((!has_run) || (num_containers >= no_offset_threshold)) {
-      container_offsets = cuda::std::distance(bitmap, buf);
+      // Container offsets are stored in the serialized data
+      offsets_in_serialized_data = true;
+      container_offsets          = cuda::std::distance(bitmap, buf);
       buf += num_containers * sizeof(cuda::std::uint32_t);
     } else {
-      valid = false;
-      NV_IF_TARGET(
-        NV_IS_HOST,
-        CUCO_FAIL("Invalid bitmap format: not implemented");)  // TODO device error handling
-      return;
+      // Container offsets are NOT stored in the serialized data
+      // We need to compute them by walking through the containers
+      offsets_in_serialized_data = false;
+      container_offsets          = 0;
+
+      cuda::std::byte const* container_ptr = buf;
+      for (cuda::std::int32_t i = 0; i < num_containers; ++i) {
+        // Store the computed offset for this container
+        computed_offsets[i] =
+          static_cast<cuda::std::uint32_t>(cuda::std::distance(bitmap, container_ptr));
+
+        // Get cardinality for this container
+        cuda::std::byte const* card_ptr =
+          bitmap + key_cards + (i * 2 + 1) * sizeof(cuda::std::uint16_t);
+        cuda::std::uint32_t card_i = 1u + misaligned_load<cuda::std::uint16_t>(card_ptr);
+
+        // Check if this is a run container
+        bool is_run_container = check_bit(bitmap + run_container_bitmap, i);
+
+        // Compute container size and advance pointer
+        if (is_run_container) {
+          // Run container: first uint16_t is num_runs, followed by num_runs (start, length) pairs
+          cuda::std::uint16_t num_runs = misaligned_load<cuda::std::uint16_t>(container_ptr);
+          container_ptr += sizeof(cuda::std::uint16_t) + num_runs * 2 * sizeof(cuda::std::uint16_t);
+        } else if (card_i <= max_array_container_card) {
+          // Array container
+          container_ptr += card_i * sizeof(cuda::std::uint16_t);
+        } else {
+          // Bitset container (fixed size)
+          container_ptr += bitset_container_bytes;
+        }
+      }
+      // buf now points past all containers
+      buf = container_ptr;
     }
 
     cuda::std::uint32_t card = 0;
@@ -170,9 +207,15 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     }
 
     // find end of roaring bitmap (re-use card from last container)
-    cuda::std::byte const* end =
-      bitmap + misaligned_load<cuda::std::uint32_t>(
-                 bitmap + container_offsets + (num_containers - 1) * sizeof(cuda::std::uint32_t));
+    cuda::std::byte const* end;
+    if (offsets_in_serialized_data) {
+      end =
+        bitmap + misaligned_load<cuda::std::uint32_t>(
+                   bitmap + container_offsets + (num_containers - 1) * sizeof(cuda::std::uint32_t));
+    } else {
+      end = bitmap + computed_offsets[num_containers - 1];
+    }
+
     if (has_run and check_bit(bitmap + run_container_bitmap, num_containers - 1)) {
       cuda::std::uint16_t const num_runs = misaligned_load<cuda::std::uint16_t>(end);
       end += sizeof(cuda::std::uint16_t) + num_runs * 2 * sizeof(cuda::std::uint16_t);

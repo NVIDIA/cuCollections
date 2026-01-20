@@ -47,12 +47,10 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
 
   __host__ __device__ roaring_bitmap_impl(storage_ref_type const& storage_ref)
     : storage_ref_{storage_ref},
-      offsets_aligned_{(reinterpret_cast<cuda::std::uintptr_t>(
-                         storage_ref_.data() + storage_ref_.metadata().container_offsets)) %
+      offsets_aligned_{(reinterpret_cast<cuda::std::uintptr_t>(storage_ref_.container_offsets())) %
                          sizeof(cuda::std::uint32_t) ==
                        0},
-      aligned_16_{(reinterpret_cast<cuda::std::uintptr_t>(storage_ref_.data() +
-                                                          storage_ref_.metadata().key_cards)) %
+      aligned_16_{(reinterpret_cast<cuda::std::uintptr_t>(storage_ref_.key_cards())) %
                     sizeof(cuda::std::uint16_t) ==
                   0}  // if base address of key_cards is aligned, then all containers are aligned
   {

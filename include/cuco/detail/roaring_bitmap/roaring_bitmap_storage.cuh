@@ -61,7 +61,9 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
       data_{bitmap},
       run_container_bitmap_{bitmap + metadata.run_container_bitmap},
       key_cards_{bitmap + metadata.key_cards},
-      container_offsets_{bitmap + metadata.container_offsets}
+      container_offsets_{metadata.offsets_in_serialized_data
+                           ? (bitmap + metadata.container_offsets)
+                           : reinterpret_cast<cuda::std::byte const*>(metadata.computed_offsets)}
   {
     assert(metadata.valid);
   }
