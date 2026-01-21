@@ -174,12 +174,16 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   __device__ bool contains_container(cuda::std::uint16_t lower, cuda::std::uint32_t index) const
   {
     cuda::std::uint32_t offset;
-    cuda::std::byte const* offset_ptr =
-      storage_ref_.container_offsets() + index * sizeof(cuda::std::uint32_t);
-    if (offsets_aligned_) {
-      offset = aligned_load<cuda::std::uint32_t>(offset_ptr);
+    if (storage_ref_.metadata().offsets_in_serialized_data) {
+      cuda::std::byte const* offset_ptr =
+        storage_ref_.container_offsets() + index * sizeof(cuda::std::uint32_t);
+      if (offsets_aligned_) {
+        offset = aligned_load<cuda::std::uint32_t>(offset_ptr);
+      } else {
+        offset = misaligned_load<cuda::std::uint32_t>(offset_ptr);
+      }
     } else {
-      offset = misaligned_load<cuda::std::uint32_t>(offset_ptr);
+      offset = storage_ref_.metadata().computed_offsets[index];
     }
     cuda::std::byte const* container = storage_ref_.data() + offset;
     if (storage_ref_.metadata().has_run and check_bit(storage_ref_.run_container_bitmap(), index)) {
