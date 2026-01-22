@@ -121,25 +121,5 @@ __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
   }
 }
 
-/**
- * @brief Converts a given hash value and cg_rank, into a valid (positive) size type.
- *
- * @tparam SizeType The target type
- * @tparam CG Cooperative group type
- * @tparam HashType The input type
- *
- * @return Converted hash value
- */
-template <typename SizeType, typename CG, typename HashType>
-__device__ constexpr SizeType sanitize_hash(CG group, HashType hash) noexcept
-{
-  auto const base_hash = sanitize_hash<SizeType>(hash);
-  auto const max_size  = cuda::std::numeric_limits<SizeType>::max();
-  auto const cg_rank   = static_cast<SizeType>(group.thread_rank());
-
-  if (base_hash > (max_size - cg_rank)) { return cg_rank - (max_size - base_hash); }
-  return base_hash + cg_rank;
-}
-
 }  // namespace detail
 }  // namespace cuco
