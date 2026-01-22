@@ -116,7 +116,7 @@ int main(void)
     thrust::make_counting_iterator<Key>(0),
     thrust::make_counting_iterator<Key>(insert_keys.size()),
     insert_keys.begin(),
-    [] __device__(auto i) { return static_cast<Key>(i % (num_keys / key_duplicates)); });
+    [] __device__(auto i) -> Key { return static_cast<Key>(i % (num_keys / key_duplicates)); });
 
   // Allocate storage for count of number of unique keys
   thrust::device_vector<uint64_t> num_unique_keys(1);
@@ -153,8 +153,8 @@ int main(void)
   auto const num_keys_check = num_unique_keys[0] == (num_keys / key_duplicates);
 
   // Iterate over all result counts and verify that they are correct
-  auto const counts_check =
-    thrust::all_of(result_counts.begin(), result_counts.end(), [] __device__(Count const count) {
+  auto const counts_check = thrust::all_of(
+    result_counts.begin(), result_counts.end(), [] __device__(Count const count) -> bool {
       return count == key_duplicates;
     });
 
