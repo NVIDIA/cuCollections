@@ -128,6 +128,9 @@ std::vector<cuda::std::byte> make_run_container_no_offsets_bitmap()
 
 TEST_CASE("roaring_bitmap run container without offsets", "[roaring_bitmap]")
 {
+  // When run containers are present and the bitmap has fewer than 4 containers, the
+  // Roaring format omits the container offsets array. This test exercises that edge
+  // case to ensure offsets are derived correctly on device without illegal access.
   auto const bytes = make_run_container_no_offsets_bitmap();
   thrust::universal_host_pinned_vector<cuda::std::byte> buffer(bytes.size());
   std::memcpy(thrust::raw_pointer_cast(buffer.data()), bytes.data(), bytes.size());

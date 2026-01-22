@@ -82,7 +82,7 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
   /// Offset to container offset data (only valid when offsets_in_serialized_data is true)
   cuda::std::uint32_t container_offsets = 0;
   /// Computed container offsets (used when offsets are not in serialized data)
-  cuda::std::uint32_t computed_offsets[4] = {0, 0, 0, 0};
+  cuda::std::uint32_t computed_offsets[no_offset_threshold] = {};
   /// Number of containers in the bitmap
   cuda::std::int32_t num_containers = 0;
   /// Whether the bitmap contains run containers
