@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ namespace cuco::detail {
 /**
  * @brief Asynchronous memory copy utility using cudaMemcpyBatchAsync when possible
  *
- * Uses cudaMemcpyBatchAsync for CUDA 12.8+ with proper edge case handling.
+ * Uses cudaMemcpyBatchAsync for CUDA 13.0+ to avoid driver-side locking overhead.
  * Falls back to cudaMemcpyAsync for older CUDA versions or edge cases.
  *
  * @param dst Destination memory address
@@ -42,7 +42,7 @@ namespace cuco::detail {
 {
   if (dst == nullptr || src == nullptr || count == 0) { return cudaSuccess; }
 
-#if CUDART_VERSION >= 12080
+#if CUDART_VERSION >= 13000
   if (stream.get() == nullptr) { return cudaMemcpyAsync(dst, src, count, kind, stream.get()); }
 
   void* dsts[1]             = {dst};
@@ -54,16 +54,11 @@ namespace cuco::detail {
   attrs[0].srcAccessOrder       = cudaMemcpySrcAccessOrderStream;
   attrs[0].flags                = cudaMemcpyFlagPreferOverlapWithCompute;
 
-#if CUDART_VERSION >= 13000
   return cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrs_idxs, 1, stream.get());
 #else
-  std::size_t fail_idx;
-  return cudaMemcpyBatchAsync(dsts, srcs, sizes, 1, attrs, attrs_idxs, 1, &fail_idx, stream.get());
-#endif  // CUDART_VERSION >= 13000
-#else
-  // CUDA < 12.8 - use regular cudaMemcpyAsync
+  // CUDA < 13.0 - use regular cudaMemcpyAsync
   return cudaMemcpyAsync(dst, src, count, kind, stream.get());
-#endif  // CUDART_VERSION >= 12080
+#endif  // CUDART_VERSION >= 13000
 }
 
 }  // namespace cuco::detail
