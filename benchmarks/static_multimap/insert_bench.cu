@@ -56,15 +56,15 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               cuco::experimental::static_multimap<Key, Value> map{size,
-                                                                   cuco::empty_key<Key>{-1},
-                                                                   cuco::empty_value<Value>{-1},
-                                                                   {},
-                                                                   {},
-                                                                   {},
-                                                                   {},
-                                                                   {},
-                                                                   {launch.get_stream()}};
+               cuco::static_multimap<Key, Value> map{size,
+                                                     cuco::empty_key<Key>{-1},
+                                                     cuco::empty_value<Value>{-1},
+                                                     {},
+                                                     {},
+                                                     {},
+                                                     {},
+                                                     {},
+                                                     {launch.get_stream()}};
 
                timer.start();
                map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});

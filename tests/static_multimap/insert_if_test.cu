@@ -96,14 +96,14 @@ TEMPLATE_TEST_CASE_SIG(
           cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
           cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  auto map = cuco::experimental::static_multimap<Key,
-                                                 Value,
-                                                 extent_type,
-                                                 cuda::thread_scope_device,
-                                                 cuda::std::equal_to<Key>,
-                                                 probe,
-                                                 cuco::cuda_allocator<cuda::std::byte>,
-                                                 cuco::storage<2>>{
+  auto map = cuco::static_multimap<Key,
+                                   Value,
+                                   extent_type,
+                                   cuda::thread_scope_device,
+                                   cuda::std::equal_to<Key>,
+                                   probe,
+                                   cuco::cuda_allocator<cuda::std::byte>,
+                                   cuco::storage<2>>{
     num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   test_insert_if(map, num_keys);

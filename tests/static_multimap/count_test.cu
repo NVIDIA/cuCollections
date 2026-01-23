@@ -90,14 +90,14 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::linear_probing<CGSize, cuco::default_hash_function<T>>,
     cuco::double_hashing<CGSize, cuco::default_hash_function<T>, cuco::default_hash_function<T>>>;
 
-  auto map = cuco::experimental::static_multimap<T,
-                                                 T,
-                                                 cuco::extent<size_type>,
-                                                 cuda::thread_scope_device,
-                                                 cuda::std::equal_to<T>,
-                                                 probe,
-                                                 cuco::cuda_allocator<cuda::std::byte>,
-                                                 cuco::storage<2>>{
+  auto map = cuco::static_multimap<T,
+                                   T,
+                                   cuco::extent<size_type>,
+                                   cuda::thread_scope_device,
+                                   cuda::std::equal_to<T>,
+                                   probe,
+                                   cuco::cuda_allocator<cuda::std::byte>,
+                                   cuco::storage<2>>{
     num_keys * multiplicity, cuco::empty_key<T>{-1}, cuco::empty_value<T>{-1}};
 
   test_multiplicity_count(map, num_keys);

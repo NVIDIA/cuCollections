@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@
 
 // insert key type
 template <typename T>
-struct key_pair {
+struct __align__(sizeof(T) * 2) key_pair {
   T a;
   T b;
 
@@ -73,19 +73,16 @@ struct custom_hasher {
 // User-defined device key equality
 struct custom_key_equal {
   template <typename LHS, typename RHS>
-  __device__ bool operator()(LHS const& lhs, RHS const& rhs)
+  __device__ bool operator()(LHS const& lhs, RHS const& rhs) const
   {
     return thrust::raw_reference_cast(lhs).a == thrust::raw_reference_cast(rhs).a;
   }
 };
 
-TEMPLATE_TEST_CASE("static_multimap heterogeneous lookup tests",
-                   "",
-#if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and
-                                           // up
-                   int64_t,
-#endif
-                   int32_t)
+TEMPLATE_TEST_CASE(
+  "static_multimap heterogeneous lookup tests",
+  "",
+  int32_t)  // key_pair<int32_t> = 8 bytes, key_pair<int64_t> = 16 bytes (exceeds 8-byte limit)
 {
   using Key      = key_pair<TestType>;
   using Value    = TestType;
@@ -98,10 +95,15 @@ TEMPLATE_TEST_CASE("static_multimap heterogeneous lookup tests",
   constexpr std::size_t capacity = num * 2;
   cuco::static_multimap<Key,
                         Value,
+                        cuco::extent<std::size_t>,
                         cuda::thread_scope_device,
-                        cuco::cuda_allocator<char>,
-                        cuco::legacy::linear_probing<1, custom_hasher>>
-    map{capacity, cuco::empty_key<Key>{sentinel_key}, cuco::empty_value<Value>{sentinel_value}};
+                        custom_key_equal,
+                        cuco::linear_probing<1, custom_hasher>,
+                        cuco::cuda_allocator<cuda::std::byte>,
+                        cuco::storage<2>>
+    map{cuco::extent<std::size_t>{capacity},
+        cuco::empty_key<Key>{sentinel_key},
+        cuco::empty_value<Value>{sentinel_value}};
 
   auto insert_pairs = thrust::make_transform_iterator(
     thrust::counting_iterator<int>(0),
@@ -115,14 +117,14 @@ TEMPLATE_TEST_CASE("static_multimap heterogeneous lookup tests",
   {
     thrust::device_vector<bool> contained(num);
     map.insert(insert_pairs, insert_pairs + num);
-    map.contains(probe_keys, probe_keys + num, contained.begin(), custom_key_equal{});
+    map.contains(probe_keys, probe_keys + num, contained.begin());
     REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     thrust::device_vector<bool> contained(num);
-    map.contains(probe_keys, probe_keys + num, contained.begin(), custom_key_equal{});
+    map.contains(probe_keys, probe_keys + num, contained.begin());
     REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 }

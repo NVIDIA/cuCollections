@@ -57,7 +57,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_count(
 
   state.add_element_count(num_keys);
 
-  cuco::experimental::static_multimap<Key, Value> map{
+  cuco::static_multimap<Key, Value> map{
     size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
 

@@ -62,11 +62,13 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_query(
   map.insert(pairs.begin(), pairs.end());
 
   auto const output_size = map.count(keys.begin(), keys.end());
-  thrust::device_vector<pair_type> output(output_size);
+  thrust::device_vector<Key> output_probe(output_size);
+  thrust::device_vector<pair_type> output_match(output_size);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    auto const count = map.count(keys.begin(), keys.end(), launch.get_stream());
-    map.retrieve(keys.begin(), keys.end(), output.begin(), launch.get_stream());
+    auto const count = map.count(keys.begin(), keys.end(), {launch.get_stream()});
+    map.retrieve(
+      keys.begin(), keys.end(), output_probe.begin(), output_match.begin(), {launch.get_stream()});
   });
 }
 
