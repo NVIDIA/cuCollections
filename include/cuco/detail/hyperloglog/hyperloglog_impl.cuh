@@ -31,7 +31,9 @@
 #include <cuda/std/__algorithm/max.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/bit>
 #include <cuda/std/cstddef>
+#include <cuda/std/limits>
 #include <cuda/std/span>
+#include <cuda/std/type_traits>
 #include <cuda/std/utility>
 #include <cuda/stream_ref>
 #include <thrust/iterator/constant_iterator.h>
@@ -63,6 +65,9 @@ class hyperloglog_impl {
   using fp_type         = double;  ///< Floating point type used for reduction
   using hash_value_type = cuda::std::remove_cvref_t<decltype(cuda::std::declval<Hash>()(
     cuda::std::declval<T>()))>;  ///< Hash value type
+  static_assert(cuda::std::is_unsigned_v<hash_value_type>,
+                "HyperLogLog requires an unsigned hash value type");
+
  public:
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
@@ -154,13 +159,11 @@ class hyperloglog_impl {
    */
   __device__ constexpr void add(T const& item) noexcept
   {
-    auto const h      = this->hash_(item);
-    auto const reg    = h & this->register_mask();
-    auto const zeroes = cuda::std::countl_zero(h | this->register_mask()) + 1;  // __clz
-
-    // reversed order (same one as Spark uses)
-    // auto const reg    = h >> ((sizeof(hash_value_type) * 8) - this->precision_);
-    // auto const zeroes = cuda::std::countl_zero(h << this->precision_) + 1;
+    constexpr auto hash_bits = cuda::std::numeric_limits<hash_value_type>::digits;
+    auto const h             = this->hash_(item);
+    auto const reg           = static_cast<int>(h >> (hash_bits - this->precision_));
+    auto const w_padding = hash_value_type{1} << static_cast<hash_value_type>(this->precision_ - 1);
+    auto const zeroes = cuda::std::countl_zero((h << this->precision_) | w_padding) + 1;  // __clz
 
     this->update_max(reg, zeroes);
   }
@@ -406,7 +409,7 @@ class hyperloglog_impl {
     int thread_zeroes  = 0;
     for (int i = group.thread_rank(); i < this->sketch_.size(); i += group.size()) {
       auto const reg = this->sketch_[i];
-      thread_sum += fp_type{1} / static_cast<fp_type>(1 << reg);
+      thread_sum += fp_type{1} / static_cast<fp_type>(1ull << reg);
       thread_zeroes += reg == 0;
     }
 
@@ -625,16 +628,6 @@ class hyperloglog_impl {
     } else {
       return false;
     }
-  }
-
-  /**
-   * @brief Gets the register mask used to separate register index from count.
-   *
-   * @return The register mask
-   */
-  __host__ __device__ constexpr hash_value_type register_mask() const noexcept
-  {
-    return (1ull << this->precision_) - 1;
   }
 
   hasher hash_;                            ///< Hash function used to hash items

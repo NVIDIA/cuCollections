@@ -61,7 +61,7 @@ CUCO_KERNEL void add_if_shmem(
   auto idx               = cuco::detail::global_thread_id();
   auto const block       = cooperative_groups::this_thread_block();
 
-  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, {});
+  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, ref.hash_function());
   local_ref.clear(block);
   block.sync();
 
@@ -92,7 +92,7 @@ CUCO_KERNEL void add_if_shmem_vectorized(typename RefType::value_type const* fir
   auto const grid        = cooperative_groups::this_grid();
   auto const block       = cooperative_groups::this_thread_block();
 
-  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, {});
+  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, ref.hash_function());
   local_ref.clear(block);
   block.sync();
 
