@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,8 @@
 #include <cuco/detail/bitwise_compare.cuh>
 
 #include <cuda/std/array>
-#include <cuda/std/bit>
 #include <cuda/std/cmath>
 #include <cuda/std/cstdint>
-#include <cuda/std/limits>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 

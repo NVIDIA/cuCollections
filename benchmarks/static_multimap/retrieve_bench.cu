@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,10 +62,12 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_retrieve(
   map.insert(pairs.begin(), pairs.end());
 
   auto const output_size = map.count(keys.begin(), keys.end());
-  thrust::device_vector<pair_type> output(output_size);
+  thrust::device_vector<Key> output_probe(output_size);
+  thrust::device_vector<pair_type> output_match(output_size);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.retrieve(keys.begin(), keys.end(), output.begin(), launch.get_stream());
+    map.retrieve(
+      keys.begin(), keys.end(), output_probe.begin(), output_match.begin(), {launch.get_stream()});
   });
 }
 

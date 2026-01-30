@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -57,7 +57,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_count(
 
   state.add_element_count(num_keys);
 
-  cuco::experimental::static_multimap<Key, Value> map{
+  cuco::static_multimap<Key, Value> map{
     size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
 
