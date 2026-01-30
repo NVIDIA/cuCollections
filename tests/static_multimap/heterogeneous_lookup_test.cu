@@ -31,7 +31,7 @@
 
 // insert key type
 template <typename T>
-struct __align__(sizeof(T) * 2) key_pair {
+struct key_pair {
   T a;
   T b;
 
