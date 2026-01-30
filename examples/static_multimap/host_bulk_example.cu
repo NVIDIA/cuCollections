@@ -66,8 +66,8 @@ int main(void)
   auto const num_found = thrust::count(contained.begin(), contained.end(), true);
 
   if (num_found == N / 2) {
-    std::cout << "Success! All " << N / 2 << " unique keys found in the multimap.\n";
-    std::cout << "Each key has 2 duplicate values, for a total of " << N << " pairs.\n";
+    std::cout << "Success! All " << N / 2 << " unique keys found in the multimap." << std::endl;
+    std::cout << "Each key has 2 duplicate values, for a total of " << N << " pairs." << std::endl;
   }
 
   return 0;
