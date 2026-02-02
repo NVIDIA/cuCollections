@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -62,7 +62,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_contains(
   state.add_element_count(num_keys);
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.contains(keys.begin(), keys.end(), result.begin(), {}, {}, launch.get_stream());
+    map.contains(keys.begin(), keys.end(), result.begin(), launch.get_stream());
   });
 }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include <cstdint>
 
 namespace cuco {
+namespace legacy {
 
 template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 dynamic_map<Key, Value, Scope, Allocator>::dynamic_map(std::size_t initial_capacity,
@@ -158,7 +159,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::insert(
       auto const n         = std::min(capacity_remaining, num_to_insert);
       auto const grid_size = (tile_size * n + stride * block_size - 1) / (stride * block_size);
 
-      detail::insert<block_size, tile_size, cuco::pair<key_type, mapped_type>>
+      cuco::detail::insert<block_size, tile_size, cuco::pair<key_type, mapped_type>>
         <<<grid_size, block_size, 0, stream>>>(first,
                                                first + n,
                                                submap_views_.data().get(),
@@ -208,7 +209,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::erase(
 
   auto const temp_storage_size = submaps_.size() * sizeof(unsigned long long);
 
-  detail::erase<block_size, tile_size>
+  cuco::detail::erase<block_size, tile_size>
     <<<grid_size, block_size, temp_storage_size, stream>>>(first,
                                                            first + num_keys,
                                                            submap_mutable_views_.data().get(),
@@ -246,7 +247,7 @@ void dynamic_map<Key, Value, Scope, Allocator>::find(InputIt first,
   auto const num_keys  = std::distance(first, last);
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
-  detail::find<block_size, tile_size, Value><<<grid_size, block_size, 0, stream>>>(
+  cuco::detail::find<block_size, tile_size, Value><<<grid_size, block_size, 0, stream>>>(
     first, last, output_begin, submap_views_.data().get(), submaps_.size(), hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
@@ -272,10 +273,10 @@ std::pair<KeyOut, ValueOut> dynamic_map<Key, Value, Scope, Allocator>::retrieve_
   thrust::device_vector<size_t> submap_cap_prefix_d(submap_cap_prefix);
 
   auto counter =
-    detail::counter_storage<size_t, Scope, Allocator>{this->alloc_, cuda::stream_ref{stream}};
+    cuco::detail::counter_storage<size_t, Scope, Allocator>{this->alloc_, cuda::stream_ref{stream}};
   counter.reset({stream});
 
-  detail::retrieve_all<block_size>
+  cuco::detail::retrieve_all<block_size>
     <<<grid_size, block_size, 0, stream>>>(keys_out,
                                            values_out,
                                            submap_views_.data().get(),
@@ -304,9 +305,10 @@ void dynamic_map<Key, Value, Scope, Allocator>::contains(InputIt first,
   auto const num_keys  = std::distance(first, last);
   auto const grid_size = (tile_size * num_keys + stride * block_size - 1) / (stride * block_size);
 
-  detail::contains<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
+  cuco::detail::contains<block_size, tile_size><<<grid_size, block_size, 0, stream>>>(
     first, last, output_begin, submap_views_.data().get(), submaps_.size(), hash, key_equal);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 }
 
+}  // namespace legacy
 }  // namespace cuco

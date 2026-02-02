@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2025, NVIDIA CORPORATION.
+# Copyright (c) 2018-2026, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -99,7 +99,6 @@ ConfigureTest(STATIC_MAP_TEST
 # - dynamic_map tests -----------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
-    dynamic_map/unique_sequence_test_experimental.cu
     dynamic_map/erase_test.cu
     dynamic_map/find_test.cu
     dynamic_map/retrieve_all_test.cu)

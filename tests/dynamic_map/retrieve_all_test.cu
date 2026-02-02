@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 
 #include <cuco/dynamic_map.cuh>
 
+#include <cuda/functional>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/equal.h>
@@ -59,7 +60,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
 
     map.insert(pairs, pairs + num_keys);
 
-    REQUIRE(map.get_size() == num_keys);
+    REQUIRE(map.size() == num_keys);
 
     thrust::device_vector<Key> retrieved_keys(num_keys);
     thrust::device_vector<Value> retrieved_values(num_keys);
@@ -70,7 +71,6 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
     REQUIRE(keys_out == retrieved_keys.end());
     REQUIRE(values_out == retrieved_values.end());
 
-    // d_keys and d_values are already sorted
     thrust::sort(retrieved_keys.begin(), retrieved_keys.end());
     thrust::sort(retrieved_values.begin(), retrieved_values.end());
 
@@ -96,7 +96,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
 
     map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
 
-    REQUIRE(map.get_size() == num_keys / 2);
+    REQUIRE(map.size() == num_keys / 2);
 
     thrust::device_vector<Key> retrieved_keys(num_keys / 2);
     thrust::device_vector<Value> retrieved_values(num_keys / 2);
@@ -107,7 +107,6 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
     REQUIRE(std::distance(retrieved_keys.begin(), keys_out) == num_keys / 2);
     REQUIRE(std::distance(retrieved_values.begin(), values_out) == num_keys / 2);
 
-    // d_keys and d_values are already sorted
     thrust::sort(retrieved_keys.begin(), retrieved_keys.end());
     thrust::sort(retrieved_values.begin(), retrieved_values.end());
 

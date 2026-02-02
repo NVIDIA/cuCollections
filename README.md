@@ -15,6 +15,8 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 ### Major Updates
 
+__02/02/2026__ Promoted `cuco::experimental::dynamic_map` to `cuco::dynamic_map` and moved the legacy implementation to `cuco::legacy::dynamic_map`
+
 __01/30/2026__ Removed legacy `static_multimap` implementation and promoted `cuco::experimental::static_multimap` to `cuco::static_multimap`
 
 __10/08/2025__ Changed `cuda_allocator` to stream-ordered, requiring `cuda::stream_ref` parameter in `allocate`/`deallocate`.
