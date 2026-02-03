@@ -95,4 +95,37 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: unique sequence",
     float expected_load_factor = static_cast<float>(num_keys) / map.capacity();
     REQUIRE(map.load_factor() == expected_load_factor);
   }
+
+  SECTION("insert_or_assign inserts new keys and updates existing")
+  {
+    // Insert initial keys
+    map.insert(pairs_begin, pairs_begin + num_keys);
+    REQUIRE(map.size() == num_keys);
+
+    // Create pairs with same keys but different values (value = key + 1)
+    auto updated_pairs_begin = thrust::make_transform_iterator(
+      thrust::make_counting_iterator<int>(0),
+      cuda::proclaim_return_type<cuco::pair<Key, T>>(
+        [] __device__(auto i) { return cuco::pair<Key, T>(i, i + 1); }));
+
+    // insert_or_assign should update existing keys, size should stay the same
+    map.insert_or_assign(updated_pairs_begin, updated_pairs_begin + num_keys);
+    REQUIRE(map.size() == num_keys);
+
+    // Verify values were updated
+    map.find(d_keys.begin(), d_keys.end(), d_results.begin());
+    REQUIRE(cuco::test::equal(d_results.begin(),
+                              d_results.end(),
+                              thrust::counting_iterator<T>(1),  // Values should now be key + 1
+                              cuda::std::equal_to<T>{}));
+
+    // Insert new keys with insert_or_assign (keys from num_keys to 2*num_keys)
+    auto new_pairs_begin = thrust::make_transform_iterator(
+      thrust::make_counting_iterator<int>(num_keys),
+      cuda::proclaim_return_type<cuco::pair<Key, T>>(
+        [] __device__(auto i) { return cuco::pair<Key, T>(i, i); }));
+
+    map.insert_or_assign(new_pairs_begin, new_pairs_begin + num_keys);
+    REQUIRE(map.size() == 2 * num_keys);
+  }
 }

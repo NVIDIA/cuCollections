@@ -205,6 +205,101 @@ template <typename Key,
           typename ProbingScheme,
           typename Allocator,
           typename Storage>
+template <typename InputIt>
+void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
+  insert_or_assign(InputIt first, InputIt last, cuda::stream_ref stream)
+{
+  auto num_to_insert = cuco::detail::distance(first, last);
+  this->reserve(size_ + num_to_insert, stream);
+
+  // Fast path: single submap
+  if (submaps_.size() == 1) {
+    auto const old_size = submaps_.front()->size(stream);
+    submaps_.front()->insert_or_assign(first, last, stream);
+    auto const new_size = submaps_.front()->size(stream);
+    size_ += (new_size - old_size);
+    return;
+  }
+
+  // Multiple submaps: use kernel to check for existing keys across all submaps
+  using ref_type = decltype(submaps_.front()->ref(
+    cuco::op::contains, cuco::op::insert, cuco::op::insert_or_assign));
+
+  using ref_allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<ref_type>;
+  auto ref_allocator = ref_allocator_type{alloc_};
+
+  using counter_allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<cuda::atomic<std::size_t>>;
+  auto counter_allocator = counter_allocator_type{alloc_};
+
+  std::size_t submap_idx = 0;
+  while (num_to_insert > 0) {
+    auto& cur = submaps_[submap_idx];
+
+    auto capacity_remaining = max_load_factor_ * cur->capacity() - cur->size();
+    if (capacity_remaining >= min_insert_size_) {
+      auto const n = std::min(static_cast<detail::index_type>(capacity_remaining), num_to_insert);
+
+      // Allocate and initialize device counter for new insertions
+      auto* d_num_insertions = counter_allocator.allocate(1, stream);
+      CUCO_CUDA_TRY(
+        cudaMemsetAsync(d_num_insertions, 0, sizeof(cuda::atomic<std::size_t>), stream.get()));
+
+      // Allocate and copy refs for all submaps
+      auto* d_submap_refs = ref_allocator.allocate(submaps_.size(), stream);
+      std::vector<ref_type> h_submap_refs;
+      h_submap_refs.reserve(submaps_.size());
+      for (auto const& submap : submaps_) {
+        h_submap_refs.push_back(
+          submap->ref(cuco::op::contains, cuco::op::insert, cuco::op::insert_or_assign));
+      }
+      CUCO_CUDA_TRY(cudaMemcpyAsync(d_submap_refs,
+                                    h_submap_refs.data(),
+                                    sizeof(ref_type) * submaps_.size(),
+                                    cudaMemcpyHostToDevice,
+                                    stream.get()));
+
+      auto constexpr cg_size    = ProbingScheme::cg_size;
+      auto constexpr block_size = cuco::detail::default_block_size();
+      auto const grid_size      = cuco::detail::grid_size(n, cg_size);
+
+      detail::dynamic_map_ns::insert_or_assign<cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first,
+                                                     n,
+                                                     d_num_insertions,
+                                                     d_submap_refs,
+                                                     static_cast<uint32_t>(submap_idx),
+                                                     static_cast<uint32_t>(submaps_.size()));
+
+      // Read back insertion count (only new insertions, not assignments)
+      std::size_t h_num_insertions = 0;
+      CUCO_CUDA_TRY(cudaMemcpyAsync(&h_num_insertions,
+                                    d_num_insertions,
+                                    sizeof(std::size_t),
+                                    cudaMemcpyDeviceToHost,
+                                    stream.get()));
+      CUCO_CUDA_TRY(cudaStreamSynchronize(stream.get()));
+
+      ref_allocator.deallocate(d_submap_refs, submaps_.size(), stream);
+      counter_allocator.deallocate(d_num_insertions, 1, stream);
+
+      size_ += h_num_insertions;
+      first += n;
+      num_to_insert -= n;
+    }
+    submap_idx++;
+  }
+}
+
+template <typename Key,
+          typename T,
+          typename Extent,
+          cuda::thread_scope Scope,
+          typename KeyEqual,
+          typename ProbingScheme,
+          typename Allocator,
+          typename Storage>
 void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::reserve(
   size_type n, cuda::stream_ref stream)
 {

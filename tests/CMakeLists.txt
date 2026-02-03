@@ -101,7 +101,8 @@ ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
     dynamic_map/erase_test.cu
     dynamic_map/find_test.cu
-    dynamic_map/retrieve_all_test.cu)
+    dynamic_map/retrieve_all_test.cu
+    dynamic_map/multiplicity_test.cu)
 
 ###################################################################################################
 # - static_multiset tests -------------------------------------------------------------------------

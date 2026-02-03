@@ -180,6 +180,28 @@ class dynamic_map {
               cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
+   * @brief For any key-value pair `{k, v}` in the range `[first, last)`, if a key equivalent to `k`
+   * already exists in the map, assigns `v` to the mapped_type corresponding to the key `k`.
+   * If the key does not exist, inserts the pair as if by insert.
+   *
+   * @note This function synchronizes the given stream.
+   * @note If multiple pairs in `[first, last)` compare equal, it is unspecified which pair is
+   * inserted or assigned.
+   *
+   * @tparam InputIt Device accessible random access input iterator where
+   * <tt>std::is_convertible<std::iterator_traits<InputIt>::value_type,
+   * dynamic_map<K, V>::value_type></tt> is `true`
+   *
+   * @param first Beginning of the sequence of key/value pairs
+   * @param last End of the sequence of key/value pairs
+   * @param stream CUDA stream used for the operation
+   */
+  template <typename InputIt>
+  void insert_or_assign(InputIt first,
+                        InputIt last,
+                        cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
    * @brief Erases keys in the range `[first, last)`.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use

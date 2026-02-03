@@ -105,6 +105,87 @@ CUCO_KERNEL void insert(InputIt first,
 }
 
 /**
+ * @brief Inserts or assigns key/value pairs, checking all submaps.
+ *
+ * For each key, checks all submaps. If found, assigns the new value. If not found,
+ * inserts into the target submap. Only counts new insertions (not assignments).
+ *
+ * @tparam CGSize Cooperative group size
+ * @tparam BlockSize The number of threads in the thread block
+ * @tparam InputIt Device accessible input iterator
+ * @tparam AtomicT Atomic counter type
+ * @tparam Ref Type of submap device ref with contains, insert, and insert_or_assign capabilities
+ *
+ * @param first Beginning of the sequence of key/value pairs
+ * @param n Number of keys
+ * @param num_insertions Pointer to atomic counter for new insertions (not assignments)
+ * @param submap_refs Array of submap refs
+ * @param insert_idx Index of the submap to insert into if key not found
+ * @param num_submaps Total number of submaps
+ */
+template <int CGSize, int BlockSize, typename InputIt, typename AtomicT, typename Ref>
+CUCO_KERNEL void insert_or_assign(InputIt first,
+                                  cuco::detail::index_type n,
+                                  AtomicT* num_insertions,
+                                  Ref* submap_refs,
+                                  uint32_t insert_idx,
+                                  uint32_t num_submaps)
+{
+  using BlockReduce = cub::BlockReduce<std::size_t, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+
+  std::size_t thread_num_insertions = 0;
+
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  while (idx < n) {
+    auto const pair = *(first + idx);
+    bool found      = false;
+
+    if constexpr (CGSize == 1) {
+      // Check all submaps for the key and assign if found
+      for (uint32_t i = 0; i < num_submaps && !found; ++i) {
+        if (submap_refs[i].contains(pair.first)) {
+          submap_refs[i].insert_or_assign(pair);
+          found = true;
+        }
+      }
+
+      // If not found in any submap, insert into target submap
+      if (!found) {
+        if (submap_refs[insert_idx].insert(pair)) { ++thread_num_insertions; }
+      }
+    } else {
+      auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
+
+      // Check all submaps for the key and assign if found
+      for (uint32_t i = 0; i < num_submaps && !found; ++i) {
+        if (submap_refs[i].contains(tile, pair.first)) {
+          submap_refs[i].insert_or_assign(tile, pair);
+          found = true;
+        }
+      }
+      tile.sync();
+
+      // If not found in any submap, insert into target submap
+      if (!found) {
+        if (submap_refs[insert_idx].insert(tile, pair) && tile.thread_rank() == 0) {
+          ++thread_num_insertions;
+        }
+      }
+    }
+    idx += loop_stride;
+  }
+
+  // Aggregate insertion count
+  std::size_t const block_num_insertions = BlockReduce(temp_storage).Sum(thread_num_insertions);
+  if (threadIdx.x == 0) {
+    num_insertions->fetch_add(block_num_insertions, cuda::std::memory_order_relaxed);
+  }
+}
+
+/**
  * @brief Erases keys from all submaps.
  *
  * For each key, attempts to erase from all submaps. Tracks total erased count.
