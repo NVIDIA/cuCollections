@@ -129,12 +129,11 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
   }
 
   // Multiple submaps: use kernel to check for duplicates across all submaps
-  using contains_ref_type = decltype(submaps_.front()->ref(cuco::op::contains));
-  using insert_ref_type   = decltype(submaps_.front()->ref(cuco::op::insert));
+  using ref_type = decltype(submaps_.front()->ref(cuco::op::contains, cuco::op::insert));
 
-  using contains_ref_allocator_type =
-    typename std::allocator_traits<Allocator>::template rebind_alloc<contains_ref_type>;
-  auto contains_ref_allocator = contains_ref_allocator_type{alloc_};
+  using ref_allocator_type =
+    typename std::allocator_traits<Allocator>::template rebind_alloc<ref_type>;
+  auto ref_allocator = ref_allocator_type{alloc_};
 
   using counter_allocator_type =
     typename std::allocator_traits<Allocator>::template rebind_alloc<cuda::atomic<std::size_t>>;
@@ -153,21 +152,18 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
       CUCO_CUDA_TRY(
         cudaMemsetAsync(d_num_successes, 0, sizeof(cuda::atomic<std::size_t>), stream.get()));
 
-      // Allocate and copy contains refs for all submaps
-      auto* d_contains_refs = contains_ref_allocator.allocate(submaps_.size(), stream);
-      std::vector<contains_ref_type> h_contains_refs;
-      h_contains_refs.reserve(submaps_.size());
+      // Allocate and copy refs for all submaps (with both contains and insert ops)
+      auto* d_submap_refs = ref_allocator.allocate(submaps_.size(), stream);
+      std::vector<ref_type> h_submap_refs;
+      h_submap_refs.reserve(submaps_.size());
       for (auto const& submap : submaps_) {
-        h_contains_refs.push_back(submap->ref(cuco::op::contains));
+        h_submap_refs.push_back(submap->ref(cuco::op::contains, cuco::op::insert));
       }
-      CUCO_CUDA_TRY(cudaMemcpyAsync(d_contains_refs,
-                                    h_contains_refs.data(),
-                                    sizeof(contains_ref_type) * submaps_.size(),
+      CUCO_CUDA_TRY(cudaMemcpyAsync(d_submap_refs,
+                                    h_submap_refs.data(),
+                                    sizeof(ref_type) * submaps_.size(),
                                     cudaMemcpyHostToDevice,
                                     stream.get()));
-
-      // Get insert ref for target submap
-      auto insert_ref = cur->ref(cuco::op::insert);
 
       auto constexpr cg_size    = ProbingScheme::cg_size;
       auto constexpr block_size = cuco::detail::default_block_size();
@@ -177,8 +173,7 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
         <<<grid_size, block_size, 0, stream.get()>>>(first,
                                                      n,
                                                      d_num_successes,
-                                                     d_contains_refs,
-                                                     insert_ref,
+                                                     d_submap_refs,
                                                      static_cast<uint32_t>(submap_idx),
                                                      static_cast<uint32_t>(submaps_.size()));
 
@@ -191,7 +186,7 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
                                     stream.get()));
       CUCO_CUDA_TRY(cudaStreamSynchronize(stream.get()));
 
-      contains_ref_allocator.deallocate(d_contains_refs, submaps_.size(), stream);
+      ref_allocator.deallocate(d_submap_refs, submaps_.size(), stream);
       counter_allocator.deallocate(d_num_successes, 1, stream);
 
       size_ += h_num_successes;

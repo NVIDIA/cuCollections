@@ -39,28 +39,20 @@ CUCO_SUPPRESS_KERNEL_WARNINGS
  * @tparam BlockSize The number of threads in the thread block
  * @tparam InputIt Device accessible input iterator
  * @tparam AtomicT Atomic counter type
- * @tparam ContainsRef Type of submap device ref with contains capability
- * @tparam InsertRef Type of submap device ref with insert capability
+ * @tparam Ref Type of submap device ref with both contains and insert capabilities
  *
  * @param first Beginning of the sequence of key/value pairs
  * @param n Number of keys
  * @param num_successes Pointer to atomic counter for successful insertions
- * @param contains_refs Array of submap refs for contains checks (all submaps)
- * @param insert_ref Ref to the target submap for insertion
+ * @param submap_refs Array of submap refs (with contains and insert ops)
  * @param insert_idx Index of the submap we're inserting into
  * @param num_submaps Total number of submaps
  */
-template <int CGSize,
-          int BlockSize,
-          typename InputIt,
-          typename AtomicT,
-          typename ContainsRef,
-          typename InsertRef>
+template <int CGSize, int BlockSize, typename InputIt, typename AtomicT, typename Ref>
 CUCO_KERNEL void insert(InputIt first,
                         cuco::detail::index_type n,
                         AtomicT* num_successes,
-                        ContainsRef const* contains_refs,
-                        InsertRef insert_ref,
+                        Ref* submap_refs,
                         uint32_t insert_idx,
                         uint32_t num_submaps)
 {
@@ -79,24 +71,27 @@ CUCO_KERNEL void insert(InputIt first,
     if constexpr (CGSize == 1) {
       // Check all other submaps for the key
       for (uint32_t i = 0; i < num_submaps && !exists; ++i) {
-        if (i != insert_idx) { exists = contains_refs[i].contains(pair.first); }
+        if (i != insert_idx) { exists = submap_refs[i].contains(pair.first); }
       }
 
       // Only insert if key doesn't exist elsewhere
       if (!exists) {
-        if (insert_ref.insert(pair)) { ++thread_num_successes; }
+        if (submap_refs[insert_idx].insert(pair)) { ++thread_num_successes; }
       }
     } else {
       auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
 
       // Check all other submaps for the key
       for (uint32_t i = 0; i < num_submaps && !exists; ++i) {
-        if (i != insert_idx) { exists = contains_refs[i].contains(tile, pair.first); }
+        if (i != insert_idx) { exists = submap_refs[i].contains(tile, pair.first); }
       }
+      tile.sync();
 
       // Only insert if key doesn't exist elsewhere
       if (!exists) {
-        if (insert_ref.insert(tile, pair) && tile.thread_rank() == 0) { ++thread_num_successes; }
+        if (submap_refs[insert_idx].insert(tile, pair) && tile.thread_rank() == 0) {
+          ++thread_num_successes;
+        }
       }
     }
     idx += loop_stride;
