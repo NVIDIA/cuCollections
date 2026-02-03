@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,11 @@
 #include <cuco/pair.cuh>
 #include <cuco/utility/allocator.hpp>
 
+#include <cuda/std/bit>
+
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cstdint>
 
 TEMPLATE_TEST_CASE_SIG("utility storage tests",
                        "",
@@ -95,5 +99,108 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
 
     STATIC_REQUIRE(num_buckets == size / bucket_size);
     STATIC_REQUIRE(capacity == gold_capacity);
+  }
+
+  SECTION("Storage alignment constant is correct for pairs.")
+  {
+    using storage_ref_type =
+      cuco::bucket_storage_ref<cuco::pair<Key, Value>, bucket_size, cuco::extent<std::size_t>>;
+    using bucket_type = typename storage_ref_type::bucket_type;
+
+    constexpr auto alignment = storage_ref_type::alignment;
+    constexpr auto expected_align =
+      cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)), std::size_t{16});
+
+    STATIC_REQUIRE(alignment == expected_align);
+    STATIC_REQUIRE(cuda::std::has_single_bit(alignment));
+  }
+
+  SECTION("Storage alignment constant is correct for keys.")
+  {
+    using storage_ref_type = cuco::bucket_storage_ref<Key, bucket_size, cuco::extent<std::size_t>>;
+    using bucket_type      = typename storage_ref_type::bucket_type;
+
+    constexpr auto alignment = storage_ref_type::alignment;
+    constexpr auto expected_align =
+      cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)), std::size_t{16});
+
+    STATIC_REQUIRE(alignment == expected_align);
+    STATIC_REQUIRE(cuda::std::has_single_bit(alignment));
+  }
+
+  SECTION("Storage data pointer is aligned to bucket boundary for pairs.")
+  {
+    auto s = cuco::bucket_storage<cuco::pair<Key, Value>,
+                                  bucket_size,
+                                  cuco::extent<std::size_t>,
+                                  allocator_type>(
+      cuco::extent{size}, allocator, cuda::stream_ref{cudaStream_t{nullptr}});
+
+    auto const ptr       = reinterpret_cast<std::uintptr_t>(s.data());
+    auto const alignment = decltype(s)::ref_type::alignment;
+
+    REQUIRE((ptr % alignment) == 0);
+  }
+
+  SECTION("Storage data pointer is aligned to bucket boundary for keys.")
+  {
+    auto s = cuco::bucket_storage<Key, bucket_size, cuco::extent<std::size_t>, allocator_type>(
+      cuco::extent{size}, allocator, cuda::stream_ref{cudaStream_t{nullptr}});
+
+    auto const ptr       = reinterpret_cast<std::uintptr_t>(s.data());
+    auto const alignment = decltype(s)::ref_type::alignment;
+
+    REQUIRE((ptr % alignment) == 0);
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG("bucket storage alignment with different bucket sizes",
+                       "",
+                       ((typename T, int BucketSize), T, BucketSize),
+                       (int32_t, 1),
+                       (int32_t, 2),
+                       (int32_t, 4),
+                       (int64_t, 1),
+                       (int64_t, 2),
+                       (cuco::pair<int32_t, int32_t>, 1),
+                       (cuco::pair<int32_t, int32_t>, 2),
+                       (cuco::pair<int64_t, int64_t>, 1))
+{
+  constexpr std::size_t size{1'000};
+
+  using allocator_type = cuco::cuda_allocator<char>;
+  using storage_type =
+    cuco::bucket_storage<T, BucketSize, cuco::extent<std::size_t>, allocator_type>;
+  using storage_ref_type = typename storage_type::ref_type;
+  using bucket_type      = typename storage_ref_type::bucket_type;
+
+  auto allocator = allocator_type{};
+
+  SECTION("Alignment constant is power of 2 and capped at 16.")
+  {
+    constexpr auto alignment = storage_ref_type::alignment;
+
+    STATIC_REQUIRE(cuda::std::has_single_bit(alignment));
+    STATIC_REQUIRE(alignment <= 16);
+    STATIC_REQUIRE(alignment >= sizeof(T));
+  }
+
+  SECTION("Alignment matches expected value.")
+  {
+    constexpr auto alignment = storage_ref_type::alignment;
+    constexpr auto expected =
+      cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)), std::size_t{16});
+
+    STATIC_REQUIRE(alignment == expected);
+  }
+
+  SECTION("Data pointer is aligned to bucket boundary.")
+  {
+    auto s = storage_type(cuco::extent{size}, allocator, cuda::stream_ref{cudaStream_t{nullptr}});
+
+    auto const ptr       = reinterpret_cast<std::uintptr_t>(s.data());
+    auto const alignment = storage_ref_type::alignment;
+
+    REQUIRE((ptr % alignment) == 0);
   }
 }

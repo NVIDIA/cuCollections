@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,9 +23,11 @@
 #include <cub/device/device_for.cuh>
 #include <cuda/std/array>
 #include <cuda/std/bit>
+#include <cuda/std/cstdint>
 #include <cuda/stream_ref>
 
 #include <cassert>
+#include <memory>
 
 namespace cuco {
 
@@ -98,10 +100,16 @@ bucket_storage_ref<T, BucketSize, Extent>::extent() const noexcept
 template <typename T, int BucketSize, typename Extent, typename Allocator>
 constexpr bucket_storage<T, BucketSize, Extent, Allocator>::bucket_storage(
   Extent size, Allocator const& allocator, cuda::stream_ref stream)
-  : extent_{size},
-    allocator_{allocator},
-    slots_{allocator_.allocate(capacity(), stream),
-           slot_deleter_type{capacity(), allocator_, stream}}
+  : extent_{size}, allocator_{allocator}, slots_{[this, &stream]() {
+      constexpr std::size_t align  = ref_type::alignment;
+      constexpr std::size_t extra  = (align - 1) / sizeof(value_type) + 1;
+      std::size_t const alloc_size = static_cast<std::size_t>(capacity()) + extra;
+      auto* const raw_ptr          = allocator_.allocate(alloc_size, stream);
+      auto* const aligned_ptr      = reinterpret_cast<value_type*>(
+        (reinterpret_cast<cuda::std::uintptr_t>(raw_ptr) + align - 1) & ~(align - 1));
+      return std::unique_ptr<value_type, aligned_deleter>{
+        aligned_ptr, aligned_deleter{raw_ptr, alloc_size, allocator_, stream}};
+    }()}
 {
 }
 
