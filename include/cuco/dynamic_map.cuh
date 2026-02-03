@@ -163,8 +163,7 @@ class dynamic_map {
   /**
    * @brief Inserts all key/value pairs in the range `[first, last)`.
    *
-   * @note This function synchronizes the given stream. For asynchronous execution use
-   * `insert_async`.
+   * @note This function synchronizes the given stream.
    *
    * If multiple keys in `[first, last)` compare equal, it is unspecified which
    * element is inserted.
