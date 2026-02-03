@@ -60,10 +60,10 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_erase(
                                                  cuco::empty_key<Key>{-1},
                                                  cuco::empty_value<Value>{-1},
                                                  cuco::erased_key<Key>{-2}};
-               map.insert(pairs.begin(), pairs.end(), launch.get_stream());
+               map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
 
                timer.start();
-               map.erase(keys.begin(), keys.end(), launch.get_stream());
+               map.erase(keys.begin(), keys.end(), {launch.get_stream()});
                timer.stop();
              });
 }

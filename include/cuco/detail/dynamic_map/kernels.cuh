@@ -21,6 +21,7 @@
 #include <cub/block/block_reduce.cuh>
 #include <cub/block/block_scan.cuh>
 #include <cuda/std/atomic>
+#include <cuda/std/iterator>
 
 #include <cooperative_groups.h>
 
@@ -65,29 +66,25 @@ CUCO_KERNEL void insert(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    auto const pair = *(first + idx);
-    bool exists     = false;
+    typename cuda::std::iterator_traits<InputIt>::value_type const pair{*(first + idx)};
+    bool exists = false;
 
     if constexpr (CGSize == 1) {
-      // Check all other submaps for the key
       for (uint32_t i = 0; i < num_submaps && !exists; ++i) {
         if (i != insert_idx) { exists = submap_refs[i].contains(pair.first); }
       }
 
-      // Only insert if key doesn't exist elsewhere
       if (!exists) {
         if (submap_refs[insert_idx].insert(pair)) { ++thread_num_successes; }
       }
     } else {
       auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
 
-      // Check all other submaps for the key
       for (uint32_t i = 0; i < num_submaps && !exists; ++i) {
         if (i != insert_idx) { exists = submap_refs[i].contains(tile, pair.first); }
       }
       tile.sync();
 
-      // Only insert if key doesn't exist elsewhere
       if (!exists) {
         if (submap_refs[insert_idx].insert(tile, pair) && tile.thread_rank() == 0) {
           ++thread_num_successes;
@@ -140,11 +137,10 @@ CUCO_KERNEL void insert_or_assign(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    auto const pair = *(first + idx);
-    bool found      = false;
+    typename cuda::std::iterator_traits<InputIt>::value_type const pair{*(first + idx)};
+    bool found = false;
 
     if constexpr (CGSize == 1) {
-      // Check all submaps for the key and assign if found
       for (uint32_t i = 0; i < num_submaps && !found; ++i) {
         if (submap_refs[i].contains(pair.first)) {
           submap_refs[i].insert_or_assign(pair);
@@ -152,14 +148,12 @@ CUCO_KERNEL void insert_or_assign(InputIt first,
         }
       }
 
-      // If not found in any submap, insert into target submap
       if (!found) {
         if (submap_refs[insert_idx].insert(pair)) { ++thread_num_insertions; }
       }
     } else {
       auto const tile = cg::tiled_partition<CGSize>(cg::this_thread_block());
 
-      // Check all submaps for the key and assign if found
       for (uint32_t i = 0; i < num_submaps && !found; ++i) {
         if (submap_refs[i].contains(tile, pair.first)) {
           submap_refs[i].insert_or_assign(tile, pair);
@@ -168,7 +162,6 @@ CUCO_KERNEL void insert_or_assign(InputIt first,
       }
       tile.sync();
 
-      // If not found in any submap, insert into target submap
       if (!found) {
         if (submap_refs[insert_idx].insert(tile, pair) && tile.thread_rank() == 0) {
           ++thread_num_insertions;
@@ -218,13 +211,13 @@ CUCO_KERNEL void erase(InputIt first,
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    auto const key = *(first + idx);
+    typename cuda::std::iterator_traits<InputIt>::value_type const key{*(first + idx)};
 
     if constexpr (CGSize == 1) {
       for (uint32_t i = 0; i < num_submaps; ++i) {
         if (submap_refs[i].erase(key)) {
           ++thread_num_successes;
-          break;  // Key can only exist in one submap
+          break;
         }
       }
     } else {
@@ -233,7 +226,7 @@ CUCO_KERNEL void erase(InputIt first,
       for (uint32_t i = 0; i < num_submaps; ++i) {
         if (submap_refs[i].erase(tile, key)) {
           if (tile.thread_rank() == 0) { ++thread_num_successes; }
-          break;  // Key can only exist in one submap
+          break;
         }
       }
     }
@@ -282,7 +275,7 @@ CUCO_KERNEL void find(InputIt first,
   __shared__ mapped_type write_buffer[BlockSize];
 
   while (idx < n) {
-    auto const key   = *(first + idx);
+    typename cuda::std::iterator_traits<InputIt>::value_type const key{*(first + idx)};
     auto found_value = empty_value_sentinel;
     bool found       = false;
 
@@ -441,8 +434,8 @@ CUCO_KERNEL void contains(InputIt first,
   __shared__ bool write_buffer[BlockSize];
 
   while (idx < n) {
-    auto const key = *(first + idx);
-    bool found     = false;
+    typename cuda::std::iterator_traits<InputIt>::value_type const key{*(first + idx)};
+    bool found = false;
 
     if constexpr (CGSize == 1) {
       for (uint32_t i = 0; i < num_submaps && !found; ++i) {

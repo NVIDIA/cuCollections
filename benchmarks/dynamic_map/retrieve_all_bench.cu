@@ -60,7 +60,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_retrieve_all(
   state.add_element_count(map.size());
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.retrieve_all(retrieved_keys.begin(), retrieved_values.begin(), launch.get_stream());
+    map.retrieve_all(retrieved_keys.begin(), retrieved_values.begin(), {launch.get_stream()});
   });
 }
 

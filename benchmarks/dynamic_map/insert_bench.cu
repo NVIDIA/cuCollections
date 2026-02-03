@@ -62,7 +62,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_insert(
 
       timer.start();
       for (int64_t i = 0; i < num_keys; i += batch_size) {
-        map.insert(pairs.begin() + i, pairs.begin() + i + batch_size, launch.get_stream());
+        map.insert(pairs.begin() + i, pairs.begin() + i + batch_size, {launch.get_stream()});
       }
       timer.stop();
     });
