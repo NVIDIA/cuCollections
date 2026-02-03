@@ -35,12 +35,15 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
                        (int32_t, int32_t),
                        (int64_t, int64_t))
 {
-  // Use small initial capacity to force multiple submaps
-  constexpr std::size_t initial_capacity{1'000};
-  constexpr std::size_t num_keys{500};  // Fill about half of first submap
+  // Use capacity large enough to satisfy min_insert_size_ (10,000 default)
+  // but small enough to force multiple submaps after several inserts
+  constexpr std::size_t initial_capacity{50'000};
+  constexpr std::size_t num_keys{20'000};  // Fill about 2/3 of first submap (load factor ~0.6)
 
-  cuco::dynamic_map<Key, T> map{
-    initial_capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<T>{-1}};
+  cuco::dynamic_map<Key, T> map{initial_capacity,
+                                cuco::empty_key<Key>{-1},
+                                cuco::empty_value<T>{-1},
+                                cuco::erased_key<Key>{-2}};
 
   // Create pairs for first submap (keys 0 to num_keys-1)
   auto pairs_begin =
