@@ -30,6 +30,7 @@
 #include <memory>
 
 namespace cuco {
+
 /**
  * @brief Non-owning array of slots storage reference type.
  *
@@ -40,10 +41,14 @@ namespace cuco {
 template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::size_t>>
 class bucket_storage_ref {
  public:
-  static constexpr int32_t bucket_size   = BucketSize;  ///< Number of elements processed per bucket
-  using bucket_type                      = cuda::std::array<T, BucketSize>;  ///< Slot bucket type
-  static constexpr std::size_t alignment = cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)),
-                                                          std::size_t{16});  ///< Required alignment
+  static constexpr int32_t bucket_size = BucketSize;        ///< Number of elements per bucket
+  static constexpr std::size_t max_vector_load_bytes = 16;  ///< Maximum vector load width in bytes
+
+  using bucket_type = cuda::std::array<T, BucketSize>;  ///< Slot bucket type
+
+  static constexpr std::size_t alignment =
+    cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)),
+                   max_vector_load_bytes);  ///< Required alignment in bytes
 
   using extent_type = Extent;                            ///< Storage extent type
   using size_type   = typename extent_type::value_type;  ///< Storage size type

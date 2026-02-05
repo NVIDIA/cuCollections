@@ -107,9 +107,9 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
       cuco::bucket_storage_ref<cuco::pair<Key, Value>, bucket_size, cuco::extent<std::size_t>>;
     using bucket_type = typename storage_ref_type::bucket_type;
 
-    constexpr auto alignment = storage_ref_type::alignment;
-    constexpr auto expected_align =
-      cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)), std::size_t{16});
+    constexpr auto alignment      = storage_ref_type::alignment;
+    constexpr auto expected_align = cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)),
+                                                   storage_ref_type::max_vector_load_bytes);
 
     STATIC_REQUIRE(alignment == expected_align);
     STATIC_REQUIRE(cuda::std::has_single_bit(alignment));
@@ -120,9 +120,9 @@ TEMPLATE_TEST_CASE_SIG("utility storage tests",
     using storage_ref_type = cuco::bucket_storage_ref<Key, bucket_size, cuco::extent<std::size_t>>;
     using bucket_type      = typename storage_ref_type::bucket_type;
 
-    constexpr auto alignment = storage_ref_type::alignment;
-    constexpr auto expected_align =
-      cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)), std::size_t{16});
+    constexpr auto alignment      = storage_ref_type::alignment;
+    constexpr auto expected_align = cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)),
+                                                   storage_ref_type::max_vector_load_bytes);
 
     STATIC_REQUIRE(alignment == expected_align);
     STATIC_REQUIRE(cuda::std::has_single_bit(alignment));
@@ -172,27 +172,8 @@ TEMPLATE_TEST_CASE_SIG("bucket storage alignment with different bucket sizes",
   using storage_type =
     cuco::bucket_storage<T, BucketSize, cuco::extent<std::size_t>, allocator_type>;
   using storage_ref_type = typename storage_type::ref_type;
-  using bucket_type      = typename storage_ref_type::bucket_type;
 
   auto allocator = allocator_type{};
-
-  SECTION("Alignment constant is power of 2 and capped at 16.")
-  {
-    constexpr auto alignment = storage_ref_type::alignment;
-
-    STATIC_REQUIRE(cuda::std::has_single_bit(alignment));
-    STATIC_REQUIRE(alignment <= 16);
-    STATIC_REQUIRE(alignment >= sizeof(T));
-  }
-
-  SECTION("Alignment matches expected value.")
-  {
-    constexpr auto alignment = storage_ref_type::alignment;
-    constexpr auto expected =
-      cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)), std::size_t{16});
-
-    STATIC_REQUIRE(alignment == expected);
-  }
 
   SECTION("Data pointer is aligned to bucket boundary.")
   {
