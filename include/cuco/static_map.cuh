@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1249,7 +1249,6 @@ class static_map {
   mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
 };
 
-namespace experimental {
 template <class Key,
           class T,
           class Extent,
@@ -1258,10 +1257,6 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-class dynamic_map;
-}
-
-template <typename Key, typename Value, cuda::thread_scope Scope, typename Allocator>
 class dynamic_map;
 
 namespace legacy {
@@ -1355,8 +1350,6 @@ class static_map {
                 "Value type must have unique object representations or have been explicitly "
                 "declared as safe for bitwise comparison via specialization of "
                 "cuco::is_bitwise_comparable_v<Value>.");
-
-  friend class dynamic_map<Key, Value, Scope, Allocator>;  ///< Dynamic map as friend class
 
  public:
   using value_type         = cuco::pair<Key, Value>;            ///< Type of key/value pairs

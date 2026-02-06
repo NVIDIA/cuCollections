@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -56,15 +56,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_erase(
 
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
-               // dynamic map with erase support
                cuco::dynamic_map<Key, Value> map{static_cast<size_t>(initial_size),
                                                  cuco::empty_key<Key>{-1},
                                                  cuco::empty_value<Value>{-1},
                                                  cuco::erased_key<Key>{-2}};
-               map.insert(pairs.begin(), pairs.end(), {}, {}, launch.get_stream());
+               map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
 
                timer.start();
-               map.erase(keys.begin(), keys.end(), {}, {}, launch.get_stream());
+               map.erase(keys.begin(), keys.end(), {launch.get_stream()});
                timer.stop();
              });
 }

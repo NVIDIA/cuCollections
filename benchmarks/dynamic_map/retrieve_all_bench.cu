@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -53,14 +53,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_retrieve_all(
   cuco::dynamic_map<Key, Value> map{
     static_cast<size_t>(initial_size), cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
   map.insert(pairs.begin(), pairs.end());
-  // Prepare output buffers
-  thrust::device_vector<Key> retrieved_keys(map.get_size());
-  thrust::device_vector<Value> retrieved_values(map.get_size());
 
-  state.add_element_count(map.get_size());
+  thrust::device_vector<Key> retrieved_keys(map.size());
+  thrust::device_vector<Value> retrieved_values(map.size());
+
+  state.add_element_count(map.size());
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
-    map.retrieve_all(retrieved_keys.begin(), retrieved_values.begin(), launch.get_stream());
+    map.retrieve_all(retrieved_keys.begin(), retrieved_values.begin(), {launch.get_stream()});
   });
 }
 

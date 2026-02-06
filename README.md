@@ -15,6 +15,8 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 ### Major Updates
 
+__02/03/2026__ Modernized `dynamic_map`: promoted `cuco::experimental::dynamic_map` to `cuco::dynamic_map` and removed the legacy implementation
+
 __01/30/2026__ Removed legacy `static_multimap` implementation and promoted `cuco::experimental::static_multimap` to `cuco::static_multimap`
 
 __10/08/2025__ Changed `cuda_allocator` to stream-ordered, requiring `cuda::stream_ref` parameter in `allocate`/`deallocate`.
@@ -244,7 +246,7 @@ We plan to add many GPU-accelerated, concurrent data structures to `cuCollection
 
 ### `dynamic_map`
 
-`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as key-value pairs are inserted. It currently only provides host-bulk APIs. See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
+`cuco::dynamic_map` links together multiple `cuco::static_map`s to provide a hash table that can grow as key-value pairs are inserted. It supports `insert`, `insert_or_assign`, `erase`, `find`, `contains`, and `retrieve_all` operations via host-bulk APIs with kernel-based implementations for optimal performance. See the Doxygen documentation in `dynamic_map.cuh` for more detailed information.
 
 #### Examples:
 - [Host-bulk APIs (TODO)]()
