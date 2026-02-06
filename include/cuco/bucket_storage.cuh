@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,15 +21,16 @@
 #include <cuco/utility/allocator.hpp>
 
 #include <cuda/std/array>
+#include <cuda/std/bit>
 #include <cuda/std/functional>
 #include <cuda/stream_ref>
 
 #include <cstddef>
 #include <cstdint>
-#include <iterator>
 #include <memory>
 
 namespace cuco {
+
 /**
  * @brief Non-owning array of slots storage reference type.
  *
@@ -40,14 +41,18 @@ namespace cuco {
 template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::size_t>>
 class bucket_storage_ref {
  public:
-  static constexpr int32_t bucket_size = BucketSize;  ///< Number of elements processed per bucket
+  static constexpr int32_t bucket_size = BucketSize;        ///< Number of elements per bucket
+  static constexpr std::size_t max_vector_load_bytes = 16;  ///< Maximum vector load width in bytes
+
+  using bucket_type = cuda::std::array<T, BucketSize>;  ///< Slot bucket type
+
   static constexpr std::size_t alignment =
-    cuda::std::min(sizeof(T) * bucket_size, std::size_t{16});  ///< Required alignment
+    cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)),
+                   max_vector_load_bytes);  ///< Required alignment in bytes
 
   using extent_type = Extent;                            ///< Storage extent type
   using size_type   = typename extent_type::value_type;  ///< Storage size type
   using value_type  = T;                                 ///< Slot type
-  using bucket_type = cuda::std::array<T, BucketSize>;   ///< Slot bucket type
 
   /**
    * @brief Constructor of slot storage ref.
@@ -150,7 +155,7 @@ class bucket_storage {
   using value_type  = T;                                 ///< Slot type
   using bucket_type = cuda::std::array<T, BucketSize>;   ///< Slot bucket type
 
-  /// Type of the allocator to (de)allocate buckets
+  /// Type of the allocator to (de)allocate slots
   using allocator_type =
     typename std::allocator_traits<Allocator>::template rebind_alloc<value_type>;
   using ref_type = bucket_storage_ref<value_type, bucket_size, extent_type>;  ///< Storage ref type
@@ -244,13 +249,19 @@ class bucket_storage {
   [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept;
 
  private:
-  using slot_deleter_type =
-    detail::custom_deleter<size_type, allocator_type>;  ///< Type of slot deleter
+  struct aligned_deleter {
+    value_type* raw_ptr_;
+    std::size_t size_;
+    allocator_type& allocator_;
+    cuda::stream_ref stream_;
+
+    void operator()(value_type*) const { allocator_.deallocate(raw_ptr_, size_, stream_); }
+  };
 
   extent_type extent_;        ///< Storage extent
   allocator_type allocator_;  ///< Allocator used to (de)allocate slots
-  /// Pointer to the slot storage
-  std::unique_ptr<value_type, slot_deleter_type> slots_;
+  /// Pointer to the aligned slot storage
+  std::unique_ptr<value_type, aligned_deleter> slots_;
 };
 }  // namespace cuco
 
