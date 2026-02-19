@@ -15,7 +15,7 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 ### Major Updates
 
-__02/06/2026__ Removed legacy `static_map` implementation from `cuco::legacy` namespace
+__02/19/2026__ Removed legacy `static_map` implementation from `cuco::legacy` namespace
 
 __02/03/2026__ Modernized `dynamic_map`: promoted `cuco::experimental::dynamic_map` to `cuco::dynamic_map` and removed the legacy implementation
 
