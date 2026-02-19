@@ -15,6 +15,8 @@ Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://gith
 
 ### Major Updates
 
+__02/19/2026__ Removed legacy `static_map` implementation from `cuco::legacy` namespace
+
 __02/03/2026__ Modernized `dynamic_map`: promoted `cuco::experimental::dynamic_map` to `cuco::dynamic_map` and removed the legacy implementation
 
 __01/30/2026__ Removed legacy `static_multimap` implementation and promoted `cuco::experimental::static_multimap` to `cuco::static_multimap`
@@ -24,8 +26,6 @@ __10/08/2025__ Changed `cuda_allocator` to stream-ordered, requiring `cuda::stre
 __06/04/2025__ Removed CUDA 11 support
 
 __11/01/2024__ Refined the term `window` as `bucket`
-
-__01/02/2024__ Moved the legacy `static_map` to `cuco::legacy` namespace
 
 
 ## Getting cuCollections

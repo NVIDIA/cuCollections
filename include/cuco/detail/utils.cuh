@@ -16,12 +16,10 @@
 #pragma once
 
 #include <cuco/detail/__config>
-#include <cuco/detail/bitwise_compare.cuh>
 
 #include <cuda/std/array>
 #include <cuda/std/cmath>
 #include <cuda/std/cstdint>
-#include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 
 namespace cuco {
@@ -36,53 +34,6 @@ __device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda:
 {
   return __popc(x & (1 << n) - 1);
 }
-
-/**
- * @brief Converts pair to `cuda::std::tuple` to allow assigning to a zip iterator.
- *
- * @tparam Key The slot key type
- * @tparam Value The slot value type
- */
-template <typename Key, typename Value>
-struct slot_to_tuple {
-  /**
-   * @brief Converts a pair to a `cuda::std::tuple`.
-   *
-   * @tparam S The slot type
-   *
-   * @param s The slot to convert
-   * @return A cuda::std::tuple containing `s.first` and `s.second`
-   */
-  template <typename S>
-  __device__ cuda::std::tuple<Key, Value> operator()(S const& s)
-  {
-    return cuda::std::tuple<Key, Value>(s.first, s.second);
-  }
-};
-
-/**
- * @brief Device functor returning whether the input slot `s` is filled.
- *
- * @tparam Key The slot key type
- */
-template <typename Key>
-struct slot_is_filled {
-  Key empty_key_sentinel_;  ///< The value of the empty key sentinel
-
-  /**
-   * @brief Indicates if the target slot `s` is filled.
-   *
-   * @tparam S The slot type
-   *
-   * @param s The slot to query
-   * @return `true` if slot `s` is filled
-   */
-  template <typename S>
-  __device__ bool operator()(S const& s)
-  {
-    return not cuco::detail::bitwise_compare(cuda::std::get<0>(s), empty_key_sentinel_);
-  }
-};
 
 template <typename SizeType, typename HashType>
 __host__ __device__ constexpr SizeType to_positive(HashType hash)
