@@ -28,6 +28,7 @@
 
 #include <cuda/atomic>
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/__algorithm/max.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/bit>
 #include <cuda/std/cstddef>
@@ -36,7 +37,6 @@
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
 #include <cuda/stream_ref>
-#include <thrust/iterator/constant_iterator.h>
 #include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
@@ -183,7 +183,7 @@ class hyperloglog_impl {
   __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->add_if_async(
-      first, last, thrust::constant_iterator<bool>{true}, cuda::std::identity{}, stream);
+      first, last, cuda::constant_iterator<bool>{true}, cuda::std::identity{}, stream);
   }
 
   /**

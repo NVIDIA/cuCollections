@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/sequence.h>
@@ -118,9 +119,9 @@ TEMPLATE_TEST_CASE_SIG("static_map retrieve_if",
 
   container_type container{num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<T>{-1}};
 
-  auto keys_begin  = thrust::counting_iterator<Key>(1);
-  auto vals_begin  = thrust::counting_iterator<T>(1);
-  auto pairs_begin = thrust::make_zip_iterator(thrust::make_tuple(keys_begin, vals_begin));
+  auto keys_begin  = cuda::counting_iterator<Key>(1);
+  auto vals_begin  = cuda::counting_iterator<T>(1);
+  auto pairs_begin = thrust::make_zip_iterator(cuda::std::tuple{keys_begin, vals_begin});
 
   container.insert(pairs_begin, pairs_begin + num_keys);
 

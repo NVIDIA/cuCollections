@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,9 @@
 
 #include <cuco/static_multiset.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -34,7 +33,7 @@ void test_unique_sequence(Set& set, typename Set::value_type* res_begin, std::si
 {
   using Key = typename Set::key_type;
 
-  auto const keys_begin = thrust::counting_iterator<Key>(0);
+  auto const keys_begin = cuda::counting_iterator<Key>(0);
   auto const keys_end   = keys_begin + num_keys;
 
   set.insert(keys_begin, keys_end);
@@ -43,7 +42,7 @@ void test_unique_sequence(Set& set, typename Set::value_type* res_begin, std::si
   SECTION("All inserted keys can be retrieved.")
   {
     auto const [_, res_end] =
-      set.retrieve(keys_begin, keys_end, thrust::make_discard_iterator(), res_begin);
+      set.retrieve(keys_begin, keys_end, cuda::make_discard_iterator(), res_begin);
     REQUIRE(static_cast<std::size_t>(std::distance(res_begin, res_end)) == num_keys);
 
     thrust::sort(thrust::device, res_begin, res_end);

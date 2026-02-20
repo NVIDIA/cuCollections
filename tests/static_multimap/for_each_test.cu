@@ -21,8 +21,7 @@
 
 #include <cuda/atomic>
 #include <cuda/functional>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
+#include <cuda/iterator>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
@@ -128,12 +127,12 @@ TEMPLATE_TEST_CASE_SIG(
                                    {},
                                    cuco::storage<2>{}};
 
-  auto unique_keys_begin  = thrust::counting_iterator<Key>(0);
+  auto unique_keys_begin  = cuda::counting_iterator<Key>(0);
   auto gen_duplicate_keys = cuda::proclaim_return_type<Key>(
     [] __device__(auto const& k) { return static_cast<Key>(k % num_unique_keys); });
-  auto keys_begin = thrust::make_transform_iterator(unique_keys_begin, gen_duplicate_keys);
+  auto keys_begin = cuda::make_transform_iterator(unique_keys_begin, gen_duplicate_keys);
 
-  auto const pairs_begin = thrust::make_transform_iterator(
+  auto const pairs_begin = cuda::make_transform_iterator(
     keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Key>>([] __device__(auto i) {
       return cuco::pair<Key, Key>{i, i};
     }));

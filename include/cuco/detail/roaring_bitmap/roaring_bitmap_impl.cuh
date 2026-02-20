@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 NVIDIA CORPORATION.
+ * Copyright (c) 2026 NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,12 +23,12 @@
 
 #include <cub/device/device_transform.cuh>
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/stream_ref>
-#include <thrust/iterator/constant_iterator.h>
 
 namespace cuco::experimental::detail {
 
@@ -79,7 +79,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   {
     if (this->empty()) {
       cub::DeviceTransform::Transform(
-        thrust::constant_iterator<bool>(false),
+        cuda::constant_iterator<bool>(false),
         contained,
         cuda::std::distance(first, last),
         cuda::proclaim_return_type<bool>([] __device__(auto /* dummy */) { return false; }),
@@ -327,7 +327,7 @@ class roaring_bitmap_impl<cuda::std::uint64_t> {
   {
     if (this->empty()) {
       cub::DeviceTransform::Transform(
-        thrust::constant_iterator<bool>(false),
+        cuda::constant_iterator<bool>(false),
         contained,
         cuda::std::distance(first, last),
         cuda::proclaim_return_type<bool>([] __device__(auto /* dummy */) { return false; }),

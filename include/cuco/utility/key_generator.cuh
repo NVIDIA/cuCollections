@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 #include <cuco/detail/pair/helpers.cuh>
 #include <cuco/detail/utility/strong_type.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/cmath>
 #include <cuda/std/functional>  // TODO include <cuda/std/algorithm> instead once available
 #include <cuda/std/iterator>
@@ -28,8 +29,6 @@
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/iterator_traits.h>
 #include <thrust/random.h>
 #include <thrust/reduce.h>
 #include <thrust/scan.h>
@@ -291,14 +290,14 @@ class key_generator {
       size_t seed     = this->rng_();
 
       thrust::transform(exec_policy,
-                        thrust::make_counting_iterator<size_t>(0),
-                        thrust::make_counting_iterator<size_t>(num_keys),
+                        cuda::make_counting_iterator<size_t>(0),
+                        cuda::make_counting_iterator<size_t>(num_keys),
                         out_begin,
                         detail::generate_uniform_fn<value_type, Dist, RNG>{num_keys, dist, seed});
     } else if constexpr (std::is_same_v<Dist, distribution::gaussian>) {
       size_t num_keys = cuda::std::distance(out_begin, out_end);
 
-      thrust::counting_iterator<size_t> seq(this->rng_());
+      cuda::counting_iterator<size_t> seq(this->rng_());
 
       thrust::transform(exec_policy,
                         seq,
@@ -374,7 +373,7 @@ class key_generator {
     if (keep_prob < 1.0) {
       size_t const num_keys = cuda::std::distance(begin, end);
 
-      thrust::counting_iterator<size_t> seeds(rng_());
+      cuda::counting_iterator<size_t> seeds(rng_());
 
       thrust::transform_if(exec_policy,
                            seeds,
@@ -469,8 +468,8 @@ generate_random_byte_sequences(std::size_t n_sequences,
 
   // generate random lengths
   thrust::transform(exec_pol,
-                    thrust::counting_iterator<std::size_t>(0),
-                    thrust::counting_iterator<std::size_t>(lengths.size()),
+                    cuda::counting_iterator<std::size_t>(0),
+                    cuda::counting_iterator<std::size_t>(lengths.size()),
                     lengths.begin(),
                     cuda::proclaim_return_type<std::size_t>(
                       [min_sequence_length, max_sequence_length, seed] __device__(std::size_t idx) {
@@ -508,8 +507,8 @@ generate_random_byte_sequences(std::size_t n_sequences,
 
   // fill the byte buffer with random data
   thrust::transform(exec_pol,
-                    thrust::counting_iterator<std::size_t>(0),
-                    thrust::counting_iterator<std::size_t>(bytes.size()),
+                    cuda::counting_iterator<std::size_t>(0),
+                    cuda::counting_iterator<std::size_t>(bytes.size()),
                     bytes.begin(),
                     cuda::proclaim_return_type<cuda::std::byte>([seed] __device__(std::size_t idx) {
                       RNG rng;

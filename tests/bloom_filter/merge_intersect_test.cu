@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@
 #include <cuco/utility/error.hpp>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -42,29 +42,30 @@ void test_merge_intersect(Filter& filter_a,
   size_type num_keys  = capacity;
   size_type half_keys = capacity / 2;
 
-  // Set A: [0, capacity)
-  auto keys_a_begin = thrust::counting_iterator<Key>{static_cast<Key>(0)};
+  auto to_key = cuda::proclaim_return_type<Key>([] __device__(size_type i) { return Key(i); });
+
+  auto keys_a_begin = cuda::make_transform_iterator(cuda::counting_iterator<size_type>{0}, to_key);
   auto keys_a_end   = keys_a_begin + num_keys;
 
-  // Set B: [capacity/2, capacity + capacity/2) (50% overlap with A)
-  auto keys_b_begin = thrust::counting_iterator<Key>{static_cast<Key>(half_keys)};
-  auto keys_b_end   = keys_b_begin + num_keys;
+  auto keys_b_begin =
+    cuda::make_transform_iterator(cuda::counting_iterator<size_type>{half_keys}, to_key);
+  auto keys_b_end = keys_b_begin + num_keys;
 
-  // Intersection: [capacity/2, capacity)
-  auto keys_intersection_begin = thrust::counting_iterator<Key>{static_cast<Key>(half_keys)};
-  auto keys_intersection_end   = keys_intersection_begin + half_keys;
+  auto keys_intersection_begin =
+    cuda::make_transform_iterator(cuda::counting_iterator<size_type>{half_keys}, to_key);
+  auto keys_intersection_end = keys_intersection_begin + half_keys;
 
-  // Union: [0, capacity + capacity/2)
-  auto keys_union_begin = thrust::counting_iterator<Key>{static_cast<Key>(0)};
-  auto keys_union_end   = keys_union_begin + num_keys + half_keys;
+  auto keys_union_begin =
+    cuda::make_transform_iterator(cuda::counting_iterator<size_type>{0}, to_key);
+  auto keys_union_end = keys_union_begin + num_keys + half_keys;
 
-  // Unique A: [0, capacity/2)
-  auto keys_unique_a_begin = thrust::counting_iterator<Key>{static_cast<Key>(0)};
-  auto keys_unique_a_end   = keys_unique_a_begin + half_keys;
+  auto keys_unique_a_begin =
+    cuda::make_transform_iterator(cuda::counting_iterator<size_type>{0}, to_key);
+  auto keys_unique_a_end = keys_unique_a_begin + half_keys;
 
-  // Unique B: [capacity, capacity + capacity/2)
-  auto keys_unique_b_begin = thrust::counting_iterator<Key>{static_cast<Key>(num_keys)};
-  auto keys_unique_b_end   = keys_unique_b_begin + half_keys;
+  auto keys_unique_b_begin =
+    cuda::make_transform_iterator(cuda::counting_iterator<size_type>{num_keys}, to_key);
+  auto keys_unique_b_end = keys_unique_b_begin + half_keys;
 
   // Helper to fill filters
   auto refill_filters = [&]() {

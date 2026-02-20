@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,8 @@
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -66,7 +65,8 @@ TEST_CASE("atomic_storage_test", "")
                               {},
                               cuco::storage<1>{}};
 
-  auto keys_begin = thrust::make_transform_iterator(thrust::counting_iterator{0}, build_fn{});
+  auto keys_begin = cuda::make_transform_iterator(cuda::counting_iterator{0},
+                                                  cuda::proclaim_return_type<Key>(build_fn{}));
 
   set.insert_async(keys_begin, keys_begin + num_keys);
   auto const count = set.size();

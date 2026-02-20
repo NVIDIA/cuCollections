@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,10 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
@@ -33,8 +33,8 @@ void test_unique_sequence(Set& set, bool* res_begin, std::size_t num_keys)
 {
   using Key = typename Set::key_type;
 
-  auto const keys_begin = thrust::counting_iterator<Key>(0);
-  auto const keys_end   = thrust::counting_iterator<Key>(num_keys);
+  auto const keys_begin = cuda::counting_iterator<Key>(0);
+  auto const keys_end   = cuda::counting_iterator<Key>(num_keys);
 
   SECTION("Non-inserted keys should not be contained.")
   {
@@ -64,7 +64,7 @@ void test_unique_sequence(Set& set, bool* res_begin, std::size_t num_keys)
 
     REQUIRE(cuco::test::equal(output_keys.begin(),
                               output_keys.end(),
-                              thrust::counting_iterator<Key>(0),
+                              cuda::counting_iterator<Key>(0),
                               cuda::std::equal_to<Key>{}));
   }
 }

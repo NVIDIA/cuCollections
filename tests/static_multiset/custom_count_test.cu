@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/generate.h>
@@ -69,8 +70,8 @@ void test_custom_count(Set& set, size_type num_keys)
     }
   }();
 
-  auto query_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<size_type>(0),
+  auto query_begin = cuda::make_transform_iterator(
+    cuda::make_counting_iterator<size_type>(0),
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return static_cast<Key>(i * XXX); }));
 
   SECTION("Count of empty set should be zero.")
@@ -85,7 +86,7 @@ void test_custom_count(Set& set, size_type num_keys)
     REQUIRE(count == num_keys);
   }
 
-  auto const iter = thrust::counting_iterator<Key>{0};
+  auto const iter = cuda::counting_iterator<Key>{0};
   set.insert(iter, iter + num_keys);
 
   SECTION("Count of n unique keys should be n.")
@@ -101,7 +102,7 @@ void test_custom_count(Set& set, size_type num_keys)
   }
 
   set.clear();  // reset the set
-  auto const constants = thrust::constant_iterator<Key>{1};
+  auto const constants = cuda::constant_iterator<Key>{1};
   set.insert(constants, constants + num_keys);  // inser the same value `num_keys` times
 
   SECTION("Count of a key whose multiplicity equals n should be n.")

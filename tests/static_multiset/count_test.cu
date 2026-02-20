@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,8 @@
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -32,8 +31,8 @@ void test_unique_sequence(Set& set, size_type num_keys)
 {
   using Key = typename Set::key_type;
 
-  auto keys_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
+  auto keys_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>{0},
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
 
   SECTION("Count of empty set should be zero.")
@@ -51,8 +50,8 @@ void test_unique_sequence(Set& set, size_type num_keys)
   }
 
   auto constexpr multiplicity = 3;
-  auto query_begin            = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
+  auto query_begin            = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>{0},
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i / multiplicity}; }));
 
   SECTION("Count of 3n unique keys should be 3n.")
@@ -70,8 +69,8 @@ void test_count_each(Set& set, size_type num_keys)
   thrust::device_vector<size_type> d_counts(num_keys);
   auto const counts_begin = d_counts.begin();
 
-  auto keys_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
+  auto keys_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>{0},
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
 
   set.clear();
@@ -101,12 +100,12 @@ void test_count_each(Set& set, size_type num_keys)
   set.clear();
 
   auto constexpr multiplicity = 3;
-  auto duplicate_keys_begin   = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
+  auto duplicate_keys_begin   = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>{0},
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i / multiplicity}; }));
   set.insert(duplicate_keys_begin, duplicate_keys_begin + num_keys);
 
-  auto const query_begin = thrust::counting_iterator<size_type>{0};
+  auto const query_begin = cuda::counting_iterator<size_type>{0};
   auto const query_size  = num_keys / multiplicity;
   SECTION("Count_each with duplicates should return correct counts.")
   {
@@ -128,8 +127,8 @@ void test_count_each_outer(Set& set, size_type num_keys)
   thrust::device_vector<size_type> d_counts(num_keys);
   auto const counts_begin = d_counts.begin();
 
-  auto keys_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
+  auto keys_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>{0},
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
 
   set.clear();
@@ -159,13 +158,13 @@ void test_count_each_outer(Set& set, size_type num_keys)
   set.clear();
 
   auto constexpr multiplicity = 3;
-  auto duplicate_keys_begin   = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0},
+  auto duplicate_keys_begin   = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>{0},
     cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i / multiplicity}; }));
   set.insert(duplicate_keys_begin, duplicate_keys_begin + num_keys);
 
   auto const query_size  = num_keys / multiplicity;
-  auto const query_begin = thrust::counting_iterator<size_type>{0};
+  auto const query_begin = cuda::counting_iterator<size_type>{0};
 
   SECTION("Count_each_outer with duplicates should return correct counts.")
   {

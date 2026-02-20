@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -108,8 +109,8 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
 
   SECTION("Keys are all found after insertion.")
   {
-    auto pairs_begin = thrust::make_transform_iterator(
-      thrust::counting_iterator{0},
+    auto pairs_begin = cuda::make_transform_iterator(
+      cuda::counting_iterator{0},
       cuda::proclaim_return_type<cuco::pair<Key, Value>>(
         [d_keys = d_keys.data(), d_values = d_values.data()] __device__(int idx) {
           return cuco::pair<Key, Value>(d_keys[idx], d_values[idx]);

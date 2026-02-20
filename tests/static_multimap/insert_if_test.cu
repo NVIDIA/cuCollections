@@ -18,10 +18,10 @@
 
 #include <cuco/static_multimap.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
@@ -35,11 +35,11 @@ void test_insert_if(Map& map, std::size_t size)
 
   // 50% insertion
   auto const pred       = [] __device__(Key k) { return k % 2 == 0; };
-  auto const keys_begin = thrust::counting_iterator<Key>{0};
+  auto const keys_begin = cuda::counting_iterator<Key>{0};
 
   SECTION("Count of n / 2 insertions should be n / 2.")
   {
-    auto const pairs_begin = thrust::make_transform_iterator(
+    auto const pairs_begin = cuda::make_transform_iterator(
       keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
         return cuco::pair<Key, Value>{i, i};
       }));
@@ -53,7 +53,7 @@ void test_insert_if(Map& map, std::size_t size)
 
   SECTION("Inserting the same element n / 2 times should return n / 2.")
   {
-    auto const pairs_begin = thrust::constant_iterator<cuco::pair<Key, Value>>{{1, 1}};
+    auto const pairs_begin = cuda::constant_iterator<cuco::pair<Key, Value>>{{1, 1}};
 
     auto const num = map.insert_if(pairs_begin, pairs_begin + size, keys_begin, pred);
     REQUIRE(num * 2 == size);
