@@ -24,13 +24,7 @@ function(ConfigureExample EXAMPLE_NAME EXAMPLE_SRC)
                                           RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/examples")
     target_include_directories(${EXAMPLE_NAME} PRIVATE
                                              "${CMAKE_CURRENT_SOURCE_DIR}")
-    target_compile_options(${EXAMPLE_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda
-      -lineinfo)
-    # Add GCC-specific warning suppression only for GCC
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-      target_compile_options(${EXAMPLE_NAME} PRIVATE -Xcompiler -Wno-subobject-linkage)
-    endif()
+    cuco_set_common_compile_options(${EXAMPLE_NAME})
     target_link_libraries(${EXAMPLE_NAME} PRIVATE cuco CUDA::cudart)
 endfunction(ConfigureExample)
 
@@ -54,6 +48,4 @@ ConfigureExample(STATIC_MULTIMAP_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/
 ConfigureExample(HYPERLOGLOG_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/hyperloglog/host_bulk_example.cu")
 ConfigureExample(HYPERLOGLOG_DEVICE_REF_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/hyperloglog/device_ref_example.cu")
 ConfigureExample(BLOOM_FILTER_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/host_bulk_example.cu")
-ConfigureExample(BLOOM_FILTER_HOST_BULK_EXAMPLE_EXP "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/host_bulk_example_exp.cu")
-ConfigureExample(BLOOM_FILTER_PFP_EVALUATION_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/pfp_evaluation_example.cu")
 ConfigureExample(ROARING_BITMAP_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/roaring_bitmap/host_bulk_example.cu")

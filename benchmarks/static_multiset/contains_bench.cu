@@ -41,7 +41,7 @@ void static_multiset_contains(nvbench::state& state, nvbench::type_list<Key, Dis
 
   thrust::device_vector<Key> keys(num_keys);
 
-  key_generator gen{};
+  [[maybe_unused]] key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
   cuco::static_multiset<Key> set{size, cuco::empty_key<Key>{-1}};

@@ -22,6 +22,7 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cub/device/device_transform.cuh>
+#include <cuda/functional>
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
@@ -46,12 +47,10 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
 
   __host__ __device__ roaring_bitmap_impl(storage_ref_type const& storage_ref)
     : storage_ref_{storage_ref},
-      offsets_aligned_{(reinterpret_cast<cuda::std::uintptr_t>(
-                         storage_ref_.data() + storage_ref_.metadata().container_offsets)) %
+      offsets_aligned_{(reinterpret_cast<cuda::std::uintptr_t>(storage_ref_.container_offsets())) %
                          sizeof(cuda::std::uint32_t) ==
                        0},
-      aligned_16_{(reinterpret_cast<cuda::std::uintptr_t>(storage_ref_.data() +
-                                                          storage_ref_.metadata().key_cards)) %
+      aligned_16_{(reinterpret_cast<cuda::std::uintptr_t>(storage_ref_.key_cards())) %
                     sizeof(cuda::std::uint16_t) ==
                   0}  // if base address of key_cards is aligned, then all containers are aligned
   {
@@ -175,12 +174,16 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   __device__ bool contains_container(cuda::std::uint16_t lower, cuda::std::uint32_t index) const
   {
     cuda::std::uint32_t offset;
-    cuda::std::byte const* offset_ptr =
-      storage_ref_.container_offsets() + index * sizeof(cuda::std::uint32_t);
-    if (offsets_aligned_) {
-      offset = aligned_load<cuda::std::uint32_t>(offset_ptr);
+    if (storage_ref_.metadata().offsets_in_serialized_data) {
+      cuda::std::byte const* offset_ptr =
+        storage_ref_.container_offsets() + index * sizeof(cuda::std::uint32_t);
+      if (offsets_aligned_) {
+        offset = aligned_load<cuda::std::uint32_t>(offset_ptr);
+      } else {
+        offset = misaligned_load<cuda::std::uint32_t>(offset_ptr);
+      }
     } else {
-      offset = misaligned_load<cuda::std::uint32_t>(offset_ptr);
+      offset = storage_ref_.metadata().computed_offsets[index];
     }
     cuda::std::byte const* container = storage_ref_.data() + offset;
     if (storage_ref_.metadata().has_run and check_bit(storage_ref_.run_container_bitmap(), index)) {

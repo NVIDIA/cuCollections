@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@
 
 #include <cuda/std/array>
 #include <cuda/std/span>
+#include <cuda/utility>
 
 #include <cooperative_groups.h>
 
@@ -35,17 +36,55 @@ CUCO_KERNEL void clear(RefType ref)
   if (block.group_index().x == 0) { ref.clear(block); }
 }
 
-template <int32_t VectorSize, class RefType>
-CUCO_KERNEL void add_shmem_vectorized(typename RefType::value_type const* first,
-                                      cuco::detail::index_type n,
-                                      RefType ref)
+template <class InputIt, class StencilIt, class Predicate, class RefType>
+CUCO_KERNEL void add_if_gmem(
+  InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, RefType ref)
+{
+  auto const loop_stride = cuco::detail::grid_stride();
+  auto idx               = cuco::detail::global_thread_id();
+
+  while (idx < n) {
+    if (pred(*(stencil + idx))) { ref.add(*(first + idx)); }
+    idx += loop_stride;
+  }
+}
+
+template <class InputIt, class StencilIt, class Predicate, class RefType>
+CUCO_KERNEL void add_if_shmem(
+  InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, RefType ref)
+{
+  using local_ref_type = typename RefType::template with_scope<cuda::thread_scope_block>;
+
+  extern __shared__ cuda::std::byte local_sketch[];
+
+  auto const loop_stride = cuco::detail::grid_stride();
+  auto idx               = cuco::detail::global_thread_id();
+  auto const block       = cooperative_groups::this_thread_block();
+
+  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, ref.hash_function());
+  local_ref.clear(block);
+  block.sync();
+
+  while (idx < n) {
+    if (pred(*(stencil + idx))) { local_ref.add(*(first + idx)); }
+    idx += loop_stride;
+  }
+  block.sync();
+
+  ref.merge(block, local_ref);
+}
+
+template <int32_t VectorSize, class StencilIt, class Predicate, class RefType>
+CUCO_KERNEL void add_if_shmem_vectorized(typename RefType::value_type const* first,
+                                         cuco::detail::index_type n,
+                                         StencilIt stencil,
+                                         Predicate pred,
+                                         RefType ref)
 {
   using value_type     = typename RefType::value_type;
   using vector_type    = cuda::std::array<value_type, VectorSize>;
   using local_ref_type = typename RefType::template with_scope<cuda::thread_scope_block>;
 
-  // Base address of dynamic shared memory is guaranteed to be aligned to at least 16 bytes which is
-  // sufficient for this purpose
   extern __shared__ cuda::std::byte local_sketch[];
 
   auto const loop_stride = cuco::detail::grid_stride();
@@ -53,76 +92,40 @@ CUCO_KERNEL void add_shmem_vectorized(typename RefType::value_type const* first,
   auto const grid        = cooperative_groups::this_grid();
   auto const block       = cooperative_groups::this_thread_block();
 
-  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, {});
+  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, ref.hash_function());
   local_ref.clear(block);
   block.sync();
 
-  // each thread processes VectorSize-many items per iteration
   vector_type vec;
   while (idx < n / VectorSize) {
     vec = *reinterpret_cast<vector_type*>(
       __builtin_assume_aligned(first + idx * VectorSize, sizeof(vector_type)));
-    for (auto const& i : vec) {
-      local_ref.add(i);
+    for (auto i = 0; i < VectorSize; ++i) {
+      if (pred(*(stencil + idx * VectorSize + i))) { local_ref.add(vec[i]); }
     }
     idx += loop_stride;
   }
-  // a single thread processes the remaining items
+
 #if defined(CUCO_HAS_CG_INVOKE_ONE)
   cooperative_groups::invoke_one(grid, [&]() {
     auto const remainder = n % VectorSize;
-    for (int i = 0; i < remainder; ++i) {
-      local_ref.add(*(first + n - i - 1));
-    }
+    cuda::static_for<VectorSize>([&] __device__(auto i) {
+      auto const item_idx = n - i() - 1;
+      if (i() < remainder && pred(*(stencil + item_idx))) { local_ref.add(*(first + item_idx)); }
+    });
   });
 #else
   if (grid.thread_rank() == 0) {
     auto const remainder = n % VectorSize;
-    for (int i = 0; i < remainder; ++i) {
-      local_ref.add(*(first + n - i - 1));
-    }
+    cuda::static_for<VectorSize>([&] __device__(auto i) {
+      auto const item_idx = n - i() - 1;
+      if (i() < remainder && pred(*(stencil + item_idx))) { local_ref.add(*(first + item_idx)); }
+    });
   }
 #endif
   block.sync();
 
   ref.merge(block, local_ref);
-}
-
-template <class InputIt, class RefType>
-CUCO_KERNEL void add_shmem(InputIt first, cuco::detail::index_type n, RefType ref)
-{
-  using local_ref_type = typename RefType::template with_scope<cuda::thread_scope_block>;
-
-  // TODO assert alignment
-  extern __shared__ cuda::std::byte local_sketch[];
-
-  auto const loop_stride = cuco::detail::grid_stride();
-  auto idx               = cuco::detail::global_thread_id();
-  auto const block       = cooperative_groups::this_thread_block();
-
-  local_ref_type local_ref(cuda::std::span{local_sketch, ref.sketch_bytes()}, {});
-  local_ref.clear(block);
-  block.sync();
-
-  while (idx < n) {
-    local_ref.add(*(first + idx));
-    idx += loop_stride;
-  }
-  block.sync();
-
-  ref.merge(block, local_ref);
-}
-
-template <class InputIt, class RefType>
-CUCO_KERNEL void add_gmem(InputIt first, cuco::detail::index_type n, RefType ref)
-{
-  auto const loop_stride = cuco::detail::grid_stride();
-  auto idx               = cuco::detail::global_thread_id();
-
-  while (idx < n) {
-    ref.add(*(first + idx));
-    idx += loop_stride;
-  }
 }
 
 template <class OtherRefType, class RefType>

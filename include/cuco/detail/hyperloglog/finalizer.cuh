@@ -123,13 +123,11 @@ class finalizer {
 
   __host__ __device__ constexpr int interpolation_anchor_index(double e) const noexcept
   {
-    auto estimates      = raw_estimate_data(this->precision_);
-    int const n         = raw_estimate_data_size(this->precision_);
-    int left            = 0;
-    int right           = static_cast<int>(n) - 1;
-    int mid             = -1;
-    int candidate_index = 0;  // Index of the closest element found
-
+    auto estimates = raw_estimate_data(this->precision_);
+    int const n    = raw_estimate_data_size(this->precision_);
+    int left       = 0;
+    int right      = static_cast<int>(n) - 1;
+    int mid        = -1;
     while (left <= right) {
       mid = left + (right - left) / 2;
 
@@ -143,19 +141,9 @@ class finalizer {
       }
     }
 
-    // At this point, 'left' is the insertion point. We need to compare the elements at 'left' and
-    // 'left - 1' to find the closest one, taking care of boundary conditions.
-
-    // Distance from 'e' to the element at 'left', if within bounds
-    double const dist_lhs = left < static_cast<int>(n) ? cuda::std::abs(estimates[left] - e)
-                                                       : cuda::std::numeric_limits<double>::max();
-    // Distance from 'e' to the element at 'left - 1', if within bounds
-    double const dist_rhs = left - 1 >= 0 ? cuda::std::abs(estimates[left - 1] - e)
-                                          : cuda::std::numeric_limits<double>::max();
-
-    candidate_index = (dist_lhs < dist_rhs) ? left : left - 1;
-
-    return candidate_index;
+    // At this point, `left` is the insertion point. Spark uses the insertion point as the anchor
+    // index when the exact estimate is not present.
+    return left;
   }
 
   static constexpr auto k = 6;  ///< Number of interpolation points to consider

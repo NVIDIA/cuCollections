@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,13 +120,13 @@ TEMPLATE_TEST_CASE_SIG(
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::experimental::static_multimap{num_keys,
-                                                 cuco::empty_key<Key>{-1},
-                                                 cuco::empty_value<Key>{-1},
-                                                 {},
-                                                 probe{},
-                                                 {},
-                                                 cuco::storage<2>{}};
+  auto set = cuco::static_multimap{num_keys,
+                                   cuco::empty_key<Key>{-1},
+                                   cuco::empty_value<Key>{-1},
+                                   {},
+                                   probe{},
+                                   {},
+                                   cuco::storage<2>{}};
 
   auto unique_keys_begin  = thrust::counting_iterator<Key>(0);
   auto gen_duplicate_keys = cuda::proclaim_return_type<Key>(

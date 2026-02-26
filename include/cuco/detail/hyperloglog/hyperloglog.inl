@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2025, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,6 +50,22 @@ constexpr hyperloglog<T, Scope, Hash, Allocator>::hyperloglog(
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
+constexpr hyperloglog<T, Scope, Hash, Allocator>::hyperloglog(cuco::precision precision,
+                                                              Hash const& hash,
+                                                              Allocator const& alloc,
+                                                              cuda::stream_ref stream)
+  : allocator_{alloc},
+    sketch_{
+      allocator_.allocate(sketch_bytes(precision) / sizeof(register_type), stream),
+      detail::custom_deleter{sketch_bytes(precision) / sizeof(register_type), allocator_, stream}},
+    ref_{
+      cuda::std::span{reinterpret_cast<cuda::std::byte*>(sketch_.get()), sketch_bytes(precision)},
+      hash}
+{
+  this->clear_async(stream);
+}
+
+template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
 constexpr void hyperloglog<T, Scope, Hash, Allocator>::clear_async(cuda::stream_ref stream) noexcept
 {
   ref_.clear_async(stream);
@@ -77,6 +93,14 @@ constexpr void hyperloglog<T, Scope, Hash, Allocator>::add(InputIt first,
                                                            cuda::stream_ref stream)
 {
   ref_.add(first, last, stream);
+}
+
+template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
+template <class InputIt, class StencilIt, class Predicate>
+constexpr void hyperloglog<T, Scope, Hash, Allocator>::add_if_async(
+  InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
+{
+  ref_.add_if_async(first, last, stencil, pred, stream);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
@@ -156,6 +180,13 @@ constexpr size_t hyperloglog<T, Scope, Hash, Allocator>::sketch_bytes(
   cuco::standard_deviation standard_deviation) noexcept
 {
   return ref_type<>::sketch_bytes(standard_deviation);
+}
+
+template <class T, cuda::thread_scope Scope, class Hash, class Allocator>
+constexpr size_t hyperloglog<T, Scope, Hash, Allocator>::sketch_bytes(
+  cuco::precision precision) noexcept
+{
+  return ref_type<>::sketch_bytes(precision);
 }
 
 template <class T, cuda::thread_scope Scope, class Hash, class Allocator>

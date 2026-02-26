@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include <cuco/detail/open_addressing/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utility/memcpy_async.hpp>
 #include <cuco/detail/utils.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/operator.hpp>
@@ -882,8 +883,8 @@ class open_addressing_impl {
                                           stream.get()));
 
       size_type temp_count;
-      CUCO_CUDA_TRY(cudaMemcpyAsync(
-        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream.get()));
+      CUCO_CUDA_TRY(cuco::detail::memcpy_async(
+        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
 #if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
       stream.sync();
 #else

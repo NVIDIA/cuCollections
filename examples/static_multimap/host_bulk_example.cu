@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,13 @@
 
 #include <cuco/static_multimap.cuh>
 
+#include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
-#include <limits>
+#include <iostream>
 
 int main(void)
 {
@@ -52,23 +53,22 @@ int main(void)
   // Inserts all pairs into the map
   map.insert(pairs.begin(), pairs.end());
 
-  // Sequence of probe keys {0, 1, 2, ... 49'999}
-  thrust::device_vector<key_type> keys_to_find(N);
+  // Sequence of probe keys {0, 1, 2, ... 24'999}
+  // Each key should have 2 matches in the map
+  thrust::device_vector<key_type> keys_to_find(N / 2);
   thrust::sequence(keys_to_find.begin(), keys_to_find.end(), 0);
 
-  // Counts the occurrences of keys in [0, 50'000) contained in the multimap.
-  // The `_outer` suffix indicates that the occurrence of a non-match is 1.
-  auto const output_size = map.count_outer(keys_to_find.begin(), keys_to_find.end());
+  // Check that keys are contained in the map
+  thrust::device_vector<bool> contained(N / 2);
+  map.contains(keys_to_find.begin(), keys_to_find.end(), contained.begin());
 
-  thrust::device_vector<cuco::pair<key_type, value_type>> d_results(output_size);
+  // Verify all keys are found
+  auto const num_found = thrust::count(contained.begin(), contained.end(), true);
 
-  // Finds all keys {0, 1, 2, ...} and stores associated key/value pairs into `d_results`
-  // If a key `keys_to_find[i]` doesn't exist, `d_results[i].second == empty_value_sentinel`
-  auto output_end = map.retrieve_outer(keys_to_find.begin(), keys_to_find.end(), d_results.begin());
-  auto retrieve_size = output_end - d_results.begin();
-
-  // The total number of outer matches should be `N + N / 2`
-  assert(not(output_size == retrieve_size == N + N / 2));
+  if (num_found == N / 2) {
+    std::cout << "Success! All " << N / 2 << " unique keys found in the multimap." << std::endl;
+    std::cout << "Each key has 2 duplicate values, for a total of " << N << " pairs." << std::endl;
+  }
 
   return 0;
 }

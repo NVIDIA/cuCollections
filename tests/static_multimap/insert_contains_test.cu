@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -106,14 +106,14 @@ TEMPLATE_TEST_CASE_SIG(
           cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
           cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
-  auto map = cuco::experimental::static_multimap<Key,
-                                                 Value,
-                                                 extent_type,
-                                                 cuda::thread_scope_device,
-                                                 cuda::std::equal_to<Key>,
-                                                 probe,
-                                                 cuco::cuda_allocator<cuda::std::byte>,
-                                                 cuco::storage<2>>{
+  auto map = cuco::static_multimap<Key,
+                                   Value,
+                                   extent_type,
+                                   cuda::thread_scope_device,
+                                   cuda::std::equal_to<Key>,
+                                   probe,
+                                   cuco::cuda_allocator<cuda::std::byte>,
+                                   cuco::storage<2>>{
     extent_type{num_keys}, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   test_insert(map, num_keys);

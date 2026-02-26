@@ -32,6 +32,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>  // std::memcpy
+#include <vector>
 
 /**
  * @file spark_parity_test.cu
@@ -97,6 +98,37 @@ TEST_CASE("hyperloglog: Spark parity: deterministic cardinality estimation", "")
 
   // Check if the error is acceptable
   REQUIRE(relative_error < expected_standard_deviation * tolerance_factor);
+}
+
+TEST_CASE("hyperloglog: Spark parity: regression for issue #696", "")
+{
+  using T              = int;
+  using estimator_type = cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+
+  auto const standard_deviation   = cuco::standard_deviation{0.3};
+  std::vector<T> const host_items = {
+    434971005,  -1801141102, 1963272577,  -493001830,  -1087762159, 843441079,   959409252,
+    252071729,  -1830233271, 820808802,   -1535782039, 1531475465,  1642188005,  552222160,
+    -194998970, 2109544455,  1405026214,  1672131131,  1247840828,  -180033177,  -1286780806,
+    933672832,  1401381638,  -241603026,  615622263,   -957425136,  -276735314,  -2009711680,
+    -639722582, 974221725,   713012837,   -1402812678, -546850329,  -866141232,  848946484,
+    -635203849, -1450175774, 844979905,   888971584,   1855780699,  -1268565561, -1185513673,
+    1019479409, -1333229875, -1246182436, -2147483648, 900525526,   1006079044,  -698588704,
+    -943987698, 27695788,    -84695147,   -1441291062, 397673504,   -392707402,  1290858625,
+    1420750585, -1178564290, 1921246226,  188935376,   6560145,     -1928347973, 820364161,
+    -401706971, -1118924186, 1759421546,  -1350108963, 2097517825,  -23883470,   -1221269093,
+    1264159503, 97097882,    982791723,   638708040,   -349593807,  361658100,   341780548,
+    -4171545,   1095633384,  -1694321873, 1777502952,  -1699998259, -1432813716, 1113816192,
+    -966808405, 1583478695,  -650293396,  35500231,    -440874147,  995739986,   207692068,
+    0,          -1243401007, -1576220155, 1868986580,  -87141217,   2108694405,  -251958436,
+    2028975576, 1725957984,  -354115601,  888726314,   1032487345,  -1968749299, 1880817790,
+    1113480821, 789387254,   -1724956749, -1201901245};
+  thrust::device_vector<T> items = host_items;
+
+  estimator_type estimator{standard_deviation, cuco::xxhash_64<T>{42}};
+  estimator.add(items.begin(), items.end());
+
+  REQUIRE(estimator.estimate() == 81);
 }
 
 // the following test is omitted since we refrain from doing randomized unit tests in cuco

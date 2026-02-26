@@ -131,6 +131,34 @@ __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::con
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+__host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::merge(
+  bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other, cuda::stream_ref stream)
+{
+  ref_.merge(other.ref_, stream);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+__host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::merge_async(
+  bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other, cuda::stream_ref stream)
+{
+  ref_.merge_async(other.ref_, stream);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+__host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::intersect(
+  bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other, cuda::stream_ref stream)
+{
+  ref_.intersect(other.ref_, stream);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+__host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::intersect_async(
+  bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other, cuda::stream_ref stream)
+{
+  ref_.intersect_async(other.ref_, stream);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
   typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::word_type*
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::data() noexcept

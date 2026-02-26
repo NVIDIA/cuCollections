@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -115,7 +115,7 @@ TEMPLATE_TEST_CASE_SIG("static_multimap retrieve_if",
 {
   constexpr size_type num_keys{400};
 
-  using container_type = cuco::experimental::static_multimap<Key, Value>;
+  using container_type = cuco::static_multimap<Key, Value>;
 
   container_type container{num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 

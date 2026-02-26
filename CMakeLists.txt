@@ -18,7 +18,7 @@ cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 set(rapids-cmake-version 25.12)
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
     file(DOWNLOAD
-      https://raw.githubusercontent.com/rapidsai/rapids-cmake/branch-${rapids-cmake-version}/RAPIDS.cmake
+      https://raw.githubusercontent.com/rapidsai/rapids-cmake/release/${rapids-cmake-version}/RAPIDS.cmake
          ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
 endif()
 include(${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
@@ -93,6 +93,37 @@ target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 
 option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ON)
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
+
+###################################################################################################
+# - common compile options function ---------------------------------------------------------------
+
+function(cuco_set_common_compile_options target_name)
+    # Parse optional arguments
+    cmake_parse_arguments(CUCO_OPTS "ADD_LINEINFO" "" "" ${ARGN})
+    
+    # Base compile options common to all targets
+    target_compile_options(${target_name} PRIVATE 
+        --compiler-options=-Wall --compiler-options=-Wextra --compiler-options=-Werror 
+        -Wno-deprecated-gpu-targets --expt-extended-lambda -Werror=all-warnings
+    )
+    
+    # Add lineinfo option if requested (typically for benchmarks)
+    if(CUCO_OPTS_ADD_LINEINFO)
+        target_compile_options(${target_name} PRIVATE -lineinfo)
+    endif()
+    
+    # Add GCC-specific warning suppression only for GCC
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target_name} PRIVATE -Xcompiler -Wno-subobject-linkage)
+    endif()
+    
+    # Add Clang-specific warning suppression for deprecated literal operators
+    # (Catch2 and cuco code still use deprecated syntax)
+    # Only for Clang 15+ which introduced this warning
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15.0)
+        target_compile_options(${target_name} PRIVATE -Xcompiler -Wno-deprecated-literal-operator)
+    endif()
+endfunction()
 
 ###################################################################################################
 # - optionally build tests ------------------------------------------------------------------------

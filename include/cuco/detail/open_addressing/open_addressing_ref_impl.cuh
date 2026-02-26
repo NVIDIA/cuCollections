@@ -28,6 +28,7 @@
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/std/type_traits>
+#include <cuda/utility>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/logical.h>
@@ -441,23 +442,25 @@ class open_addressing_ref_impl {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_bucket_index] = [&]() {
-        for (auto i = 0; i < bucket_size; ++i) {
-          switch (this->predicate_.template operator()<is_insert::YES>(
-            key, this->extract_key(bucket_slots[i]))) {
-            case detail::equal_result::AVAILABLE:
-              return bucket_probing_results{detail::equal_result::AVAILABLE, i};
-            case detail::equal_result::EQUAL: {
-              if constexpr (allows_duplicates) {
-                continue;
-              } else {
-                return bucket_probing_results{detail::equal_result::EQUAL, i};
+        bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
+          if (result.state_ == detail::equal_result::UNEQUAL) {
+            switch (this->predicate_.template operator()<is_insert::YES>(
+              key, this->extract_key(bucket_slots[i()]))) {
+              case detail::equal_result::AVAILABLE:
+                result = bucket_probing_results{detail::equal_result::AVAILABLE, i()};
+                break;
+              case detail::equal_result::EQUAL: {
+                if constexpr (!allows_duplicates) {
+                  result = bucket_probing_results{detail::equal_result::EQUAL, i()};
+                }
+                break;
               }
+              default: break;
             }
-            default: continue;
           }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return bucket_probing_results{detail::equal_result::UNEQUAL, -1};
+        });
+        return result;
       }();
 
       if constexpr (not allows_duplicates) {
@@ -610,14 +613,15 @@ class open_addressing_ref_impl {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_bucket_index] = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.template operator()<is_insert::YES>(
-            key, this->extract_key(bucket_slots[i]));
-          if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return bucket_probing_results{res, -1};
+        bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
+          if (result.state_ == detail::equal_result::UNEQUAL) {
+            auto res = this->predicate_.template operator()<is_insert::YES>(
+              key, this->extract_key(bucket_slots[i()]));
+            if (res != detail::equal_result::UNEQUAL) { result = bucket_probing_results{res, i()}; }
+          }
+        });
+        return result;
       }();
 
       auto* slot_ptr = this->get_slot_ptr(*probing_iter, intra_bucket_index);
@@ -743,14 +747,15 @@ class open_addressing_ref_impl {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_bucket_index] = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.template operator()<is_insert::NO>(
-            key, this->extract_key(bucket_slots[i]));
-          if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return bucket_probing_results{res, -1};
+        bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
+          if (result.state_ == detail::equal_result::UNEQUAL) {
+            auto res = this->predicate_.template operator()<is_insert::NO>(
+              key, this->extract_key(bucket_slots[i()]));
+            if (res != detail::equal_result::UNEQUAL) { result = bucket_probing_results{res, i()}; }
+          }
+        });
+        return result;
       }();
 
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
@@ -925,14 +930,15 @@ class open_addressing_ref_impl {
       auto const bucket_slots = storage_ref_[*probing_iter];
 
       auto const [state, intra_bucket_index] = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.template operator()<is_insert::NO>(
-            key, this->extract_key(bucket_slots[i]));
-          if (res != detail::equal_result::UNEQUAL) { return bucket_probing_results{res, i}; }
-        }
-        // returns dummy index `-1` for UNEQUAL
-        return bucket_probing_results{res, -1};
+        bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
+          if (result.state_ == detail::equal_result::UNEQUAL) {
+            auto res = this->predicate_.template operator()<is_insert::NO>(
+              key, this->extract_key(bucket_slots[i()]));
+            if (res != detail::equal_result::UNEQUAL) { result = bucket_probing_results{res, i()}; }
+          }
+        });
+        return result;
       }();
 
       // Find a match for the probe key, thus return an iterator to the entry
@@ -978,16 +984,12 @@ class open_addressing_ref_impl {
         cuda::std::int32_t equals[bucket_size] = {0};
         bool empty_found                       = false;
 
-#pragma unroll bucket_size
-        for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
-          auto const result =
-            predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
-          equals[i] = (result == detail::equal_result::EQUAL);
-          if (result == detail::equal_result::EMPTY) {
-            empty_found = true;
-            break;
-          }
-        }
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
+          auto const result = predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i()]));
+          equals[i()] = (result == detail::equal_result::EQUAL);
+          if (result == detail::equal_result::EMPTY) { empty_found = true; }
+        });
 
         count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
 
@@ -1024,16 +1026,12 @@ class open_addressing_ref_impl {
       cuda::std::int32_t equals[bucket_size] = {0};
       bool empty_found                       = false;
 
-#pragma unroll bucket_size
-      for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
+      cuda::static_for<bucket_size>([&] __device__(auto i) {
         auto const result =
-          predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i]));
-        equals[i] = (result == detail::equal_result::EQUAL);
-        if (result == detail::equal_result::EMPTY) {
-          empty_found = true;
-          break;
-        }
-      }
+          predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i()]));
+        equals[i()] = (result == detail::equal_result::EQUAL);
+        if (result == detail::equal_result::EMPTY) { empty_found = true; }
+      });
 
       count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
 
@@ -1337,20 +1335,19 @@ class open_addressing_ref_impl {
             // TODO atomic_ref::load if insert operator is present
             auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-#pragma unroll bucket_size
-            for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
-              equals[i] = false;
+            cuda::static_for<bucket_size>([&] __device__(auto i) {
+              equals[i()] = false;
               if (running) {
                 // inspect slot content
                 switch (this->predicate_.template operator()<is_insert::NO>(
-                  probe_key, this->extract_key(bucket_slots[i]))) {
+                  probe_key, this->extract_key(bucket_slots[i()]))) {
                   case detail::equal_result::EMPTY: {
                     running = false;
                     break;
                   }
                   case detail::equal_result::EQUAL: {
                     if constexpr (!AllowsDuplicates) { running = false; }
-                    equals[i] = true;
+                    equals[i()] = true;
                     break;
                   }
                   default: {
@@ -1358,14 +1355,12 @@ class open_addressing_ref_impl {
                   }
                 }
               }
-            }
+            });
 
             probing_tile.sync();
             running = probing_tile.all(running);
-#pragma unroll bucket_size
-            for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
-              exists[i] = probing_tile.ballot(equals[i]);
-            }
+            cuda::static_for<bucket_size>(
+              [&](auto i) { exists[i()] = probing_tile.ballot(equals[i()]); });
 
             // Fill the buffer if any matching keys are found
             auto const lane_id = probing_tile.thread_rank();
@@ -1374,9 +1369,8 @@ class open_addressing_ref_impl {
 
               cuda::std::int32_t num_matches[bucket_size];
 
-              for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
-                num_matches[i] = __popc(exists[i]);
-              }
+              cuda::static_for<bucket_size>(
+                [&](auto i) { num_matches[i()] = __popc(exists[i()]); });
 
               cuda::std::int32_t output_idx;
               if (lane_id == 0) {
@@ -1389,15 +1383,15 @@ class open_addressing_ref_impl {
               output_idx = probing_tile.shfl(output_idx, 0);
 
               cuda::std::int32_t matches_offset = 0;
-#pragma unroll bucket_size
-              for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
-                if (equals[i]) {
-                  auto const lane_offset = detail::count_least_significant_bits(exists[i], lane_id);
+              cuda::static_for<bucket_size>([&] __device__(auto i) {
+                if (equals[i()]) {
+                  auto const lane_offset =
+                    detail::count_least_significant_bits(exists[i()], lane_id);
                   buffers[flushing_tile_id][output_idx + matches_offset + lane_offset] = {
-                    probe_key, bucket_slots[i]};
+                    probe_key, bucket_slots[i()]};
                 }
-                matches_offset += num_matches[i];
-              }
+                matches_offset += num_matches[i()];
+              });
             }
             // Special handling for outer cases where no match is found
             if constexpr (IsOuter) {
@@ -1462,19 +1456,24 @@ class open_addressing_ref_impl {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-      for (cuda::std::int32_t i = 0; i < bucket_size; ++i) {
-        switch (this->predicate_.template operator()<is_insert::NO>(
-          key, this->extract_key(bucket_slots[i]))) {
-          case detail::equal_result::EMPTY: {
-            return;
+      bool should_return = false;
+      cuda::static_for<bucket_size>([&] __device__(auto i) {
+        if (!should_return) {
+          switch (this->predicate_.template operator()<is_insert::NO>(
+            key, this->extract_key(bucket_slots[i()]))) {
+            case detail::equal_result::EMPTY: {
+              should_return = true;
+              break;
+            }
+            case detail::equal_result::EQUAL: {
+              callback_op(bucket_slots[i()]);
+              break;
+            }
+            default: break;
           }
-          case detail::equal_result::EQUAL: {
-            callback_op(bucket_slots[i]);
-            continue;
-          }
-          default: continue;
         }
-      }
+      });
+      if (should_return) { return; }
       ++probing_iter;
       if (*probing_iter == init_idx) { return; }
     }

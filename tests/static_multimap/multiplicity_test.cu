@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,14 +101,14 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::linear_probing<CGSize, cuco::default_hash_function<T>>,
     cuco::double_hashing<CGSize, cuco::default_hash_function<T>, cuco::default_hash_function<T>>>;
 
-  auto map = cuco::experimental::static_multimap<T,
-                                                 T,
-                                                 cuco::extent<std::size_t>,
-                                                 cuda::thread_scope_device,
-                                                 cuda::std::equal_to<T>,
-                                                 probe,
-                                                 cuco::cuda_allocator<cuda::std::byte>,
-                                                 cuco::storage<2>>{
+  auto map = cuco::static_multimap<T,
+                                   T,
+                                   cuco::extent<std::size_t>,
+                                   cuda::thread_scope_device,
+                                   cuda::std::equal_to<T>,
+                                   probe,
+                                   cuco::cuda_allocator<cuda::std::byte>,
+                                   cuco::storage<2>>{
     num_items * 2, cuco::empty_key<T>{-1}, cuco::empty_value<T>{-1}};
 
   test_multiplicity_two(map, num_items);

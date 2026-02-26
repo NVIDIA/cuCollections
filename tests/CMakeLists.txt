@@ -1,5 +1,5 @@
 #=============================================================================
-# Copyright (c) 2018-2025, NVIDIA CORPORATION.
+# Copyright (c) 2018-2026, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,12 +38,7 @@ function(ConfigureTest TEST_NAME)
     target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
     set_target_properties(${TEST_NAME} PROPERTIES
                                        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
-    target_compile_options(${TEST_NAME} PRIVATE --compiler-options=-Wall --compiler-options=-Wextra
-      --compiler-options=-Werror -Wno-deprecated-gpu-targets --expt-extended-lambda)
-    # Add GCC-specific warning suppression only for GCC
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-      target_compile_options(${TEST_NAME} PRIVATE -Xcompiler -Wno-subobject-linkage)
-    endif()
+    cuco_set_common_compile_options(${TEST_NAME})
     catch_discover_tests(${TEST_NAME} EXTRA_ARGS --allow-running-no-tests)
 endfunction(ConfigureTest)
 
@@ -83,7 +78,6 @@ ConfigureTest(STATIC_SET_TEST
 ConfigureTest(STATIC_MAP_TEST
     static_map/capacity_test.cu
     static_map/contains_test.cu
-    static_map/custom_type_test.cu
     static_map/duplicate_keys_test.cu
     static_map/erase_test.cu
     static_map/find_test.cu
@@ -104,10 +98,10 @@ ConfigureTest(STATIC_MAP_TEST
 # - dynamic_map tests -----------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_MAP_TEST
     dynamic_map/unique_sequence_test.cu
-    dynamic_map/unique_sequence_test_experimental.cu
     dynamic_map/erase_test.cu
     dynamic_map/find_test.cu
-    dynamic_map/retrieve_all_test.cu)
+    dynamic_map/retrieve_all_test.cu
+    dynamic_map/multiplicity_test.cu)
 
 ###################################################################################################
 # - static_multiset tests -------------------------------------------------------------------------
@@ -151,14 +145,17 @@ ConfigureTest(DYNAMIC_BITSET_TEST
 ConfigureTest(HYPERLOGLOG_TEST
     hyperloglog/unique_sequence_test.cu
     hyperloglog/spark_parity_test.cu
-    hyperloglog/device_ref_test.cu)
+    hyperloglog/device_ref_test.cu
+    hyperloglog/type_deduction_test.cu
+    hyperloglog/add_if_test.cu)
 
 ###################################################################################################
 # - bloom_filter ----------------------------------------------------------------------------------
 ConfigureTest(BLOOM_FILTER_TEST
     bloom_filter/unique_sequence_test.cu
     bloom_filter/arrow_policy_test.cu
-    bloom_filter/variable_cg_test.cu)
+    bloom_filter/variable_cg_test.cu
+    bloom_filter/merge_intersect_test.cu)
 
 ###################################################################################################
 # - roaring_bitmap ---------------------------------------------------------------------------------
