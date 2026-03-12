@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +24,9 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/limits>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
 
 #include <exception>
 #include <limits>
@@ -73,7 +73,7 @@ void bloom_filter_contains(
     state.skip("num_sub_filters too large for size_type");  // skip invalid configurations
   }
 
-  thrust::counting_iterator<Key> keys(0);
+  cuda::counting_iterator<Key> keys(0);
   thrust::device_vector<bool> result(num_keys, false);
 
   state.add_element_count(num_keys);
@@ -119,7 +119,7 @@ void arrow_bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, 
                                                                                  // configurations
   }
 
-  thrust::counting_iterator<Key> keys(0);
+  cuda::counting_iterator<Key> keys(0);
   thrust::device_vector<bool> result(num_keys, false);
 
   state.add_element_count(num_keys);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +24,13 @@
 #include <cuco/probing_scheme.cuh>
 
 #include <cuda/atomic>
+#include <cuda/iterator>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 #include <cuda/utility>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/constant_iterator.h>
 #include <thrust/logical.h>
 #include <thrust/reduce.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -1084,7 +1084,7 @@ class open_addressing_ref_impl {
   {
     auto constexpr is_outer = false;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    auto const always_true_stencil = thrust::constant_iterator<bool>(true);
+    auto const always_true_stencil = cuda::constant_iterator<bool>(true);
     auto const identity_predicate  = cuda::std::identity{};
     this->retrieve_impl<is_outer, BlockSize>(block,
                                              input_probe_begin,
@@ -1141,7 +1141,7 @@ class open_addressing_ref_impl {
   {
     auto constexpr is_outer = true;
     auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    auto const always_true_stencil = thrust::constant_iterator<bool>(true);
+    auto const always_true_stencil = cuda::constant_iterator<bool>(true);
     auto const identity_predicate  = cuda::std::identity{};
     this->retrieve_impl<is_outer, BlockSize>(block,
                                              input_probe_begin,

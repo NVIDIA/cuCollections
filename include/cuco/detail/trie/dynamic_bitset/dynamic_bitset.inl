@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights
+ * SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights
  * reserved. SPDX-License-Identifier: Apache-2.0
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,9 +21,9 @@
 
 #include <cub/device/device_scan.cuh>
 #include <cub/device/device_select.cuh>
+#include <cuda/iterator>
 #include <cuda/std/bit>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/discard_iterator.h>
 
 namespace cuco {
 namespace experimental {
@@ -227,10 +227,10 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
 
   CUCO_CUDA_TRY(cub::DeviceSelect::Flagged(nullptr,
                                            temp_storage_bytes,
-                                           thrust::make_counting_iterator(0UL),
+                                           cuda::make_counting_iterator(0UL),
                                            select_markers_begin,
                                            select_begin,
-                                           thrust::make_discard_iterator(),
+                                           cuda::make_discard_iterator(),
                                            num_blocks,
                                            stream.get()));
 
@@ -238,10 +238,10 @@ constexpr void dynamic_bitset<Allocator>::build_ranks_and_selects(
 
   CUCO_CUDA_TRY(cub::DeviceSelect::Flagged(thrust::raw_pointer_cast(d_temp_storage),
                                            temp_storage_bytes,
-                                           thrust::make_counting_iterator(0UL),
+                                           cuda::make_counting_iterator(0UL),
                                            select_markers_begin,
                                            select_begin,
-                                           thrust::make_discard_iterator(),
+                                           cuda::make_discard_iterator(),
                                            num_blocks,
                                            stream.get()));
 

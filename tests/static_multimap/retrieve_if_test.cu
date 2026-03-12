@@ -19,10 +19,9 @@
 #include <cuco/static_multimap.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -119,12 +118,12 @@ TEMPLATE_TEST_CASE_SIG("static_multimap retrieve_if",
 
   container_type container{num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
-  auto keys_begin  = thrust::counting_iterator<Key>(1);
-  auto keys_end    = keys_begin + num_keys;
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<Key>(1),
-    cuda::proclaim_return_type<cuco::pair<Key, Value>>(
-      [] __device__(Key i) { return cuco::pair<Key, Value>{i, i}; }));
+  auto keys_begin = cuda::counting_iterator<Key>(1);
+  auto keys_end   = keys_begin + num_keys;
+  auto pairs_begin =
+    cuda::make_transform_iterator(cuda::make_counting_iterator<Key>(1),
+                                  cuda::proclaim_return_type<cuco::pair<Key, Value>>(
+                                    [] __device__(Key i) { return cuco::pair<Key, Value>{i, i}; }));
 
   container.insert(pairs_begin, pairs_begin + num_keys);
 

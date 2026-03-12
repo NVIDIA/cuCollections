@@ -19,10 +19,9 @@
 #include <cuco/static_multimap.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -105,12 +104,12 @@ TEMPLATE_TEST_CASE(
         cuco::empty_key<Key>{sentinel_key},
         cuco::empty_value<Value>{sentinel_value}};
 
-  auto insert_pairs = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0),
+  auto insert_pairs = cuda::make_transform_iterator(
+    cuda::counting_iterator<int>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
-  auto probe_keys = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0),
+  auto probe_keys = cuda::make_transform_iterator(
+    cuda::counting_iterator<int>(0),
     cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey(i); }));
 
   SECTION("All inserted keys-value pairs should be contained")

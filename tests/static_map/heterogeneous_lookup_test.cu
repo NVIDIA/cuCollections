@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,9 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -112,12 +111,12 @@ TEMPLATE_TEST_CASE_SIG("static_map heterogeneous lookup tests",
                                  custom_key_equal{},
                                  probe};
 
-  auto insert_pairs = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0),
+  auto insert_pairs = cuda::make_transform_iterator(
+    cuda::counting_iterator<int>(0),
     cuda::proclaim_return_type<cuco::pair<InsertKey, Value>>(
       [] __device__(auto i) { return cuco::pair<InsertKey, Value>(i, i); }));
-  auto probe_keys = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0),
+  auto probe_keys = cuda::make_transform_iterator(
+    cuda::counting_iterator<int>(0),
     cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey{i}; }));
 
   SECTION("All inserted keys-value pairs should be contained")
