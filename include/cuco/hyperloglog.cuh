@@ -112,9 +112,9 @@ class hyperloglog {
   hyperloglog(hyperloglog&&)                 = default;  ///< Move constructor
 
   /**
-   * @brief Copy-assignment operator.
+   * @brief Move-assignment operator.
    *
-   * @return Copy of `*this`
+   * @return Reference to `*this`
    */
   hyperloglog& operator=(hyperloglog&&) = default;
 

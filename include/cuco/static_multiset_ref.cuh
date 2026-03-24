@@ -36,8 +36,9 @@ namespace cuco {
  *
  * @note Concurrent modify and lookup will be supported if both kinds of operators are specified
  * during the ref construction.
- * @note cuCollections data structures always place the slot keys on the left-hand
- * side when invoking the key comparison predicate.
+ * @note cuCollections data structures always place the slot keys on the right-hand
+ * side when invoking the key comparison predicate, i.e., `pred(query_key, slot_key)`.
+ * Order-sensitive `KeyEqual` should be used with caution.
  * @note Ref types are trivially-copyable and are intended to be passed by value.
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
