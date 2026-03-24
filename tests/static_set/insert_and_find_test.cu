@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,9 +18,9 @@
 
 #include <cuco/static_set.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -30,8 +30,8 @@ void test_insert_and_find(Set& set, std::size_t num_keys)
   using Key                     = typename Set::key_type;
   static auto constexpr cg_size = Set::cg_size;
 
-  auto const keys_begin = thrust::counting_iterator<Key>(0);
-  auto const keys_end   = thrust::counting_iterator<Key>(num_keys);
+  auto const keys_begin = cuda::counting_iterator<Key>(0);
+  auto const keys_end   = cuda::counting_iterator<Key>(num_keys);
 
   thrust::device_vector<Key> iters1(num_keys);
   thrust::device_vector<int> iters2(num_keys);

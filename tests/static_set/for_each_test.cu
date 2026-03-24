@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,10 +19,9 @@
 #include <cuco/static_set.cuh>
 
 #include <cuda/atomic>
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -38,8 +37,8 @@ void test_for_each(Set& set, size_type num_keys)
   cuda::stream_ref stream{cudaStream_t{nullptr}};
 
   // Insert keys
-  auto keys_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>{0}, cuda::proclaim_return_type<Key>([] __device__(auto i) {
+  auto keys_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>{0}, cuda::proclaim_return_type<Key>([] __device__(auto i) {
       // generates a sequence of 1, 2, 1, 2, ...
       return static_cast<Key>(i);
     }));
@@ -62,8 +61,8 @@ void test_for_each(Set& set, size_type num_keys)
 
   // count the sum of all odd keys
   set.for_each(
-    thrust::counting_iterator<size_type>(0),
-    thrust::counting_iterator<size_type>(2 * num_keys),  // test for false-positives
+    cuda::counting_iterator<size_type>(0),
+    cuda::counting_iterator<size_type>(2 * num_keys),  // test for false-positives
     [counter = counter_storage.data()] __device__(auto const slot) {
       if (!(slot % 2 == 0)) { counter->fetch_add(slot, cuda::memory_order_relaxed); }
     },

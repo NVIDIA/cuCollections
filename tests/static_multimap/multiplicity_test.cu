@@ -18,12 +18,11 @@
 
 #include <cuco/static_multimap.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -36,9 +35,9 @@ void test_multiplicity_two(Map& map, std::size_t num_items)
 
   auto const num_keys = num_items / 2;
 
-  auto const keys_begin = thrust::counting_iterator<Key>{0};
+  auto const keys_begin = cuda::counting_iterator<Key>{0};
   // multiplicity = 2
-  auto const pairs_begin = thrust::make_transform_iterator(
+  auto const pairs_begin = cuda::make_transform_iterator(
     keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
       return cuco::pair<Key, Value>{i / 2, i};
     }));
@@ -56,7 +55,7 @@ void test_multiplicity_two(Map& map, std::size_t num_items)
     REQUIRE(num == num_items);
 
     auto [_, output_end] =
-      map.retrieve(keys_begin, keys_begin + num_keys, thrust::discard_iterator{}, output_begin);
+      map.retrieve(keys_begin, keys_begin + num_keys, cuda::discard_iterator{}, output_begin);
     std::size_t const size = cuda::std::distance(output_begin, output_end);
 
     REQUIRE(size == num_items);

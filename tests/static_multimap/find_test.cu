@@ -19,11 +19,10 @@
 #include <cuco/static_multimap.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -41,7 +40,7 @@ void test_multimap_find(Map& map, size_type num_keys)
   auto zip_equal = cuda::proclaim_return_type<bool>(
     [] __device__(auto val) { return cuda::std::get<0>(val) == cuda::std::get<1>(val); });
 
-  auto const keys_begin = thrust::counting_iterator<Key>{0};
+  auto const keys_begin = cuda::counting_iterator<Key>{0};
 
   SECTION("Non-inserted keys have no matches")
   {
@@ -49,13 +48,13 @@ void test_multimap_find(Map& map, size_type num_keys)
 
     map.find(keys_begin, keys_begin + num_keys, found_vals.begin());
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{
-      found_vals.begin(), thrust::constant_iterator<Value>{map.empty_value_sentinel()}});
+      found_vals.begin(), cuda::constant_iterator<Value>{map.empty_value_sentinel()}});
 
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
 
-  auto const pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<size_type>(0),
+  auto const pairs_begin = cuda::make_transform_iterator(
+    cuda::make_counting_iterator<size_type>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>{i, i * 2}; }));
 
@@ -67,8 +66,8 @@ void test_multimap_find(Map& map, size_type num_keys)
 
     map.find(keys_begin, keys_begin + num_keys, found_vals.begin());
 
-    auto const gold_vals_begin = thrust::make_transform_iterator(
-      thrust::make_counting_iterator<size_type>(0),
+    auto const gold_vals_begin = cuda::make_transform_iterator(
+      cuda::make_counting_iterator<size_type>(0),
       cuda::proclaim_return_type<Value>([] __device__(auto i) { return Value{i * 2}; }));
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{found_vals.begin(), gold_vals_begin});
 
@@ -86,14 +85,14 @@ void test_multimap_find(Map& map, size_type num_keys)
 
     map.find_if(keys_begin,
                 keys_begin + num_keys,
-                thrust::counting_iterator<std::size_t>{0},
+                cuda::counting_iterator<std::size_t>{0},
                 is_even,
                 found_results.begin());
 
     REQUIRE(cuco::test::equal(
       found_results.begin(),
       found_results.end(),
-      thrust::make_transform_iterator(thrust::counting_iterator<Key>{0}, gold_fn),
+      cuda::make_transform_iterator(cuda::counting_iterator<Key>{0}, gold_fn),
       cuda::proclaim_return_type<bool>(
         [] __device__(auto const& found, auto const& gold) { return found == gold; })));
   }

@@ -18,10 +18,10 @@
 #include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 
+#include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/count.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <iterator>
 

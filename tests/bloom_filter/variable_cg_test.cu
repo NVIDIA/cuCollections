@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,10 @@
 #include <cuco/bloom_filter.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/fill.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -50,7 +49,7 @@ void test_variable_cg_size(Filter& filter, size_type num_keys)
 
   thrust::device_vector<bool> contained(num_keys, false);
 
-  auto const always_true = thrust::constant_iterator<bool>{true};
+  auto const always_true = cuda::constant_iterator<bool>{true};
 
   SECTION("Check if fallback kernels work for varying combinations of CG sizes.")
   {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2022-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,9 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 
@@ -79,8 +77,8 @@ TEMPLATE_TEST_CASE_SIG(
   thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
   thrust::sequence(thrust::device, d_values.begin(), d_values.end());
 
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int>(0),
+  auto pairs_begin = cuda::make_transform_iterator(
+    cuda::make_counting_iterator<int>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>(i / 2, i / 2); }));
 
@@ -112,7 +110,7 @@ TEMPLATE_TEST_CASE_SIG(
     thrust::sort(thrust::device, unique_keys.begin(), unique_keys.end());
     REQUIRE(cuco::test::equal(unique_keys.begin(),
                               unique_keys.end(),
-                              thrust::make_counting_iterator<Key>(0),
+                              cuda::make_counting_iterator<Key>(0),
                               cuda::std::equal_to<Key>{}));
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,9 @@
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/equal.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
@@ -64,8 +63,8 @@ int main(void)
   thrust::device_vector<Value> insert_values(num_keys);
   thrust::sequence(insert_values.begin(), insert_values.end(), 0);
   // Combine keys and values into pairs {{0,0}, {1,1}, ... {i,i}}
-  auto pairs = thrust::make_transform_iterator(
-    thrust::counting_iterator<std::size_t>{0},
+  auto pairs = cuda::make_transform_iterator(
+    cuda::counting_iterator<std::size_t>{0},
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [keys = insert_keys.begin(), values = insert_values.begin()] __device__(auto i) {
         return cuco::pair<Key, Value>{keys[i], values[i]};

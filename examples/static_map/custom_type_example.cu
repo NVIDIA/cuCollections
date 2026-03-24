@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,9 +17,8 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/logical.h>
 #include <thrust/transform.h>
 
@@ -63,8 +62,8 @@ int main(void)
   auto const empty_value_sentinel = custom_value_type{-1};
 
   // Create an iterator of input key/value pairs
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<int32_t>(0),
+  auto pairs_begin = cuda::make_transform_iterator(
+    cuda::make_counting_iterator<int32_t>(0),
     cuda::proclaim_return_type<cuco::pair<custom_key_type, custom_value_type>>(
       [] __device__(auto i) { return cuco::pair{custom_key_type{i}, custom_value_type{i}}; }));
 
@@ -81,9 +80,9 @@ int main(void)
 
   // Reproduce inserted keys
   auto insert_keys =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<int32_t>(0),
-                                    cuda::proclaim_return_type<custom_key_type>(
-                                      [] __device__(auto i) { return custom_key_type{i}; }));
+    cuda::make_transform_iterator(cuda::make_counting_iterator<int32_t>(0),
+                                  cuda::proclaim_return_type<custom_key_type>(
+                                    [] __device__(auto i) { return custom_key_type{i}; }));
 
   thrust::device_vector<bool> contained(num_pairs);
 

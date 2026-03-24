@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,12 +17,11 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/detail/raw_reference_cast.h>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <iostream>
 
@@ -103,8 +102,8 @@ int main()
   };
   thrust::device_vector<value_type> d_values = {36.5f, 41.2f, 27.1f, 33.8f};
 
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator{0},
+  auto pairs_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator{0},
     cuda::proclaim_return_type<cuco::pair<stored_key, value_type>>(
       [keys = d_keys.begin(), values = d_values.begin()] __device__(int i) {
         return cuco::pair<stored_key, value_type>{keys[i], values[i]};
