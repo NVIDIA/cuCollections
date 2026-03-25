@@ -16,12 +16,6 @@
 cuda_oldest: &cuda_oldest '12.0'
 cuda_newest: &cuda_newest '13.1'
 
-# The GPUs to test on
-# Note: This assumes that the appropriate gpu_build_archs are set to include building for the GPUs listed here
-gpus:
-  - 'a100'
-  - 'v100'
-
 # The version of the devcontainer images to use from https://hub.docker.com/r/rapidsai/devcontainers
 devcontainer_version: '26.04'
 
@@ -42,8 +36,8 @@ devcontainer_version: '26.04'
 # Configurations that will run for every PR
 pull_request:
   nvcc:
-    - {cuda: *cuda_oldest, os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '11', exe: 'g++'}, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
-    - {cuda: *cuda_newest, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'gcc', version: '14', exe: 'g++'}, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
+    - {cuda: *cuda_oldest, os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '11', exe: 'g++'}, gpu_build_archs: '70,80', std: [17], jobs: ['build', 'test']}
+    - {cuda: *cuda_newest, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'gcc', version: '14', exe: 'g++'}, gpu_build_archs: '80,90,100', std: [17], jobs: ['build', 'test']}
     - {cuda: *cuda_newest, os: 'ubuntu24.04', cpu: 'arm64', compiler: {name: 'gcc', version: '14', exe: 'g++'}, gpu_build_archs: '80,90,100', std: [17], jobs: ['build']}
     - {cuda: *cuda_oldest, os: 'ubuntu20.04', cpu: 'amd64', compiler: {name: 'llvm', version: '14', exe: 'clang++'}, gpu_build_archs: '70', std: [17], jobs: ['build']}
     - {cuda: *cuda_newest, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'llvm', version: '21', exe: 'clang++'}, gpu_build_archs: '100', std: [17], jobs: ['build']}
