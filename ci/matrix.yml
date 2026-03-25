@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023-2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,9 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-cuda_12_0: &cuda_12_0 '12.0'
-cuda_12_9: &cuda_12_9 '12.9'
-cuda_13_0: &cuda_13_0 '13.0'
+cuda_oldest: &cuda_oldest '12.0'
+cuda_newest: &cuda_newest '13.1'
 
 # The GPUs to test on
 # Note: This assumes that the appropriate gpu_build_archs are set to include building for the GPUs listed here
@@ -24,7 +23,7 @@ gpus:
   - 'v100'
 
 # The version of the devcontainer images to use from https://hub.docker.com/r/rapidsai/devcontainers
-devcontainer_version: '25.12'
+devcontainer_version: '26.04'
 
 # Each environment below will generate a unique build/test job
 # See the "compute-matrix" job in the workflow for how this is parsed and used
@@ -43,11 +42,8 @@ devcontainer_version: '25.12'
 # Configurations that will run for every PR
 pull_request:
   nvcc:
-    - {cuda: *cuda_12_0, os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '11', exe: 'g++'}, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
-    - {cuda: *cuda_12_9, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'gcc', version: '13', exe: 'g++'}, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
-    - {cuda: *cuda_12_9, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'gcc', version: '13', exe: 'g++'}, gpu_build_archs: '80,90', std: [17], jobs: ['build']}
-    - {cuda: *cuda_12_0, os: 'ubuntu20.04', cpu: 'amd64', compiler: {name: 'llvm', version: '14', exe: 'clang++'}, gpu_build_archs: '70', std: [17], jobs: ['build']}
-    - {cuda: *cuda_12_9, os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'llvm', version: '18', exe: 'clang++'}, gpu_build_archs: '90', std: [17], jobs: ['build']}
-    - {cuda: *cuda_13_0, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'gcc', version: '13', exe: 'g++'}, gpu_build_archs: '80', std: [17], jobs: ['build']}
-    - {cuda: *cuda_13_0, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'gcc', version: '13', exe: 'g++'}, gpu_build_archs: '80,90', std: [17], jobs: ['build']}
-    - {cuda: *cuda_13_0, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'llvm', version: '20', exe: 'clang++'}, gpu_build_archs: '90', std: [17], jobs: ['build']}
+    - {cuda: *cuda_oldest, os: 'ubuntu22.04', cpu: 'amd64', compiler: {name: 'gcc', version: '11', exe: 'g++'}, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
+    - {cuda: *cuda_newest, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'gcc', version: '14', exe: 'g++'}, gpu_build_archs: '70', std: [17], jobs: ['build', 'test']}
+    - {cuda: *cuda_newest, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'gcc', version: '14', exe: 'g++'}, gpu_build_archs: '80,90', std: [17], jobs: ['build']}
+    - {cuda: *cuda_oldest, os: 'ubuntu20.04', cpu: 'amd64', compiler: {name: 'llvm', version: '14', exe: 'clang++'}, gpu_build_archs: '70', std: [17], jobs: ['build']}
+    - {cuda: *cuda_newest, os: 'ubuntu24.04', cpu: 'amd64', compiler: {name: 'llvm', version: '21', exe: 'clang++'}, gpu_build_archs: '90', std: [17], jobs: ['build']}
