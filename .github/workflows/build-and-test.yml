@@ -47,7 +47,7 @@ jobs:
     uses: ./.github/workflows/run-as-coder.yml
     with:
       name: Test ${{inputs.test_name}}
-      runner: linux-${{inputs.cpu}}-gpu-a100-latest-1
+      runner: linux-${{inputs.cpu}}-gpu-h100-latest-1
       image: ${{inputs.container_image}}
       command: |
         nvidia-smi
