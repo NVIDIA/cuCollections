@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
+
 #include <cuda/functional>
 #include <cuda/std/bit>
 #include <cuda/std/type_traits>
@@ -60,6 +62,17 @@ template <>
 struct packed<sizeof(uint32_t)> {
   using type = uint32_t;  ///< Packed type as `uint32_t` if the size of the object is 4
 };
+
+#ifdef CUCO_HAS_INT128
+/**
+ * @brief Denotes the packed type when the size of the object is 16.
+ */
+template <>
+struct packed<16> {
+  using type = unsigned __int128;  ///< Packed type as `unsigned __int128` if the size of the object
+                                   ///< is 16
+};
+#endif
 
 template <typename Pair>
 using packed_t = typename packed<sizeof(Pair)>::type;

@@ -63,6 +63,16 @@ struct bitwise_compare_impl<8> {
   }
 };
 
+template <>
+struct bitwise_compare_impl<16> {
+  __host__ __device__ inline static bool compare(char const* lhs, char const* rhs)
+  {
+    return *reinterpret_cast<uint64_t const*>(lhs) == *reinterpret_cast<uint64_t const*>(rhs) and
+           *reinterpret_cast<uint64_t const*>(lhs + 8) ==
+             *reinterpret_cast<uint64_t const*>(rhs + 8);
+  }
+};
+
 /**
  * @brief Gives value to use as alignment for a type that is at least the
  * size of type, or 16, whichever is smaller.

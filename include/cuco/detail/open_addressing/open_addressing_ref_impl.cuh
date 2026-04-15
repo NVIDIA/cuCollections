@@ -89,7 +89,8 @@ template <typename Key,
           typename StorageRef,
           bool AllowsDuplicates>
 class open_addressing_ref_impl {
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
+  static_assert(sizeof(Key) <= cuco::detail::max_key_size,
+                "Key size exceeds the maximum supported size (8 bytes, or 16 with sm_90+).");
 
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
@@ -523,9 +524,9 @@ class open_addressing_ref_impl {
 #if __CUDA_ARCH__ < 700
     // Spinning to ensure that the write to the value part took place requires
     // independent thread scheduling introduced with the Volta architecture.
-    static_assert(
-      cuco::detail::is_packable<value_type>(),
-      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+    static_assert(sizeof(value_type) <= 8,
+                  "insert_and_find is not supported for slot types larger than 8 bytes on "
+                  "pre-Volta GPUs.");
 #endif
 
     auto const val = this->heterogeneous_value(value);
@@ -544,25 +545,40 @@ class open_addressing_ref_impl {
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
-          if constexpr (has_payload) {
-            // wait to ensure that the write to the value part also took place
+          if constexpr (has_payload and sizeof(value_type) > 8) {
+#if (__CUDA_ARCH__ >= 900)
+            if constexpr (not cuco::detail::is_packable<value_type>()) {
+              this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+            }
+#else
             this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+#endif
           }
           return {iterator{slot_ptr}, false};
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           switch (this->attempt_insert_stable(slot_ptr, bucket_slots[i], val)) {
             case insert_result::SUCCESS: {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
+              if constexpr (has_payload and sizeof(value_type) > 8) {
+#if (__CUDA_ARCH__ >= 900)
+                if constexpr (not cuco::detail::is_packable<value_type>()) {
+                  this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+                }
+#else
                 this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+#endif
               }
               return {iterator{slot_ptr}, true};
             }
             case insert_result::DUPLICATE: {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
+              if constexpr (has_payload and sizeof(value_type) > 8) {
+#if (__CUDA_ARCH__ >= 900)
+                if constexpr (not cuco::detail::is_packable<value_type>()) {
+                  this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+                }
+#else
                 this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+#endif
               }
               return {iterator{slot_ptr}, false};
             }
@@ -598,9 +614,9 @@ class open_addressing_ref_impl {
 #if __CUDA_ARCH__ < 700
     // Spinning to ensure that the write to the value part took place requires
     // independent thread scheduling introduced with the Volta architecture.
-    static_assert(
-      cuco::detail::is_packable<value_type>(),
-      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+    static_assert(sizeof(value_type) <= 8,
+                  "insert_and_find is not supported for slot types larger than 8 bytes on "
+                  "pre-Volta GPUs.");
 #endif
 
     auto const val = this->heterogeneous_value(value);
@@ -632,9 +648,14 @@ class open_addressing_ref_impl {
         auto const src_lane = __ffs(group_finds_equal) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
         if (group.thread_rank() == src_lane) {
-          if constexpr (has_payload) {
-            // wait to ensure that the write to the value part also took place
+          if constexpr (has_payload and sizeof(value_type) > 8) {
+#if (__CUDA_ARCH__ >= 900)
+            if constexpr (not cuco::detail::is_packable<value_type>()) {
+              this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+            }
+#else
             this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+#endif
           }
         }
         group.sync();
@@ -653,9 +674,14 @@ class open_addressing_ref_impl {
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
             if (group.thread_rank() == src_lane) {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
+              if constexpr (has_payload and sizeof(value_type) > 8) {
+#if (__CUDA_ARCH__ >= 900)
+                if constexpr (not cuco::detail::is_packable<value_type>()) {
+                  this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+                }
+#else
                 this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+#endif
               }
             }
             group.sync();
@@ -663,9 +689,14 @@ class open_addressing_ref_impl {
           }
           case insert_result::DUPLICATE: {
             if (group.thread_rank() == src_lane) {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
+              if constexpr (has_payload and sizeof(value_type) > 8) {
+#if (__CUDA_ARCH__ >= 900)
+                if constexpr (not cuco::detail::is_packable<value_type>()) {
+                  this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+                }
+#else
                 this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+#endif
               }
             }
             group.sync();
@@ -1729,8 +1760,7 @@ class open_addressing_ref_impl {
                                                               value_type expected,
                                                               Value desired) noexcept
   {
-    using packed_type =
-      cuda::std::conditional_t<sizeof(value_type) == 4, cuda::std::uint32_t, cuda::std::uint64_t>;
+    using packed_type = cuco::detail::packed_t<value_type>;
 
     auto* slot_ptr     = reinterpret_cast<packed_type*>(address);
     auto* expected_ptr = reinterpret_cast<packed_type*>(&expected);
@@ -1865,7 +1895,16 @@ class open_addressing_ref_impl {
   {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(address, expected, desired);
-    } else {
+    }
+#if (__CUDA_ARCH__ >= 900)
+    else if constexpr (cuco::detail::is_packable<value_type>()) {
+      return packed_cas(address, expected, desired);
+    }
+#endif
+    else {
+      static_assert(
+        has_payload,
+        "16-byte key types in key-only containers require sm_90+ for 128-bit atomic CAS.");
 #if (__CUDA_ARCH__ < 700)
       return cas_dependent_write(address, expected, desired);
 #else
@@ -1898,7 +1937,16 @@ class open_addressing_ref_impl {
   {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(address, expected, desired);
-    } else {
+    }
+#if (__CUDA_ARCH__ >= 900)
+    else if constexpr (cuco::detail::is_packable<value_type>()) {
+      return packed_cas(address, expected, desired);
+    }
+#endif
+    else {
+      static_assert(
+        has_payload,
+        "16-byte key types in key-only containers require sm_90+ for 128-bit atomic CAS.");
       return cas_dependent_write(address, expected, desired);
     }
   }

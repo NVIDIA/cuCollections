@@ -23,14 +23,14 @@ namespace cuco {
 
 template <typename First, typename Second>
 __host__ __device__ constexpr pair<First, Second>::pair(First const& f, Second const& s)
-  : first{f}, second{s}
+  : first(f), second(s)
 {
 }
 
 template <typename First, typename Second>
 template <typename F, typename S>
 __host__ __device__ constexpr pair<First, Second>::pair(pair<F, S> const& p)
-  : first{p.first}, second{p.second}
+  : first(p.first), second(p.second)
 {
 }
 

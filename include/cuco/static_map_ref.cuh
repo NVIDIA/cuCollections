@@ -75,8 +75,8 @@ class static_map_ref
   using impl_type = detail::
     open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
-  static_assert(sizeof(T) == 4 or sizeof(T) == 8,
-                "sizeof(mapped_type) must be either 4 bytes or 8 bytes.");
+  static_assert(cuco::detail::is_valid_mapped_size(sizeof(T)),
+                "sizeof(mapped_type) must be 4 or 8 bytes (or 16 with sm_90+).");
 
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
