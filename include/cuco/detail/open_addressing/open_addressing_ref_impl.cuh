@@ -19,6 +19,7 @@
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
 #include <cuco/detail/utility/cuda.cuh>
+#include <cuco/detail/utils.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 #include <cuco/probing_scheme.cuh>
@@ -1082,8 +1083,8 @@ class open_addressing_ref_impl {
                            OutputMatchIt output_match,
                            AtomicCounter& atomic_counter) const
   {
-    auto constexpr is_outer = false;
-    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
+    auto constexpr is_outer        = false;
+    auto const n                   = cuco::detail::distance(input_probe_begin, input_probe_end);
     auto const always_true_stencil = cuda::constant_iterator<bool>(true);
     auto const identity_predicate  = cuda::std::identity{};
     this->retrieve_impl<is_outer, BlockSize>(block,
@@ -1139,8 +1140,8 @@ class open_addressing_ref_impl {
                                  OutputMatchIt output_match,
                                  AtomicCounter& atomic_counter) const
   {
-    auto constexpr is_outer = true;
-    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
+    auto constexpr is_outer        = true;
+    auto const n                   = cuco::detail::distance(input_probe_begin, input_probe_end);
     auto const always_true_stencil = cuda::constant_iterator<bool>(true);
     auto const identity_predicate  = cuda::std::identity{};
     this->retrieve_impl<is_outer, BlockSize>(block,
