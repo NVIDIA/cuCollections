@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/hash_functions.cuh>
 
 #include <nvbench/nvbench.cuh>
@@ -25,12 +26,17 @@
 
 namespace cuco::benchmark::defaults {
 
+#if defined(CUCO_HAS_128BIT_ATOMICS)
 using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int128_t>;
 using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int128_t>;
-using HASH_RANGE       = nvbench::type_list<cuco::identity_hash<char>,
-                                            cuco::xxhash_32<char>,
-                                            cuco::xxhash_64<char>,
-                                            cuco::murmurhash3_32<char>>;  //,
+#else
+using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+#endif
+using HASH_RANGE = nvbench::type_list<cuco::identity_hash<char>,
+                                      cuco::xxhash_32<char>,
+                                      cuco::xxhash_64<char>,
+                                      cuco::murmurhash3_32<char>>;  //,
 // cuco::murmurhash3_x86_128<char>,
 // cuco::murmurhash3_x64_128<char>>; // TODO handle tuple-like hash value
 

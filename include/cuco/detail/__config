@@ -73,9 +73,12 @@ inline constexpr std::size_t max_key_size =
 #endif
 
 /// Maximum supported payload/mapped type size (in bytes) for open-addressing containers.
+/// Tied to `max_key_size`: a slot stores at most a key plus an equally-sized payload.
 inline constexpr std::size_t max_payload_size = max_key_size;
 
 /// Maximum supported slot size (in bytes) for open-addressing containers.
+/// Tied to `max_key_size`: a slot stores at most a key plus an equally-sized payload
+/// (i.e., `sizeof(pair<Key, Value>) <= 2 * max_key_size`).
 inline constexpr std::size_t max_slot_size = 2 * max_key_size;
 
 /// Checks if the given size is a valid mapped_type size for packed CAS operations.

@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/functional>
@@ -63,15 +64,16 @@ struct bitwise_compare_impl<8> {
   }
 };
 
+#ifdef CUCO_HAS_INT128
 template <>
 struct bitwise_compare_impl<16> {
   __host__ __device__ inline static bool compare(char const* lhs, char const* rhs)
   {
-    return *reinterpret_cast<uint64_t const*>(lhs) == *reinterpret_cast<uint64_t const*>(rhs) and
-           *reinterpret_cast<uint64_t const*>(lhs + 8) ==
-             *reinterpret_cast<uint64_t const*>(rhs + 8);
+    return *reinterpret_cast<unsigned __int128 const*>(lhs) ==
+           *reinterpret_cast<unsigned __int128 const*>(rhs);
   }
 };
+#endif
 
 /**
  * @brief Gives value to use as alignment for a type that is at least the

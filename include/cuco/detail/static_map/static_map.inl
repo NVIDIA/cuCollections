@@ -55,7 +55,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
                                       probing_scheme,
                                       alloc,
                                       stream)},
-    empty_value_sentinel_(empty_value_sentinel)
+    empty_value_sentinel_{empty_value_sentinel}
 {
 }
 
@@ -85,7 +85,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
                                       probing_scheme,
                                       alloc,
                                       stream)},
-    empty_value_sentinel_(empty_value_sentinel)
+    empty_value_sentinel_{empty_value_sentinel}
 {
 }
 
@@ -115,7 +115,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
                                       probing_scheme,
                                       alloc,
                                       stream)},
-    empty_value_sentinel_(empty_value_sentinel)
+    empty_value_sentinel_{empty_value_sentinel}
 {
 }
 

@@ -69,12 +69,6 @@ template <class Key,
           class Allocator,
           class Storage>
 class open_addressing_impl {
-  static_assert(sizeof(Key) <= cuco::detail::max_key_size,
-                "Key size exceeds the maximum supported size (8 bytes, or 16 with sm_90+).");
-
-  static_assert(sizeof(Value) <= cuco::detail::max_slot_size,
-                "Slot size exceeds the maximum supported size (16 bytes, or 32 with sm_90+).");
-
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "

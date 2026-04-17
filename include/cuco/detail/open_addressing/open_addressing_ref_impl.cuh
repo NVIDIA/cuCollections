@@ -92,6 +92,9 @@ class open_addressing_ref_impl {
   static_assert(sizeof(Key) <= cuco::detail::max_key_size,
                 "Key size exceeds the maximum supported size (8 bytes, or 16 with sm_90+).");
 
+  static_assert(sizeof(typename StorageRef::value_type) <= cuco::detail::max_slot_size,
+                "Slot size exceeds the maximum supported size (16 bytes, or 32 with sm_90+).");
+
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,
     "Key type must have unique object representations or have been explicitly declared as safe for "
@@ -1847,15 +1850,16 @@ class open_addressing_ref_impl {
       return packed_cas(address, expected, desired);
     }
 #endif
-    else {
-      static_assert(
-        has_payload,
-        "16-byte key types in key-only containers require sm_90+ for 128-bit atomic CAS.");
+    else if constexpr (has_payload) {
 #if (__CUDA_ARCH__ < 700)
       return cas_dependent_write(address, expected, desired);
 #else
       return back_to_back_cas(address, expected, desired);
 #endif
+    } else {
+      static_assert(cuco::dependent_false<Value>,
+                    "No valid atomic CAS path: 16-byte key in a key-only container must be "
+                    "packable (have unique object representations) and target sm_90+.");
     }
   }
 
@@ -1889,11 +1893,12 @@ class open_addressing_ref_impl {
       return packed_cas(address, expected, desired);
     }
 #endif
-    else {
-      static_assert(
-        has_payload,
-        "16-byte key types in key-only containers require sm_90+ for 128-bit atomic CAS.");
+    else if constexpr (has_payload) {
       return cas_dependent_write(address, expected, desired);
+    } else {
+      static_assert(cuco::dependent_false<Value>,
+                    "No valid atomic CAS path: 16-byte key in a key-only container must be "
+                    "packable (have unique object representations) and target sm_90+.");
     }
   }
 

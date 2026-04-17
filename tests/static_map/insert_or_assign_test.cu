@@ -96,10 +96,9 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
     ,
-  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 1),
   (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
-  (__int128_t, __int128_t, cuco::test::probe_sequence::linear_probing, 1),
-  (__int128_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
 #endif
 )
 {
