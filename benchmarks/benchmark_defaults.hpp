@@ -25,8 +25,8 @@
 
 namespace cuco::benchmark::defaults {
 
-using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
-using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
+using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int128_t>;
+using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int128_t>;
 using HASH_RANGE       = nvbench::type_list<cuco::identity_hash<char>,
                                             cuco::xxhash_32<char>,
                                             cuco::xxhash_64<char>,

@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
@@ -63,8 +64,16 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   }
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "static_set shared memory tests", "", ((typename Key), Key), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
+                       "",
+                       ((typename Key), Key),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   constexpr std::size_t number_of_sets  = 1000;
   constexpr std::size_t elements_in_set = 500;

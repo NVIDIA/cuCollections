@@ -92,3 +92,5 @@ NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::uniform,
 NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::gaussian,
                              "GAUSSIAN",
                              "distribution::gaussian");
+
+NVBENCH_DECLARE_TYPE_STRINGS(__int128_t, "I128", "__int128_t");

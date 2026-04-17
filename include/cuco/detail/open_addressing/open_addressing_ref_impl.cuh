@@ -545,41 +545,17 @@ class open_addressing_ref_impl {
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
-          if constexpr (has_payload and sizeof(value_type) > 8) {
-#if (__CUDA_ARCH__ >= 900)
-            if constexpr (not cuco::detail::is_packable<value_type>()) {
-              this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-            }
-#else
-            this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-#endif
-          }
+          this->maybe_wait_for_payload(slot_ptr);
           return {iterator{slot_ptr}, false};
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           switch (this->attempt_insert_stable(slot_ptr, bucket_slots[i], val)) {
             case insert_result::SUCCESS: {
-              if constexpr (has_payload and sizeof(value_type) > 8) {
-#if (__CUDA_ARCH__ >= 900)
-                if constexpr (not cuco::detail::is_packable<value_type>()) {
-                  this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-                }
-#else
-                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-#endif
-              }
+              this->maybe_wait_for_payload(slot_ptr);
               return {iterator{slot_ptr}, true};
             }
             case insert_result::DUPLICATE: {
-              if constexpr (has_payload and sizeof(value_type) > 8) {
-#if (__CUDA_ARCH__ >= 900)
-                if constexpr (not cuco::detail::is_packable<value_type>()) {
-                  this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-                }
-#else
-                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-#endif
-              }
+              this->maybe_wait_for_payload(slot_ptr);
               return {iterator{slot_ptr}, false};
             }
             default: continue;
@@ -647,17 +623,7 @@ class open_addressing_ref_impl {
       if (group_finds_equal) {
         auto const src_lane = __ffs(group_finds_equal) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
-        if (group.thread_rank() == src_lane) {
-          if constexpr (has_payload and sizeof(value_type) > 8) {
-#if (__CUDA_ARCH__ >= 900)
-            if constexpr (not cuco::detail::is_packable<value_type>()) {
-              this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-            }
-#else
-            this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-#endif
-          }
-        }
+        if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
         group.sync();
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
@@ -673,32 +639,12 @@ class open_addressing_ref_impl {
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
-            if (group.thread_rank() == src_lane) {
-              if constexpr (has_payload and sizeof(value_type) > 8) {
-#if (__CUDA_ARCH__ >= 900)
-                if constexpr (not cuco::detail::is_packable<value_type>()) {
-                  this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-                }
-#else
-                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-#endif
-              }
-            }
+            if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
             group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, true};
           }
           case insert_result::DUPLICATE: {
-            if (group.thread_rank() == src_lane) {
-              if constexpr (has_payload and sizeof(value_type) > 8) {
-#if (__CUDA_ARCH__ >= 900)
-                if constexpr (not cuco::detail::is_packable<value_type>()) {
-                  this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-                }
-#else
-                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-#endif
-              }
-            }
+            if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
             group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, false};
           }
@@ -1971,6 +1917,34 @@ class open_addressing_ref_impl {
     do {
       current = ref.load(cuda::std::memory_order_relaxed);
     } while (cuco::detail::bitwise_compare(current, sentinel));
+  }
+
+  /**
+   * @brief Conditionally spin-waits for the payload of a non-atomically inserted slot to become
+   * visible.
+   *
+   * For containers where the key and value are inserted by separate instructions
+   * (`cas_dependent_write` / `back_to_back_cas`), an observer thread may see the key before the
+   * payload. This helper spins until the payload is visible. For atomic single-CAS paths (slot
+   * size <= 8 bytes, or a packable slot on sm_90+ via `atom.cas.b128`), the payload is already
+   * visible and this is a no-op.
+   *
+   * @tparam SlotPtr Pointer-like type to a slot holding a `.second` payload member
+   *
+   * @param slot_ptr Pointer to the slot whose payload may need waiting on
+   */
+  template <typename SlotPtr>
+  __device__ void maybe_wait_for_payload(SlotPtr slot_ptr) noexcept
+  {
+    if constexpr (has_payload and sizeof(value_type) > 8) {
+#if (__CUDA_ARCH__ >= 900)
+      if constexpr (not cuco::detail::is_packable<value_type>()) {
+        this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+      }
+#else
+      this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+#endif
+    }
   }
 
   // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper
