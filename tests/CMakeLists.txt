@@ -64,7 +64,6 @@ ConfigureTest(STATIC_SET_TEST
     static_set/heterogeneous_lookup_test.cu
     static_set/insert_and_find_test.cu
     static_set/large_input_test.cu
-    static_set/large_key_type_test.cu
     static_set/retrieve_test.cu
     static_set/retrieve_all_test.cu
     static_set/retrieve_if_test.cu
@@ -89,7 +88,6 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/insert_or_assign_test.cu
     static_map/insert_or_apply_test.cu
     static_map/key_sentinel_test.cu
-    static_map/large_type_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
     static_map/rehash_test.cu

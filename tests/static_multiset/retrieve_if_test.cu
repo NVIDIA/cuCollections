@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
@@ -106,8 +107,16 @@ __global__ void test_retrieve_if_all_true_kernel(
                                  *atomic_counter);
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "static_multiset retrieve_if", "", ((typename Key), Key), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_multiset retrieve_if",
+                       "",
+                       ((typename Key), Key),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   constexpr size_type num_keys{400};
 

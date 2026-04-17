@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
@@ -32,7 +33,16 @@ struct custom_equals {
   __device__ bool operator()(T lhs, T rhs) const { return A[lhs] == A[rhs]; }
 };
 
-TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests", "", ((typename T), T), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests",
+                       "",
+                       ((typename T), T),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   using Key   = T;
   using Value = T;

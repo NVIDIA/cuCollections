@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/hash_functions.cuh>
 #include <cuco/static_map.cuh>
 
@@ -62,7 +63,16 @@ void test_hash_function()
   REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 }
 
-TEMPLATE_TEST_CASE_SIG("static_map hash tests", "", ((typename Key)), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_map hash tests",
+                       "",
+                       ((typename Key)),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   test_hash_function<Key, cuco::murmurhash3_32<Key>>();
   test_hash_function<Key, cuco::murmurhash3_x64_128<Key>>();

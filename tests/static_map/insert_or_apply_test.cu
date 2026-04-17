@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 #include <cuco/utility/reduction_functors.cuh>
 
@@ -160,7 +161,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, __int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_type num_keys{10'000};
   constexpr size_type num_unique_keys{100};
@@ -201,8 +210,16 @@ TEMPLATE_TEST_CASE_SIG(
   }
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "static_map insert_or_apply all unique keys tests", "", ((typename Key)), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_map insert_or_apply all unique keys tests",
+                       "",
+                       ((typename Key)),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   using Value = Key;
 

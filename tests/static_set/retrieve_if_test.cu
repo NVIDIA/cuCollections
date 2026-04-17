@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
@@ -106,13 +107,22 @@ __global__ void test_retrieve_if_all_true_kernel(
                                  *atomic_counter);
 }
 
-TEMPLATE_TEST_CASE_SIG("static_set retrieve_if", "", ((typename Key), Key), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_set retrieve_if",
+                       "",
+                       ((typename Key), Key),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   constexpr size_type num_keys{400};
 
   using container_type = cuco::static_set<Key>;
 
-  container_type container{num_keys * 2, cuco::empty_key<Key>{-1}};
+  container_type container{num_keys * 2, cuco::empty_key<Key>{static_cast<Key>(-1)}};
 
   auto keys_begin = cuda::counting_iterator<Key>(1);
   auto keys_end   = keys_begin + num_keys;
