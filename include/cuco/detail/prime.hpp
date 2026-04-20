@@ -16,18 +16,33 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
+
 #include <cstdint>
 
 namespace cuco {
 namespace detail {
 
 /**
- * @brief Modular multiplication: (n1 * n2) % m using 128-bit intermediate.
+ * @brief Modular multiplication: (n1 * n2) % m without overflow.
  */
 constexpr std::uint64_t mod_mul(std::uint64_t n1, std::uint64_t n2, std::uint64_t m)
 {
+#if defined(CUCO_HAS_INT128)
   auto r = static_cast<unsigned __int128>(n1) * n2;
   return static_cast<std::uint64_t>(r % m);
+#else
+  // Fallback: Russian peasant multiplication in modular arithmetic.
+  std::uint64_t r = 0;
+  n1 %= m;
+  n2 %= m;
+  while (n2 > 0) {
+    if (n2 & 1) { r = (r >= m - n1) ? r - (m - n1) : r + n1; }
+    n1 = (n1 >= m - n1) ? n1 - (m - n1) : n1 + n1;
+    n2 >>= 1;
+  }
+  return r;
+#endif
 }
 
 /**
