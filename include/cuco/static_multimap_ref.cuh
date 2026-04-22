@@ -75,11 +75,6 @@ class static_multimap_ref
   using impl_type = detail::
     open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
  public:
   using key_type            = Key;                                     ///< Key type
   using mapped_type         = T;                                       ///< Mapped type

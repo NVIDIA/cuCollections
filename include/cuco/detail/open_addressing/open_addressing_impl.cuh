@@ -69,11 +69,6 @@ template <class Key,
           class Allocator,
           class Storage>
 class open_addressing_impl {
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
   static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
                                         ProbingScheme>,
                 "ProbingScheme must inherit from cuco::detail::probing_scheme_base");

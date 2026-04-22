@@ -78,11 +78,6 @@ class static_map_ref
   static_assert(cuco::detail::is_valid_mapped_size(sizeof(T)),
                 "sizeof(mapped_type) must be 4 or 8 bytes (or 16 with sm_90+).");
 
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
  public:
   using key_type            = Key;                                     ///< Key type
   using mapped_type         = T;                                       ///< Mapped type

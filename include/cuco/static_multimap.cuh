@@ -91,12 +91,6 @@ template <class Key,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
           class Storage            = cuco::storage<2>>
 class static_multimap {
-  static_assert(sizeof(Key) <= cuco::detail::max_key_size,
-                "Key size exceeds the maximum supported size (8 bytes, or 16 with sm_90+).");
-
-  static_assert(sizeof(T) <= cuco::detail::max_payload_size,
-                "Payload size exceeds the maximum supported size (8 bytes, or 16 with sm_90+).");
-
   static_assert(cuco::is_bitwise_comparable_v<T>,
                 "Mapped type must have unique object representations or have been explicitly "
                 "declared as safe for bitwise comparison via specialization of "
