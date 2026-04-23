@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +17,15 @@
 #pragma once
 
 #include <cuco/detail/error.hpp>
-#include <cuco/detail/prime.hpp>  // TODO move to detail/extent/
+#include <cuco/detail/prime.hpp>
 #include <cuco/detail/utility/math.cuh>
-#include <cuco/detail/utils.hpp>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
 #include <cuco/utility/fast_int.cuh>
 
 #include <cuda/std/type_traits>
 
-#include <algorithm>
 #include <cstdint>
-#include <limits>
 
 namespace cuco {
 template <typename SizeType, std::size_t N>
@@ -116,28 +113,17 @@ struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
 {
-  auto constexpr stride    = CGSize * BucketSize;
-  auto constexpr max_prime = cuco::detail::primes.back();
-  auto constexpr max_value =
-    (static_cast<uint64_t>(cuda::std::numeric_limits<SizeType>::max()) < max_prime)
-      ? cuda::std::numeric_limits<SizeType>::max()
-      : static_cast<SizeType>(max_prime);
-  auto const size = cuco::detail::int_div_ceil(
+  auto constexpr stride = CGSize * BucketSize;
+  auto const size       = cuco::detail::int_div_ceil(
     cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride);
-  if (size > max_value) { CUCO_FAIL("Invalid input extent"); }
 
   if constexpr (N == dynamic_extent) {
-    return valid_extent<SizeType, dynamic_extent>{static_cast<SizeType>(
-      *cuco::detail::lower_bound(
-        cuco::detail::primes.begin(), cuco::detail::primes.end(), static_cast<uint64_t>(size)) *
-      stride)};
+    return valid_extent<SizeType, dynamic_extent>{
+      static_cast<SizeType>(cuco::detail::next_prime(static_cast<std::uint64_t>(size)) * stride)};
   } else {
     return valid_extent<SizeType,
                         static_cast<std::size_t>(
-                          *cuco::detail::lower_bound(cuco::detail::primes.begin(),
-                                                     cuco::detail::primes.end(),
-                                                     static_cast<uint64_t>(size)) *
-                          stride)>{};
+                          cuco::detail::next_prime(static_cast<std::uint64_t>(size)) * stride)>{};
   }
 }
 
