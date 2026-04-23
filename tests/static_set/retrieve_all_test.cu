@@ -78,8 +78,8 @@ TEMPLATE_TEST_CASE_SIG(
 
   constexpr std::size_t gold_capacity = [&]() {
     if constexpr (cuco::is_double_hashing<probe>::value) {
-      return (CGSize == 1) ? 409   // 409 x 1 x 2
-                           : 422;  // 211 x 2 x 2
+      return (CGSize == 1) ? 401   // 401 x 1 x 1
+                           : 422;  // 211 x 2 x 1
     } else {
       return 400;
     }
