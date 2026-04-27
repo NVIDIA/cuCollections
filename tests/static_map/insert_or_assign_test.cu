@@ -58,7 +58,7 @@ void test_insert_or_assign(Map& map, size_type num_keys)
   REQUIRE(updated_size == initial_size);
 
   thrust::device_vector<Key> d_keys(num_keys);
-  thrust::device_vector<Key> d_values(num_keys);
+  thrust::device_vector<Value> d_values(num_keys);
   map.retrieve_all(d_keys.begin(), d_values.begin());
 
   auto gold_values_begin = cuda::make_transform_iterator(

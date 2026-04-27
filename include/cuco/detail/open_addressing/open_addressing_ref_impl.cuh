@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
+#include <cuco/detail/open_addressing/constraints.cuh>
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utils.hpp>
@@ -71,16 +72,23 @@ struct bucket_probing_results {
  *
  * @note This class should NOT be used directly.
  *
- * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given key type is larger than `cuco::open_addressing_max_key_size`
+ * @throw If the size of the given slot type is larger than `cuco::open_addressing_max_slot_size`
  * @throw If the given key type doesn't have unique object representations, i.e.,
- * `cuco::bitwise_comparable_v<Key> == false`
+ * `cuco::is_bitwise_comparable_v<Key> == false`
+ * @throw If the given payload type doesn't have unique object representations, i.e.,
+ * `cuco::is_bitwise_comparable_v<T> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
- * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
+ * @tparam Key Type used for keys. Requires `sizeof(Key) <= cuco::open_addressing_max_key_size` and
+ * `cuco::is_bitwise_comparable_v<Key>`
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
- * @tparam StorageRef Storage ref type
+ * @tparam StorageRef Storage ref type. Its `value_type` must fit in
+ * `cuco::open_addressing_max_slot_size`;
+ * payloads, if present, must be 4 or 8 bytes (or 16 with sm_90+) and satisfy
+ * `cuco::is_bitwise_comparable_v<T>`
  * @tparam AllowsDuplicates Flag indicating whether duplicate keys are allowed or not
  */
 template <typename Key,
@@ -89,25 +97,12 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           bool AllowsDuplicates>
-class open_addressing_ref_impl {
-  static_assert(sizeof(Key) <= cuco::detail::max_key_size,
-                "Key size exceeds the maximum supported size (8 bytes, or 16 with sm_90+).");
-
-  static_assert(sizeof(typename StorageRef::value_type) <= cuco::detail::max_slot_size,
-                "Slot size exceeds the maximum supported size (16 bytes, or 32 with sm_90+).");
-
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
-  static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                                        ProbingScheme>,
-                "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+class open_addressing_ref_impl
+  : private open_addressing_compatible<Key, typename StorageRef::value_type, ProbingScheme> {
+  using storage_value_type = typename StorageRef::value_type;
 
   /// Determines if the container is a key/value or key-only store
-  static constexpr auto has_payload =
-    not cuda::std::is_same_v<Key, typename StorageRef::value_type>;
+  static constexpr auto has_payload = not cuda::std::is_same_v<Key, storage_value_type>;
 
   /// Flag indicating whether duplicate keys are allowed or not
   static constexpr auto allows_duplicates = AllowsDuplicates;
