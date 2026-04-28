@@ -24,8 +24,18 @@
 
 namespace cuco::detail {
 
+/**
+ * @brief Enforces compile-time constraints for open-addressing containers.
+ *
+ * @tparam Key Type used for keys. Requires `sizeof(Key) <= cuco::open_addressing_max_key_size` and
+ * `cuco::is_bitwise_comparable_v<Key>`
+ * @tparam Value Type used for storage values. Requires
+ * `sizeof(Value) <= cuco::open_addressing_max_slot_size`
+ * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
+ */
 template <typename Key, typename Value, typename ProbingScheme>
 struct open_addressing_compatible {
+  /// Determines if the container is a key/value or key-only store
   static constexpr auto has_payload = not cuda::std::is_same_v<Key, Value>;
 
   static_assert(sizeof(Key) <= cuco::open_addressing_max_key_size,
