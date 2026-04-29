@@ -86,64 +86,14 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
 }
 
 TEMPLATE_TEST_CASE_SIG(
-  "bloom_filter default policy tests",
-  "",
-  ((class Key, class Policy), Key, Policy),
-  (int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1>),
-  (int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8>),
-  (int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint64_t, 1>),
-  (int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint64_t, 8>))
-{
-  using filter_type =
-    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
-  constexpr size_type num_keys{400};
-
-  uint32_t pattern_bits = Policy::words_per_block + GENERATE(0, 1, 2, 3, 4);
-
-  // some parameter combinations might be invalid so we skip them
-  try {
-    [[maybe_unused]] auto policy = Policy{pattern_bits};
-  } catch (std::exception const& e) {
-    SKIP(e.what());
-  }
-
-  auto filter = filter_type{1000, {}, {pattern_bits}};
-
-  test_unique_sequence(filter, num_keys);
-}
-
-TEMPLATE_TEST_CASE_SIG("bloom_filter arrow policy tests",
-                       "",
-                       ((class Key, class Policy), Key, Policy),
-                       (int32_t, cuco::arrow_filter_policy<int32_t>),
-                       (uint64_t, cuco::arrow_filter_policy<uint64_t>),
-                       (float, cuco::arrow_filter_policy<float>))
-{
-  using filter_type =
-    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
-  constexpr size_type num_keys{400};
-
-  auto filter = filter_type{1000};
-
-  test_unique_sequence(filter, num_keys);
-}
-
-TEMPLATE_TEST_CASE_SIG(
   "bloom_filter parametric policy tests",
   "",
   ((class Key, class Policy), Key, Policy),
-  (int32_t,
-   cuco::experimental::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
+  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
   (uint64_t,
-   cuco::experimental::
-     parametric_filter_policy<cuco::xxhash_64<uint64_t>, uint32_t, 8, 12, 8, 1, 4, 2>),
-  (float,
-   cuco::experimental::
-     parametric_filter_policy<cuco::xxhash_64<float>, uint64_t, 4, 4, 2, 2, 1, 2>),
-  (int32_t,
-   cuco::experimental::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 2, 1, 8>))
+   cuco::parametric_filter_policy<cuco::xxhash_64<uint64_t>, uint32_t, 8, 12, 8, 1, 4, 2>),
+  (float, cuco::parametric_filter_policy<cuco::xxhash_64<float>, uint64_t, 4, 4, 2, 2, 1, 2>),
+  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 2, 1, 8>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;

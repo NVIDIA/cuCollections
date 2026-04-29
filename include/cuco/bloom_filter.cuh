@@ -61,8 +61,8 @@ namespace cuco {
 template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Policy    = cuco::default_filter_policy<cuco::xxhash_64<Key>, std::uint32_t, 8>,
-          class Allocator = cuco::cuda_allocator<cuda::std::byte>>
+          class Policy             = cuco::default_filter_policy<Key>,
+          class Allocator          = cuco::cuda_allocator<cuda::std::byte>>
 class bloom_filter {
  public:
   /**

@@ -162,41 +162,14 @@ TEMPLATE_TEST_CASE_SIG(
   "bloom_filter merge and intersect tests",
   "",
   ((class Key, class Policy), Key, Policy),
-  (int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1>),
-  (int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8>),
-  (int64_t, cuco::default_filter_policy<cuco::xxhash_64<int64_t>, uint64_t, 1>),
-  (int64_t, cuco::default_filter_policy<cuco::xxhash_64<int64_t>, uint64_t, 8>))
+  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
+  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 1, 8>),
+  (int64_t, cuco::parametric_filter_policy<cuco::xxhash_64<int64_t>, uint64_t, 1, 1, 1, 1, 1, 1>),
+  (int64_t, cuco::parametric_filter_policy<cuco::xxhash_64<int64_t>, uint64_t, 8, 8, 8, 1, 1, 8>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
   constexpr size_type capacity{1000};
-
-  uint32_t pattern_bits = Policy::words_per_block + GENERATE(0, 1);
-
-  // some parameter combinations might be invalid so we skip them
-  try {
-    [[maybe_unused]] auto policy = Policy{pattern_bits};
-  } catch (std::exception const& e) {
-    SKIP(e.what());
-  }
-
-  auto filter_a = filter_type{capacity, {}, {pattern_bits}};
-  auto filter_b = filter_type{capacity, {}, {pattern_bits}};
-  auto filter_c = filter_type{static_cast<size_t>(capacity) * 2, {}, {pattern_bits}};
-
-  test_merge_intersect(filter_a, filter_b, filter_c, capacity);
-}
-
-TEMPLATE_TEST_CASE_SIG("bloom_filter merge and intersect arrow tests",
-                       "",
-                       ((class Key, class Policy), Key, Policy),
-                       (int32_t, cuco::arrow_filter_policy<int32_t>),
-                       (int64_t, cuco::arrow_filter_policy<int64_t>),
-                       (float, cuco::arrow_filter_policy<float>))
-{
-  using filter_type =
-    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
-  constexpr size_type capacity{1000};  // Must match capacity used in helper logic
 
   auto filter_a = filter_type{capacity};
   auto filter_b = filter_type{capacity};

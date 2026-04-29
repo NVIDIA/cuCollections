@@ -19,7 +19,6 @@
 #include <cuco/bloom_filter.cuh>
 
 #include <cuda/functional>
-#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/fill.h>
@@ -29,95 +28,39 @@
 #include <catch2/generators/catch_generators.hpp>
 
 #include <cstdint>
-#include <exception>
 
 using size_type = int32_t;
 
-template <int32_t AddCGSize, int32_t ContainsCGSize, typename Filter>
+template <typename Filter>
 void test_variable_cg_size(Filter& filter, size_type num_keys)
 {
-  constexpr int32_t block_size = 128;
-  constexpr int32_t grid_size  = 128;
-
   using Key = typename Filter::key_type;
 
-  auto ref = filter.ref();
-
-  // Generate keys
   thrust::device_vector<Key> keys(num_keys);
   thrust::sequence(thrust::device, keys.begin(), keys.end());
 
   thrust::device_vector<bool> contained(num_keys, false);
 
-  auto const always_true = cuda::constant_iterator<bool>{true};
-
-  SECTION("Check if fallback kernels work for varying combinations of CG sizes.")
-  {
-    cuco::detail::bloom_filter_ns::add_if_n<AddCGSize, block_size>
-      <<<grid_size, block_size>>>(keys.begin(), num_keys, always_true, cuda::std::identity{}, ref);
-    cuco::detail::bloom_filter_ns::contains_if_n<ContainsCGSize, block_size>
-      <<<grid_size, block_size>>>(
-        keys.begin(), num_keys, always_true, cuda::std::identity{}, contained.begin(), ref);
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
-  }
-
-  filter.clear();
-  thrust::fill(contained.begin(), contained.end(), false);  // reset output vector
-
-  SECTION("Check if adaptive add kernel works with fallback contains kernel.")
-  {
-    cuco::detail::bloom_filter_ns::add<block_size>
-      <<<grid_size, block_size>>>(keys.begin(), num_keys, ref);
-    cuco::detail::bloom_filter_ns::contains_if_n<ContainsCGSize, block_size>
-      <<<grid_size, block_size>>>(
-        keys.begin(), num_keys, always_true, cuda::std::identity{}, contained.begin(), ref);
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
-  }
-
-  filter.clear();
-  thrust::fill(contained.begin(), contained.end(), false);  // reset output vector
-
-  SECTION("Check if fallback add kernel works with adaptive contains kernel.")
-  {
-    cuco::detail::bloom_filter_ns::add_if_n<AddCGSize, block_size>
-      <<<grid_size, block_size>>>(keys.begin(), num_keys, always_true, cuda::std::identity{}, ref);
-    cuco::detail::bloom_filter_ns::contains<block_size>
-      <<<grid_size, block_size>>>(keys.begin(), num_keys, contained.begin(), ref);
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
-  }
+  filter.add(keys.begin(), keys.end());
+  filter.contains(keys.begin(), keys.end(), contained.begin());
+  REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
 }
 
+// Exercises a matrix of (AddHorizontalLayout, ContainsHorizontalLayout) values to verify the
+// parametric policy compiles and works across varied CG-size combinations.
 TEMPLATE_TEST_CASE_SIG(
   "bloom_filter variable CG size tests",
   "",
-  ((int32_t AddCGSize, int32_t ContainsCGSize, class Key, class Policy),
-   AddCGSize,
-   ContainsCGSize,
-   Key,
-   Policy),
-  (1, 4, int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1>),
-  (1, 4, int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8>),
-  (1, 4, int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint64_t, 1>),
-  (1, 4, int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint64_t, 8>),
-  (4, 1, int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1>),
-  (4, 1, int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8>),
-  (4, 1, int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint64_t, 1>),
-  (4, 1, int32_t, cuco::default_filter_policy<cuco::xxhash_64<int32_t>, uint64_t, 8>))
+  ((class Key, class Policy), Key, Policy),
+  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 1, 8, 8, 1>),
+  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 1, 8>),
+  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 2, 4>),
+  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 4, 4, 2>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
   constexpr size_type num_keys{400};
 
-  uint32_t pattern_bits = Policy::words_per_block + GENERATE(0, 1, 2, 3, 4);
-
-  // some parameter combinations might be invalid so we skip them
-  try {
-    [[maybe_unused]] auto policy = Policy{pattern_bits};
-  } catch (std::exception const& e) {
-    SKIP(e.what());
-  }
-
-  auto filter = filter_type{1000, {}, {pattern_bits}};
-
-  test_variable_cg_size<AddCGSize, ContainsCGSize>(filter, num_keys);
+  auto filter = filter_type{1000};
+  test_variable_cg_size(filter, num_keys);
 }

@@ -27,8 +27,31 @@
 
 #include <cstdint>
 
-namespace cuco::experimental::detail {
+namespace cuco::detail {
 
+/**
+ * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
+ *
+ * Implements the Sectorized Bloom Filter (SBF) and Cache-Sectorized Bloom Filter (CSBF) variants
+ * from "Optimizing Bloom Filters for Modern GPU Architectures" (arXiv:2512.15595). Distributes
+ * `PatternBits` set bits across `WordsPerBlock` words using compile-time salt-based multiplicative
+ * hashing. The hash result is split into upper 32 bits (block selection via multiply-shift) and
+ * lower 32 bits (pattern generation), so a 64-bit hash function is required by design.
+ *
+ * @tparam Hash 64-bit hash functor whose return type satisfies `is_same_v<hash_result_type,
+ * uint64_t>`.
+ * @tparam Word Underlying word type of a filter block. Must be an atomically updatable integral.
+ * @tparam WordsPerBlock Words per filter block. Must be a power of two and <= 32.
+ * @tparam PatternBits Number of fingerprint bits (k in the paper).
+ * @tparam AddHorizontalLayout CG size used for `add` (paper's Theta). Must be a power of two and
+ * `AddHorizontalLayout * AddVerticalLayout <= WordsPerBlock`.
+ * @tparam AddVerticalLayout Contiguous words processed per thread per `add` step (paper's Phi).
+ * @tparam ContainsHorizontalLayout CG size used for `contains` (paper's Theta).
+ * @tparam ContainsVerticalLayout Contiguous words processed per thread per `contains` step (paper's
+ * Phi).
+ * @tparam GroupsPerBlock Cache-sectorization groups per block (paper's z). Defaults to
+ * `WordsPerBlock` for non-CSBF mode; setting `GroupsPerBlock < WordsPerBlock` enables CSBF.
+ */
 template <class Hash,
           class Word,
           uint32_t WordsPerBlock,
@@ -63,10 +86,7 @@ class parametric_filter_policy {
  public:
   static constexpr uint32_t words_per_block = WordsPerBlock;
   static constexpr uint32_t pattern_bits    = PatternBits;
-  /// KEVIN: temporary hack flag to dispatch to different code paths based on policy
-  static constexpr bool is_parametric_policy = true;
 
-  // TODO this could be expressed as two cuda::std::extents<uint32_t, HORIZONTAL, VERTICAL> instead
   static constexpr uint32_t add_horizontal_layout =
     AddHorizontalLayout;  ///< horizontal vectorization layout for add operation
   static constexpr uint32_t add_vertical_layout =
@@ -115,12 +135,13 @@ class parametric_filter_policy {
     static_assert(contains_horizontal_layout * contains_vertical_layout <= words_per_block,
                   "the product of contains_horizontal_layout and contains_vertical_layout must be "
                   "less than or equal to words_per_block");
-    /// KEVIN: Requiring 64b hash return type for now
+    // The split_hash() design requires a 64-bit hash split into upper 32 bits (block selection
+    // via multiply-shift) and lower 32 bits (pattern generation via salt-based multiplicative
+    // hashing). This is a permanent design requirement, not a temporary limitation.
     static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
-                  "currently only 64b hash_result_type is supported");
+                  "parametric_filter_policy requires a 64-bit hash function");
 
     //===----------Cache-Sectorized----------===//
-    /// KEVIN: there are probably some checks I'm missing here
     static_assert(
       is_cache_sectorized == false || (groups_per_block > 0 && groups_per_block < words_per_block &&
                                        (words_per_block % groups_per_block == 0)),
@@ -312,4 +333,4 @@ class parametric_filter_policy {
   }
 };
 
-}  // namespace cuco::experimental::detail
+}  // namespace cuco::detail

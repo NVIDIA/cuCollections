@@ -93,12 +93,7 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add(InputI
                                                                           InputIt last,
                                                                           cuda::stream_ref stream)
 {
-  // KEVIN: manual override (is this necessary? I think I'm bypassing the reference in the exp code)
-  if constexpr (Policy::is_parametric_policy) {
-    impl_.add_exp(first, last, stream);
-  } else {
-    impl_.add(first, last, stream);
-  }
+  impl_.add(first, last, stream);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -106,12 +101,7 @@ template <class InputIt>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add_async(
   InputIt first, InputIt last, cuda::stream_ref stream) noexcept
 {
-  // KEVIN: manual override
-  if constexpr (Policy::is_parametric_policy) {
-    impl_.add_exp_async(first, last, stream);
-  } else {
-    impl_.add_async(first, last, stream);
-  }
+  impl_.add_async(first, last, stream);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -119,12 +109,7 @@ template <class InputIt, class StencilIt, class Predicate>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
 {
-  // KEVIN: manual override
-  if constexpr (Policy::is_parametric_policy) {
-    impl_.add_exp_if(first, last, stencil, pred, stream);
-  } else {
-    impl_.add_if(first, last, stencil, pred, stream);
-  }
+  impl_.add_if(first, last, stencil, pred, stream);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -132,12 +117,7 @@ template <class InputIt, class StencilIt, class Predicate>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add_if_async(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream) noexcept
 {
-  // KEVIN: manual override
-  if constexpr (Policy::is_parametric_policy) {
-    impl_.add_exp_if_async(first, last, stencil, pred, stream);
-  } else {
-    impl_.add_if_async(first, last, stencil, pred, stream);
-  }
+  impl_.add_if_async(first, last, stencil, pred, stream);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -180,12 +160,7 @@ template <class InputIt, class OutputIt>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
 {
-  // KEVIN: manual override
-  if constexpr (Policy::is_parametric_policy) {
-    impl_.contains_exp(first, last, output_begin, stream);
-  } else {
-    impl_.contains(first, last, output_begin, stream);
-  }
+  impl_.contains(first, last, output_begin, stream);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -193,12 +168,7 @@ template <class InputIt, class OutputIt>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::contains_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const noexcept
 {
-  // KEVIN: manual override
-  if constexpr (Policy::is_parametric_policy) {
-    impl_.contains_exp_async(first, last, output_begin, stream);
-  } else {
-    impl_.contains_async(first, last, output_begin, stream);
-  }
+  impl_.contains_async(first, last, output_begin, stream);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -211,12 +181,7 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::contains_i
   OutputIt output_begin,
   cuda::stream_ref stream) const
 {
-  // KEVIN: manual override
-  if constexpr (Policy::is_parametric_policy) {
-    impl_.contains_exp_if(first, last, stencil, pred, output_begin, stream);
-  } else {
-    impl_.contains_if(first, last, stencil, pred, output_begin, stream);
-  }
+  impl_.contains_if(first, last, stencil, pred, output_begin, stream);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
@@ -229,12 +194,7 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::contains_i
   OutputIt output_begin,
   cuda::stream_ref stream) const noexcept
 {
-  // KEVIN: manual override
-  if constexpr (Policy::is_parametric_policy) {
-    impl_.contains_exp_if_async(first, last, stencil, pred, output_begin, stream);
-  } else {
-    impl_.contains_if_async(first, last, stencil, pred, output_begin, stream);
-  }
+  impl_.contains_if_async(first, last, stencil, pred, output_begin, stream);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
