@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
@@ -34,7 +35,12 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
                        (int32_t, int32_t),
                        (int32_t, int64_t),
                        (int64_t, int32_t),
-                       (int64_t, int64_t))
+                       (int64_t, int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t, __int128_t)
+#endif
+)
 {
   cudaStream_t stream;
   CUCO_CUDA_TRY(cudaStreamCreate(&stream));

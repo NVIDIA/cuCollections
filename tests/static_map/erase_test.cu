@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
@@ -101,7 +102,14 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_type num_keys{1'000'000};
 

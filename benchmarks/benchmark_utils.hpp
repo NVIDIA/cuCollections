@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/detail/error.hpp>
 #include <cuco/utility/key_generator.cuh>
 
@@ -92,3 +93,7 @@ NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::uniform,
 NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::gaussian,
                              "GAUSSIAN",
                              "distribution::gaussian");
+
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+NVBENCH_DECLARE_TYPE_STRINGS(__int128_t, "I128", "__int128_t");
+#endif

@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
@@ -140,7 +141,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr std::size_t num_keys{400};
   constexpr double desired_load_factor = 0.5;

@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
@@ -87,6 +88,10 @@ TEMPLATE_TEST_CASE_SIG("static_map heterogeneous lookup tests",
                                            // up
                        (int64_t, 1),
                        (int64_t, 2),
+#endif
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                       (__int128_t, 1),
+                       (__int128_t, 2),
 #endif
 
                        (int32_t, 1),

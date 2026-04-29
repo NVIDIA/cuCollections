@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/iterator>
@@ -56,9 +57,17 @@ TEMPLATE_TEST_CASE_SIG(
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, cuco::test::probe_sequence::double_hashing, 2))
+  (int64_t, cuco::test::probe_sequence::double_hashing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2)
+#endif
+)
 {
-  constexpr std::size_t num_keys{1'200'000'000};
+  // Reduce the key count for 16-byte keys to stay within GPU memory.
+  // 1.2B * 8B * 2 (capacity) = 19.2GB; 300M * 16B * 2 = 9.6GB.
+  constexpr std::size_t num_keys = (sizeof(Key) >= 16) ? 300'000'000 : 1'200'000'000;
 
   using extent_type = cuco::extent<std::size_t>;
   using probe       = cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>;

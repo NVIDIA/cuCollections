@@ -41,16 +41,18 @@ namespace cuco {
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
- * @throw If the size of the given key type is larger than 8 bytes
- * @throw If the size of the given payload type is larger than 8 bytes
+ * @throw If the size of the given key type is larger than `cuco::open_addressing_max_key_size`
+ * @throw If the size of the given payload type is unsupported (4 or 8 bytes, or 16 with sm_90+)
  * @throw If the given key type doesn't have unique object representations, i.e.,
- * `cuco::bitwise_comparable_v<Key> == false`
+ * `cuco::is_bitwise_comparable_v<Key> == false`
  * @throw If the given payload type doesn't have unique object representations, i.e.,
- * `cuco::bitwise_comparable_v<T> == false`
+ * `cuco::is_bitwise_comparable_v<T> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
- * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
- * @tparam T Type used for mapped values. Requires `cuco::is_bitwise_comparable_v<T>` returning true
+ * @tparam Key Type used for keys. Requires `sizeof(Key) <= cuco::open_addressing_max_key_size` and
+ * `cuco::is_bitwise_comparable_v<Key>`
+ * @tparam T Type used for mapped values. Requires size 4 or 8 bytes (or 16 with sm_90+) and
+ * `cuco::is_bitwise_comparable_v<T>`
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
@@ -74,11 +76,6 @@ class static_multimap_ref
   /// Implementation type
   using impl_type = detail::
     open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
-
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
 
  public:
   using key_type            = Key;                                     ///< Key type

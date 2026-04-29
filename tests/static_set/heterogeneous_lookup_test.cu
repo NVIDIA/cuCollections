@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
@@ -84,7 +85,13 @@ TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup tests",
                        "",
                        ((typename T, int CGSize), T, CGSize),
                        (int32_t, 1),
-                       (int32_t, 2))
+                       (int32_t, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t, 1),
+                       (__int128_t, 2)
+#endif
+)
 {
   using Key        = T;
   using InsertKey  = key_pair<T>;

@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multimap.cuh>
 
 #include <cuda/functional>
@@ -110,7 +111,12 @@ TEMPLATE_TEST_CASE_SIG("static_multimap retrieve_if",
                        "",
                        ((typename Key, typename Value), Key, Value),
                        (int32_t, int32_t),
-                       (int64_t, int64_t))
+                       (int64_t, int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t, __int128_t)
+#endif
+)
 {
   constexpr size_type num_keys{400};
 

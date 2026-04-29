@@ -78,6 +78,9 @@ struct custom_key_equal {
   }
 };
 
+// TODO: extend with __int128_t once the multimap can handle slots larger than
+// 32 bytes (key_pair<__int128_t> is 32 bytes, so pair<key_pair<__int128_t>, V>
+// exceeds the current slot-size budget).
 TEMPLATE_TEST_CASE(
   "static_multimap heterogeneous lookup tests",
   "",
