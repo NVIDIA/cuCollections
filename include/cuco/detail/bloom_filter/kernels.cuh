@@ -36,7 +36,7 @@ __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   // Only use warp-cooperative kernels when CGSize > 1
-  if constexpr (Ref::use_warp_cooperative_add_kernel && CGSize > 1) {
+  if constexpr (Ref::tuning::use_warp_cooperative_add_kernel && CGSize > 1) {
     auto const idx          = cuco::detail::global_thread_id();
     auto group              = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const is_full_tile = (blockIdx.x + 1) * BlockSize <= n;
@@ -111,7 +111,7 @@ __device__ void add_work_stealing_n_impl(InputIt first, cuco::detail::index_type
 
     // Computation:
     // Only use warp-cooperative kernels when CGSize > 1
-    if constexpr (Ref::use_warp_cooperative_add_kernel && CGSize > 1) {
+    if constexpr (Ref::tuning::use_warp_cooperative_add_kernel && CGSize > 1) {
       cuco::detail::index_type const idx = BlockSize * bx + threadIdx.x;
       auto group                         = cg::tiled_partition<CGSize>(block);
       auto const is_full_tile            = (bx + 1) * BlockSize <= n;
@@ -177,7 +177,7 @@ __device__ void contains_n_impl(InputIt first,
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   // Only use warp-cooperative kernels when CGSize > 1
-  if constexpr (Ref::use_warp_cooperative_contains_kernel && CGSize > 1) {
+  if constexpr (Ref::tuning::use_warp_cooperative_contains_kernel && CGSize > 1) {
     auto const idx          = cuco::detail::global_thread_id();
     auto group              = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const is_full_tile = (blockIdx.x + 1) * BlockSize <= n;
@@ -258,7 +258,7 @@ __device__ void contains_work_stealing_n_impl(InputIt first,
 
     // Computation:
     // Only use warp-cooperative kernels when CGSize > 1
-    if constexpr (Ref::use_warp_cooperative_contains_kernel && CGSize > 1) {
+    if constexpr (Ref::tuning::use_warp_cooperative_contains_kernel && CGSize > 1) {
       cuco::detail::index_type const idx = BlockSize * bx + threadIdx.x;
       auto group                         = cg::tiled_partition<CGSize>(block);
       auto const is_full_tile            = (bx + 1) * BlockSize <= n;
@@ -330,7 +330,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  if constexpr (Ref::use_warp_cooperative_add_kernel && CGSize > 1) {
+  if constexpr (Ref::tuning::use_warp_cooperative_add_kernel && CGSize > 1) {
     auto const idx      = cuco::detail::global_thread_id();
     auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const in_range = idx < n;
@@ -372,7 +372,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  if constexpr (Ref::use_warp_cooperative_contains_kernel && CGSize > 1) {
+  if constexpr (Ref::tuning::use_warp_cooperative_contains_kernel && CGSize > 1) {
     auto const idx      = cuco::detail::global_thread_id();
     auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const in_range = idx < n;

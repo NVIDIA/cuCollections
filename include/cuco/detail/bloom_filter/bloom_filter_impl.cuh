@@ -56,16 +56,19 @@ class bloom_filter_impl {
   using atomic_word_type = typename cuda::std::
     conditional_t<cuda::std::is_same_v<word_type, unsigned long>, unsigned long long, word_type>;
 
-  // These knobs need to be public for exposure to the kernel definitions
-  // TODO remove these once we settled on a setup which works best
-  static constexpr bool use_invoke_one                       = true;
-  static constexpr bool use_early_exit                       = false;
-  static constexpr bool use_cub_kernels                      = true;
-  static constexpr bool use_warp_cooperative_add_kernel      = true;
-  static constexpr bool use_warp_cooperative_contains_kernel = true;
-  static constexpr bool use_work_stealing_add_kernel         = false;  // DEBUG
-  static constexpr bool use_work_stealing_contains_kernel    = false;  // DEBUG
-  static constexpr bool use_cuda_atomic_ref                  = false;
+  // Implementation-tuning knobs. Not part of the public API; reached via
+  // `bloom_filter_impl::tuning::use_*` from internal kernels. Defaults reflect the ablation
+  // measurements from arXiv:2512.15595; flip in source for tuning experiments.
+  struct tuning {
+    static constexpr bool use_invoke_one                       = true;
+    static constexpr bool use_early_exit                       = false;
+    static constexpr bool use_cub_kernels                      = true;
+    static constexpr bool use_warp_cooperative_add_kernel      = true;
+    static constexpr bool use_warp_cooperative_contains_kernel = true;
+    static constexpr bool use_work_stealing_add_kernel         = false;
+    static constexpr bool use_work_stealing_contains_kernel    = false;
+    static constexpr bool use_cuda_atomic_ref                  = false;
+  };
 
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
@@ -83,7 +86,8 @@ class bloom_filter_impl {
   static constexpr bool is_cache_sectorized = policy_type::is_cache_sectorized;
 
   // TODO static_assert layout, word type, etc.
-  static_assert((not use_cuda_atomic_ref) or (Scope == cuda::thread_scope::thread_scope_device),
+  static_assert((not tuning::use_cuda_atomic_ref) or
+                  (Scope == cuda::thread_scope::thread_scope_device),
                 "atomicOr requires device scope");
   static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
                 "Number of words per block must be a power-of-two and less than or equal to 32");
@@ -336,7 +340,7 @@ class bloom_filter_impl {
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
-    auto const grid_size      = use_warp_cooperative_add_kernel
+    auto const grid_size      = tuning::use_warp_cooperative_add_kernel
                                   ? cuco::detail::int_div_ceil(num_keys, block_size)
                                   : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
     auto const l2_cache_size  = static_cast<size_t>(cuco::detail::l2_cache_size());
@@ -344,7 +348,7 @@ class bloom_filter_impl {
                              words_per_block * sizeof(word_type);
 
     if (2 * filter_size < l2_cache_size) {
-      if constexpr (use_work_stealing_add_kernel) {
+      if constexpr (tuning::use_work_stealing_add_kernel) {
         detail::bloom_filter_ns::add_work_stealing_n<false, cg_size, block_size>
           <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
       } else {
@@ -352,7 +356,7 @@ class bloom_filter_impl {
           <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
       }
     } else {
-      if constexpr (use_work_stealing_add_kernel) {
+      if constexpr (tuning::use_work_stealing_add_kernel) {
         detail::bloom_filter_ns::add_work_stealing_n<true, cg_size, block_size>
           <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
       } else {
@@ -510,7 +514,7 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    if constexpr (use_cub_kernels and ((words_per_block / contains_vertical_layout) == 1)) {
+    if constexpr (tuning::use_cub_kernels and ((words_per_block / contains_vertical_layout) == 1)) {
       cub::DeviceTransform::Transform(
         first,
         output_begin,
@@ -520,11 +524,11 @@ class bloom_filter_impl {
     } else {
       auto constexpr block_size = 256;
       auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
-      auto const grid_size      = use_warp_cooperative_contains_kernel
+      auto const grid_size      = tuning::use_warp_cooperative_contains_kernel
                                     ? cuco::detail::int_div_ceil(num_keys, block_size)
                                     : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
-      if constexpr (use_work_stealing_contains_kernel) {
+      if constexpr (tuning::use_work_stealing_contains_kernel) {
         detail::bloom_filter_ns::contains_work_stealing_n<cg_size, block_size>
           <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
       } else {
@@ -561,7 +565,7 @@ class bloom_filter_impl {
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
-    auto const grid_size      = use_warp_cooperative_add_kernel
+    auto const grid_size      = tuning::use_warp_cooperative_add_kernel
                                   ? cuco::detail::int_div_ceil(num_keys, block_size)
                                   : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
     auto const l2_cache_size  = static_cast<size_t>(cuco::detail::l2_cache_size());
@@ -606,7 +610,7 @@ class bloom_filter_impl {
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
-    auto const grid_size      = use_warp_cooperative_contains_kernel
+    auto const grid_size      = tuning::use_warp_cooperative_contains_kernel
                                   ? cuco::detail::int_div_ceil(num_keys, block_size)
                                   : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
@@ -765,7 +769,7 @@ class bloom_filter_impl {
   template <bool ConditionalAtomic>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    if constexpr (use_cuda_atomic_ref) {
+    if constexpr (tuning::use_cuda_atomic_ref) {
       if constexpr (ConditionalAtomic) {
         if ((*word_ptr & pattern) != pattern) {
           auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*word_ptr};
@@ -810,7 +814,7 @@ class bloom_filter_impl {
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
       // words.
-      if constexpr (use_early_exit) {
+      if constexpr (tuning::use_early_exit) {
         if (!match) { return false; }
         return compare_pattern<LoopIndex + 1>(block_index, lower_hash);
       } else {
@@ -850,7 +854,7 @@ class bloom_filter_impl {
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
       // words.
-      if constexpr (use_early_exit) {
+      if constexpr (tuning::use_early_exit) {
         // This will degrade performance in selective contexts
         if (group.any(!match)) { return false; }
         return compare_patterns<LoopIndex + 1>(group, block_index, lower_hash, thread_index);
@@ -897,7 +901,7 @@ class bloom_filter_impl {
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
       // words.
-      if constexpr (use_early_exit) {
+      if constexpr (tuning::use_early_exit) {
         if (!match) { return false; }
         return compare_pattern_cs<LoopIndex + 1>(block_index, lower_hash, group_hash);
       } else {
@@ -950,7 +954,7 @@ class bloom_filter_impl {
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
       // words.
-      if constexpr (use_early_exit) {
+      if constexpr (tuning::use_early_exit) {
         // This will degrade performance in selective contexts
         if (group.any(!match)) { return false; }
         return compare_patterns_cs<LoopIndex + 1>(
