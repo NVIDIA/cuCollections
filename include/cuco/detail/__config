@@ -17,6 +17,7 @@
 #pragma once
 
 #include <nv/target>
+#include <cuda/std/__cccl/ptx_isa.h>
 #include <cuda/std/version>
 
 #if !defined(__CUDACC_VER_MAJOR__) || !defined(__CUDACC_VER_MINOR__)
@@ -52,7 +53,7 @@
 #define CUCO_HAS_INT128
 #endif
 
-#if defined(CUCO_HAS_INT128) && (CUCO_CUDA_MINIMUM_ARCH >= 900)
+#if defined(CUCO_HAS_INT128) && (CUCO_CUDA_MINIMUM_ARCH >= 900) && (__cccl_ptx_isa >= 840)
 #define CUCO_HAS_128BIT_ATOMICS
 #endif
 
