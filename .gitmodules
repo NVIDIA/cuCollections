@@ -1,3 +1,0 @@
-[submodule "memcpy_async/cccl"]
-	path = memcpy_async/cccl
-	url = https://github.com/NVIDIA/cccl.git

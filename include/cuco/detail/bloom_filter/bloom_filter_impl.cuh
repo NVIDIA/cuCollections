@@ -1211,6 +1211,89 @@ class bloom_filter_impl {
 #endif
   }
 
+  // Host-side stencil-gated Add Entry Points
+  template <class InputIt, class StencilIt, class Predicate>
+  __host__ void add_exp_if_async(InputIt first,
+                                 InputIt last,
+                                 StencilIt stencil,
+                                 Predicate pred,
+                                 cuda::stream_ref stream) noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto constexpr block_size = 256;
+    auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
+    auto const grid_size      = use_warp_cooperative_add_kernel
+                                  ? cuco::detail::int_div_ceil(num_keys, block_size)
+                                  : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+    auto const l2_cache_size  = static_cast<size_t>(cuco::detail::l2_cache_size());
+    auto const filter_size    = static_cast<size_t>(static_cast<size_type>(num_blocks_)) *
+                             words_per_block * sizeof(word_type);
+
+    if (2 * filter_size < l2_cache_size) {
+      detail::bloom_filter_ns::add_exp_if_n<false, cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
+    } else {
+      detail::bloom_filter_ns::add_exp_if_n<true, cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
+    }
+  }
+
+  template <class InputIt, class StencilIt, class Predicate>
+  __host__ void add_exp_if(InputIt first,
+                           InputIt last,
+                           StencilIt stencil,
+                           Predicate pred,
+                           cuda::stream_ref stream) noexcept
+  {
+    this->add_exp_if_async(first, last, stencil, pred, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
+    stream.wait();
+#endif
+  }
+
+  // Host-side stencil-gated Contains Entry Points
+  template <class InputIt, class StencilIt, class Predicate, class OutputIt>
+  __host__ void contains_exp_if_async(InputIt first,
+                                      InputIt last,
+                                      StencilIt stencil,
+                                      Predicate pred,
+                                      OutputIt output_begin,
+                                      cuda::stream_ref stream) const noexcept
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
+
+    auto constexpr block_size = 256;
+    auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
+    auto const grid_size      = use_warp_cooperative_contains_kernel
+                                  ? cuco::detail::int_div_ceil(num_keys, block_size)
+                                  : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+
+    detail::bloom_filter_ns::contains_exp_if_n<cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(
+        first, num_keys, stencil, pred, output_begin, *this);
+  }
+
+  template <class InputIt, class StencilIt, class Predicate, class OutputIt>
+  __host__ void contains_exp_if(InputIt first,
+                                InputIt last,
+                                StencilIt stencil,
+                                Predicate pred,
+                                OutputIt output_begin,
+                                cuda::stream_ref stream) const noexcept
+  {
+    this->contains_exp_if_async(first, last, stencil, pred, output_begin, stream);
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
+    stream.wait();
+#endif
+  }
+
   // TODO
   // [[nodiscard]] __host__ double occupancy() const;
   // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const

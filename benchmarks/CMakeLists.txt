@@ -100,9 +100,6 @@ ConfigureBench(BLOOM_FILTER_BENCH
   bloom_filter/add_bench.cu
   bloom_filter/contains_bench.cu)
 
-# - thirdparty Bloom filter benchmarks --------------------------------------------------------------
-add_subdirectory(bloom_filter/thirdparty)
-
 ###################################################################################################
 # - roaring_bitmap benchmarks ---------------------------------------------------------------------
 ConfigureBench(ROARING_BITMAP_BENCH
