@@ -16,9 +16,11 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multimap.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/generate.h>
@@ -37,7 +39,7 @@ void test_multiplicity_count(Map& map, size_type num_keys)
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
-  auto const keys_begin = thrust::counting_iterator<Key>{0};
+  auto const keys_begin = cuda::counting_iterator<Key>{0};
 
   SECTION("Count of empty map should be zero.")
   {
@@ -47,8 +49,8 @@ void test_multiplicity_count(Map& map, size_type num_keys)
 
   SECTION("Count of n unique keys should be n.")
   {
-    auto const pairs_begin = thrust::make_transform_iterator(
-      thrust::make_counting_iterator<size_type>(0),
+    auto const pairs_begin = cuda::make_transform_iterator(
+      cuda::make_counting_iterator<size_type>(0),
       cuda::proclaim_return_type<cuco::pair<Key, Value>>(
         [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
     map.insert(pairs_begin, pairs_begin + num_keys);
@@ -59,8 +61,8 @@ void test_multiplicity_count(Map& map, size_type num_keys)
 
   SECTION("Count of n unique keys should be n x multiplicity.")
   {
-    auto const pairs_begin = thrust::make_transform_iterator(
-      thrust::make_counting_iterator<size_type>(0),
+    auto const pairs_begin = cuda::make_transform_iterator(
+      cuda::make_counting_iterator<size_type>(0),
       cuda::proclaim_return_type<cuco::pair<Key, Value>>(
         [] __device__(auto i) { return cuco::pair<Key, Value>{i / multiplicity, i}; }));
     map.insert(pairs_begin, pairs_begin + num_keys * multiplicity);
@@ -81,7 +83,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_type num_keys{1'000};
 

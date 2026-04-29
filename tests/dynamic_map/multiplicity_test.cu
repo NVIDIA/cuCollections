@@ -19,11 +19,10 @@
 #include <cuco/dynamic_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 
@@ -47,15 +46,15 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
   // Create pairs for first submap (keys 0 to num_keys-1)
   auto pairs_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(0),
-                                    cuda::proclaim_return_type<cuco::pair<Key, T>>(
-                                      [] __device__(auto i) { return cuco::pair<Key, T>(i, i); }));
+    cuda::make_transform_iterator(cuda::make_counting_iterator<int>(0),
+                                  cuda::proclaim_return_type<cuco::pair<Key, T>>(
+                                    [] __device__(auto i) { return cuco::pair<Key, T>(i, i); }));
 
   // Create pairs for second submap (keys num_keys to 2*num_keys-1)
   auto pairs_begin_2 =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<int>(num_keys),
-                                    cuda::proclaim_return_type<cuco::pair<Key, T>>(
-                                      [] __device__(auto i) { return cuco::pair<Key, T>(i, i); }));
+    cuda::make_transform_iterator(cuda::make_counting_iterator<int>(num_keys),
+                                  cuda::proclaim_return_type<cuco::pair<Key, T>>(
+                                    [] __device__(auto i) { return cuco::pair<Key, T>(i, i); }));
 
   thrust::device_vector<Key> d_keys(num_keys);
   thrust::device_vector<T> d_results(num_keys);
@@ -78,8 +77,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Try to insert duplicates with DIFFERENT values - should still not insert and preserve
     // originals
-    auto duplicate_pairs_diff_values = thrust::make_transform_iterator(
-      thrust::make_counting_iterator<int>(0),
+    auto duplicate_pairs_diff_values = cuda::make_transform_iterator(
+      cuda::make_counting_iterator<int>(0),
       cuda::proclaim_return_type<cuco::pair<Key, T>>(
         [] __device__(auto i) { return cuco::pair<Key, T>(i, i + 999); }));
     map.insert(duplicate_pairs_diff_values, duplicate_pairs_diff_values + num_keys);
@@ -87,10 +86,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Verify original values are preserved (not overwritten by duplicate insert attempts)
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(d_results.begin(),
-                              d_results.end(),
-                              thrust::counting_iterator<T>(0),
-                              cuda::std::equal_to<T>{}));
+    REQUIRE(cuco::test::equal(
+      d_results.begin(), d_results.end(), cuda::counting_iterator<T>(0), cuda::std::equal_to<T>{}));
   }
 
   SECTION("contains finds keys in any submap")
@@ -129,10 +126,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Find keys from FIRST submap - should return correct values
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(d_results.begin(),
-                              d_results.end(),
-                              thrust::counting_iterator<T>(0),
-                              cuda::std::equal_to<T>{}));
+    REQUIRE(cuco::test::equal(
+      d_results.begin(), d_results.end(), cuda::counting_iterator<T>(0), cuda::std::equal_to<T>{}));
 
     // Find keys from SECOND submap - should return correct values
     thrust::device_vector<Key> d_keys_2(num_keys);
@@ -140,7 +135,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
     map.find(d_keys_2.begin(), d_keys_2.end(), d_results.begin());
     REQUIRE(cuco::test::equal(d_results.begin(),
                               d_results.end(),
-                              thrust::counting_iterator<T>(num_keys),
+                              cuda::counting_iterator<T>(num_keys),
                               cuda::std::equal_to<T>{}));
 
     // Non-existent keys should return empty_value_sentinel (-1)
@@ -210,8 +205,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
     REQUIRE(map.size() == 2 * num_keys);
 
     // Create pairs with same keys as first submap but different values (value = key + 100)
-    auto updated_pairs = thrust::make_transform_iterator(
-      thrust::make_counting_iterator<int>(0),
+    auto updated_pairs = cuda::make_transform_iterator(
+      cuda::make_counting_iterator<int>(0),
       cuda::proclaim_return_type<cuco::pair<Key, T>>(
         [] __device__(auto i) { return cuco::pair<Key, T>(i, i + 100); }));
 
@@ -223,7 +218,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
     REQUIRE(cuco::test::equal(d_results.begin(),
                               d_results.end(),
-                              thrust::counting_iterator<T>(100),  // Values should now be key + 100
+                              cuda::counting_iterator<T>(100),  // Values should now be key + 100
                               cuda::std::equal_to<T>{}));
 
     // Verify second submap values are unchanged
@@ -232,14 +227,14 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
     map.find(d_keys_2.begin(), d_keys_2.end(), d_results.begin());
     REQUIRE(cuco::test::equal(d_results.begin(),
                               d_results.end(),
-                              thrust::counting_iterator<T>(num_keys),
+                              cuda::counting_iterator<T>(num_keys),
                               cuda::std::equal_to<T>{}));
 
     // Test INSERT behavior: insert_or_assign with completely NEW keys should increase size
-    auto new_pairs = thrust::make_transform_iterator(
-      thrust::make_counting_iterator<int>(2 * num_keys),
-      cuda::proclaim_return_type<cuco::pair<Key, T>>(
-        [] __device__(auto i) { return cuco::pair<Key, T>(i, i); }));
+    auto new_pairs =
+      cuda::make_transform_iterator(cuda::make_counting_iterator<int>(2 * num_keys),
+                                    cuda::proclaim_return_type<cuco::pair<Key, T>>(
+                                      [] __device__(auto i) { return cuco::pair<Key, T>(i, i); }));
     map.insert_or_assign(new_pairs, new_pairs + num_keys);
     REQUIRE(map.size() == 3 * num_keys);  // Size should increase by num_keys
 
@@ -249,14 +244,14 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
     map.find(d_keys_new.begin(), d_keys_new.end(), d_results.begin());
     REQUIRE(cuco::test::equal(d_results.begin(),
                               d_results.end(),
-                              thrust::counting_iterator<T>(2 * num_keys),
+                              cuda::counting_iterator<T>(2 * num_keys),
                               cuda::std::equal_to<T>{}));
 
     // Test MIXED behavior: some keys exist (update), some don't (insert)
     // Use keys from 0 to num_keys/2 (exist in first submap) and
     // keys from 3*num_keys to 3*num_keys + num_keys/2 (don't exist)
-    auto mixed_pairs = thrust::make_transform_iterator(
-      thrust::make_counting_iterator<int>(0),
+    auto mixed_pairs = cuda::make_transform_iterator(
+      cuda::make_counting_iterator<int>(0),
       cuda::proclaim_return_type<cuco::pair<Key, T>>([] __device__(auto i) {
         Key key = (i < num_keys / 2) ? Key(i) : Key(3 * num_keys + i - num_keys / 2);
         return cuco::pair<Key, T>(key, T(i + 500));
@@ -300,7 +295,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
     // Values should match keys (since we inserted key=value pairs)
     REQUIRE(cuco::test::equal(d_retrieved_values.begin(),
                               d_retrieved_values.end(),
-                              thrust::counting_iterator<T>(0),
+                              cuda::counting_iterator<T>(0),
                               cuda::std::equal_to<T>{}));
   }
 }

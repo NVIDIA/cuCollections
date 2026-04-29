@@ -19,11 +19,10 @@
 #include <cuco/dynamic_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/equal.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 
@@ -51,8 +50,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
     thrust::sequence(d_keys.begin(), d_keys.end(), 0);
     thrust::sequence(d_values.begin(), d_values.end(), 0);
 
-    auto pairs = thrust::make_transform_iterator(
-      thrust::counting_iterator<std::size_t>{0},
+    auto pairs = cuda::make_transform_iterator(
+      cuda::counting_iterator<std::size_t>{0},
       cuda::proclaim_return_type<cuco::pair<Key, Value>>(
         [keys = d_keys.begin(), values = d_values.begin()] __device__(auto i) {
           return cuco::pair<Key, Value>{keys[i], values[i]};
@@ -85,8 +84,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map retrieve_all tests",
     thrust::sequence(d_keys.begin(), d_keys.end(), 0);
     thrust::sequence(d_values.begin(), d_values.end(), 0);
 
-    auto pairs = thrust::make_transform_iterator(
-      thrust::counting_iterator<std::size_t>{0},
+    auto pairs = cuda::make_transform_iterator(
+      cuda::counting_iterator<std::size_t>{0},
       cuda::proclaim_return_type<cuco::pair<Key, Value>>(
         [keys = d_keys.begin(), values = d_values.begin()] __device__(auto i) {
           return cuco::pair<Key, Value>{keys[i], values[i]};

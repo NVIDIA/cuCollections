@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,15 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
 
@@ -33,7 +34,12 @@ TEMPLATE_TEST_CASE_SIG("static_multiset: operations on different stream than con
                        "",
                        ((typename Key), Key),
                        (int32_t),
-                       (int64_t))
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   cudaStream_t constructor_stream;
   cudaStream_t operation_stream;
@@ -92,8 +98,7 @@ TEMPLATE_TEST_CASE_SIG("static_multiset: operations on different stream than con
       thrust::device_vector<Key> d_results(num_keys);
       multiset.find(d_keys.begin(), d_keys.end(), d_results.begin(), operation_stream);
 
-      auto zip =
-        thrust::make_zip_iterator(cuda::std::make_tuple(d_results.begin(), d_keys.begin()));
+      auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), d_keys.begin()});
       REQUIRE(cuco::test::all_of(zip,
                                  zip + num_keys,
                                  cuda::proclaim_return_type<bool>([] __device__(auto const& p) {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -33,7 +33,16 @@ struct custom_equals {
   __device__ bool operator()(T lhs, T rhs) const { return A[lhs] == A[rhs]; }
 };
 
-TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests", "", ((typename T), T), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests",
+                       "",
+                       ((typename T), T),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   using Key   = T;
   using Value = T;
@@ -54,8 +63,8 @@ TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests", "", ((typename T), T), (
   }
   CUCO_CUDA_TRY(cudaMemcpyToSymbol(A, h_A, SIZE * sizeof(int)));
 
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<T>(0),
+  auto pairs_begin = cuda::make_transform_iterator(
+    cuda::make_counting_iterator<T>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>(i, i); }));
 

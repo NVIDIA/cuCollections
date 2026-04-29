@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,12 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 
@@ -52,7 +53,7 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
     auto d_res_end = set.retrieve_all(d_res.begin());
     thrust::sort(d_res.begin(), d_res_end);
     REQUIRE(cuco::test::equal(
-      d_res.begin(), d_res_end, thrust::counting_iterator<Key>(0), cuda::std::equal_to<Key>{}));
+      d_res.begin(), d_res_end, cuda::counting_iterator<Key>(0), cuda::std::equal_to<Key>{}));
   }
 }
 
@@ -67,7 +68,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr std::size_t num_keys{400};
   constexpr double desired_load_factor = 1.;
@@ -78,14 +87,15 @@ TEMPLATE_TEST_CASE_SIG(
 
   constexpr std::size_t gold_capacity = [&]() {
     if constexpr (cuco::is_double_hashing<probe>::value) {
-      return (CGSize == 1) ? 409   // 409 x 1 x 2
-                           : 422;  // 211 x 2 x 2
+      return (CGSize == 1) ? 401   // 401 x 1 x 1
+                           : 422;  // 211 x 2 x 1
     } else {
       return 400;
     }
   }();
 
-  auto set = cuco::static_set{num_keys, desired_load_factor, cuco::empty_key<Key>{-1}, {}, probe{}};
+  auto set = cuco::static_set{
+    num_keys, desired_load_factor, cuco::empty_key<Key>{static_cast<Key>(-1)}, {}, probe{}};
 
   REQUIRE(set.capacity() == gold_capacity);
 

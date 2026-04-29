@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,14 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
@@ -67,11 +67,11 @@ void test_unique_sequence(Set& set, size_type num_keys)
   {
     set.contains_if(keys_begin,
                     keys_begin + num_keys,
-                    thrust::counting_iterator<std::size_t>(0),
+                    cuda::counting_iterator<std::size_t>(0),
                     is_even,
                     d_contained.begin());
     auto gold_iter =
-      thrust::make_transform_iterator(thrust::counting_iterator<std::size_t>(0), is_even);
+      cuda::make_transform_iterator(cuda::counting_iterator<std::size_t>(0), is_even);
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_contained.begin(), gold_iter});
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -88,7 +88,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_type num_keys{400};
 

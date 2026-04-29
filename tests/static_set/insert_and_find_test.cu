@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,12 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -30,8 +31,8 @@ void test_insert_and_find(Set& set, std::size_t num_keys)
   using Key                     = typename Set::key_type;
   static auto constexpr cg_size = Set::cg_size;
 
-  auto const keys_begin = thrust::counting_iterator<Key>(0);
-  auto const keys_end   = thrust::counting_iterator<Key>(num_keys);
+  auto const keys_begin = cuda::counting_iterator<Key>(0);
+  auto const keys_end   = cuda::counting_iterator<Key>(num_keys);
 
   thrust::device_vector<Key> iters1(num_keys);
   thrust::device_vector<int> iters2(num_keys);
@@ -62,7 +63,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr std::size_t num_keys{400};
 
@@ -70,8 +79,8 @@ TEMPLATE_TEST_CASE_SIG(
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set =
-    cuco::static_set{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
+  auto set = cuco::static_set{
+    num_keys, cuco::empty_key<Key>{static_cast<Key>(-1)}, {}, probe{}, {}, cuco::storage<2>{}};
 
   test_insert_and_find(set, num_keys);
 }

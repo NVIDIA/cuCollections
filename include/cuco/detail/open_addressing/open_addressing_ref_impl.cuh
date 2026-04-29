@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,20 +17,22 @@
 #pragma once
 
 #include <cuco/detail/equal_wrapper.cuh>
+#include <cuco/detail/open_addressing/constraints.cuh>
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
 #include <cuco/detail/utility/cuda.cuh>
+#include <cuco/detail/utils.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
 #include <cuco/probing_scheme.cuh>
 
 #include <cuda/atomic>
+#include <cuda/iterator>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 #include <cuda/utility>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/constant_iterator.h>
 #include <thrust/logical.h>
 #include <thrust/reduce.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
@@ -70,16 +72,23 @@ struct bucket_probing_results {
  *
  * @note This class should NOT be used directly.
  *
- * @throw If the size of the given key type is larger than 8 bytes
+ * @throw If the size of the given key type is larger than `cuco::open_addressing_max_key_size`
+ * @throw If the size of the given slot type is larger than `cuco::open_addressing_max_slot_size`
  * @throw If the given key type doesn't have unique object representations, i.e.,
- * `cuco::bitwise_comparable_v<Key> == false`
+ * `cuco::is_bitwise_comparable_v<Key> == false`
+ * @throw If the given payload type doesn't have unique object representations, i.e.,
+ * `cuco::is_bitwise_comparable_v<T> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
- * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>` returning true
+ * @tparam Key Type used for keys. Requires `sizeof(Key) <= cuco::open_addressing_max_key_size` and
+ * `cuco::is_bitwise_comparable_v<Key>`
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
  * @tparam ProbingScheme Probing scheme (see `include/cuco/probing_scheme.cuh` for options)
- * @tparam StorageRef Storage ref type
+ * @tparam StorageRef Storage ref type. Its `value_type` must fit in
+ * `cuco::open_addressing_max_slot_size`;
+ * payloads, if present, must be 4 or 8 bytes (or 16 with sm_90+) and satisfy
+ * `cuco::is_bitwise_comparable_v<T>`
  * @tparam AllowsDuplicates Flag indicating whether duplicate keys are allowed or not
  */
 template <typename Key,
@@ -88,21 +97,12 @@ template <typename Key,
           typename ProbingScheme,
           typename StorageRef,
           bool AllowsDuplicates>
-class open_addressing_ref_impl {
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
-
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
-  static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                                        ProbingScheme>,
-                "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
+class open_addressing_ref_impl
+  : private open_addressing_compatible<Key, typename StorageRef::value_type, ProbingScheme> {
+  using storage_value_type = typename StorageRef::value_type;
 
   /// Determines if the container is a key/value or key-only store
-  static constexpr auto has_payload =
-    not cuda::std::is_same_v<Key, typename StorageRef::value_type>;
+  static constexpr auto has_payload = not cuda::std::is_same_v<Key, storage_value_type>;
 
   /// Flag indicating whether duplicate keys are allowed or not
   static constexpr auto allows_duplicates = AllowsDuplicates;
@@ -523,9 +523,9 @@ class open_addressing_ref_impl {
 #if __CUDA_ARCH__ < 700
     // Spinning to ensure that the write to the value part took place requires
     // independent thread scheduling introduced with the Volta architecture.
-    static_assert(
-      cuco::detail::is_packable<value_type>(),
-      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+    static_assert(sizeof(value_type) <= 8,
+                  "insert_and_find is not supported for slot types larger than 8 bytes on "
+                  "pre-Volta GPUs.");
 #endif
 
     auto const val = this->heterogeneous_value(value);
@@ -544,26 +544,17 @@ class open_addressing_ref_impl {
 
         // If the key is already in the container, return false
         if (eq_res == detail::equal_result::EQUAL) {
-          if constexpr (has_payload) {
-            // wait to ensure that the write to the value part also took place
-            this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-          }
+          this->maybe_wait_for_payload(slot_ptr);
           return {iterator{slot_ptr}, false};
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           switch (this->attempt_insert_stable(slot_ptr, bucket_slots[i], val)) {
             case insert_result::SUCCESS: {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
-                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-              }
+              this->maybe_wait_for_payload(slot_ptr);
               return {iterator{slot_ptr}, true};
             }
             case insert_result::DUPLICATE: {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
-                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-              }
+              this->maybe_wait_for_payload(slot_ptr);
               return {iterator{slot_ptr}, false};
             }
             default: continue;
@@ -598,9 +589,9 @@ class open_addressing_ref_impl {
 #if __CUDA_ARCH__ < 700
     // Spinning to ensure that the write to the value part took place requires
     // independent thread scheduling introduced with the Volta architecture.
-    static_assert(
-      cuco::detail::is_packable<value_type>(),
-      "insert_and_find is not supported for pair types larger than 8 bytes on pre-Volta GPUs.");
+    static_assert(sizeof(value_type) <= 8,
+                  "insert_and_find is not supported for slot types larger than 8 bytes on "
+                  "pre-Volta GPUs.");
 #endif
 
     auto const val = this->heterogeneous_value(value);
@@ -631,12 +622,7 @@ class open_addressing_ref_impl {
       if (group_finds_equal) {
         auto const src_lane = __ffs(group_finds_equal) - 1;
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
-        if (group.thread_rank() == src_lane) {
-          if constexpr (has_payload) {
-            // wait to ensure that the write to the value part also took place
-            this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-          }
-        }
+        if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
         group.sync();
         return {iterator{reinterpret_cast<value_type*>(res)}, false};
       }
@@ -652,22 +638,12 @@ class open_addressing_ref_impl {
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
-            if (group.thread_rank() == src_lane) {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
-                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-              }
-            }
+            if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
             group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, true};
           }
           case insert_result::DUPLICATE: {
-            if (group.thread_rank() == src_lane) {
-              if constexpr (has_payload) {
-                // wait to ensure that the write to the value part also took place
-                this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
-              }
-            }
+            if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
             group.sync();
             return {iterator{reinterpret_cast<value_type*>(res)}, false};
           }
@@ -1082,9 +1058,9 @@ class open_addressing_ref_impl {
                            OutputMatchIt output_match,
                            AtomicCounter& atomic_counter) const
   {
-    auto constexpr is_outer = false;
-    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    auto const always_true_stencil = thrust::constant_iterator<bool>(true);
+    auto constexpr is_outer        = false;
+    auto const n                   = cuco::detail::distance(input_probe_begin, input_probe_end);
+    auto const always_true_stencil = cuda::constant_iterator<bool>(true);
     auto const identity_predicate  = cuda::std::identity{};
     this->retrieve_impl<is_outer, BlockSize>(block,
                                              input_probe_begin,
@@ -1139,9 +1115,9 @@ class open_addressing_ref_impl {
                                  OutputMatchIt output_match,
                                  AtomicCounter& atomic_counter) const
   {
-    auto constexpr is_outer = true;
-    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);  // TODO include
-    auto const always_true_stencil = thrust::constant_iterator<bool>(true);
+    auto constexpr is_outer        = true;
+    auto const n                   = cuco::detail::distance(input_probe_begin, input_probe_end);
+    auto const always_true_stencil = cuda::constant_iterator<bool>(true);
     auto const identity_predicate  = cuda::std::identity{};
     this->retrieve_impl<is_outer, BlockSize>(block,
                                              input_probe_begin,
@@ -1729,8 +1705,7 @@ class open_addressing_ref_impl {
                                                               value_type expected,
                                                               Value desired) noexcept
   {
-    using packed_type =
-      cuda::std::conditional_t<sizeof(value_type) == 4, cuda::std::uint32_t, cuda::std::uint64_t>;
+    using packed_type = cuco::detail::packed_t<value_type>;
 
     auto* slot_ptr     = reinterpret_cast<packed_type*>(address);
     auto* expected_ptr = reinterpret_cast<packed_type*>(&expected);
@@ -1865,12 +1840,22 @@ class open_addressing_ref_impl {
   {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(address, expected, desired);
-    } else {
+    }
+#if (__CUDA_ARCH__ >= 900)
+    else if constexpr (cuco::detail::is_packable<value_type>()) {
+      return packed_cas(address, expected, desired);
+    }
+#endif
+    else if constexpr (has_payload) {
 #if (__CUDA_ARCH__ < 700)
       return cas_dependent_write(address, expected, desired);
 #else
       return back_to_back_cas(address, expected, desired);
 #endif
+    } else {
+      static_assert(cuco::dependent_false<Value>,
+                    "No valid atomic CAS path: 16-byte key in a key-only container must be "
+                    "packable (have unique object representations) and target sm_90+.");
     }
   }
 
@@ -1898,8 +1883,18 @@ class open_addressing_ref_impl {
   {
     if constexpr (sizeof(value_type) <= 8) {
       return packed_cas(address, expected, desired);
-    } else {
+    }
+#if (__CUDA_ARCH__ >= 900)
+    else if constexpr (cuco::detail::is_packable<value_type>()) {
+      return packed_cas(address, expected, desired);
+    }
+#endif
+    else if constexpr (has_payload) {
       return cas_dependent_write(address, expected, desired);
+    } else {
+      static_assert(cuco::dependent_false<Value>,
+                    "No valid atomic CAS path: 16-byte key in a key-only container must be "
+                    "packable (have unique object representations) and target sm_90+.");
     }
   }
 
@@ -1923,6 +1918,34 @@ class open_addressing_ref_impl {
     do {
       current = ref.load(cuda::std::memory_order_relaxed);
     } while (cuco::detail::bitwise_compare(current, sentinel));
+  }
+
+  /**
+   * @brief Conditionally spin-waits for the payload of a non-atomically inserted slot to become
+   * visible.
+   *
+   * For containers where the key and value are inserted by separate instructions
+   * (`cas_dependent_write` / `back_to_back_cas`), an observer thread may see the key before the
+   * payload. This helper spins until the payload is visible. For atomic single-CAS paths (slot
+   * size <= 8 bytes, or a packable slot on sm_90+ via `atom.cas.b128`), the payload is already
+   * visible and this is a no-op.
+   *
+   * @tparam SlotPtr Pointer-like type to a slot holding a `.second` payload member
+   *
+   * @param slot_ptr Pointer to the slot whose payload may need waiting on
+   */
+  template <typename SlotPtr>
+  __device__ void maybe_wait_for_payload(SlotPtr slot_ptr) noexcept
+  {
+    if constexpr (has_payload and sizeof(value_type) > 8) {
+#if (__CUDA_ARCH__ >= 900)
+      if constexpr (not cuco::detail::is_packable<value_type>()) {
+        this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+      }
+#else
+      this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
+#endif
+    }
   }
 
   // TODO: Clean up the sentinel handling since it's duplicated in ref and equal wrapper

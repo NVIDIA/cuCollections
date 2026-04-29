@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/__config>
+#include <cuco/detail/open_addressing/constraints.cuh>
 #include <cuco/detail/open_addressing/functors.cuh>
 #include <cuco/detail/open_addressing/kernels.cuh>
 #include <cuco/detail/storage/counter_storage.cuh>
@@ -32,10 +33,9 @@
 #include <cub/device/device_for.cuh>
 #include <cub/device/device_select.cuh>
 #include <cuda/atomic>
+#include <cuda/iterator>
 #include <cuda/std/functional>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
+#include <cuda/std/type_traits>
 
 #include <cmath>
 #include <cstdint>
@@ -47,14 +47,16 @@ namespace detail {
  *
  * @note This class should NOT be used directly.
  *
- * @throw If the size of the given key type is larger than 8 bytes
- * @throw If the size of the given slot type is larger than 16 bytes
+ * @throw If the size of the given key type is larger than `cuco::open_addressing_max_key_size`
+ * @throw If the size of the given slot type is larger than `cuco::open_addressing_max_slot_size`
  * @throw If the given key type doesn't have unique object representations, i.e.,
- * `cuco::bitwise_comparable_v<Key> == false`
+ * `cuco::is_bitwise_comparable_v<Key> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
- * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
- * @tparam Value Type used for storage values.
+ * @tparam Key Type used for keys. Requires `sizeof(Key) <= cuco::open_addressing_max_key_size` and
+ * `cuco::is_bitwise_comparable_v<Key>`
+ * @tparam Value Type used for storage values. Requires
+ * `sizeof(Value) <= cuco::open_addressing_max_slot_size`
  * @tparam Extent Data structure size type
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
@@ -70,20 +72,7 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-class open_addressing_impl {
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
-
-  static_assert(sizeof(Value) <= 16, "Container does not support slot types larger than 16 bytes.");
-
-  static_assert(
-    cuco::is_bitwise_comparable_v<Key>,
-    "Key type must have unique object representations or have been explicitly declared as safe for "
-    "bitwise comparison via specialization of cuco::is_bitwise_comparable_v<Key>.");
-
-  static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
-                                        ProbingScheme>,
-                "ProbingScheme must inherit from cuco::detail::probing_scheme_base");
-
+class open_addressing_impl : private open_addressing_compatible<Key, Value, ProbingScheme> {
   /// Determines if the container is a key/value or key-only store
   static constexpr auto has_payload = not cuda::std::is_same_v<Key, Value>;
 
@@ -271,7 +260,7 @@ class open_addressing_impl {
   template <typename InputIt, typename Ref>
   size_type insert(InputIt first, InputIt last, Ref container_ref, cuda::stream_ref stream)
   {
-    auto const always_true = thrust::constant_iterator<bool>{true};
+    auto const always_true = cuda::constant_iterator<bool>{true};
     return this->insert_if(first, last, always_true, cuda::std::identity{}, container_ref, stream);
   }
 
@@ -294,7 +283,7 @@ class open_addressing_impl {
                     Ref container_ref,
                     cuda::stream_ref stream) noexcept
   {
-    auto const always_true = thrust::constant_iterator<bool>{true};
+    auto const always_true = cuda::constant_iterator<bool>{true};
     this->insert_if_async(first, last, always_true, cuda::std::identity{}, container_ref, stream);
   }
 
@@ -494,7 +483,7 @@ class open_addressing_impl {
                       Ref container_ref,
                       cuda::stream_ref stream) const noexcept
   {
-    auto const always_true = thrust::constant_iterator<bool>{true};
+    auto const always_true = cuda::constant_iterator<bool>{true};
     this->contains_if_async(
       first, last, always_true, cuda::std::identity{}, output_begin, container_ref, stream);
   }
@@ -568,7 +557,7 @@ class open_addressing_impl {
                   Ref container_ref,
                   cuda::stream_ref stream) const noexcept
   {
-    auto const always_true = thrust::constant_iterator<bool>{true};
+    auto const always_true = cuda::constant_iterator<bool>{true};
 
     this->find_if_async(
       first, last, always_true, cuda::std::identity{}, output_begin, container_ref, stream);
@@ -853,8 +842,8 @@ class open_addressing_impl {
          offset += stride) {
       auto const num_items =
         std::min(static_cast<cuco::detail::index_type>(this->capacity()) - offset, stride);
-      auto const begin = thrust::make_transform_iterator(
-        thrust::counting_iterator{static_cast<size_type>(offset)},
+      auto const begin = cuda::make_transform_iterator(
+        cuda::counting_iterator{static_cast<size_type>(offset)},
         detail::open_addressing_ns::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
       auto const is_filled = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
         this->empty_key_sentinel(), this->erased_key_sentinel()};

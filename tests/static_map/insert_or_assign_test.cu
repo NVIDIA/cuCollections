@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,14 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -37,8 +37,8 @@ void test_insert_or_assign(Map& map, size_type num_keys)
   using Value = typename Map::mapped_type;
 
   // Insert pairs
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>(0),
+  auto pairs_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
 
@@ -46,8 +46,8 @@ void test_insert_or_assign(Map& map, size_type num_keys)
   REQUIRE(initial_size == num_keys);  // all keys should be inserted
 
   // Query pairs have the same keys but different payloads
-  auto query_pairs_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>(0),
+  auto query_pairs_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>(i, i * 2); }));
 
@@ -58,11 +58,11 @@ void test_insert_or_assign(Map& map, size_type num_keys)
   REQUIRE(updated_size == initial_size);
 
   thrust::device_vector<Key> d_keys(num_keys);
-  thrust::device_vector<Key> d_values(num_keys);
+  thrust::device_vector<Value> d_values(num_keys);
   map.retrieve_all(d_keys.begin(), d_values.begin());
 
-  auto gold_values_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>(0),
+  auto gold_values_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>(0),
     cuda::proclaim_return_type<size_type>([] __device__(auto i) { return i * 2; }));
 
   thrust::sort(thrust::device, d_values.begin(), d_values.end());
@@ -93,7 +93,14 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_type num_keys{400};
 

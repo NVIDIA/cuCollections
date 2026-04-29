@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,9 +19,9 @@
 #include <cuco/bloom_filter.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -42,8 +42,8 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
 
   thrust::device_vector<bool> contained(num_keys, false);
 
-  // auto is_even =
-  //   cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
+  auto is_even =
+    cuda::proclaim_return_type<bool>([] __device__(auto const& i) { return i % 2 == 0; });
 
   SECTION("Non-inserted keys should not be contained.")
   {
@@ -65,23 +65,22 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
     REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
-  // SECTION("All conditionally inserted keys should be contained")
-  // {
-  //   filter.add_if(keys.begin(), keys.end(), thrust::counting_iterator<std::size_t>(0), is_even);
-  //   filter.contains_if(keys.begin(),
-  //                      keys.end(),
-  //                      thrust::counting_iterator<std::size_t>(0),
-  //                      is_even,
-  //                      contained.begin());
-  //   REQUIRE(cuco::test::equal(
-  //     contained.begin(),
-  //     contained.end(),
-  //     thrust::counting_iterator<std::size_t>(0),
-  //     cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx)
-  //     {
-  //       return ((idx % 2) == 0) == idx_contained;
-  //     })));
-  // }
+  SECTION("All conditionally inserted keys should be contained")
+  {
+    filter.add_if(keys.begin(), keys.end(), cuda::counting_iterator<std::size_t>(0), is_even);
+    filter.contains_if(keys.begin(),
+                       keys.end(),
+                       cuda::counting_iterator<std::size_t>(0),
+                       is_even,
+                       contained.begin());
+    REQUIRE(cuco::test::equal(
+      contained.begin(),
+      contained.end(),
+      cuda::counting_iterator<std::size_t>(0),
+      cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
+        return ((idx % 2) == 0) == idx_contained;
+      })));
+  }
 
   // TODO test FPR but how?
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,9 +25,9 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/limits>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 
 // REMOVE sort keys by hash
@@ -85,7 +85,7 @@ void bloom_filter_contains(
                    build_keys.end(),
                    static_cast<int64_t>(0),
                    static_cast<int64_t>(num_keys / num_build_keys));
-  thrust::counting_iterator<Key> keys(0);
+  cuda::counting_iterator<Key> keys(0);
   thrust::device_vector<bool> result(num_keys, false);
 
   state.add_element_count(num_keys);
@@ -138,7 +138,7 @@ void arrow_bloom_filter_contains(nvbench::state& state, nvbench::type_list<Key, 
                    build_keys.end(),
                    static_cast<int64_t>(0),
                    static_cast<int64_t>(num_keys / num_build_keys));
-  thrust::counting_iterator<Key> keys(0);
+  cuda::counting_iterator<Key> keys(0);
   thrust::device_vector<bool> result(num_keys, false);
 
   state.add_element_count(num_keys);

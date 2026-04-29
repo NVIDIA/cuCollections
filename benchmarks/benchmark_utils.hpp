@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/detail/error.hpp>
 #include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
-#include <thrust/iterator/iterator_traits.h>
-#include <thrust/iterator/tabulate_output_iterator.h>
+#include <cuda/iterator>
 
 #include <nv/target>
 
@@ -77,13 +77,13 @@ struct lazy_discard {
 };
 
 /**
- * @brief An output iterator similar to `thrust::discard_iterator` but prevents the write from being
+ * @brief An output iterator similar to `cuda::discard_iterator` but prevents the write from being
  * optimized out by the compiler.
  */
 template <class OutputIt>
 auto make_lazy_discard_iterator(OutputIt it)
 {
-  return thrust::tabulate_output_iterator(lazy_discard<OutputIt>{it});
+  return cuda::make_tabulate_output_iterator(lazy_discard<OutputIt>{it});
 }
 
 }  // namespace cuco::benchmark
@@ -95,3 +95,7 @@ NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::uniform,
 NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::gaussian,
                              "GAUSSIAN",
                              "distribution::gaussian");
+
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+NVBENCH_DECLARE_TYPE_STRINGS(__int128_t, "I128", "__int128_t");
+#endif

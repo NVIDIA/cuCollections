@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2020-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,15 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sort.h>
 
@@ -38,9 +38,9 @@ void test_unique_sequence(Map& map, size_type num_keys)
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
-  auto keys_begin  = thrust::counting_iterator<Key>{0};
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<size_type>(0),
+  auto keys_begin  = cuda::counting_iterator<Key>{0};
+  auto pairs_begin = cuda::make_transform_iterator(
+    cuda::make_counting_iterator<size_type>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
   thrust::device_vector<bool> d_contained(num_keys);
@@ -63,7 +63,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
   SECTION("All conditionally inserted keys should be contained")
   {
     auto const inserted = map.insert_if(
-      pairs_begin, pairs_begin + num_keys, thrust::counting_iterator<std::size_t>(0), is_even);
+      pairs_begin, pairs_begin + num_keys, cuda::counting_iterator<std::size_t>(0), is_even);
     REQUIRE(inserted == num_keys / 2);
     REQUIRE(map.size() == num_keys / 2);
 
@@ -71,7 +71,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(cuco::test::equal(
       d_contained.begin(),
       d_contained.end(),
-      thrust::counting_iterator<std::size_t>(0),
+      cuda::counting_iterator<std::size_t>(0),
       cuda::proclaim_return_type<bool>([] __device__(auto const& idx_contained, auto const& idx) {
         return ((idx % 2) == 0) == idx_contained;
       })));
@@ -91,11 +91,11 @@ void test_unique_sequence(Map& map, size_type num_keys)
   {
     map.contains_if(keys_begin,
                     keys_begin + num_keys,
-                    thrust::counting_iterator<std::size_t>(0),
+                    cuda::counting_iterator<std::size_t>(0),
                     is_even,
                     d_contained.begin());
     auto gold_iter =
-      thrust::make_transform_iterator(thrust::counting_iterator<std::size_t>(0), is_even);
+      cuda::make_transform_iterator(cuda::counting_iterator<std::size_t>(0), is_even);
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_contained.begin(), gold_iter});
     REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
   }
@@ -111,7 +111,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     thrust::sort(thrust::device, d_values.begin(), values_end);
     REQUIRE(cuco::test::equal(d_values.begin(),
                               values_end,
-                              thrust::make_counting_iterator<Value>(0),
+                              cuda::make_counting_iterator<Value>(0),
                               cuda::std::equal_to<Value>{}));
   }
 }
@@ -131,7 +131,14 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_type num_keys{400};
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -85,7 +85,13 @@ TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup tests",
                        "",
                        ((typename T, int CGSize), T, CGSize),
                        (int32_t, 1),
-                       (int32_t, 2))
+                       (int32_t, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t, 1),
+                       (__int128_t, 2)
+#endif
+)
 {
   using Key        = T;
   using InsertKey  = key_pair<T>;
@@ -101,11 +107,11 @@ TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup tests",
   auto my_set =
     cuco::static_set{capacity, cuco::empty_key<Key>{sentinel_key}, custom_key_equal{}, probe};
 
-  auto insert_keys = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0),
+  auto insert_keys = cuda::make_transform_iterator(
+    cuda::counting_iterator<int>(0),
     cuda::proclaim_return_type<InsertKey>([] __device__(auto i) { return InsertKey(i); }));
-  auto probe_keys = thrust::make_transform_iterator(
-    thrust::counting_iterator<int>(0),
+  auto probe_keys = cuda::make_transform_iterator(
+    cuda::counting_iterator<int>(0),
     cuda::proclaim_return_type<ProbeKey>([] __device__(auto i) { return ProbeKey(i); }));
 
   SECTION("All inserted keys should be contained")

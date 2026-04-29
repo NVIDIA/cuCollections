@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,10 +24,10 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/limits>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 
 #include <cstdint>
@@ -70,7 +70,7 @@ void bloom_filter_add(nvbench::state& state,
     state.skip("num_sub_filters too large for size_type");  // skip invalid configurations
   }
 
-  thrust::counting_iterator<Key> keys(0);
+  cuda::counting_iterator<Key> keys(0);
 
   state.add_element_count(num_keys);
 
@@ -111,7 +111,7 @@ void arrow_bloom_filter_add(nvbench::state& state, nvbench::type_list<Key, Dist>
                                                                                  // configurations
   }
 
-  thrust::counting_iterator<Key> keys(0);
+  cuda::counting_iterator<Key> keys(0);
 
   state.add_element_count(num_keys);
 
@@ -195,7 +195,7 @@ void pfp_bloom_filter_add_impl(nvbench::state& state,
     if constexpr (ExcludeIO) {
       state.add_global_memory_writes<Word>(num_keys * words_per_block);
 
-      thrust::counting_iterator<Key> keys(0);
+      cuda::counting_iterator<Key> keys(0);
 
       state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
         timer.start();

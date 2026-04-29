@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
@@ -38,7 +38,7 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
   thrust::device_vector<Key> keys(num_keys);
   thrust::device_vector<Key> matched_keys(num_keys);
 
-  auto iter = thrust::counting_iterator<Key>{0};
+  auto iter = cuda::counting_iterator<Key>{0};
 
   SECTION("Non-inserted keys should not be contained.")
   {
@@ -63,10 +63,10 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
     thrust::sort(keys.begin(), probe_end);
     thrust::sort(matched_keys.begin(), matched_end);
     REQUIRE(cuco::test::equal(
-      keys.begin(), keys.end(), thrust::counting_iterator<Key>(0), cuda::std::equal_to<Key>{}));
+      keys.begin(), keys.end(), cuda::counting_iterator<Key>(0), cuda::std::equal_to<Key>{}));
     REQUIRE(cuco::test::equal(matched_keys.begin(),
                               matched_keys.end(),
-                              thrust::counting_iterator<Key>(0),
+                              cuda::counting_iterator<Key>(0),
                               cuda::std::equal_to<Key>{}));
   }
 }
@@ -82,7 +82,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr std::size_t num_keys{400};
   constexpr double desired_load_factor = 1.;
@@ -91,8 +99,11 @@ TEMPLATE_TEST_CASE_SIG(
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
-  auto set = cuco::static_set{
-    num_keys, desired_load_factor, cuco::empty_key<Key>{key_sentinel}, {}, probe{}};
+  auto set = cuco::static_set{num_keys,
+                              desired_load_factor,
+                              cuco::empty_key<Key>{static_cast<Key>(key_sentinel)},
+                              {},
+                              probe{}};
 
   test_unique_sequence(set, num_keys);
 }

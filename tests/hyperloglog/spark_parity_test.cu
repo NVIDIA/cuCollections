@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,8 @@
 #include <cuco/hyperloglog.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/reverse_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -76,10 +74,10 @@ TEST_CASE("hyperloglog: Spark parity: deterministic cardinality estimation", "")
   REQUIRE(estimator_type::sketch_bytes(sd) == estimator_type::sketch_bytes(sb));
 
   auto items_begin =
-    thrust::make_transform_iterator(thrust::make_counting_iterator<size_t>(0),
-                                    cuda::proclaim_return_type<T>([repeats] __device__(auto i) {
-                                      return static_cast<T>(i / repeats);
-                                    }));
+    cuda::make_transform_iterator(cuda::make_counting_iterator<size_t>(0),
+                                  cuda::proclaim_return_type<T>([repeats] __device__(auto i) {
+                                    return static_cast<T>(i / repeats);
+                                  }));
 
   estimator_type estimator{sd};
 
@@ -142,7 +140,7 @@ TEST_CASE("hyperloglog: Spark parity: merging HLL instances", "")
   auto num_items          = 1000000;
   auto standard_deviation = cuco::standard_deviation(0.05);
 
-  auto items_begin = thrust::make_counting_iterator<T>(0);
+  auto items_begin = cuda::make_counting_iterator<T>(0);
 
   // count lower half of input
   estimator_type lower{standard_deviation};
@@ -155,7 +153,7 @@ TEST_CASE("hyperloglog: Spark parity: merging HLL instances", "")
   // merge upper into lower so lower has seen the entire input
   lower.merge(upper);
 
-  auto reversed_items_begin = thrust::make_transform_iterator(
+  auto reversed_items_begin = cuda::make_transform_iterator(
     items_begin, cuda::proclaim_return_type<T>([num_items] __device__(auto i) {
       return static_cast<T>(num_items - i);
     }));

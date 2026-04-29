@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/atomic>
 #include <cuda/functional>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
+#include <cuda/iterator>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
@@ -103,7 +103,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_t num_unique_keys{400};
   constexpr size_t key_multiplicity{5};
@@ -116,10 +124,10 @@ TEMPLATE_TEST_CASE_SIG(
   auto set =
     cuco::static_multiset{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
 
-  auto unique_keys_begin  = thrust::counting_iterator<Key>(0);
+  auto unique_keys_begin  = cuda::counting_iterator<Key>(0);
   auto gen_duplicate_keys = cuda::proclaim_return_type<Key>(
     [] __device__(auto const& k) { return static_cast<Key>(k % num_unique_keys); });
-  auto keys_begin = thrust::make_transform_iterator(unique_keys_begin, gen_duplicate_keys);
+  auto keys_begin = cuda::make_transform_iterator(unique_keys_begin, gen_duplicate_keys);
 
   set.insert(keys_begin, keys_begin + num_keys);
 

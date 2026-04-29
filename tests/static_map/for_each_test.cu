@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,13 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/atomic>
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -37,8 +37,8 @@ void test_for_each(Map& map, size_type num_keys)
   REQUIRE(num_keys % 2 == 0);
 
   // Insert pairs
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<size_type>(0),
+  auto pairs_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<size_type>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
       // use payload as 1 for even keys and 2 for odd keys
       return cuco::pair<Key, Value>{i, i % 2 + 1};
@@ -67,8 +67,8 @@ void test_for_each(Map& map, size_type num_keys)
   counter_storage.reset(stream);
 
   map.for_each(
-    thrust::counting_iterator<size_type>(0),
-    thrust::counting_iterator<size_type>(2 * num_keys),  // test for false-positives
+    cuda::counting_iterator<size_type>(0),
+    cuda::counting_iterator<size_type>(2 * num_keys),  // test for false-positives
     [counter = counter_storage.data()] __device__(auto const slot) {
       auto const& [key, value] = slot;
       if (((key % 2 == 0)) and (value == 1)) { counter->fetch_add(1, cuda::memory_order_relaxed); }
@@ -100,7 +100,14 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_type num_keys{100};
   using probe = std::conditional_t<

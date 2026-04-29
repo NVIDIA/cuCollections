@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,15 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
-#include <thrust/iterator/counting_iterator.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/sequence.h>
 
@@ -33,7 +34,12 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
                        "",
                        ((typename Key), Key),
                        (int32_t),
-                       (int64_t))
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
   cudaStream_t constructor_stream;
   cudaStream_t operation_stream;
@@ -43,7 +49,7 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
   {  // Scope ensures set is destroyed before streams
     constexpr std::size_t num_keys{500'000};
     auto set = cuco::static_set{num_keys * 2,
-                                cuco::empty_key<Key>{-1},
+                                cuco::empty_key<Key>{static_cast<Key>(-1)},
                                 {},
                                 cuco::linear_probing<1, cuco::default_hash_function<Key>>{},
                                 {},
@@ -72,8 +78,7 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
       thrust::device_vector<Key> d_results(num_keys);
       set.find(d_keys.begin(), d_keys.end(), d_results.begin(), operation_stream);
 
-      auto zip =
-        thrust::make_zip_iterator(cuda::std::make_tuple(d_results.begin(), d_keys.begin()));
+      auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), d_keys.begin()});
       REQUIRE(cuco::test::all_of(zip,
                                  zip + num_keys,
                                  cuda::proclaim_return_type<bool>([] __device__(auto const& p) {

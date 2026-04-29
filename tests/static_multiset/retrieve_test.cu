@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,15 +16,14 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multiset.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -47,8 +46,8 @@ void test_multiplicity(Container& container, std::size_t num_keys, std::size_t m
   thrust::device_vector<key_type> probed_keys(num_actual_keys);
   thrust::device_vector<key_type> matched_keys(num_actual_keys);
 
-  auto const keys_begin = thrust::make_transform_iterator(
-    thrust::counting_iterator<key_type>(0),
+  auto const keys_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<key_type>(0),
     cuda::proclaim_return_type<key_type>([multiplicity] __device__(auto const& i) {
       return static_cast<key_type>(i / multiplicity);
     }));
@@ -77,7 +76,7 @@ void test_outer(Container& container, std::size_t num_keys)
 
   container.clear();
 
-  auto const keys_begin = thrust::counting_iterator<key_type>{0};
+  auto const keys_begin = cuda::counting_iterator<key_type>{0};
   auto const query_size = num_keys * 2ull;
 
   thrust::device_vector<key_type> probed_keys(num_keys * 2ull);
@@ -142,7 +141,15 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, cuco::test::probe_sequence::linear_probing, 2),
   (int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr std::size_t num_keys{400};
   constexpr double desired_load_factor = 0.5;

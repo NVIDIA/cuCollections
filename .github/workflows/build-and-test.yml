@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: Copyright (c) 2023 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2023-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,7 +47,7 @@ jobs:
     uses: ./.github/workflows/run-as-coder.yml
     with:
       name: Test ${{inputs.test_name}}
-      runner: linux-${{inputs.cpu}}-gpu-v100-latest-1
+      runner: linux-${{inputs.cpu}}-gpu-h100-latest-1
       image: ${{inputs.container_image}}
       command: |
         nvidia-smi
