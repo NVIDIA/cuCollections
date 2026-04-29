@@ -82,10 +82,8 @@ class bloom_filter_impl {
   static constexpr auto contains_loop_count =
     words_per_block / (contains_vertical_layout * contains_horizontal_layout);
 
-  //===----------Cache-Sectorized----------===//
   static constexpr bool is_cache_sectorized = policy_type::is_cache_sectorized;
 
-  // TODO static_assert layout, word type, etc.
   static_assert((not tuning::use_cuda_atomic_ref) or
                   (Scope == cuda::thread_scope::thread_scope_device),
                 "atomicOr requires device scope");

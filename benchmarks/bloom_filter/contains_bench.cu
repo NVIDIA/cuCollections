@@ -27,12 +27,10 @@
 
 #include <cuda/iterator>
 #include <cuda/std/limits>
+#include <thrust/count.h>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
-
-// REMOVE sort keys by hash
-#include <thrust/sort.h>
-#include <thrust/transform.h>
 
 #include <exception>
 #include <limits>
@@ -138,15 +136,9 @@ void pfp_bloom_filter_contains_impl(nvbench::state& state,
       thrust::device_vector<Key> keys(num_keys);
       thrust::sequence(thrust::device, keys.begin(), keys.end(), 0);
 
-      // sort keys by hash
-      // thrust::device_vector<uint64_t> hashes(num_keys);
-      // thrust::transform(thrust::device, keys.begin(), keys.end(), hashes.begin(), hasher());
-      // thrust::sort_by_key(thrust::device, hashes.begin(), hashes.end(), keys.begin());
-
       state.add_global_memory_reads<char>(num_keys *
                                           ((words_per_block * sizeof(Word)) + sizeof(Key)));
       state.add_global_memory_writes<char>(num_keys * sizeof(bool));
-      // state.collect_dram_throughput();
 
       state.exec([&](nvbench::launch& launch) {
         filter.contains_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
