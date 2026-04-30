@@ -49,8 +49,7 @@ constexpr static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Alloca
                                       pred,
                                       probing_scheme,
                                       alloc,
-                                      stream)},
-    empty_value_sentinel_{empty_value_sentinel}
+                                      stream)}
 {
 }
 
@@ -79,8 +78,7 @@ constexpr static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Alloca
                                       pred,
                                       probing_scheme,
                                       alloc,
-                                      stream)},
-    empty_value_sentinel_{empty_value_sentinel}
+                                      stream)}
 {
 }
 
@@ -109,8 +107,7 @@ constexpr static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Alloca
                                       pred,
                                       probing_scheme,
                                       alloc,
-                                      stream)},
-    empty_value_sentinel_{empty_value_sentinel}
+                                      stream)}
 {
 }
 
@@ -689,7 +686,7 @@ constexpr static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Alloca
   static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
     empty_value_sentinel() const noexcept
 {
-  return empty_value_sentinel_;
+  return impl_->empty_payload_sentinel();
 }
 
 template <class Key,

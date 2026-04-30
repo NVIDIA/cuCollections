@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -54,8 +54,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
                                       pred,
                                       probing_scheme,
                                       alloc,
-                                      stream)},
-    empty_value_sentinel_{empty_value_sentinel}
+                                      stream)}
 {
 }
 
@@ -84,8 +83,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
                                       pred,
                                       probing_scheme,
                                       alloc,
-                                      stream)},
-    empty_value_sentinel_{empty_value_sentinel}
+                                      stream)}
 {
 }
 
@@ -114,8 +112,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
                                       pred,
                                       probing_scheme,
                                       alloc,
-                                      stream)},
-    empty_value_sentinel_{empty_value_sentinel}
+                                      stream)}
 {
 }
 
@@ -885,7 +882,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
   static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
     empty_value_sentinel() const noexcept
 {
-  return this->empty_value_sentinel_;
+  return impl_->empty_payload_sentinel();
 }
 
 template <class Key,
