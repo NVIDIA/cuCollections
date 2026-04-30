@@ -63,10 +63,12 @@ template <class Hash,
           uint32_t GroupsPerBlock = WordsPerBlock>
 class parametric_filter_policy {
  public:
-  using hasher             = Hash;
-  using word_type          = Word;
-  using hash_argument_type = typename hasher::argument_type;
-  using hash_result_type   = decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));
+  using hasher             = Hash;                            ///< 64-bit hash functor type
+  using word_type          = Word;                            ///< Underlying filter-block word type
+  using hash_argument_type = typename hasher::argument_type;  ///< Hash function input type
+  using hash_result_type =
+    decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));  ///< Hash function
+                                                                           ///< output type
 
  private:
   static constexpr uint32_t max_salts                          = 64;
@@ -84,8 +86,8 @@ class parametric_filter_policy {
   static constexpr uint32_t word_bits = cuda::std::numeric_limits<word_type>::digits;
 
  public:
-  static constexpr uint32_t words_per_block = WordsPerBlock;
-  static constexpr uint32_t pattern_bits    = PatternBits;
+  static constexpr uint32_t words_per_block = WordsPerBlock;  ///< Number of words per filter block
+  static constexpr uint32_t pattern_bits    = PatternBits;    ///< Fingerprint bits per key
 
   static constexpr uint32_t add_horizontal_layout =
     AddHorizontalLayout;  ///< horizontal vectorization layout for add operation
@@ -96,31 +98,39 @@ class parametric_filter_policy {
   static constexpr uint32_t contains_vertical_layout =
     ContainsVerticalLayout;  ///< vertical vectorization layout for contains operation
 
-  static constexpr size_t max_filter_blocks = cuda::std::numeric_limits<uint32_t>::max();
-  // This ensures each word in the block has at least one bit set; otherwise we would never
-  // use some of the words
+  static constexpr size_t max_filter_blocks =
+    cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks
+  /// Lower bound on `pattern_bits`: at least one bit per word so every word contributes.
   static constexpr auto min_pattern_bits = words_per_block;
-  // The maximum number of bits to be set for a key is capped by the total number of bits in
-  // the filter block, as well as the number of available salts
+  /// Upper bound on `pattern_bits`: the total number of bits in a filter block, capped by the
+  /// number of available salts.
   static constexpr auto max_pattern_bits = cuda::std::min(word_bits * words_per_block, max_salts);
 
   //===----------Cache-Sectorized----------===//
-  static constexpr uint32_t groups_per_block = GroupsPerBlock;
-  static constexpr bool is_cache_sectorized  = groups_per_block != words_per_block ? true : false;
-  static constexpr uint32_t words_per_group  = words_per_block / groups_per_block;
+  static constexpr uint32_t groups_per_block =
+    GroupsPerBlock;  ///< Cache-sectorization groups per block (paper's z)
+  static constexpr bool is_cache_sectorized =
+    groups_per_block != words_per_block ? true : false;  ///< CSBF mode flag
+  static constexpr uint32_t words_per_group =
+    words_per_block / groups_per_block;  ///< Words per cache-sectorization group
   // TODO: when `pattern_bits % groups_per_block != 0`, using a ceil packs all remainder bits into
   // the first `pattern_bits / max_bits_per_group` groups, leaving later groups with a zero
   // expected pattern. This wastes block capacity and inflates FPR. Distribute floor bits to every
   // group plus one extra bit to the first `pattern_bits % groups_per_block` groups, and update
   // the salt-to-group mapping in `set_bits` accordingly.
-  static constexpr uint32_t max_bits_per_group =
-    cuco::detail::int_div_ceil(pattern_bits, groups_per_block);
-  static constexpr uint32_t add_groups_per_vertical_layout = add_vertical_layout / words_per_group;
+  static constexpr uint32_t max_bits_per_group = cuco::detail::int_div_ceil(
+    pattern_bits, groups_per_block);  ///< CSBF: max fingerprint bits set per group per key
+  static constexpr uint32_t add_groups_per_vertical_layout =
+    add_vertical_layout / words_per_group;  ///< CSBF: groups touched per add vertical step
   static constexpr uint32_t contains_groups_per_vertical_layout =
-    contains_vertical_layout / words_per_group;
-  static constexpr uint32_t group_index_salt  = 0x5bd1e995U;
-  static constexpr uint32_t group_index_width = cuda::std::bit_width(words_per_group - 1);
-  static constexpr uint32_t group_index_mask  = words_per_group - 1;
+    contains_vertical_layout /
+    words_per_group;  ///< CSBF: groups touched per contains vertical step
+  static constexpr uint32_t group_index_salt =
+    0x5bd1e995U;  ///< CSBF: salt for selecting one word per group
+  static constexpr uint32_t group_index_width = cuda::std::bit_width(
+    words_per_group - 1);  ///< CSBF: bits needed to encode an in-group word index
+  static constexpr uint32_t group_index_mask =
+    words_per_group - 1;  ///< CSBF: mask for selecting an in-group word index
 
  private:
   static constexpr uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
@@ -135,6 +145,11 @@ class parametric_filter_policy {
     cuco::detail::int_div_ceil(pattern_bits, words_per_block);
 
  public:
+  /**
+   * @brief Constructs a parametric filter policy.
+   *
+   * @param hash Hash function used to generate fingerprints.
+   */
   __host__ __device__ constexpr parametric_filter_policy(Hash hash = {}) : hash_{hash}
   {
     static_assert(pattern_bits >= min_pattern_bits,
@@ -178,28 +193,69 @@ class parametric_filter_policy {
                   "within 32 bits");
   }
 
-  // Return {upper 32b, lower 32b} of 64b hash
+  /**
+   * @brief Splits the 64-bit hash of a key into its upper and lower 32 bits.
+   *
+   * The upper half is used for block selection (via multiply-shift); the lower half drives the
+   * per-word fingerprint pattern via salt-based multiplicative hashing.
+   *
+   * @param key Key to hash.
+   *
+   * @return `{upper 32 bits, lower 32 bits}` of the 64-bit hash.
+   */
   __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(hash_argument_type key) const
   {
     auto const hash_value = hash_(key);
     return {static_cast<uint32_t>(hash_value >> 32), static_cast<uint32_t>(hash_value)};
   }
 
+  /**
+   * @brief Determines the filter block a key maps to via fast multiply-shift modulo.
+   *
+   * @tparam Extent Size type used to determine the number of blocks in the filter.
+   *
+   * @param upper_hash_value Upper 32 bits of the key's hash.
+   * @param num_blocks Number of blocks in the filter.
+   *
+   * @return Block index in `[0, num_blocks)`.
+   */
   template <class Extent>
   __device__ constexpr auto block_index(uint32_t upper_hash_value, Extent num_blocks) const
   {
-    // return upper_hash_value % num_blocks;
     return static_cast<uint32_t>((static_cast<uint64_t>(upper_hash_value) *
                                   static_cast<typename Extent::value_type>(num_blocks)) >>
                                  32);
   }
 
+  /**
+   * @brief Generates the per-word fingerprint pattern for a key when the horizontal layout is 1.
+   *
+   * @tparam LoopIndex Outer-loop iteration index when `words_per_block / VerticalLayout > 1`.
+   * @tparam VerticalLayout Number of contiguous words this call produces.
+   *
+   * @param lower_hash_value Lower 32 bits of the key's hash.
+   *
+   * @return Array of `VerticalLayout` (or `groups_per_vertical_layout` in CSBF mode) words.
+   */
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
   {
     return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
   }
 
+  /**
+   * @brief Generates the per-word fingerprint pattern for a key when the horizontal layout is > 1.
+   *
+   * @tparam LoopIndex Outer-loop iteration index.
+   * @tparam HorizontalLayout Cooperative-group size cooperating on a single key.
+   * @tparam VerticalLayout Number of contiguous words this call produces.
+   *
+   * @param lower_hash_value Lower 32 bits of the key's hash.
+   * @param thread_index Caller's rank within the cooperative group.
+   *
+   * @return Array of `VerticalLayout` (or `groups_per_vertical_layout` in CSBF mode) words owned
+   * by the calling thread.
+   */
   template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value, uint32_t thread_index) const
   {
