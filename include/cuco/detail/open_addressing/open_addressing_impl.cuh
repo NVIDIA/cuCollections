@@ -1112,8 +1112,6 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   /**
    * @brief Gets the sentinel value used to represent an empty payload slot.
    *
-   * @note Only available when the slot carries a payload (i.e. for maps).
-   *
    * @return The sentinel value used to represent an empty payload slot
    */
   template <bool HasPayload = has_payload, cuda::std::enable_if_t<HasPayload, int> = 0>
@@ -1332,8 +1330,6 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
 
   /**
    * @brief Extracts the payload from a given slot.
-   *
-   * @note Only available when the slot carries a payload (i.e. for maps).
    *
    * @param slot The input slot
    *
