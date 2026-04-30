@@ -217,31 +217,65 @@ class bloom_filter_impl {
     return num_blocks_;
   }
 
-  // Single Thread Add
+  // Single Thread Add. Layout-agnostic: when `add_horizontal_layout > 1`, runs the per-virtual-
+  // thread work serially in the calling thread.
   template <bool ConditionalAtomic = true, class BuildKey>
   __device__ void add(BuildKey build_key)
   {
-    static_assert(add_horizontal_layout == 1, "This add() requires add_horizontal_layout == 1");
-
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
-    if constexpr (is_cache_sectorized) {
-      auto const group_hash = lower_hash * policy_type::group_index_salt;
-      add_pattern_cs<ConditionalAtomic, 0>(block_index, lower_hash, group_hash);
+    if constexpr (add_horizontal_layout == 1) {
+      if constexpr (is_cache_sectorized) {
+        auto const group_hash = lower_hash * policy_type::group_index_salt;
+        add_pattern_cs<ConditionalAtomic, 0>(block_index, lower_hash, group_hash);
+      } else {
+        add_pattern<ConditionalAtomic, 0>(block_index, lower_hash);
+      }
     } else {
-      add_pattern<ConditionalAtomic, 0>(block_index, lower_hash);
+      if constexpr (is_cache_sectorized) {
+        auto const group_hash = lower_hash * policy_type::group_index_salt;
+#pragma unroll
+        for (uint32_t thread_index = 0; thread_index < add_horizontal_layout; ++thread_index) {
+          add_patterns_cs<ConditionalAtomic, 0>(block_index, lower_hash, group_hash, thread_index);
+        }
+      } else {
+#pragma unroll
+        for (uint32_t thread_index = 0; thread_index < add_horizontal_layout; ++thread_index) {
+          add_patterns<ConditionalAtomic, 0>(block_index, lower_hash, thread_index);
+        }
+      }
     }
   }
 
-  // Multi Thread Add
+  // Multi Thread Add. Layout-flexible: when the CG size matches `add_horizontal_layout`, runs the
+  // optimal cooperative path with one shared hash evaluation; otherwise has one lane perform the
+  // layout-agnostic scalar insert and synchronizes the rest.
   template <bool ConditionalAtomic = true, class CG, class BuildKey>
   __device__ void add(CG group, BuildKey build_key)
   {
-    static_assert(add_horizontal_layout > 1, "This add() requires add_horizontal_layout > 1");
+    namespace cg = cooperative_groups;
 
-    auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
-    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    if constexpr (add_horizontal_layout == 1 || tile_size_v<CG> != add_horizontal_layout) {
+      // Tile size doesn't match the layout. Pick one lane to do the scalar (layout-agnostic)
+      // insert; the rest wait at the implicit sync.
+      cg::invoke_one(group, [&] __device__() { this->template add<ConditionalAtomic>(build_key); });
+      return;
+    }
+
+    auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
+      if constexpr (tuning::use_invoke_one) {
+        return cg::invoke_one_broadcast(group, [&] __device__() {
+          auto const sh = policy_.split_hash(build_key);
+          return cuda::std::make_tuple(
+            sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
+        });
+      } else {
+        auto const sh = policy_.split_hash(build_key);
+        return cuda::std::make_tuple(
+          sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
+      }
+    }();
 
     if constexpr (is_cache_sectorized) {
       auto const group_hash = lower_hash * policy_type::group_index_salt;
@@ -284,8 +318,18 @@ class bloom_filter_impl {
   {
     constexpr auto num_threads = tile_size_v<CG>;
 
-    auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
-    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    // Compute the hash and block index only for lanes whose key is valid; invalid lanes' values
+    // are never used (the shfl loop below gates per-iteration work on `group.shfl(is_valid, i)`).
+    // Skipping the hash here saves work on sparse stencil-gated inserts.
+    uint32_t upper_hash   = 0;
+    uint32_t lower_hash   = 0;
+    size_type block_index = 0;
+    if (is_valid) {
+      auto const sh = policy_.split_hash(build_key);
+      upper_hash    = sh.first;
+      lower_hash    = sh.second;
+      block_index   = policy_.block_index(upper_hash, num_blocks_);
+    }
 
     if constexpr (is_cache_sectorized) {
       auto const group_hash = lower_hash * policy_type::group_index_salt;
@@ -319,13 +363,29 @@ class bloom_filter_impl {
     }
   }
 
-  // Device-side range add (cooperative): each iteration cooperatively inserts one key.
+  // Device-side range add (cooperative). When the tile size matches `add_horizontal_layout`,
+  // each batch loads/hashes one key per lane in parallel, then the tile cooperatively processes
+  // them via `add_coop`. Otherwise the tile parallelizes across the key range with each lane
+  // scalar-inserting its own keys.
   template <class CG, class InputIt>
   __device__ void add(CG group, InputIt first, InputIt last)
   {
+    using key_type      = typename cuda::std::iterator_traits<InputIt>::value_type;
     auto const num_keys = cuco::detail::distance(first, last);
-    for (decltype(num_keys) i = 0; i < num_keys; ++i) {
-      this->add(group, *(first + i));
+    if constexpr (tile_size_v<CG> == add_horizontal_layout && add_horizontal_layout > 1) {
+      auto constexpr num_threads = static_cast<decltype(num_keys)>(tile_size_v<CG>);
+      for (decltype(num_keys) batch = 0; batch < num_keys; batch += num_threads) {
+        auto const idx      = batch + static_cast<decltype(num_keys)>(group.thread_rank());
+        auto const is_valid = idx < num_keys;
+        key_type const key  = is_valid ? *(first + idx) : key_type{};
+        this->template add_coop<true>(group, key, is_valid);
+      }
+    } else {
+      auto const stride = static_cast<decltype(num_keys)>(tile_size_v<CG>);
+      for (auto i = static_cast<decltype(num_keys)>(group.thread_rank()); i < num_keys;
+           i += stride) {
+        this->add(*(first + i));
+      }
     }
   }
 
@@ -375,42 +435,77 @@ class bloom_filter_impl {
 #endif
   }
 
-  // Single Thread Contains
+  // Single Thread Contains. Layout-agnostic: when `contains_horizontal_layout > 1`, runs the
+  // per-virtual-thread work serially in the calling thread.
   template <class ProbeKey>
   __device__ bool contains(ProbeKey probe_key) const
   {
-    static_assert(contains_horizontal_layout == 1,
-                  "This contains() requires contains_horizontal_layout == 1");
-
     auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
-    if constexpr (is_cache_sectorized) {
-      auto const group_hash = lower_hash * policy_type::group_index_salt;
-      return compare_pattern_cs<0>(block_index, lower_hash, group_hash);
+    if constexpr (contains_horizontal_layout == 1) {
+      if constexpr (is_cache_sectorized) {
+        auto const group_hash = lower_hash * policy_type::group_index_salt;
+        return compare_pattern_cs<0>(block_index, lower_hash, group_hash);
+      } else {
+        return compare_pattern<0>(block_index, lower_hash);
+      }
     } else {
-      return compare_pattern<0>(block_index, lower_hash);
+      if constexpr (is_cache_sectorized) {
+        auto const group_hash = lower_hash * policy_type::group_index_salt;
+        bool result           = true;
+#pragma unroll
+        for (uint32_t thread_index = 0; thread_index < contains_horizontal_layout; ++thread_index) {
+          result =
+            result && compare_patterns_cs<0>(block_index, lower_hash, group_hash, thread_index);
+        }
+        return result;
+      } else {
+        bool result = true;
+#pragma unroll
+        for (uint32_t thread_index = 0; thread_index < contains_horizontal_layout; ++thread_index) {
+          result = result && compare_patterns<0>(block_index, lower_hash, thread_index);
+        }
+        return result;
+      }
     }
   }
 
-  // Multi Thread Contains
+  // Multi Thread Contains. Layout-flexible: when the CG size matches `contains_horizontal_layout`,
+  // runs the optimal cooperative path with one shared hash evaluation and an AND-reduction across
+  // the group; otherwise has one lane do the layout-agnostic scalar query and broadcasts the
+  // result so every lane returns the same value.
   template <class CG, class ProbeKey>
   __device__ bool contains(CG group, ProbeKey probe_key) const
   {
-    static_assert(contains_horizontal_layout > 1,
-                  "This contains() requires contains_horizontal_layout > 1");
-    static_assert(tile_size_v<CG> == contains_horizontal_layout,
-                  "This contains() requires CG with size equal to contains_horizontal_layout");
+    namespace cg = cooperative_groups;
 
-    auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
-    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    if constexpr (contains_horizontal_layout == 1 ||
+                  tile_size_v<CG> != contains_horizontal_layout) {
+      return cg::invoke_one_broadcast(
+        group, [&] __device__() -> bool { return this->contains(probe_key); });
+    }
+
+    auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
+      if constexpr (tuning::use_invoke_one) {
+        return cg::invoke_one_broadcast(group, [&] __device__() {
+          auto const sh = policy_.split_hash(probe_key);
+          return cuda::std::make_tuple(
+            sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
+        });
+      } else {
+        auto const sh = policy_.split_hash(probe_key);
+        return cuda::std::make_tuple(
+          sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
+      }
+    }();
 
     if constexpr (is_cache_sectorized) {
       auto const group_hash = lower_hash * policy_type::group_index_salt;
-      return compare_patterns_cs<0>(
-        group, block_index, lower_hash, group_hash, group.thread_rank());
+      return group.all(
+        compare_patterns_cs<0>(block_index, lower_hash, group_hash, group.thread_rank()));
     } else {
-      return compare_patterns<0>(group, block_index, lower_hash, group.thread_rank());
+      return group.all(compare_patterns<0>(block_index, lower_hash, group.thread_rank()));
     }
   }
 
@@ -428,8 +523,7 @@ class bloom_filter_impl {
       auto const group_hash = lower_hash * policy_type::group_index_salt;
 #pragma unroll num_threads
       for (int i = 0; i < num_threads; ++i) {
-        auto const result = group.all(compare_patterns_cs<0>(group,
-                                                             group.shfl(block_index, i),
+        auto const result = group.all(compare_patterns_cs<0>(group.shfl(block_index, i),
                                                              group.shfl(lower_hash, i),
                                                              group.shfl(group_hash, i),
                                                              group.thread_rank()));
@@ -439,7 +533,7 @@ class bloom_filter_impl {
 #pragma unroll num_threads
       for (int i = 0; i < num_threads; ++i) {
         auto const result = group.all(compare_patterns<0>(
-          group, group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
         if (i == group.thread_rank()) { result_out = result; }
       }
     }
@@ -451,17 +545,26 @@ class bloom_filter_impl {
   {
     constexpr auto num_threads = tile_size_v<CG>;
 
-    auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
-    auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
-    bool result_out                     = false;
+    // Compute the hash and block index only for lanes whose key is valid; invalid lanes' values
+    // are never used (the shfl loop below gates per-iteration work on `group.shfl(is_valid, i)`).
+    // Skipping the hash here saves work on sparse stencil-gated queries.
+    uint32_t upper_hash   = 0;
+    uint32_t lower_hash   = 0;
+    size_type block_index = 0;
+    if (is_valid) {
+      auto const sh = policy_.split_hash(probe_key);
+      upper_hash    = sh.first;
+      lower_hash    = sh.second;
+      block_index   = policy_.block_index(upper_hash, num_blocks_);
+    }
 
+    bool result_out = false;
     if constexpr (is_cache_sectorized) {
       auto const group_hash = lower_hash * policy_type::group_index_salt;
 #pragma unroll num_threads
       for (int i = 0; i < num_threads; ++i) {
         if (group.shfl(is_valid, i)) {
-          auto const result = group.all(compare_patterns_cs<0>(group,
-                                                               group.shfl(block_index, i),
+          auto const result = group.all(compare_patterns_cs<0>(group.shfl(block_index, i),
                                                                group.shfl(lower_hash, i),
                                                                group.shfl(group_hash, i),
                                                                group.thread_rank()));
@@ -473,7 +576,7 @@ class bloom_filter_impl {
       for (int i = 0; i < num_threads; ++i) {
         if (group.shfl(is_valid, i)) {
           auto const result = group.all(compare_patterns<0>(
-            group, group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+            group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
           if (i == group.thread_rank()) { result_out = result; }
         }
       }
@@ -491,14 +594,31 @@ class bloom_filter_impl {
     }
   }
 
-  // Device-side range contains (cooperative): each iteration cooperatively queries one key.
+  // Device-side range contains (cooperative). When the tile size matches
+  // `contains_horizontal_layout`, each batch loads/hashes one key per lane in parallel, then the
+  // tile cooperatively processes them via `contains_coop` so each lane gets the result for its
+  // own key. Otherwise the tile parallelizes across the key range with each lane scalar-querying
+  // its own keys.
   template <class CG, class InputIt, class OutputIt>
   __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin) const
   {
+    using key_type      = typename cuda::std::iterator_traits<InputIt>::value_type;
     auto const num_keys = cuco::detail::distance(first, last);
-    for (decltype(num_keys) i = 0; i < num_keys; ++i) {
-      auto const found = this->contains(group, *(first + i));
-      if (group.thread_rank() == 0) { *(output_begin + i) = found; }
+    if constexpr (tile_size_v<CG> == contains_horizontal_layout && contains_horizontal_layout > 1) {
+      auto constexpr num_threads = static_cast<decltype(num_keys)>(tile_size_v<CG>);
+      for (decltype(num_keys) batch = 0; batch < num_keys; batch += num_threads) {
+        auto const idx      = batch + static_cast<decltype(num_keys)>(group.thread_rank());
+        auto const is_valid = idx < num_keys;
+        key_type const key  = is_valid ? *(first + idx) : key_type{};
+        auto const result   = this->contains_coop(group, key, is_valid);
+        if (is_valid) { *(output_begin + idx) = result; }
+      }
+    } else {
+      auto const stride = static_cast<decltype(num_keys)>(tile_size_v<CG>);
+      for (auto i = static_cast<decltype(num_keys)>(group.thread_rank()); i < num_keys;
+           i += stride) {
+        *(output_begin + i) = this->contains(*(first + i));
+      }
     }
   }
 
@@ -645,8 +765,13 @@ class bloom_filter_impl {
   template <uint32_t NumWords>
   __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {
+    // The block storage is aligned to `alignment()`, but a per-lane load at offset `index` is
+    // only guaranteed to be aligned to `min(NumWords * sizeof(word_type), alignment())`. Hand the
+    // compiler the alignment that's actually delivered, not the block-level maximum.
+    constexpr auto load_alignment =
+      cuda::std::min<size_t>(NumWords * sizeof(word_type), alignment());
     return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(
-      __builtin_assume_aligned(words_ + index, alignment()));
+      __builtin_assume_aligned(words_ + index, load_alignment));
   }
 
   //===--------------------------------------------------===//
@@ -823,14 +948,14 @@ class bloom_filter_impl {
     }
   }
 
-  // Precondition: contains_horizontal_layout > 1
-  template <uint32_t LoopIndex, class CG>
-  __device__ constexpr bool compare_patterns(CG group,  // NOTE: this is only needed for early exit
-                                             uint32_t block_index,
+  // Precondition: contains_horizontal_layout > 1.
+  // Returns the per-thread AND across the loop-iteration slice owned by `thread_index`. Callers
+  // that need a per-CG result must reduce across the group (e.g. `group.all(...)`).
+  template <uint32_t LoopIndex>
+  __device__ constexpr bool compare_patterns(uint32_t block_index,
                                              uint32_t lower_hash,
                                              uint32_t thread_index) const
   {
-    // Sanity check
     static_assert(contains_horizontal_layout > 1,
                   "compare_patterns() requires HorizontalLayout > 1");
 
@@ -849,16 +974,12 @@ class bloom_filter_impl {
         match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
       }
 
-      // Recurse.
-      // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
-      // words.
+      // Per-thread early exit: short-circuit this thread's recursion if its slice already missed.
       if constexpr (tuning::use_early_exit) {
-        // This will degrade performance in selective contexts
-        if (group.any(!match)) { return false; }
-        return compare_patterns<LoopIndex + 1>(group, block_index, lower_hash, thread_index);
+        if (!match) { return false; }
+        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index);
       } else {
-        return compare_patterns<LoopIndex + 1>(group, block_index, lower_hash, thread_index) &&
-               match;
+        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index) && match;
       }
     } else {
       return true;
@@ -910,13 +1031,11 @@ class bloom_filter_impl {
     }
   }
 
-  template <uint32_t LoopIndex, class CG>
-  __device__ constexpr bool compare_patterns_cs(
-    CG group,  // NOTE: this is only needed for early exit
-    uint32_t block_index,
-    uint32_t lower_hash,
-    uint32_t group_hash,
-    uint32_t thread_index) const
+  template <uint32_t LoopIndex>
+  __device__ constexpr bool compare_patterns_cs(uint32_t block_index,
+                                                uint32_t lower_hash,
+                                                uint32_t group_hash,
+                                                uint32_t thread_index) const
   {
     auto constexpr contains_groups_per_vertical_layout =
       policy_type::contains_groups_per_vertical_layout;
@@ -924,9 +1043,8 @@ class bloom_filter_impl {
     auto constexpr group_index_mask  = policy_type::group_index_mask;
     auto constexpr words_per_group   = policy_type::words_per_group;
 
-    // Sanity check
     static_assert(contains_horizontal_layout > 1,
-                  "compare_patterns() requires HorizontalLayout > 1");
+                  "compare_patterns_cs() requires HorizontalLayout > 1");
 
     if constexpr (LoopIndex < contains_loop_count) {
       auto const* word_base = words_ + block_index * words_per_block +
@@ -949,17 +1067,13 @@ class bloom_filter_impl {
                  expected_pattern[i];
       }
 
-      // Recurse.
-      // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
-      // words.
       if constexpr (tuning::use_early_exit) {
-        // This will degrade performance in selective contexts
-        if (group.any(!match)) { return false; }
+        if (!match) { return false; }
         return compare_patterns_cs<LoopIndex + 1>(
-          group, block_index, lower_hash, group_hash, thread_index);
+          block_index, lower_hash, group_hash, thread_index);
       } else {
         return compare_patterns_cs<LoopIndex + 1>(
-                 group, block_index, lower_hash, group_hash, thread_index) &&
+                 block_index, lower_hash, group_hash, thread_index) &&
                match;
       }
     } else {

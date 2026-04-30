@@ -108,6 +108,11 @@ class parametric_filter_policy {
   static constexpr uint32_t groups_per_block = GroupsPerBlock;
   static constexpr bool is_cache_sectorized  = groups_per_block != words_per_block ? true : false;
   static constexpr uint32_t words_per_group  = words_per_block / groups_per_block;
+  // TODO: when `pattern_bits % groups_per_block != 0`, using a ceil packs all remainder bits into
+  // the first `pattern_bits / max_bits_per_group` groups, leaving later groups with a zero
+  // expected pattern. This wastes block capacity and inflates FPR. Distribute floor bits to every
+  // group plus one extra bit to the first `pattern_bits % groups_per_block` groups, and update
+  // the salt-to-group mapping in `set_bits` accordingly.
   static constexpr uint32_t max_bits_per_group =
     cuco::detail::int_div_ceil(pattern_bits, groups_per_block);
   static constexpr uint32_t add_groups_per_vertical_layout = add_vertical_layout / words_per_group;
@@ -119,6 +124,13 @@ class parametric_filter_policy {
 
  private:
   static constexpr uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
+  // TODO: same problem as `max_bits_per_group`. For non-multiple
+  // `(pattern_bits, words_per_block)` configs (e.g. PatternBits=12, WordsPerBlock=8), the salt
+  // walk in `set_bits` advances `PatternArrayIndex` every `max_bits_per_word` salts, packing all
+  // bits into the first `ceil(pattern_bits / words_per_block)` words and leaving the rest at
+  // zero. This wastes block capacity and inflates FPR. Distribute floor bits to every word plus
+  // one extra bit to the first `pattern_bits % words_per_block` words, and update the
+  // salt-to-word mapping in `set_bits` accordingly.
   static constexpr uint32_t max_bits_per_word =
     cuco::detail::int_div_ceil(pattern_bits, words_per_block);
 
@@ -129,12 +141,16 @@ class parametric_filter_policy {
                   "pattern_bits must be at least words_per_block");
     static_assert(pattern_bits <= max_pattern_bits,
                   "pattern_bits must be less than the total number of bits in a filter block");
-    static_assert(add_horizontal_layout * add_vertical_layout <= words_per_block,
-                  "the product of add_horizontal_layout and add_vertical_layout must be less than "
-                  "or equal to words_per_block");
-    static_assert(contains_horizontal_layout * contains_vertical_layout <= words_per_block,
-                  "the product of contains_horizontal_layout and contains_vertical_layout must be "
-                  "less than or equal to words_per_block");
+    // Require exact tiling. With `words_per_block` a power of two, this is equivalent to requiring
+    // both `add_horizontal_layout` and `add_vertical_layout` to be powers of two with product
+    // <= `words_per_block`. The internal loop count uses integer division on the product; non-
+    // dividing layouts would leave trailing words uninserted on add while contains still expects
+    // non-zero patterns there, producing false negatives for every inserted key.
+    static_assert(words_per_block % (add_horizontal_layout * add_vertical_layout) == 0,
+                  "add_horizontal_layout * add_vertical_layout must evenly divide words_per_block");
+    static_assert(
+      words_per_block % (contains_horizontal_layout * contains_vertical_layout) == 0,
+      "contains_horizontal_layout * contains_vertical_layout must evenly divide words_per_block");
     // The split_hash() design requires a 64-bit hash split into upper 32 bits (block selection
     // via multiply-shift) and lower 32 bits (pattern generation via salt-based multiplicative
     // hashing). This is a permanent design requirement, not a temporary limitation.
@@ -147,12 +163,16 @@ class parametric_filter_policy {
                                        (words_per_block % groups_per_block == 0)),
       "in cache-sectorized filter, the number of groups must be positive, be fewer "
       "than words_per_block, and evenly divide words_per_block");
-    static_assert(is_cache_sectorized == false || (add_vertical_layout >= words_per_group),
-                  "in cache-sectorized filter, the vertical layout for add must be at "
-                  "least the number of words per group");
-    static_assert(is_cache_sectorized == false || (contains_vertical_layout >= words_per_group),
-                  "in cache-sectorized filter, the vertical layout for contains must be at "
-                  "least the number of words per group");
+    // Require the vertical layout to be a multiple of `words_per_group`. Floor-dividing
+    // `add_vertical_layout / words_per_group` to derive `add_groups_per_vertical_layout` would
+    // otherwise drop group-coverage for the trailing partial group, producing the same false-
+    // negative bug as the non-tiling check above.
+    static_assert(is_cache_sectorized == false || (add_vertical_layout % words_per_group == 0),
+                  "in cache-sectorized filter, add_vertical_layout must be a multiple of "
+                  "words_per_group");
+    static_assert(is_cache_sectorized == false || (contains_vertical_layout % words_per_group == 0),
+                  "in cache-sectorized filter, contains_vertical_layout must be a multiple of "
+                  "words_per_group");
     static_assert(is_cache_sectorized == false || groups_per_block * group_index_width <= 32,
                   "in cache-sectorized filter, the number of bits needed to index groups must fit "
                   "within 32 bits");

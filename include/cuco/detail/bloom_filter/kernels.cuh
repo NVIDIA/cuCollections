@@ -201,7 +201,8 @@ __device__ void contains_n_impl(InputIt first,
       auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
       if (idx < n) {
         key_type const& key = *(first + idx);
-        auto const found    = group.all(ref.contains(group, key));
+        // ref.contains(group, key) already reduces across the group via group.all(...).
+        auto const found = ref.contains(group, key);
         if (group.thread_rank() == 0) { *(output_begin + idx) = found; }
       }
     }
@@ -283,7 +284,8 @@ __device__ void contains_work_stealing_n_impl(InputIt first,
         auto group = cg::tiled_partition<CGSize>(block);
         if (idx < n) {
           key_type const& key = *(first + idx);
-          auto const found    = group.all(ref.contains(group, key));
+          // ref.contains(group, key) already reduces across the group via group.all(...).
+          auto const found = ref.contains(group, key);
           if (group.thread_rank() == 0) { *(output_begin + idx) = found; }
         }
       }
@@ -399,7 +401,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
         bool result = false;
         if (pred(*(stencil + idx))) {
           key_type const& key = *(first + idx);
-          result              = group.all(ref.contains(group, key));
+          // ref.contains(group, key) already reduces across the group via group.all(...).
+          result = ref.contains(group, key);
         }
         if (group.thread_rank() == 0) { *(output_begin + idx) = result; }
       }
