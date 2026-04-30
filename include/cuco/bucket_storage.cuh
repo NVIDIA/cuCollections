@@ -252,10 +252,10 @@ class bucket_storage {
   struct aligned_deleter {
     value_type* raw_ptr_;
     std::size_t size_;
-    allocator_type& allocator_;
+    allocator_type allocator_;
     cuda::stream_ref stream_;
 
-    void operator()(value_type*) const { allocator_.deallocate(raw_ptr_, size_, stream_); }
+    void operator()(value_type*) { allocator_.deallocate(raw_ptr_, size_, stream_); }
   };
 
   extent_type extent_;        ///< Storage extent

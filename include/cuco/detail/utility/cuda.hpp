@@ -75,7 +75,8 @@ constexpr auto max_occupancy_grid_size(std::int32_t block_size,
   return max_active_blocks_per_multiprocessor * num_multiprocessors;
 }
 
-inline auto l2_cache_size() {
+inline auto l2_cache_size()
+{
   int device = 0;
   CUCO_CUDA_TRY(cudaGetDevice(&device));
 
