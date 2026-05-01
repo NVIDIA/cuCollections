@@ -48,6 +48,22 @@ struct packed {
 };
 
 /**
+ * @brief Denotes the packed type when the size of the object is 1.
+ */
+template <>
+struct packed<sizeof(uint8_t)> {
+  using type = uint8_t;  ///< Packed type as `uint8_t` if the size of the object is 1
+};
+
+/**
+ * @brief Denotes the packed type when the size of the object is 2.
+ */
+template <>
+struct packed<sizeof(uint16_t)> {
+  using type = uint16_t;  ///< Packed type as `uint16_t` if the size of the object is 2
+};
+
+/**
  * @brief Denotes the packed type when the size of the object is 8.
  */
 template <>
