@@ -1237,8 +1237,7 @@ class static_map {
   void dispatch_insert_or_apply(
     InputIt first, InputIt last, InitType init, OpType op, RefType ref, cuda::stream_ref stream);
 
-  std::unique_ptr<impl_type> impl_;   ///< Static map implementation
-  mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
+  std::unique_ptr<impl_type> impl_;  ///< Static map implementation
 };
 
 }  // namespace cuco

@@ -1110,6 +1110,17 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   }
 
   /**
+   * @brief Gets the sentinel value used to represent an empty payload slot.
+   *
+   * @return The sentinel value used to represent an empty payload slot
+   */
+  template <bool HasPayload = has_payload, cuda::std::enable_if_t<HasPayload, int> = 0>
+  [[nodiscard]] constexpr auto empty_payload_sentinel() const noexcept
+  {
+    return this->extract_payload(this->empty_slot_sentinel_);
+  }
+
+  /**
    * @brief Gets the sentinel value used to represent an erased key slot.
    *
    * @return The sentinel value used to represent an erased key slot
@@ -1308,13 +1319,26 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    *
    * @return The key
    */
-  [[nodiscard]] constexpr key_type const& extract_key(value_type const& slot) const noexcept
+  [[nodiscard]] constexpr key_type extract_key(value_type const& slot) const noexcept
   {
     if constexpr (has_payload) {
       return slot.first;
     } else {
       return slot;
     }
+  }
+
+  /**
+   * @brief Extracts the payload from a given slot.
+   *
+   * @param slot The input slot
+   *
+   * @return The payload
+   */
+  template <bool HasPayload = has_payload, cuda::std::enable_if_t<HasPayload, int> = 0>
+  [[nodiscard]] constexpr auto extract_payload(value_type const& slot) const noexcept
+  {
+    return slot.second;
   }
 
  protected:
