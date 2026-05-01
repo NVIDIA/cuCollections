@@ -16,6 +16,8 @@
 
 #include <test_utils.hpp>
 
+#include <cstdint>
+
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -33,6 +35,8 @@
 TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than constructor",
                        "",
                        ((typename Key), Key),
+                       (uint8_t),
+                       (uint16_t),
                        (int32_t),
                        (int64_t)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
@@ -47,7 +51,9 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
   CUCO_CUDA_TRY(cudaStreamCreate(&operation_stream));
 
   {  // Scope ensures set is destroyed before streams
-    constexpr std::size_t num_keys{500'000};
+    // Scale num_keys to fit in the key type's value range (sentinel = 0xFF/0xFFFF).
+    constexpr std::size_t num_keys =
+      (sizeof(Key) == 1) ? 100 : (sizeof(Key) == 2) ? 1'000 : 500'000;
     auto set = cuco::static_set{num_keys * 2,
                                 cuco::empty_key<Key>{static_cast<Key>(-1)},
                                 {},

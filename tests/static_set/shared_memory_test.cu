@@ -16,6 +16,8 @@
 
 #include <test_utils.hpp>
 
+#include <cstdint>
+
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -67,6 +69,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
 TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
                        "",
                        ((typename Key), Key),
+                       (uint8_t),
+                       (uint16_t),
                        (int32_t),
                        (int64_t)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
@@ -75,8 +79,11 @@ TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
 #endif
 )
 {
-  constexpr std::size_t number_of_sets  = 1000;
-  constexpr std::size_t elements_in_set = 500;
+  // For uint8_t: sentinel = 0xFF (255), so usable key range is 0..254.
+  // thrust::sequence over number_of_sets*elements_in_set keys must not wrap.
+  // Use a smaller set count and element count for 1-byte types.
+  constexpr std::size_t number_of_sets  = (sizeof(Key) == 1) ? 2 : 1000;
+  constexpr std::size_t elements_in_set = (sizeof(Key) == 1) ? 100 : 500;
   constexpr std::size_t set_capacity    = 2 * elements_in_set;
 
   using extent_type = cuco::extent<std::size_t, set_capacity>;
