@@ -39,7 +39,9 @@ struct custom_deleter {
    * @param allocator Allocator used for deallocating device storage
    * @param stream Stream to use for deallocation
    */
-  explicit constexpr custom_deleter(SizeType size, Allocator const& allocator, cuda::stream_ref stream)
+  explicit constexpr custom_deleter(SizeType size,
+                                    Allocator const& allocator,
+                                    cuda::stream_ref stream)
     : size_{size}, allocator_{allocator}, stream_{stream}
   {
   }
