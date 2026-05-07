@@ -16,8 +16,6 @@
 
 #include <test_utils.hpp>
 
-#include <cstdint>
-
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -26,6 +24,8 @@
 #include <thrust/device_vector.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cstdint>
 
 template <typename Set>
 void test_insert_and_find(Set& set, std::size_t num_keys)

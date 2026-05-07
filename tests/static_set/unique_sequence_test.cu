@@ -16,8 +16,6 @@
 
 #include <test_utils.hpp>
 
-#include <cstdint>
-
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -30,6 +28,8 @@
 #include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cstdint>
 
 using size_type = int32_t;
 

@@ -16,8 +16,6 @@
 
 #include <test_utils.hpp>
 
-#include <cstdint>
-
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -31,6 +29,8 @@
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cstdint>
 
 TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than constructor",
                        "",
@@ -52,15 +52,16 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
 
   {  // Scope ensures set is destroyed before streams
     // Scale num_keys to fit in the key type's value range (sentinel = -1).
-    constexpr std::size_t num_keys =
-      (sizeof(Key) == 1) ? 100 : (sizeof(Key) == 2) ? 1'000 : 500'000;
-    auto set = cuco::static_set{num_keys * 2,
+    constexpr std::size_t num_keys = (sizeof(Key) == 1)   ? 100
+                                     : (sizeof(Key) == 2) ? 1'000
+                                                          : 500'000;
+    auto set                       = cuco::static_set{num_keys * 2,
                                 cuco::empty_key<Key>{static_cast<Key>(-1)},
-                                {},
+                                                      {},
                                 cuco::linear_probing<1, cuco::default_hash_function<Key>>{},
-                                {},
-                                {},
-                                {},
+                                                      {},
+                                                      {},
+                                                      {},
                                 constructor_stream};
 
     thrust::device_vector<Key> d_keys(num_keys);

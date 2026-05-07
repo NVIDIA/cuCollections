@@ -16,8 +16,6 @@
 
 #include <test_utils.hpp>
 
-#include <cstdint>
-
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -30,6 +28,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cstdint>
 #include <limits>
 
 template <std::size_t ValidSize, typename Ref>

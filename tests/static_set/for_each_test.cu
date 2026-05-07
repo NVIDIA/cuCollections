@@ -16,8 +16,6 @@
 
 #include <test_utils.hpp>
 
-#include <cstdint>
-
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -27,6 +25,8 @@
 #include <thrust/device_vector.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cstdint>
 
 using size_type = std::size_t;
 
@@ -104,9 +104,9 @@ TEMPLATE_TEST_CASE_SIG(
   // Expected sums are pre-computed per type class:
   //   int8_t  (num_keys=100): sum of evens 0..98 = 2450, sum of odds 1..99 = 2500
   //   int16_t+ (num_keys=1000): sum of evens 0..998 = 249'500, sum of odds 1..999 = 250'000
-  constexpr size_type num_keys         = (sizeof(Key) == 1) ? 100 : 1'000;
-  constexpr size_type expected_evens   = (sizeof(Key) == 1) ? 2'450 : 249'500;
-  constexpr size_type expected_odds    = (sizeof(Key) == 1) ? 2'500 : 250'000;
+  constexpr size_type num_keys       = (sizeof(Key) == 1) ? 100 : 1'000;
+  constexpr size_type expected_evens = (sizeof(Key) == 1) ? 2'450 : 249'500;
+  constexpr size_type expected_odds  = (sizeof(Key) == 1) ? 2'500 : 250'000;
 
   using probe = std::conditional_t<
     Probe == cuco::test::probe_sequence::linear_probing,

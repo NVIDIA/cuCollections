@@ -16,8 +16,6 @@
 
 #include <test_utils.hpp>
 
-#include <cstdint>
-
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -29,6 +27,8 @@
 #include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cstdint>
 
 static constexpr int key_sentinel = -1;
 
@@ -101,7 +101,7 @@ TEMPLATE_TEST_CASE_SIG(
 )
 {
   // Limit key count for small types: leave room for the -1 sentinel
-  constexpr std::size_t num_keys        = (sizeof(Key) == 1) ? 100 : 400;
+  constexpr std::size_t num_keys       = (sizeof(Key) == 1) ? 100 : 400;
   constexpr double desired_load_factor = 1.;
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
