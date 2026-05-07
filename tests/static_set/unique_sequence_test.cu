@@ -143,12 +143,12 @@ TEMPLATE_TEST_CASE_SIG(
   "static_set unique sequence tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
-  (uint8_t, cuco::test::probe_sequence::double_hashing, 1),
-  (uint8_t, cuco::test::probe_sequence::linear_probing, 1),
-  (uint16_t, cuco::test::probe_sequence::double_hashing, 1),
-  (uint16_t, cuco::test::probe_sequence::double_hashing, 2),
-  (uint16_t, cuco::test::probe_sequence::linear_probing, 1),
-  (uint16_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int8_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 2),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -166,7 +166,7 @@ TEMPLATE_TEST_CASE_SIG(
 #endif
 )
 {
-  // Limit key count for small types: leave room for the 0xFF/0xFFFF sentinel
+  // Limit key count for small types: leave room for the -1 sentinel
   constexpr size_type num_keys = (sizeof(Key) == 1) ? 100 : 400;
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
@@ -176,7 +176,7 @@ TEMPLATE_TEST_CASE_SIG(
     if constexpr (cuco::is_double_hashing<probe>::value) {
       if constexpr (num_keys == 100) {
         return (CGSize == 1) ? 106   // 53 x 1 x 2
-                             : 106;  // 53 x 2 x 1... only CGSize=1 used for uint8_t
+                             : 106;  // 53 x 2 x 1... only CGSize=1 used for int8_t
       } else {
         return (CGSize == 1) ? 422   // 211 x 1 x 2
                              : 404;  // 101 x 2 x 2

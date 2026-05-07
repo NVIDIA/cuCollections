@@ -71,8 +71,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
 TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
                        "",
                        ((typename Key), Key),
-                       (uint8_t),
-                       (uint16_t),
+                       (int8_t),
+                       (int16_t),
                        (int32_t),
                        (int64_t)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
@@ -81,8 +81,8 @@ TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
 #endif
 )
 {
-  // For uint8_t: sentinel = 0xFF (255), so usable key range is 0..254.
-  // For uint16_t: sentinel = 0xFFFF (65535), so usable key range is 0..65534.
+  // For int8_t: sentinel = -1, so usable key range is -128..127 (excluding -1).
+  // For int16_t: sentinel = -1, so usable key range is -32768..32767 (excluding -1).
   // thrust::sequence over number_of_sets*elements_in_set keys must not wrap.
   // Use smaller set count and element count for smaller types.
   constexpr std::size_t number_of_sets  = (sizeof(Key) <= 2) ? (sizeof(Key) == 1 ? 2 : 100) : 1000;

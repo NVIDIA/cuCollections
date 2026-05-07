@@ -77,12 +77,12 @@ TEMPLATE_TEST_CASE_SIG(
   "static_set for_each tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
-  (uint8_t, cuco::test::probe_sequence::double_hashing, 1),
-  (uint8_t, cuco::test::probe_sequence::linear_probing, 1),
-  (uint16_t, cuco::test::probe_sequence::double_hashing, 1),
-  (uint16_t, cuco::test::probe_sequence::double_hashing, 2),
-  (uint16_t, cuco::test::probe_sequence::linear_probing, 1),
-  (uint16_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int8_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 2),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -100,10 +100,10 @@ TEMPLATE_TEST_CASE_SIG(
 #endif
 )
 {
-  // Limit key count for small types: leave room for the 0xFF/0xFFFF sentinel.
+  // Limit key count for small types: leave room for the -1 sentinel.
   // Expected sums are pre-computed per type class:
-  //   uint8_t  (num_keys=100): sum of evens 0..98 = 2450, sum of odds 1..99 = 2500
-  //   uint16_t+ (num_keys=1000): sum of evens 0..998 = 249'500, sum of odds 1..999 = 250'000
+  //   int8_t  (num_keys=100): sum of evens 0..98 = 2450, sum of odds 1..99 = 2500
+  //   int16_t+ (num_keys=1000): sum of evens 0..998 = 249'500, sum of odds 1..999 = 250'000
   constexpr size_type num_keys         = (sizeof(Key) == 1) ? 100 : 1'000;
   constexpr size_type expected_evens   = (sizeof(Key) == 1) ? 2'450 : 249'500;
   constexpr size_type expected_odds    = (sizeof(Key) == 1) ? 2'500 : 250'000;
