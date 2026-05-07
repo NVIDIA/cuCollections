@@ -69,7 +69,6 @@ TEST_CASE("atomic_storage_test", "")
                                                   cuda::proclaim_return_type<Key>(build_fn{}));
 
   set.insert_async(keys_begin, keys_begin + num_keys);
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
   auto const count = set.size();
 
   REQUIRE(count == num_keys);
