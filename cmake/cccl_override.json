@@ -3,9 +3,10 @@
     "CCCL": {
       "patches": [
         {
-          "file": "${current_json_dir}/patches/cccl_fix_128bit_cas.patch",
+          "file": "${current_json_dir}/patches/cccl_fix_128bit_cas.diff",
           "issue": "Fix 128-bit atomic CAS operand indices [https://github.com/NVIDIA/cccl/issues/8402]",
-          "fixed_in": "3.3.2"
+          "fixed_in": "3.3.2",
+          "required": true
         }
       ]
     }
