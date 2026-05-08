@@ -92,7 +92,7 @@ target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 ###################################################################################################
 # - Optionally download RoaringFormatSpec test data -----------------------------------------------
 
-option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ON)
+option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ${default_build_option_state})
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
 
 ###################################################################################################
