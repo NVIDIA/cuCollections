@@ -203,7 +203,6 @@ TEMPLATE_TEST_CASE_SIG(
    Value,
    Probe,
    CGSize),
-  (int8_t, int8_t, cuco::test::probe_sequence::double_hashing, 1),
   (int16_t, int16_t, cuco::test::probe_sequence::double_hashing, 1))
 {
   constexpr size_type num_keys{100};

@@ -110,6 +110,7 @@ __global__ void test_retrieve_if_all_true_kernel(
 TEMPLATE_TEST_CASE_SIG("static_map retrieve_if",
                        "",
                        ((typename Key, typename T), Key, T),
+                       (int16_t, int16_t),
                        (int32_t, int32_t),
                        (int64_t, int64_t)
 #if defined(CUCO_HAS_128BIT_ATOMICS)

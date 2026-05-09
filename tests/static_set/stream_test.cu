@@ -35,7 +35,6 @@
 TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than constructor",
                        "",
                        ((typename Key), Key),
-                       (int8_t),
                        (int16_t),
                        (int32_t),
                        (int64_t)

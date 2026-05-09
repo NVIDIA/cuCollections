@@ -106,6 +106,8 @@ class static_map {
                                                  Allocator,
                                                  Storage>;
 
+  static_assert(sizeof(Key) > 1, "cuCollections does not support single-byte keys.");
+
  public:
   static constexpr auto cg_size      = impl_type::cg_size;       ///< CG size used for probing
   static constexpr auto bucket_size  = impl_type::bucket_size;   ///< Bucket size used for probing

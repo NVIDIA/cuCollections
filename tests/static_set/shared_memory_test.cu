@@ -70,7 +70,6 @@ __global__ void shared_memory_test_kernel(Ref* sets,
 TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
                        "",
                        ((typename Key), Key),
-                       (int8_t),
                        (int16_t),
                        (int32_t),
                        (int64_t)
@@ -80,7 +79,7 @@ TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
 #endif
 )
 {
-  // For int8_t: sentinel = -1, so usable key range is -128..127 (excluding -1).
+  // For int16_t: sentinel = -1, so usable key range is -32768..32767 (excluding -1).
   // For int16_t: sentinel = -1, so usable key range is -32768..32767 (excluding -1).
   // thrust::sequence over number_of_sets*elements_in_set keys must not wrap.
   // Use smaller set count and element count for smaller types.

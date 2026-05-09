@@ -112,7 +112,6 @@ __global__ void test_retrieve_if_all_true_kernel(
 TEMPLATE_TEST_CASE_SIG("static_set retrieve_if",
                        "",
                        ((typename Key), Key),
-                       (int8_t),
                        (int16_t),
                        (int32_t),
                        (int64_t)

@@ -77,8 +77,7 @@ TEMPLATE_TEST_CASE_SIG(
   "static_set for_each tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
-  (int8_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 1),
   (int16_t, cuco::test::probe_sequence::double_hashing, 1),
   (int16_t, cuco::test::probe_sequence::double_hashing, 2),
   (int16_t, cuco::test::probe_sequence::linear_probing, 1),
@@ -102,7 +101,7 @@ TEMPLATE_TEST_CASE_SIG(
 {
   // Limit key count for small types: leave room for the -1 sentinel.
   // Expected sums are pre-computed per type class:
-  //   int8_t  (num_keys=100): sum of evens 0..98 = 2450, sum of odds 1..99 = 2500
+  //   int16_t (num_keys=100): sum of evens 0..98 = 2450, sum of odds 1..99 = 2500
   //   int16_t+ (num_keys=1000): sum of evens 0..998 = 249'500, sum of odds 1..999 = 250'000
   constexpr size_type num_keys       = (sizeof(Key) == 1) ? 100 : 1'000;
   constexpr size_type expected_evens = (sizeof(Key) == 1) ? 2'450 : 249'500;

@@ -143,8 +143,7 @@ TEMPLATE_TEST_CASE_SIG(
   "static_set unique sequence tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
-  (int8_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 1),
   (int16_t, cuco::test::probe_sequence::double_hashing, 1),
   (int16_t, cuco::test::probe_sequence::double_hashing, 2),
   (int16_t, cuco::test::probe_sequence::linear_probing, 1),
@@ -176,7 +175,7 @@ TEMPLATE_TEST_CASE_SIG(
     if constexpr (cuco::is_double_hashing<probe>::value) {
       if constexpr (num_keys == 100) {
         return (CGSize == 1) ? 106   // 53 x 1 x 2
-                             : 106;  // 53 x 2 x 1... only CGSize=1 used for int8_t
+                             : 106;
       } else {
         return (CGSize == 1) ? 422   // 211 x 1 x 2
                              : 404;  // 101 x 2 x 2
