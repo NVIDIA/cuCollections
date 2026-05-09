@@ -174,7 +174,7 @@ TEMPLATE_TEST_CASE_SIG(
   constexpr size_type gold_capacity = [&]() {
     if constexpr (cuco::is_double_hashing<probe>::value) {
       if constexpr (num_keys == 100) {
-        return (CGSize == 1) ? 106   // 53 x 1 x 2
+        return (CGSize == 1) ? 106  // 53 x 1 x 2
                              : 106;
       } else {
         return (CGSize == 1) ? 422   // 211 x 1 x 2

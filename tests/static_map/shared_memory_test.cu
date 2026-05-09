@@ -82,7 +82,7 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
 )
 {
   // For small types, use smaller set count and element count
-  constexpr std::size_t number_of_maps = (sizeof(Key) + sizeof(Value) <= 2) ? 100 : 1000;
+  constexpr std::size_t number_of_maps  = (sizeof(Key) + sizeof(Value) <= 2) ? 100 : 1000;
   constexpr std::size_t elements_in_map = (sizeof(Key) + sizeof(Value) <= 2) ? 100 : 500;
   constexpr std::size_t map_capacity    = 2 * elements_in_map;
 
@@ -106,8 +106,9 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
   // operator yet
   std::vector<std::unique_ptr<map_type>> maps;
   for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
-    maps.push_back(std::make_unique<map_type>(
-      extent_type{}, cuco::empty_key<Key>{static_cast<Key>(-1)}, cuco::empty_value<Value>{static_cast<Value>(-1)}));
+    maps.push_back(std::make_unique<map_type>(extent_type{},
+                                              cuco::empty_key<Key>{static_cast<Key>(-1)},
+                                              cuco::empty_value<Value>{static_cast<Value>(-1)}));
   }
 
   thrust::device_vector<bool> d_keys_exist(number_of_maps * elements_in_map);
