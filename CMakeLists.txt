@@ -15,11 +15,10 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
-set(rapids-cmake-version 26.04)
-set(rapids-cmake-branch "release/${rapids-cmake-version}")
+set(rapids-cmake-branch "main")
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
     file(DOWNLOAD
-      https://raw.githubusercontent.com/rapidsai/rapids-cmake/release/${rapids-cmake-version}/RAPIDS.cmake
+      https://raw.githubusercontent.com/rapidsai/rapids-cmake/${rapids-cmake-branch}/RAPIDS.cmake
          ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
 endif()
 include(${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
@@ -75,7 +74,7 @@ rapids_find_package(
 ###################################################################################################
 # - find packages we depend on --------------------------------------------------------------------
 
-rapids_cpm_init(OVERRIDE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/cccl_override.json")
+rapids_cpm_init()
 
 include(cmake/thirdparty/get_cccl.cmake)
 
@@ -92,7 +91,7 @@ target_compile_features(cuco INTERFACE cxx_std_17 cuda_std_17)
 ###################################################################################################
 # - Optionally download RoaringFormatSpec test data -----------------------------------------------
 
-option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ON)
+option(CUCO_DOWNLOAD_ROARING_TESTDATA "Download RoaringFormatSpec test data" ${default_build_option_state})
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
 
 ###################################################################################################
