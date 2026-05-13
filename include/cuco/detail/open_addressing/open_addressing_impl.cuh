@@ -31,6 +31,7 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cub/device/device_for.cuh>
+#include <cub/device/device_reduce.cuh>
 #include <cub/device/device_select.cuh>
 #include <cuda/atomic>
 #include <cuda/iterator>
@@ -829,60 +830,48 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
     using temp_allocator_type =
       typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
 
-    cuco::detail::index_type constexpr stride = std::numeric_limits<std::int32_t>::max();
-
-    cuco::detail::index_type h_num_out{0};
     auto temp_allocator = temp_allocator_type{this->allocator()};
     auto d_num_out =
       reinterpret_cast<size_type*>(temp_allocator.allocate(sizeof(size_type), stream));
 
-    // TODO: PR #580 to be reverted once https://github.com/NVIDIA/cccl/issues/1422 is resolved
-    for (cuco::detail::index_type offset = 0;
-         offset < static_cast<cuco::detail::index_type>(this->capacity());
-         offset += stride) {
-      auto const num_items =
-        std::min(static_cast<cuco::detail::index_type>(this->capacity()) - offset, stride);
-      auto const begin = cuda::make_transform_iterator(
-        cuda::counting_iterator{static_cast<size_type>(offset)},
-        detail::open_addressing_ns::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
-      auto const is_filled = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
-        this->empty_key_sentinel(), this->erased_key_sentinel()};
+    auto const begin = cuda::make_transform_iterator(
+      cuda::counting_iterator{size_type{0}},
+      detail::open_addressing_ns::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
+    auto const is_filled = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
+      this->empty_key_sentinel(), this->erased_key_sentinel()};
 
-      std::size_t temp_storage_bytes = 0;
+    std::size_t temp_storage_bytes = 0;
 
-      CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
-                                          temp_storage_bytes,
-                                          begin,
-                                          output_begin + h_num_out,
-                                          d_num_out,
-                                          static_cast<std::int32_t>(num_items),
-                                          is_filled,
-                                          stream.get()));
+    CUCO_CUDA_TRY(cub::DeviceSelect::If(nullptr,
+                                        temp_storage_bytes,
+                                        begin,
+                                        output_begin,
+                                        d_num_out,
+                                        this->capacity(),
+                                        is_filled,
+                                        stream.get()));
 
-      // Allocate temporary storage
-      auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes, stream);
+    auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes, stream);
 
-      CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
-                                          temp_storage_bytes,
-                                          begin,
-                                          output_begin + h_num_out,
-                                          d_num_out,
-                                          static_cast<std::int32_t>(num_items),
-                                          is_filled,
-                                          stream.get()));
+    CUCO_CUDA_TRY(cub::DeviceSelect::If(d_temp_storage,
+                                        temp_storage_bytes,
+                                        begin,
+                                        output_begin,
+                                        d_num_out,
+                                        this->capacity(),
+                                        is_filled,
+                                        stream.get()));
 
-      size_type temp_count;
-      CUCO_CUDA_TRY(cuco::detail::memcpy_async(
-        &temp_count, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
+    size_type h_num_out;
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
+      &h_num_out, d_num_out, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
 #if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
-      stream.sync();
+    stream.sync();
 #else
-      stream.wait();
+    stream.wait();
 #endif
-      h_num_out += temp_count;
-      temp_allocator.deallocate(d_temp_storage, temp_storage_bytes, stream);
-    }
 
+    temp_allocator.deallocate(d_temp_storage, temp_storage_bytes, stream);
     temp_allocator.deallocate(reinterpret_cast<char*>(d_num_out), sizeof(size_type), stream);
 
     return output_begin + h_num_out;
@@ -958,21 +947,56 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    */
   [[nodiscard]] size_type size(cuda::stream_ref stream) const
   {
-    auto counter =
-      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator(), stream};
-    counter.reset(stream);
+    using temp_allocator_type =
+      typename std::allocator_traits<allocator_type>::template rebind_alloc<char>;
+    auto temp_allocator = temp_allocator_type{this->allocator()};
 
-    auto const grid_size = cuco::detail::grid_size(this->capacity());
+    auto* d_count =
+      reinterpret_cast<size_type*>(temp_allocator.allocate(sizeof(size_type), stream));
+
     auto const is_filled = detail::open_addressing_ns::slot_is_filled<has_payload, key_type>{
       this->empty_key_sentinel(), this->erased_key_sentinel()};
+    auto const slot_begin = cuda::make_transform_iterator(
+      cuda::counting_iterator{size_type{0}},
+      detail::open_addressing_ns::get_slot<has_payload, storage_ref_type>(this->storage_ref()));
 
-    // TODO: custom kernel to be replaced by cub::DeviceReduce::Sum when cub version is bumped to
-    // v2.1.0
-    detail::open_addressing_ns::size<cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-        storage_.ref(), is_filled, counter.data());
+    std::size_t temp_storage_bytes = 0;
 
-    return counter.load_to_host(stream);
+    CUCO_CUDA_TRY(cub::DeviceReduce::TransformReduce(nullptr,
+                                                     temp_storage_bytes,
+                                                     slot_begin,
+                                                     d_count,
+                                                     this->capacity(),
+                                                     cuda::std::plus<size_type>{},
+                                                     is_filled,
+                                                     size_type{0},
+                                                     stream.get()));
+
+    auto d_temp_storage = temp_allocator.allocate(temp_storage_bytes, stream);
+
+    CUCO_CUDA_TRY(cub::DeviceReduce::TransformReduce(d_temp_storage,
+                                                     temp_storage_bytes,
+                                                     slot_begin,
+                                                     d_count,
+                                                     this->capacity(),
+                                                     cuda::std::plus<size_type>{},
+                                                     is_filled,
+                                                     size_type{0},
+                                                     stream.get()));
+
+    size_type h_count;
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
+      &h_count, d_count, sizeof(size_type), cudaMemcpyDeviceToHost, stream));
+#if CCCL_MAJOR_VERSION > 3 || (CCCL_MAJOR_VERSION == 3 && CCCL_MINOR_VERSION >= 1)
+    stream.sync();
+#else
+    stream.wait();
+#endif
+
+    temp_allocator.deallocate(d_temp_storage, temp_storage_bytes, stream);
+    temp_allocator.deallocate(reinterpret_cast<char*>(d_count), sizeof(size_type), stream);
+
+    return h_count;
   }
 
   /**
@@ -1107,6 +1131,17 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept
   {
     return this->extract_key(this->empty_slot_sentinel_);
+  }
+
+  /**
+   * @brief Gets the sentinel value used to represent an empty payload slot.
+   *
+   * @return The sentinel value used to represent an empty payload slot
+   */
+  template <bool HasPayload = has_payload, cuda::std::enable_if_t<HasPayload, int> = 0>
+  [[nodiscard]] constexpr auto empty_payload_sentinel() const noexcept
+  {
+    return this->extract_payload(this->empty_slot_sentinel_);
   }
 
   /**
@@ -1308,13 +1343,26 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    *
    * @return The key
    */
-  [[nodiscard]] constexpr key_type const& extract_key(value_type const& slot) const noexcept
+  [[nodiscard]] constexpr key_type extract_key(value_type const& slot) const noexcept
   {
     if constexpr (has_payload) {
       return slot.first;
     } else {
       return slot;
     }
+  }
+
+  /**
+   * @brief Extracts the payload from a given slot.
+   *
+   * @param slot The input slot
+   *
+   * @return The payload
+   */
+  template <bool HasPayload = has_payload, cuda::std::enable_if_t<HasPayload, int> = 0>
+  [[nodiscard]] constexpr auto extract_payload(value_type const& slot) const noexcept
+  {
+    return slot.second;
   }
 
  protected:

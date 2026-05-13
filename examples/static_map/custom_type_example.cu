@@ -22,6 +22,8 @@
 #include <thrust/logical.h>
 #include <thrust/transform.h>
 
+#include <iostream>
+
 // User-defined key type
 struct custom_key_type {
   int32_t a;
