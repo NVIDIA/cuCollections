@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -45,6 +45,14 @@ __host__ __device__ constexpr std::size_t pair_alignment()
 template <std::size_t N>
 struct packed {
   using type = void;  ///< `void` type by default
+};
+
+/**
+ * @brief Denotes the packed type when the size of the object is 1.
+ */
+template <>
+struct packed<sizeof(uint8_t)> {
+  using type = uint8_t;  ///< Packed type as `uint8_t` if the size of the object is 1
 };
 
 /**

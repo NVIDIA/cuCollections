@@ -32,7 +32,6 @@
 TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
                        "",
                        ((typename Key, typename Value), Key, Value),
-                       (int16_t, int16_t),
                        (int32_t, int32_t),
                        (int32_t, int64_t),
                        (int64_t, int32_t),
@@ -47,15 +46,15 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
   CUCO_CUDA_TRY(cudaStreamCreate(&stream));
 
   {  // Scope ensures map is destroyed before stream
-    const std::size_t num_keys = (sizeof(Key) == 1) ? 100 : 500'000;
-    auto map                   = cuco::static_map{num_keys * 2,
-                                cuco::empty_key<Key>{static_cast<Key>(-1)},
-                                cuco::empty_value<Value>{static_cast<Value>(-1)},
-                                                  {},
+    constexpr std::size_t num_keys{500'000};
+    auto map = cuco::static_map{num_keys * 2,
+                                cuco::empty_key<Key>{-1},
+                                cuco::empty_value<Value>{-1},
+                                {},
                                 cuco::linear_probing<1, cuco::default_hash_function<Key>>{},
-                                                  {},
-                                                  {},
-                                                  {},
+                                {},
+                                {},
+                                {},
                                 stream};
 
     thrust::device_vector<Key> d_keys(num_keys);

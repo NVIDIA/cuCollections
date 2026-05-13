@@ -138,6 +138,10 @@ TEMPLATE_TEST_CASE_SIG(
    Value,
    Probe,
    CGSize),
+  (int8_t, int8_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int8_t, int8_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int16_t, int16_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int16_t, int16_t, cuco::test::probe_sequence::double_hashing, 2),
   (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
@@ -146,6 +150,10 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
   (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int8_t, int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int8_t, int8_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int16_t, int16_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, int16_t, cuco::test::probe_sequence::linear_probing, 2),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
@@ -162,7 +170,7 @@ TEMPLATE_TEST_CASE_SIG(
 #endif
 )
 {
-  constexpr size_type num_keys{301};
+  constexpr size_type num_keys = (sizeof(Key) == 1) ? 100 : 301;
 
   // XXX: testing static extent is intended, DO NOT CHANGE
   using extent_type = cuco::extent<size_type, num_keys>;
@@ -180,36 +188,6 @@ TEMPLATE_TEST_CASE_SIG(
     }
   }();
 
-  auto map = cuco::static_map<Key,
-                              Value,
-                              extent_type,
-                              cuda::thread_scope_device,
-                              cuda::std::equal_to<Key>,
-                              probe,
-                              cuco::cuda_allocator<cuda::std::byte>,
-                              cuco::storage<2>>{
-    extent_type{}, cuco::empty_key<Key>{SENTINEL}, cuco::empty_value<Value>{SENTINEL}};
-
-  REQUIRE(map.capacity() == gold_capacity);
-
-  test_unique_sequence(map, num_keys);
-}
-
-TEMPLATE_TEST_CASE_SIG(
-  "static_map: find tests (small types)",
-  "",
-  ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
-   Key,
-   Value,
-   Probe,
-   CGSize),
-  (int16_t, int16_t, cuco::test::probe_sequence::double_hashing, 1))
-{
-  constexpr size_type num_keys{100};
-
-  using extent_type = cuco::extent<size_type, num_keys>;
-  using probe = cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>;
-
   auto map =
     cuco::static_map<Key,
                      Value,
@@ -221,6 +199,8 @@ TEMPLATE_TEST_CASE_SIG(
                      cuco::storage<2>>{extent_type{},
                                        cuco::empty_key<Key>{static_cast<Key>(SENTINEL)},
                                        cuco::empty_value<Value>{static_cast<Value>(SENTINEL)}};
+
+  if constexpr (sizeof(Key) > 1) { REQUIRE(map.capacity() == gold_capacity); }
 
   test_unique_sequence(map, num_keys);
 }
