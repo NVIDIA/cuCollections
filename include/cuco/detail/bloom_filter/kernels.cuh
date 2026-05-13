@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utility/math.cuh>
 
@@ -76,6 +77,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n(InputIt first,
 template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
 __device__ void add_work_stealing_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
 {
+#if __cccl_ptx_isa >= 860
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   namespace cg  = cooperative_groups;
@@ -154,6 +156,13 @@ __device__ void add_work_stealing_n_impl(InputIt first, cuco::detail::index_type
     ptx::fence_proxy_async_generic_sync_restrict(
       ptx::sem_release, ptx::space_shared, ptx::scope_cluster);
   }
+#else
+  // Cluster launch control PTX intrinsics require PTX ISA >= 8.6 (CTK 12.8+).
+  // On older toolkits, fall back to the regular kernel body. The runtime path is
+  // also guarded by `NV_PROVIDES_SM_100`, so this branch is unreachable when SM100
+  // is targeted but the toolkit is too old to expose the intrinsics.
+  add_n_impl<ConditionalAtomic, CGSize, BlockSize>(first, n, ref);
+#endif
 }
 
 template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
@@ -224,6 +233,7 @@ __device__ void contains_work_stealing_n_impl(InputIt first,
                                               OutputIt output_begin,
                                               Ref ref)
 {
+#if __cccl_ptx_isa >= 860
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   namespace cg  = cooperative_groups;
@@ -305,6 +315,13 @@ __device__ void contains_work_stealing_n_impl(InputIt first,
     ptx::fence_proxy_async_generic_sync_restrict(
       ptx::sem_release, ptx::space_shared, ptx::scope_cluster);
   }
+#else
+  // Cluster launch control PTX intrinsics require PTX ISA >= 8.6 (CTK 12.8+).
+  // On older toolkits, fall back to the regular kernel body. The runtime path is
+  // also guarded by `NV_PROVIDES_SM_100`, so this branch is unreachable when SM100
+  // is targeted but the toolkit is too old to expose the intrinsics.
+  contains_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);
+#endif
 }
 
 template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>

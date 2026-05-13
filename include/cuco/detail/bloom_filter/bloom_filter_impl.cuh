@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/detail/bloom_filter/kernels.cuh>
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/utility/cuda.cuh>
@@ -60,7 +61,12 @@ class bloom_filter_impl {
   // `bloom_filter_impl::tuning::use_*` from internal kernels. Defaults reflect the ablation
   // measurements from arXiv:2512.15595; flip in source for tuning experiments.
   struct tuning {
-    static constexpr bool use_invoke_one                       = true;
+    static constexpr bool use_invoke_one =
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
+      true;
+#else
+      false;  // cg::invoke_one_broadcast requires CTK >= 12.1
+#endif
     static constexpr bool use_early_exit                       = false;
     static constexpr bool use_cub_kernels                      = true;
     static constexpr bool use_warp_cooperative_add_kernel      = true;
@@ -259,7 +265,12 @@ class bloom_filter_impl {
     if constexpr (add_horizontal_layout == 1 || tile_size_v<CG> != add_horizontal_layout) {
       // Tile size doesn't match the layout. Pick one lane to do the scalar (layout-agnostic)
       // insert; the rest wait at the implicit sync.
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
       cg::invoke_one(group, [&] __device__() { this->template add<ConditionalAtomic>(build_key); });
+#else
+      if (group.thread_rank() == 0) { this->template add<ConditionalAtomic>(build_key); }
+      group.sync();
+#endif
       return;
     }
 
@@ -482,8 +493,13 @@ class bloom_filter_impl {
 
     if constexpr (contains_horizontal_layout == 1 ||
                   tile_size_v<CG> != contains_horizontal_layout) {
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
       return cg::invoke_one_broadcast(
         group, [&] __device__() -> bool { return this->contains(probe_key); });
+#else
+      // All lanes recompute the same deterministic scalar query.
+      return this->contains(probe_key);
+#endif
     }
 
     auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
