@@ -48,7 +48,7 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
   auto find_ref   = insert_ref.rebind_operators(cuco::op::find);
 
-  __syncthreads();
+  g.sync();
 
   for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
     auto found_it = find_ref.find(insterted_keys[offset + i]);
@@ -70,6 +70,7 @@ __global__ void shared_memory_test_kernel(Ref* sets,
 TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
                        "",
                        ((typename Key), Key),
+                       (int8_t),
                        (int16_t),
                        (int32_t),
                        (int64_t)
@@ -79,7 +80,7 @@ TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
 #endif
 )
 {
-  // For int16_t: sentinel = -1, so usable key range is -32768..32767 (excluding -1).
+  // For int8_t: sentinel = -1, so usable key range is -128...127 (excluding -1).
   // For int16_t: sentinel = -1, so usable key range is -32768..32767 (excluding -1).
   // thrust::sequence over number_of_sets*elements_in_set keys must not wrap.
   // Use smaller set count and element count for smaller types.
