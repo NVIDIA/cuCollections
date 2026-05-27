@@ -34,6 +34,15 @@
 #error "CCCL version 3.0.0 or later is required"
 #endif
 
+// WAR for cuCollections/804: work around the nvcc __cuda_is_local / isspacep.local
+// miscompile on CUDA < 13.1. CCCL's auto-define of this macro only fires when
+// NDEBUG is not set, but cuco builds Release, so define it unconditionally for
+// affected toolkit versions.
+#if !defined(_CCCL_ATOMIC_UNSAFE_AUTOMATIC_STORAGE) \
+  && ((__CUDACC_VER_MAJOR__ < 13) || (__CUDACC_VER_MAJOR__ == 13 && __CUDACC_VER_MINOR__ < 1))
+#define _CCCL_ATOMIC_UNSAFE_AUTOMATIC_STORAGE
+#endif
+
 // WAR for libcudacxx/296
 #define CUCO_CUDA_MINIMUM_ARCH _NV_FIRST_ARG(__CUDA_ARCH_LIST__)
 
