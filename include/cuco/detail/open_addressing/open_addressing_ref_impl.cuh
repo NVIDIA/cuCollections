@@ -777,7 +777,8 @@ class open_addressing_ref_impl
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -790,6 +791,13 @@ class open_addressing_ref_impl
           case detail::equal_result::EMPTY: return false;
           case detail::equal_result::EQUAL: return true;
         }
+      }
+      // Robin Hood: a resident richer than us proves the key is absent.
+      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+        if (this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step)) {
+          return false;
+        }
+        ++probe_step;
       }
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
@@ -816,7 +824,8 @@ class open_addressing_ref_impl
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -834,6 +843,13 @@ class open_addressing_ref_impl
       if (group.any(state == detail::equal_result::EQUAL)) { return true; }
       if (group.any(state == detail::equal_result::EMPTY)) { return false; }
 
+      // Robin Hood: a resident richer than us (in any lane's bucket) proves the key is absent.
+      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+        if (group.any(this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step))) {
+          return false;
+        }
+        ++probe_step;
+      }
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
     }
@@ -857,7 +873,8 @@ class open_addressing_ref_impl
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -874,6 +891,13 @@ class open_addressing_ref_impl
           }
           default: continue;
         }
+      }
+      // Robin Hood: a resident richer than us proves the key is absent.
+      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+        if (this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step)) {
+          return this->end();
+        }
+        ++probe_step;
       }
       ++probing_iter;
       if (*probing_iter == init_idx) { return this->end(); }
@@ -900,7 +924,8 @@ class open_addressing_ref_impl
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -930,6 +955,13 @@ class open_addressing_ref_impl
       // Find an empty slot, meaning that the probe key isn't present in the container
       if (group.any(state == detail::equal_result::EMPTY)) { return this->end(); }
 
+      // Robin Hood: a resident richer than us (in any lane's bucket) proves the key is absent.
+      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+        if (group.any(this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step))) {
+          return this->end();
+        }
+        ++probe_step;
+      }
       ++probing_iter;
       if (*probing_iter == init_idx) { return this->end(); }
     }
@@ -1590,6 +1622,43 @@ class open_addressing_ref_impl
                                       cuda::std::int32_t intra_bucket_idx) const noexcept
   {
     return storage_ref_.data() + probing_idx + intra_bucket_idx;
+  }
+
+  /**
+   * @brief Determines whether the Robin Hood invariant proves the probe key absent at the current
+   * probe step.
+   *
+   * @note Only meaningful for Robin Hood probing. The key is proven absent when the bucket holds a
+   * resident that is "richer" than the probe key — i.e. whose own probe distance is smaller than
+   * the probe key's probe distance at the current step (`probe_step`). Such a resident would have
+   * been displaced on insertion if the probe key lived here, so the probe key cannot be present.
+   *
+   * @note Behavior is only well-defined when every slot in the bucket is occupied (the callers
+   * reach this check only after ruling out empty and matching slots), since probe distance is
+   * meaningless for an empty slot.
+   *
+   * @tparam BucketSlots Bucket slot array type
+   *
+   * @param bucket_slots The slots of the bucket currently being probed
+   * @param bucket_base The slot index of the first slot in the bucket
+   * @param probe_step The probe key's own probe distance at the current step
+   *
+   * @return True if some resident in the bucket is richer than the probe key
+   */
+  template <typename BucketSlots>
+  [[nodiscard]] __device__ bool robin_hood_proves_absent(BucketSlots const& bucket_slots,
+                                                           size_type bucket_base,
+                                                           size_type probe_step) const noexcept
+  {
+    bool richer = false;
+    cuda::static_for<bucket_size>([&](auto i) {
+      auto const resident_age = probing_scheme_.template probe_distance<bucket_size>(
+        this->extract_key(bucket_slots[i()]),
+        static_cast<size_type>(bucket_base + i()),
+        storage_ref_.extent());
+      if (resident_age < probe_step) { richer = true; }
+    });
+    return richer;
   }
 
   /**
