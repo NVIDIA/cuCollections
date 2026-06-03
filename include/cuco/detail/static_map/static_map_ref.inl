@@ -495,6 +495,7 @@ class operator_impl<
   using key_type = typename base_type::key_type;
   using value_type  = typename base_type::value_type;
   using mapped_type = T;
+  using size_type   = typename base_type::size_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto bucket_size = base_type::bucket_size;
@@ -515,16 +516,19 @@ class operator_impl<
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
-    auto const key            = ref_.impl_.extract_key(val);
+    auto val                  = ref_.impl_.heterogeneous_value(value);
+    auto key                  = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
     auto probing_iter =
       probing_scheme.template make_iterator<bucket_size>(key, storage_ref.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
+
+      [[maybe_unused]] bool retry = false;
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -540,7 +544,36 @@ class operator_impl<
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           if (attempt_insert_or_assign(slot_ptr, val)) { return; }
+          if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+            retry = true;
+            break;
+          }
         }
+
+        // Robin Hood swap test (see `open_addressing_ref_impl::insert` for the rationale).
+        if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+          if (eq_res == detail::equal_result::UNEQUAL) {
+            auto const evicted_age = probing_scheme.template probe_distance<bucket_size>(
+              ref_.impl_.extract_key(slot_content),
+              static_cast<size_type>(*probing_iter + intra_bucket_index),
+              storage_ref.extent());
+            if (evicted_age < probe_step) {
+              if (ref_.impl_.attempt_insert(slot_ptr, slot_content, val) ==
+                  detail::insert_result::SUCCESS) {
+                val        = cuda::std::bit_cast<decltype(val)>(slot_content);
+                key        = ref_.impl_.extract_key(val);
+                probe_step = evicted_age;
+              }
+              retry = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+        if (retry) { continue; }
+        ++probe_step;
       }
       ++probing_iter;
       if (*probing_iter == init_idx) { return; }
@@ -565,13 +598,14 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
-    auto const key            = ref_.impl_.extract_key(val);
+    auto val                  = ref_.impl_.heterogeneous_value(value);
+    auto key                  = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
     auto probing_iter =
       probing_scheme.template make_iterator<bucket_size>(group, key, storage_ref.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -612,6 +646,45 @@ class operator_impl<
         // Exit if inserted or assigned
         if (group.shfl(status, src_lane)) { return; }
       } else {
+        if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+          // Robin Hood displacement (see CG `open_addressing_ref_impl::insert`).
+          cuda::std::int32_t displace_idx = -1;
+          size_type evicted_age           = 0;
+          cuda::static_for<bucket_size>([&] __device__(auto i) {
+            if (displace_idx < 0) {
+              auto const age = probing_scheme.template probe_distance<bucket_size>(
+                ref_.impl_.extract_key(bucket_slots[i()]),
+                static_cast<size_type>(*probing_iter + i()),
+                storage_ref.extent());
+              if (age < probe_step) {
+                displace_idx = i();
+                evicted_age  = age;
+              }
+            }
+          });
+
+          auto const group_displaceable = group.ballot(displace_idx >= 0);
+          if (group_displaceable) {
+            auto const src_lane = __ffs(group_displaceable) - 1;
+            auto status         = detail::insert_result::CONTINUE;
+            value_type evicted  = ref_.impl_.empty_slot_sentinel();
+            if (group.thread_rank() == src_lane) {
+              evicted = bucket_slots[displace_idx];
+              status  = ref_.impl_.attempt_insert(
+                ref_.impl_.get_slot_ptr(*probing_iter, displace_idx), evicted, val);
+            }
+            if (group.shfl(status, src_lane) == detail::insert_result::SUCCESS) {
+              auto const new_key     = group.shfl(ref_.impl_.extract_key(evicted), src_lane);
+              auto const new_payload = group.shfl(ref_.impl_.extract_payload(evicted), src_lane);
+              auto const new_age     = group.shfl(evicted_age, src_lane);
+              val        = cuda::std::bit_cast<decltype(val)>(value_type{new_key, new_payload});
+              key        = ref_.impl_.extract_key(val);
+              probe_step = new_age;
+            }
+            continue;
+          }
+          ++probe_step;
+        }
         ++probing_iter;
         if (*probing_iter == init_idx) { return; }
       }
@@ -670,6 +743,7 @@ class operator_impl<
   using ref_type = static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>;
   using key_type = typename base_type::key_type;
   using value_type = typename base_type::value_type;
+  using size_type  = typename base_type::size_type;
 
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto bucket_size = base_type::bucket_size;
@@ -886,20 +960,23 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
-    auto const key            = ref_.impl_.extract_key(val);
+    auto val                  = ref_.impl_.heterogeneous_value(value);
+    auto key                  = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
     auto probing_iter =
       probing_scheme.template make_iterator<bucket_size>(key, storage_ref.extent());
-    auto const init_idx    = *probing_iter;
-    auto const empty_value = ref_.empty_value_sentinel();
+    auto const init_idx                   = *probing_iter;
+    auto const empty_value                = ref_.empty_value_sentinel();
+    [[maybe_unused]] size_type probe_step = 0;
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
+
+      [[maybe_unused]] bool retry = false;
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -928,9 +1005,45 @@ class operator_impl<
               op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
               return false;
             }
-            default: continue;
+            case insert_result::CONTINUE: {
+              if constexpr (cuco::is_robin_hood_probing<
+                              typename ref_type::probing_scheme_type>::value) {
+                retry = true;
+                break;
+              } else {
+                continue;
+              }
+            }
+          }
+          if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+            if (retry) { break; }
           }
         }
+
+        // Robin Hood swap test (see `open_addressing_ref_impl::insert` for the rationale).
+        if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+          if (eq_res == detail::equal_result::UNEQUAL) {
+            auto const evicted_age = probing_scheme.template probe_distance<bucket_size>(
+              ref_.impl_.extract_key(slot_content),
+              static_cast<size_type>(*probing_iter + intra_bucket_index),
+              storage_ref.extent());
+            if (evicted_age < probe_step) {
+              if (ref_.impl_.attempt_insert(slot_ptr, slot_content, val) ==
+                  detail::insert_result::SUCCESS) {
+                val        = cuda::std::bit_cast<decltype(val)>(slot_content);
+                key        = ref_.impl_.extract_key(val);
+                probe_step = evicted_age;
+              }
+              retry = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+        if (retry) { continue; }
+        ++probe_step;
       }
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
@@ -964,14 +1077,15 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
-    auto const key            = ref_.impl_.extract_key(val);
+    auto val                  = ref_.impl_.heterogeneous_value(value);
+    auto key                  = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
     auto probing_iter =
       probing_scheme.template make_iterator<bucket_size>(group, key, storage_ref.extent());
-    auto const init_idx    = *probing_iter;
-    auto const empty_value = ref_.empty_value_sentinel();
+    auto const init_idx                   = *probing_iter;
+    auto const empty_value                = ref_.empty_value_sentinel();
+    [[maybe_unused]] size_type probe_step = 0;
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
@@ -1030,6 +1144,45 @@ class operator_impl<
           default: continue;
         }
       } else {
+        if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+          // Robin Hood displacement (see CG `open_addressing_ref_impl::insert`).
+          cuda::std::int32_t displace_idx = -1;
+          size_type evicted_age           = 0;
+          cuda::static_for<bucket_size>([&] __device__(auto i) {
+            if (displace_idx < 0) {
+              auto const age = probing_scheme.template probe_distance<bucket_size>(
+                ref_.impl_.extract_key(bucket_slots[i()]),
+                static_cast<size_type>(*probing_iter + i()),
+                storage_ref.extent());
+              if (age < probe_step) {
+                displace_idx = i();
+                evicted_age  = age;
+              }
+            }
+          });
+
+          auto const group_displaceable = group.ballot(displace_idx >= 0);
+          if (group_displaceable) {
+            auto const src_lane = __ffs(group_displaceable) - 1;
+            auto status         = detail::insert_result::CONTINUE;
+            value_type evicted  = ref_.impl_.empty_slot_sentinel();
+            if (group.thread_rank() == src_lane) {
+              evicted = bucket_slots[displace_idx];
+              status  = ref_.impl_.attempt_insert(
+                ref_.impl_.get_slot_ptr(*probing_iter, displace_idx), evicted, val);
+            }
+            if (group.shfl(status, src_lane) == detail::insert_result::SUCCESS) {
+              auto const new_key     = group.shfl(ref_.impl_.extract_key(evicted), src_lane);
+              auto const new_payload = group.shfl(ref_.impl_.extract_payload(evicted), src_lane);
+              auto const new_age     = group.shfl(evicted_age, src_lane);
+              val        = cuda::std::bit_cast<decltype(val)>(value_type{new_key, new_payload});
+              key        = ref_.impl_.extract_key(val);
+              probe_step = new_age;
+            }
+            continue;
+          }
+          ++probe_step;
+        }
         ++probing_iter;
         if (*probing_iter == init_idx) { return false; }
       }

@@ -641,14 +641,20 @@ class open_addressing_ref_impl
                   "pre-Volta GPUs.");
 #endif
 
-    auto const val = this->heterogeneous_value(value);
-    auto const key = this->extract_key(val);
+    auto val = this->heterogeneous_value(value);
+    auto key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
+    // Robin Hood may displace the original key before the chain ends; remember the slot it landed in
+    // so we return an iterator to it (not to a later victim's slot).
+    [[maybe_unused]] value_type* placed_ptr = nullptr;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
+
+      [[maybe_unused]] bool retry = false;
 
       for (auto i = 0; i < bucket_size; ++i) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -663,16 +669,58 @@ class open_addressing_ref_impl
         if (eq_res == detail::equal_result::AVAILABLE) {
           switch (this->attempt_insert_stable(slot_ptr, bucket_slots[i], val)) {
             case insert_result::SUCCESS: {
-              this->maybe_wait_for_payload(slot_ptr);
-              return {iterator{slot_ptr}, true};
+              // The in-flight pair is placed in an empty slot, ending any displacement chain. The
+              // iterator to return is the original key's slot (captured on its first placement).
+              auto* result_ptr = slot_ptr;
+              if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+                if (placed_ptr != nullptr) { result_ptr = placed_ptr; }
+              }
+              this->maybe_wait_for_payload(result_ptr);
+              return {iterator{result_ptr}, true};
             }
             case insert_result::DUPLICATE: {
               this->maybe_wait_for_payload(slot_ptr);
               return {iterator{slot_ptr}, false};
             }
-            default: continue;
+            case insert_result::CONTINUE: {
+              if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+                retry = true;
+                break;
+              } else {
+                continue;
+              }
+            }
+          }
+          if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+            if (retry) { break; }
           }
         }
+
+        // Robin Hood swap test (see `insert` for the full rationale).
+        if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+          if (eq_res == detail::equal_result::UNEQUAL) {
+            auto const evicted_age = probing_scheme_.template probe_distance<bucket_size>(
+              this->extract_key(bucket_slots[i]),
+              static_cast<size_type>(*probing_iter + i),
+              storage_ref_.extent());
+            if (evicted_age < probe_step) {
+              if (this->attempt_insert(slot_ptr, bucket_slots[i], val) ==
+                  insert_result::SUCCESS) {
+                if (placed_ptr == nullptr) { placed_ptr = slot_ptr; }  // original key's slot
+                val        = cuda::std::bit_cast<decltype(val)>(bucket_slots[i]);
+                key        = this->extract_key(val);
+                probe_step = evicted_age;
+              }
+              retry = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+        if (retry) { continue; }
+        ++probe_step;
       }
       ++probing_iter;
       if (*probing_iter == init_idx) { return {this->end(), false}; }
@@ -707,11 +755,15 @@ class open_addressing_ref_impl
                   "pre-Volta GPUs.");
 #endif
 
-    auto const val = this->heterogeneous_value(value);
-    auto const key = this->extract_key(val);
+    auto val = this->heterogeneous_value(value);
+    auto key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
+    // Robin Hood may displace the original key before the chain ends; remember (broadcast) the slot
+    // it first landed in so we return an iterator to it. 0 means "not yet placed".
+    [[maybe_unused]] intptr_t placed_ptr = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -751,9 +803,15 @@ class open_addressing_ref_impl
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
+            // The in-flight pair is placed in an empty slot, ending any displacement chain. Return
+            // the original key's slot (the first placement) if it was displaced earlier.
+            auto result = res;
+            if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+              if (placed_ptr != 0) { result = placed_ptr; }
+            }
             if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
             group.sync();
-            return {iterator{reinterpret_cast<value_type*>(res)}, true};
+            return {iterator{reinterpret_cast<value_type*>(result)}, true};
           }
           case insert_result::DUPLICATE: {
             if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
@@ -763,6 +821,54 @@ class open_addressing_ref_impl
           default: continue;
         }
       } else {
+        if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+          // Robin Hood displacement (see CG `insert` for the full rationale).
+          cuda::std::int32_t displace_idx = -1;
+          size_type evicted_age           = 0;
+          cuda::static_for<bucket_size>([&] __device__(auto i) {
+            if (displace_idx < 0) {
+              auto const age = probing_scheme_.template probe_distance<bucket_size>(
+                this->extract_key(bucket_slots[i()]),
+                static_cast<size_type>(*probing_iter + i()),
+                storage_ref_.extent());
+              if (age < probe_step) {
+                displace_idx = i();
+                evicted_age  = age;
+              }
+            }
+          });
+
+          auto const group_displaceable = group.ballot(displace_idx >= 0);
+          if (group_displaceable) {
+            auto const src_lane = __ffs(group_displaceable) - 1;
+            auto status         = insert_result::CONTINUE;
+            value_type evicted  = this->empty_slot_sentinel();
+            intptr_t displaced  = 0;
+            if (group.thread_rank() == src_lane) {
+              auto* dptr = this->get_slot_ptr(*probing_iter, displace_idx);
+              evicted    = bucket_slots[displace_idx];
+              status     = attempt_insert(dptr, evicted, val);
+              displaced  = reinterpret_cast<intptr_t>(dptr);
+            }
+            if (group.shfl(status, src_lane) == insert_result::SUCCESS) {
+              if (placed_ptr == 0) { placed_ptr = group.shfl(displaced, src_lane); }
+              auto const new_key = group.shfl(this->extract_key(evicted), src_lane);
+              auto const new_age = group.shfl(evicted_age, src_lane);
+              value_type evicted_slot;
+              if constexpr (has_payload) {
+                auto const new_payload = group.shfl(this->extract_payload(evicted), src_lane);
+                evicted_slot           = value_type{new_key, new_payload};
+              } else {
+                evicted_slot = new_key;
+              }
+              val        = cuda::std::bit_cast<decltype(val)>(evicted_slot);
+              key        = this->extract_key(val);
+              probe_step = new_age;
+            }
+            continue;
+          }
+          ++probe_step;
+        }
         ++probing_iter;
         if (*probing_iter == init_idx) { return {this->end(), false}; }
       }
