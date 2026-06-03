@@ -490,11 +490,12 @@ class open_addressing_ref_impl
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                          Value value) noexcept
   {
-    auto const val = this->heterogeneous_value(value);
-    auto const key = this->extract_key(val);
+    auto val = this->heterogeneous_value(value);
+    auto key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -554,6 +555,60 @@ class open_addressing_ref_impl
           default: continue;
         }
       } else {
+        if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+          // Robin Hood displacement: no match, no empty slot in this bucket. Displace the first
+          // resident in probe (lane) order that is richer than the in-flight pair, adopt it, and
+          // re-probe THIS bucket -- the victim may belong in another slot of it. The within-bucket
+          // linear probe (combined bucket+slot distance) is identical to the scalar path; the
+          // `slot_distance` term cancels, so the test is again `resident distance < probe_step`.
+          cuda::std::int32_t displace_idx = -1;
+          size_type evicted_age           = 0;
+          cuda::static_for<bucket_size>([&] __device__(auto i) {
+            if (displace_idx < 0) {
+              auto const age = probing_scheme_.template probe_distance<bucket_size>(
+                this->extract_key(bucket_slots[i()]),
+                static_cast<size_type>(*probing_iter + i()),
+                storage_ref_.extent());
+              if (age < probe_step) {
+                displace_idx = i();
+                evicted_age  = age;
+              }
+            }
+          });
+
+          auto const group_displaceable = group.ballot(displace_idx >= 0);
+          if (group_displaceable) {
+            auto const src_lane = __ffs(group_displaceable) - 1;
+            auto status         = insert_result::CONTINUE;
+            // Only `src_lane` reads `evicted` meaningfully; other lanes just need a valid value to
+            // feed the broadcast `shfl` below, so seed it with the empty-slot sentinel.
+            value_type evicted = this->empty_slot_sentinel();
+            if (group.thread_rank() == src_lane) {
+              evicted = bucket_slots[displace_idx];
+              status =
+                attempt_insert(this->get_slot_ptr(*probing_iter, displace_idx), evicted, val);
+            }
+            if (group.shfl(status, src_lane) == insert_result::SUCCESS) {
+              // Broadcast the evicted pair and its probe distance from the winning lane, and adopt
+              // it on every lane (all lanes need the new in-flight pair for the next scan).
+              auto const new_key = group.shfl(this->extract_key(evicted), src_lane);
+              auto const new_age = group.shfl(evicted_age, src_lane);
+              value_type evicted_slot;
+              if constexpr (has_payload) {
+                auto const new_payload = group.shfl(this->extract_payload(evicted), src_lane);
+                evicted_slot           = value_type{new_key, new_payload};
+              } else {
+                evicted_slot = new_key;
+              }
+              val        = cuda::std::bit_cast<decltype(val)>(evicted_slot);
+              key        = this->extract_key(val);
+              probe_step = new_age;
+            }
+            continue;  // success: re-probe this bucket with the victim; lost CAS: re-read it
+          }
+          // No displaceable resident: fall through to the shared advance below.
+          ++probe_step;
+        }
         ++probing_iter;
         if (*probing_iter == init_idx) { return false; }
       }
