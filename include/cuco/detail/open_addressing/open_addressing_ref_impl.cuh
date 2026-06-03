@@ -27,6 +27,7 @@
 
 #include <cuda/atomic>
 #include <cuda/iterator>
+#include <cuda/std/bit>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
@@ -378,15 +379,18 @@ class open_addressing_ref_impl
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto const val = this->heterogeneous_value(value);
-    auto const key = this->extract_key(val);
+    auto val = this->heterogeneous_value(value);
+    auto key = this->extract_key(val);
 
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx                   = *probing_iter;
+    [[maybe_unused]] size_type probe_step = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
+
+      [[maybe_unused]] bool retry = false;
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -407,11 +411,65 @@ class open_addressing_ref_impl
                 return false;
               }
             }
-            case insert_result::CONTINUE: continue;
+            case insert_result::CONTINUE: {
+              // Retry on a lost CAS. Plain probing keeps scanning this (now stale) bucket; Robin
+              // Hood must re-read it instead, so the in-flight pair is re-evaluated against the new
+              // occupants -- otherwise it could be placed past a slot it should have displaced,
+              // breaking the invariant (and therefore lookups).
+              if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+                retry = true;
+                break;
+              } else {
+                continue;
+              }
+            }
             case insert_result::SUCCESS: return true;
+          }
+          if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+            if (retry) { break; }  // leave the scan to re-read the bucket
+          }
+        }
+
+        // Robin Hood swap test. A resident "richer" than the in-flight pair (a smaller probe
+        // distance than our current probe step) is displaced: we swap our pair into its slot,
+        // adopt the evicted resident, and re-probe forward.
+        if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+          if (eq_res == detail::equal_result::UNEQUAL) {
+            auto const intra_bucket_index =
+              cuda::std::distance(bucket_slots.begin(), &slot_content);
+            auto const evicted_age = probing_scheme_.template probe_distance<bucket_size>(
+              this->extract_key(slot_content),
+              static_cast<size_type>(*probing_iter + intra_bucket_index),
+              storage_ref_.extent());
+            if (evicted_age < probe_step) {
+              if (this->attempt_insert(
+                    this->get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, val) ==
+                  insert_result::SUCCESS) {
+                // Adopt the evicted pair and re-probe THIS bucket -- its bucket distance here is
+                // `evicted_age`, and it may belong in another slot of the same bucket: an empty one,
+                // or one holding an even-richer resident it can displace in turn. Re-reading the
+                // bucket (rather than advancing past it) is the within-bucket linear probe, i.e. the
+                // combined bucket+slot distance that makes displacement correct for bucket_size > 1.
+                // The `slot_distance` term cancels in every comparison, so it never appears here; it
+                // shows up only as this slot-by-slot continuation. `bit_cast` keeps the adoption
+                // valid for heterogeneous insert types (layout-compatible by contract; identity in
+                // the common case).
+                val        = cuda::std::bit_cast<decltype(val)>(slot_content);
+                key        = this->extract_key(val);
+                probe_step = evicted_age;
+              }
+              retry = true;  // re-read this bucket: re-probe with the victim, or re-evaluate a lost CAS
+              break;
+            }
           }
         }
       }
+
+      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
+        if (retry) { continue; }  // re-probe (re-read this bucket, or move on after displacement)
+        ++probe_step;
+      }
+
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
     }
