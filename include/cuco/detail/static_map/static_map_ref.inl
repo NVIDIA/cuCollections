@@ -538,15 +538,35 @@ class operator_impl<
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
-          cuda::atomic_ref<mapped_type, Scope> payload_ref(slot_ptr->second);
-          payload_ref.store(val.second, cuda::memory_order_relaxed);
-          return;
-        }
-        if (eq_res == detail::equal_result::AVAILABLE) {
-          if (attempt_insert_or_assign(slot_ptr, val)) { return; }
           if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+            // Robin Hood may relocate this key; assign via a full-slot CAS that keeps the key and
+            // fails if it moved. On failure re-probe and retry -- the loop re-finds the key.
+            auto desired   = slot_content;
+            desired.second = val.second;
+            if (ref_.impl_.attempt_insert(slot_ptr, slot_content, desired) ==
+                detail::insert_result::SUCCESS) {
+              return;
+            }
             retry = true;
             break;
+          } else {
+            cuda::atomic_ref<mapped_type, Scope> payload_ref(slot_ptr->second);
+            payload_ref.store(val.second, cuda::memory_order_relaxed);
+            return;
+          }
+        }
+        if (eq_res == detail::equal_result::AVAILABLE) {
+          if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+            // Insert the new pair with a full-slot CAS; on a lost CAS (rival insert) or a duplicate,
+            // retry -- the loop re-finds the key and assigns it via the EQUAL full-slot CAS.
+            if (ref_.impl_.attempt_insert(slot_ptr, slot_content, val) ==
+                detail::insert_result::SUCCESS) {
+              return;
+            }
+            retry = true;
+            break;
+          } else {
+            if (attempt_insert_or_assign(slot_ptr, val)) { return; }
           }
         }
 
@@ -629,22 +649,48 @@ class operator_impl<
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
-        if (group.thread_rank() == src_lane) {
-          cuda::atomic_ref<mapped_type, Scope> payload_ref(slot_ptr->second);
-          payload_ref.store(val.second, cuda::memory_order_relaxed);
+        if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+          // src_lane assigns via a full-slot CAS (key fixed); a relocation or rival update fails it,
+          // so the group re-probes and retries -- the loop re-finds the key.
+          auto const success = [&, target_idx = intra_bucket_index]() {
+            if (group.thread_rank() != src_lane) { return false; }
+            auto desired   = bucket_slots[target_idx];
+            desired.second = val.second;
+            return ref_.impl_.attempt_insert(slot_ptr, bucket_slots[target_idx], desired) ==
+                   detail::insert_result::SUCCESS;
+          }();
+          if (group.shfl(success, src_lane)) { return; }
+          continue;
+        } else {
+          if (group.thread_rank() == src_lane) {
+            cuda::atomic_ref<mapped_type, Scope> payload_ref(slot_ptr->second);
+            payload_ref.store(val.second, cuda::memory_order_relaxed);
+          }
+          group.sync();
+          return;
         }
-        group.sync();
-        return;
       }
 
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
-        auto const status =
-          (group.thread_rank() == src_lane) ? attempt_insert_or_assign(slot_ptr, val) : false;
+        if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+          // Insert the new pair with a full-slot CAS; on a lost CAS or duplicate, re-probe and retry
+          // (the loop re-finds the key and assigns via the EQUAL full-slot CAS).
+          auto const success = [&, target_idx = intra_bucket_index]() {
+            if (group.thread_rank() != src_lane) { return false; }
+            return ref_.impl_.attempt_insert(slot_ptr, bucket_slots[target_idx], val) ==
+                   detail::insert_result::SUCCESS;
+          }();
+          if (group.shfl(success, src_lane)) { return; }
+          continue;
+        } else {
+          auto const status =
+            (group.thread_rank() == src_lane) ? attempt_insert_or_assign(slot_ptr, val) : false;
 
-        // Exit if inserted or assigned
-        if (group.shfl(status, src_lane)) { return; }
+          // Exit if inserted or assigned
+          if (group.shfl(status, src_lane)) { return; }
+        }
       } else {
         if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
           // Robin Hood displacement (see CG `open_addressing_ref_impl::insert`).
@@ -986,18 +1032,41 @@ class operator_impl<
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
-          // wait for payload only when performing insert operation
-          if constexpr (wait_for_payload) {
-            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+          if constexpr (cuco::is_robin_hood_probing<
+                          typename ref_type::probing_scheme_type>::value) {
+            // Lift `op` to the whole slot, keeping the key, and CAS it. A relocation (or a rival
+            // update) makes the CAS fail; re-probe and retry -- the loop re-finds the key.
+            auto desired = slot_content;
+            // `desired` is a local copy, so this `op` is just local arithmetic -- the `atomic_ref`'s
+            // atomicity does nothing here and is used only because `Op`'s signature requires one. The
+            // real atomic is the full-slot CAS below.
+            op(cuda::atomic_ref<T, Scope>{desired.second}, val.second);
+            if (ref_.impl_.attempt_insert(slot_ptr, slot_content, desired) ==
+                detail::insert_result::SUCCESS) {
+              return false;
+            }
+            retry = true;
+            break;
+          } else {
+            // wait for payload only when performing insert operation
+            if constexpr (wait_for_payload) {
+              ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+            }
+            op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
+            return false;
           }
-          op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
-          return false;
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           switch (ref_.template attempt_insert_or_apply<UseDirectApply>(
             slot_ptr, slot_content, val, op)) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: {
+              if constexpr (cuco::is_robin_hood_probing<
+                              typename ref_type::probing_scheme_type>::value) {
+                // Key is present now; re-probe so it is found EQUAL and updated via the full-slot CAS.
+                retry = true;
+                break;
+              }
               // wait for payload only when performing insert operation
               if constexpr (wait_for_payload) {
                 ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
@@ -1112,13 +1181,31 @@ class operator_impl<
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
-        if (group.thread_rank() == src_lane) {
-          if constexpr (wait_for_payload) {
-            ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+        if constexpr (cuco::is_robin_hood_probing<
+                        typename ref_type::probing_scheme_type>::value) {
+          // src_lane lifts `op` to the slot (key fixed) and CASes it; a relocation or rival update
+          // fails the CAS, so the group re-probes and retries -- the loop re-finds the key.
+          auto const success = [&, target_idx = intra_bucket_index]() {
+            if (group.thread_rank() != src_lane) { return false; }
+            auto desired = bucket_slots[target_idx];
+            // `desired` is a local copy, so this `op` is just local arithmetic -- the `atomic_ref`'s
+            // atomicity does nothing here and is used only because `Op`'s signature requires one. The
+            // real atomic is the full-slot CAS below.
+            op(cuda::atomic_ref<T, Scope>{desired.second}, val.second);
+            return ref_.impl_.attempt_insert(slot_ptr, bucket_slots[target_idx], desired) ==
+                   detail::insert_result::SUCCESS;
+          }();
+          if (group.shfl(success, src_lane)) { return false; }
+          continue;
+        } else {
+          if (group.thread_rank() == src_lane) {
+            if constexpr (wait_for_payload) {
+              ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);
+            }
+            op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
           }
-          op(cuda::atomic_ref<T, Scope>{slot_ptr->second}, val.second);
+          return false;
         }
-        return false;
       }
 
       auto const group_contains_available = group.ballot(state == detail::equal_result::AVAILABLE);
@@ -1133,6 +1220,10 @@ class operator_impl<
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
           case insert_result::DUPLICATE: {
+            if constexpr (cuco::is_robin_hood_probing<
+                            typename ref_type::probing_scheme_type>::value) {
+              continue;  // key present now: re-probe, find it EQUAL, apply via the full-slot CAS
+            }
             if (group.thread_rank() == src_lane) {
               if constexpr (wait_for_payload) {
                 ref_.impl_.wait_for_payload(slot_ptr->second, empty_value);

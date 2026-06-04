@@ -15,6 +15,7 @@
  * limitations under the License.
  */
 
+#include <static_map/robin_hood_invariant.cuh>
 #include <test_utils.hpp>
 
 #include <cuco/detail/__config>
@@ -52,12 +53,23 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
+  // Robin Hood mirrors the linear-probing rows. Only single-CAS (<= 8-byte) slots are
+  // unconditional; wider-slot RH displacement needs a packed atom.cas.b128 (gated below).
+  (int32_t, int32_t, cuco::test::probe_sequence::robin_hood, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::robin_hood, 2)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
     ,
   (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
   (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2),
+  // Wider-slot Robin Hood rows: the packed displacement CAS needs atom.cas.b128.
+  (int32_t, int64_t, cuco::test::probe_sequence::robin_hood, 1),
+  (int32_t, int64_t, cuco::test::probe_sequence::robin_hood, 2),
+  (int64_t, int32_t, cuco::test::probe_sequence::robin_hood, 1),
+  (int64_t, int32_t, cuco::test::probe_sequence::robin_hood, 2),
+  (int64_t, int64_t, cuco::test::probe_sequence::robin_hood, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::robin_hood, 2)
 #endif
 )
 {
@@ -66,9 +78,12 @@ TEMPLATE_TEST_CASE_SIG(
 #endif
   {
     using probe = std::conditional_t<
-      Probe == cuco::test::probe_sequence::linear_probing,
-      cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-      cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+      Probe == cuco::test::probe_sequence::double_hashing,
+      cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>,
+      std::conditional_t<
+        Probe == cuco::test::probe_sequence::robin_hood,
+        cuco::robin_hood_probing<cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>>,
+        cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>>>;
 
     constexpr size_type num_keys{400};
 
@@ -99,6 +114,12 @@ TEMPLATE_TEST_CASE_SIG(
     // insert second time, fills inserted with false as keys already in map
     map.insert_and_find(pairs_begin, pairs_begin + num_keys, found2.begin(), inserted.begin());
     REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+
+    // Robin Hood-specific: the populated table must satisfy the per-bucket layout invariant.
+    if constexpr (cuco::is_robin_hood_probing<
+                    typename std::decay_t<decltype(map)>::probing_scheme_type>::value) {
+      cuco::test::check_robin_hood_invariant(map);
+    }
 
     // both found1 and found2 should be same, as keys will be referring to same slot
     REQUIRE(
