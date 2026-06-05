@@ -538,7 +538,8 @@ class operator_impl<
 
         // If the key is already in the container, update the payload and return
         if (eq_res == detail::equal_result::EQUAL) {
-          if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+          if constexpr (cuco::is_robin_hood_probing<
+                          typename ref_type::probing_scheme_type>::value) {
             // Robin Hood may relocate this key; assign via a full-slot CAS that keeps the key and
             // fails if it moved. On failure re-probe and retry -- the loop re-finds the key.
             auto desired   = slot_content;
@@ -556,10 +557,11 @@ class operator_impl<
           }
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
-          if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
-            // Claim only a true empty; a tombstone is handled as a resident by the displacement test
-            // below. On a lost CAS (rival insert) or a duplicate, retry -- the loop re-finds the key
-            // and assigns it via the EQUAL full-slot CAS.
+          if constexpr (cuco::is_robin_hood_probing<
+                          typename ref_type::probing_scheme_type>::value) {
+            // Claim only a true empty; a tombstone is handled as a resident by the displacement
+            // test below. On a lost CAS (rival insert) or a duplicate, retry -- the loop re-finds
+            // the key and assigns it via the EQUAL full-slot CAS.
             if (not ref_.impl_.is_erased(slot_content)) {
               if (ref_.impl_.attempt_insert(slot_ptr, slot_content, val) ==
                   detail::insert_result::SUCCESS) {
@@ -574,8 +576,8 @@ class operator_impl<
         }
 
         // Robin Hood swap test (see `open_addressing_ref_impl::insert` for the rationale). A
-        // tombstone is a resident too (age from its payload); picking one up consumes it -- the pair
-        // lands there and we are done.
+        // tombstone is a resident too (age from its payload); picking one up consumes it -- the
+        // pair lands there and we are done.
         if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
           if (eq_res == detail::equal_result::UNEQUAL or ref_.impl_.is_erased(slot_content)) {
             auto const evicted_age = ref_.impl_.robin_hood_age(
@@ -640,7 +642,8 @@ class operator_impl<
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = ref_.impl_.predicate_.template operator()<is_insert::YES>(
               key, bucket_slots[i()].first);
-            // Robin Hood: a tombstone is a resident handled by the displacement scan, not AVAILABLE.
+            // Robin Hood: a tombstone is a resident handled by the displacement scan, not
+            // AVAILABLE.
             if constexpr (cuco::is_robin_hood_probing<
                             typename ref_type::probing_scheme_type>::value) {
               if (res == detail::equal_result::AVAILABLE and
@@ -662,8 +665,8 @@ class operator_impl<
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
         if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
-          // src_lane assigns via a full-slot CAS (key fixed); a relocation or rival update fails it,
-          // so the group re-probes and retries -- the loop re-finds the key.
+          // src_lane assigns via a full-slot CAS (key fixed); a relocation or rival update fails
+          // it, so the group re-probes and retries -- the loop re-finds the key.
           auto const success = [&, target_idx = intra_bucket_index]() {
             if (group.thread_rank() != src_lane) { return false; }
             auto desired   = bucket_slots[target_idx];
@@ -687,8 +690,8 @@ class operator_impl<
       if (group_contains_available) {
         auto const src_lane = __ffs(group_contains_available) - 1;
         if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
-          // Insert the new pair with a full-slot CAS; on a lost CAS or duplicate, re-probe and retry
-          // (the loop re-finds the key and assigns via the EQUAL full-slot CAS).
+          // Insert the new pair with a full-slot CAS; on a lost CAS or duplicate, re-probe and
+          // retry (the loop re-finds the key and assigns via the EQUAL full-slot CAS).
           auto const success = [&, target_idx = intra_bucket_index]() {
             if (group.thread_rank() != src_lane) { return false; }
             return ref_.impl_.attempt_insert(slot_ptr, bucket_slots[target_idx], val) ==
@@ -1050,9 +1053,9 @@ class operator_impl<
             // Lift `op` to the whole slot, keeping the key, and CAS it. A relocation (or a rival
             // update) makes the CAS fail; re-probe and retry -- the loop re-finds the key.
             auto desired = slot_content;
-            // `desired` is a local copy, so this `op` is just local arithmetic -- the `atomic_ref`'s
-            // atomicity does nothing here and is used only because `Op`'s signature requires one. The
-            // real atomic is the full-slot CAS below.
+            // `desired` is a local copy, so this `op` is just local arithmetic -- the
+            // `atomic_ref`'s atomicity does nothing here and is used only because `Op`'s signature
+            // requires one. The real atomic is the full-slot CAS below.
             op(cuda::atomic_ref<T, Scope>{desired.second}, val.second);
             if (ref_.impl_.attempt_insert(slot_ptr, slot_content, desired) ==
                 detail::insert_result::SUCCESS) {
@@ -1080,7 +1083,8 @@ class operator_impl<
             case insert_result::DUPLICATE: {
               if constexpr (cuco::is_robin_hood_probing<
                               typename ref_type::probing_scheme_type>::value) {
-                // Key is present now; re-probe so it is found EQUAL and updated via the full-slot CAS.
+                // Key is present now; re-probe so it is found EQUAL and updated via the full-slot
+                // CAS.
                 retry = true;
                 break;
               }
@@ -1101,7 +1105,8 @@ class operator_impl<
               }
             }
           }
-          if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
+          if constexpr (cuco::is_robin_hood_probing<
+                          typename ref_type::probing_scheme_type>::value) {
             if (retry) { break; }
           }
         }
@@ -1187,7 +1192,8 @@ class operator_impl<
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = ref_.impl_.predicate_.template operator()<is_insert::YES>(
               key, bucket_slots[i()].first);
-            // Robin Hood: a tombstone is a resident handled by the displacement scan, not AVAILABLE.
+            // Robin Hood: a tombstone is a resident handled by the displacement scan, not
+            // AVAILABLE.
             if constexpr (cuco::is_robin_hood_probing<
                             typename ref_type::probing_scheme_type>::value) {
               if (res == detail::equal_result::AVAILABLE and
@@ -1208,16 +1214,15 @@ class operator_impl<
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
-        if constexpr (cuco::is_robin_hood_probing<
-                        typename ref_type::probing_scheme_type>::value) {
+        if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
           // src_lane lifts `op` to the slot (key fixed) and CASes it; a relocation or rival update
           // fails the CAS, so the group re-probes and retries -- the loop re-finds the key.
           auto const success = [&, target_idx = intra_bucket_index]() {
             if (group.thread_rank() != src_lane) { return false; }
             auto desired = bucket_slots[target_idx];
-            // `desired` is a local copy, so this `op` is just local arithmetic -- the `atomic_ref`'s
-            // atomicity does nothing here and is used only because `Op`'s signature requires one. The
-            // real atomic is the full-slot CAS below.
+            // `desired` is a local copy, so this `op` is just local arithmetic -- the
+            // `atomic_ref`'s atomicity does nothing here and is used only because `Op`'s signature
+            // requires one. The real atomic is the full-slot CAS below.
             op(cuda::atomic_ref<T, Scope>{desired.second}, val.second);
             return ref_.impl_.attempt_insert(slot_ptr, bucket_slots[target_idx], desired) ==
                    detail::insert_result::SUCCESS;

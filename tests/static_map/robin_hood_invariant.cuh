@@ -75,7 +75,7 @@ __global__ void robin_hood_invariant_kernel(Ref ref, int* violations)
     }
     if (occupied_g == 0) { continue; }
 
-    size_type const pg = (g + num_groups - 1) % num_groups;
+    size_type const pg  = (g + num_groups - 1) % num_groups;
     int occupied_p      = 0;
     size_type min_age_p = 0;
     for (int s = 0; s < stride; ++s) {
@@ -90,8 +90,8 @@ __global__ void robin_hood_invariant_kernel(Ref ref, int* violations)
       }
     }
 
-    if (max_age_g >= 1 && occupied_p < stride) { atomicAdd(violations, 1); }            // (1)
-    if (occupied_p > 0 && min_age_p + 1 < max_age_g) { atomicAdd(violations, 1); }      // (2)
+    if (max_age_g >= 1 && occupied_p < stride) { atomicAdd(violations, 1); }        // (1)
+    if (occupied_p > 0 && min_age_p + 1 < max_age_g) { atomicAdd(violations, 1); }  // (2)
   }
 }
 

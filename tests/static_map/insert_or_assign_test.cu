@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <static_map/robin_hood_invariant.cuh>
 #include <test_utils.hpp>
 
 #include <cuco/detail/__config>
@@ -30,6 +29,7 @@
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <static_map/robin_hood_invariant.cuh>
 
 using size_type = std::size_t;
 
@@ -146,8 +146,8 @@ TEMPLATE_TEST_CASE_SIG(
 }
 
 // Dedicated Robin Hood coverage for *concurrent* insert + assign. The probe-enum test above is
-// phased (insert all keys, then assign in a separate pass), so it never exercises an assign racing a
-// displacement -- the hazard RH introduces. Here every occurrence of key k assigns the same value
+// phased (insert all keys, then assign in a separate pass), so it never exercises an assign racing
+// a displacement -- the hazard RH introduces. Here every occurrence of key k assigns the same value
 // (k * 2), so the final value is deterministic regardless of ordering; but a displacement-vs-assign
 // race would land an assign on a different key's slot and corrupt it. Runs at ~0.95 load in one
 // concurrent pass with duplicates, and verifies each key's value individually (a value-multiset

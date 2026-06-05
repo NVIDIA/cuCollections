@@ -15,7 +15,6 @@
  * limitations under the License.
  */
 
-#include <static_map/robin_hood_invariant.cuh>
 #include <test_utils.hpp>
 
 #include <cuco/detail/__config>
@@ -27,6 +26,7 @@
 #include <thrust/execution_policy.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <static_map/robin_hood_invariant.cuh>
 
 using size_type = std::size_t;
 

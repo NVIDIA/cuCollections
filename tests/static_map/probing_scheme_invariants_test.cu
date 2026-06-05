@@ -44,21 +44,21 @@ struct identity_hash {
 // then queried with keys chosen to exercise each lookup-termination rule.
 TEST_CASE("static_map robin_hood read-path early-exit", "")
 {
-  using Key                = std::int32_t;
-  using Value              = std::int32_t;
-  using size_type          = std::int32_t;
-  auto constexpr capacity  = size_type{16};
+  using Key               = std::int32_t;
+  using Value             = std::int32_t;
+  using size_type         = std::int32_t;
+  auto constexpr capacity = size_type{16};
 
   using extent_type = cuco::extent<size_type, capacity>;
   using probe_type  = cuco::robin_hood_probing<cuco::linear_probing<1, identity_hash<Key>>>;
   using map_type    = cuco::static_map<Key,
-                                    Value,
-                                    extent_type,
-                                    cuda::thread_scope_device,
-                                    cuda::std::equal_to<Key>,
-                                    probe_type,
-                                    cuco::cuda_allocator<cuda::std::byte>,
-                                    cuco::storage<1>>;
+                                       Value,
+                                       extent_type,
+                                       cuda::thread_scope_device,
+                                       cuda::std::equal_to<Key>,
+                                       probe_type,
+                                       cuco::cuda_allocator<cuda::std::byte>,
+                                       cuco::storage<1>>;
   using value_type  = typename map_type::value_type;  // cuco::pair<Key, Value>
 
   auto map = map_type{extent_type{}, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};

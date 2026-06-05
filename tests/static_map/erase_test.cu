@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <static_map/robin_hood_invariant.cuh>
 #include <test_utils.hpp>
 
 #include <cuco/detail/__config>
@@ -26,6 +25,7 @@
 #include <thrust/device_vector.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <static_map/robin_hood_invariant.cuh>
 
 using size_type = int32_t;
 
@@ -180,10 +180,8 @@ TEMPLATE_TEST_CASE_SIG("static_map robin_hood erase read-path",
                                     cuco::storage<2>>;
 
   constexpr size_type capacity = static_cast<size_type>(num_keys / 0.85);
-  auto map                     = map_type{capacity,
-                      cuco::empty_key<Key>{-1},
-                      cuco::empty_value<Value>{-1},
-                      cuco::erased_key<Key>{-2}};
+  auto map                     = map_type{
+    capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
 
   // Keys 1..num_keys (avoid the -1 / -2 sentinels).
   auto keys_begin  = cuda::counting_iterator<Key>(1);
@@ -237,10 +235,8 @@ TEMPLATE_TEST_CASE_SIG("static_map robin_hood erase reuse + invariant",
                                     cuco::storage<2>>;
 
   constexpr size_type capacity = static_cast<size_type>(num_keys / 0.85);
-  auto map                     = map_type{capacity,
-                      cuco::empty_key<Key>{-1},
-                      cuco::empty_value<Value>{-1},
-                      cuco::erased_key<Key>{-2}};
+  auto map                     = map_type{
+    capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
 
   auto keys_begin  = cuda::counting_iterator<Key>(1);
   auto pairs_begin = cuda::make_transform_iterator(
@@ -269,10 +265,10 @@ TEMPLATE_TEST_CASE_SIG("static_map robin_hood erase reuse + invariant",
 namespace {
 enum class reinsert_via { insert_or_assign, insert_or_apply, insert_and_find };
 
-// Robin Hood erase + reuse through a specific re-insert API: insert, check invariant, erase the first
-// half (-> tombstones), check invariant, then re-insert that half via `how` (-> consume tombstones)
-// and check invariant + that every key is present. Exercises the tombstone path of the chosen insert
-// variant.
+// Robin Hood erase + reuse through a specific re-insert API: insert, check invariant, erase the
+// first half (-> tombstones), check invariant, then re-insert that half via `how` (-> consume
+// tombstones) and check invariant + that every key is present. Exercises the tombstone path of the
+// chosen insert variant.
 template <typename Key, typename Value, int CGSize>
 void test_rh_erase_reuse(size_type num_keys, reinsert_via how)
 {
@@ -287,10 +283,8 @@ void test_rh_erase_reuse(size_type num_keys, reinsert_via how)
                                     cuco::storage<2>>;
 
   auto const capacity = static_cast<size_type>(num_keys / 0.85);
-  auto map            = map_type{capacity,
-                      cuco::empty_key<Key>{-1},
-                      cuco::empty_value<Value>{-1},
-                      cuco::erased_key<Key>{-2}};
+  auto map            = map_type{
+    capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}, cuco::erased_key<Key>{-2}};
 
   auto keys_begin  = cuda::counting_iterator<Key>(1);
   auto pairs_begin = cuda::make_transform_iterator(

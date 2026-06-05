@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <static_map/robin_hood_invariant.cuh>
 #include <test_utils.hpp>
 
 #include <cuco/detail/__config>
@@ -28,6 +27,7 @@
 #include <thrust/iterator/zip_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <static_map/robin_hood_invariant.cuh>
 
 #include <cstdint>
 
@@ -310,10 +310,11 @@ TEMPLATE_TEST_CASE_SIG(
   }
 }
 
-// Dedicated Robin Hood coverage for insert_or_apply: the probe-enum test above is disabled upstream,
-// so this is the only active exercise of the displacing RH insert_or_apply (reduction + lock-free
-// displacement together). It runs at a high load factor (~0.95 on the unique keys) so displacement
-// actually fires, and reuses `test_insert_or_apply`, whose tail asserts the structural RH invariant.
+// Dedicated Robin Hood coverage for insert_or_apply: the probe-enum test above is disabled
+// upstream, so this is the only active exercise of the displacing RH insert_or_apply (reduction +
+// lock-free displacement together). It runs at a high load factor (~0.95 on the unique keys) so
+// displacement actually fires, and reuses `test_insert_or_apply`, whose tail asserts the structural
+// RH invariant.
 TEMPLATE_TEST_CASE_SIG("static_map robin_hood insert_or_apply (high load)",
                        "",
                        ((typename Key, typename Value, int CGSize), Key, Value, CGSize),
@@ -339,8 +340,8 @@ TEMPLATE_TEST_CASE_SIG("static_map robin_hood insert_or_apply (high load)",
                                     cuco::cuda_allocator<cuda::std::byte>,
                                     cuco::storage<2>>;
 
-  // Size the table for ~0.95 load on the unique keys, so it is nearly full and the displacing insert
-  // path (and the structural invariant check inside the helper) is genuinely stressed.
+  // Size the table for ~0.95 load on the unique keys, so it is nearly full and the displacing
+  // insert path (and the structural invariant check inside the helper) is genuinely stressed.
   constexpr size_type capacity = static_cast<size_type>(num_unique_keys / 0.95);
 
   SECTION("sentinel equals init; has_init = true")

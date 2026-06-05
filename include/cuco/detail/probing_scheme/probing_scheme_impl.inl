@@ -231,11 +231,7 @@ namespace detail {
  * @param upper_bound Upper bound of the iteration
  * @return The resident's probe distance, in probing steps
  */
-template <int32_t BucketSize,
-          int32_t CGSize,
-          typename Hash,
-          typename ProbeKey,
-          typename Extent>
+template <int32_t BucketSize, int32_t CGSize, typename Hash, typename ProbeKey, typename Extent>
 [[nodiscard]] __host__ __device__ constexpr typename Extent::value_type probe_distance(
   linear_probing<CGSize, Hash> const& scheme,
   ProbeKey resident_key,

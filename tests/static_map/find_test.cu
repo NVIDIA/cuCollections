@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <static_map/robin_hood_invariant.cuh>
 #include <test_utils.hpp>
 
 #include <cuco/detail/__config>
@@ -31,6 +30,7 @@
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <static_map/robin_hood_invariant.cuh>
 
 using size_type = int32_t;
 
@@ -74,8 +74,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
 
   map.insert(pairs_begin, pairs_begin + num_keys);
 
-  // Robin Hood-specific: the populated table must satisfy the per-bucket Robin Hood layout invariant
-  // (a no-op for linear/double hashing).
+  // Robin Hood-specific: the populated table must satisfy the per-bucket Robin Hood layout
+  // invariant (a no-op for linear/double hashing).
   if constexpr (cuco::is_robin_hood_probing<typename Map::probing_scheme_type>::value) {
     cuco::test::check_robin_hood_invariant(map);
   }

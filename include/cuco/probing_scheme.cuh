@@ -233,10 +233,10 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
 template <typename Underlying>
 class robin_hood_probing : private Underlying {
  public:
-  using Underlying::cg_size;             ///< Cooperative group size (from the underlying scheme)
-  using typename Underlying::hasher;     ///< Hash function type (from the underlying scheme)
-  using Underlying::hash_function;       ///< Forwarded: gets the function(s) used to hash keys
-  using Underlying::make_iterator;       ///< Forwarded: the (unchanged) forward probe sequence
+  using typename Underlying::hasher;  ///< Hash function type (from the underlying scheme)
+  using Underlying::cg_size;          ///< Cooperative group size (from the underlying scheme)
+  using Underlying::hash_function;    ///< Forwarded: gets the function(s) used to hash keys
+  using Underlying::make_iterator;    ///< Forwarded: the (unchanged) forward probe sequence
 
   /**
    * @brief Constructs a Robin Hood probing scheme wrapping the given underlying scheme.
