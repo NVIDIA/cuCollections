@@ -54,6 +54,7 @@ __global__ void robin_hood_invariant_kernel(Ref ref, int* violations)
   auto const num_groups  = storage_ref.capacity() / stride;
   auto const extent      = storage_ref.extent();
   auto const empty_key   = ref.empty_key_sentinel();
+  auto const erased_key  = ref.erased_key_sentinel();
   auto const scheme      = ref.probing_scheme();
 
   for (size_type g = blockIdx.x * blockDim.x + threadIdx.x; g < num_groups;
@@ -62,10 +63,13 @@ __global__ void robin_hood_invariant_kernel(Ref ref, int* violations)
     size_type max_age_g = 0;
     for (int s = 0; s < stride; ++s) {
       auto const slot = slots[g * stride + s];
-      if (slot.first != empty_key) {
+      if (slot.first != empty_key) {  // tombstones count as residents (erase enabled => != empty)
         ++occupied_g;
-        auto const age = scheme.template probe_distance<bs>(
-          slot.first, static_cast<size_type>(g * stride + s), extent);
+        // A tombstone keeps its age in its payload; a live key's age is its probe distance.
+        auto const age = (slot.first == erased_key)
+                           ? static_cast<size_type>(slot.second)
+                           : scheme.template probe_distance<bs>(
+                               slot.first, static_cast<size_type>(g * stride + s), extent);
         if (age > max_age_g) { max_age_g = age; }
       }
     }
@@ -77,8 +81,10 @@ __global__ void robin_hood_invariant_kernel(Ref ref, int* violations)
     for (int s = 0; s < stride; ++s) {
       auto const slot = slots[pg * stride + s];
       if (slot.first != empty_key) {
-        auto const age = scheme.template probe_distance<bs>(
-          slot.first, static_cast<size_type>(pg * stride + s), extent);
+        auto const age = (slot.first == erased_key)
+                           ? static_cast<size_type>(slot.second)
+                           : scheme.template probe_distance<bs>(
+                               slot.first, static_cast<size_type>(pg * stride + s), extent);
         if (occupied_p == 0 || age < min_age_p) { min_age_p = age; }
         ++occupied_p;
       }

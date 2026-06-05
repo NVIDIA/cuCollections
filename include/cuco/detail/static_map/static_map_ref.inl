@@ -557,29 +557,33 @@ class operator_impl<
         }
         if (eq_res == detail::equal_result::AVAILABLE) {
           if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
-            // Insert the new pair with a full-slot CAS; on a lost CAS (rival insert) or a duplicate,
-            // retry -- the loop re-finds the key and assigns it via the EQUAL full-slot CAS.
-            if (ref_.impl_.attempt_insert(slot_ptr, slot_content, val) ==
-                detail::insert_result::SUCCESS) {
-              return;
+            // Claim only a true empty; a tombstone is handled as a resident by the displacement test
+            // below. On a lost CAS (rival insert) or a duplicate, retry -- the loop re-finds the key
+            // and assigns it via the EQUAL full-slot CAS.
+            if (not ref_.impl_.is_erased(slot_content)) {
+              if (ref_.impl_.attempt_insert(slot_ptr, slot_content, val) ==
+                  detail::insert_result::SUCCESS) {
+                return;
+              }
+              retry = true;
+              break;
             }
-            retry = true;
-            break;
           } else {
             if (attempt_insert_or_assign(slot_ptr, val)) { return; }
           }
         }
 
-        // Robin Hood swap test (see `open_addressing_ref_impl::insert` for the rationale).
+        // Robin Hood swap test (see `open_addressing_ref_impl::insert` for the rationale). A
+        // tombstone is a resident too (age from its payload); picking one up consumes it -- the pair
+        // lands there and we are done.
         if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
-          if (eq_res == detail::equal_result::UNEQUAL) {
-            auto const evicted_age = probing_scheme.template probe_distance<bucket_size>(
-              ref_.impl_.extract_key(slot_content),
-              static_cast<size_type>(*probing_iter + intra_bucket_index),
-              storage_ref.extent());
+          if (eq_res == detail::equal_result::UNEQUAL or ref_.impl_.is_erased(slot_content)) {
+            auto const evicted_age = ref_.impl_.robin_hood_age(
+              slot_content, static_cast<size_type>(*probing_iter + intra_bucket_index));
             if (evicted_age < probe_step) {
               if (ref_.impl_.attempt_insert(slot_ptr, slot_content, val) ==
                   detail::insert_result::SUCCESS) {
+                if (ref_.impl_.is_erased(slot_content)) { return; }  // consumed tombstone -- done
                 val        = cuda::std::bit_cast<decltype(val)>(slot_content);
                 key        = ref_.impl_.extract_key(val);
                 probe_step = evicted_age;
@@ -636,6 +640,14 @@ class operator_impl<
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = ref_.impl_.predicate_.template operator()<is_insert::YES>(
               key, bucket_slots[i()].first);
+            // Robin Hood: a tombstone is a resident handled by the displacement scan, not AVAILABLE.
+            if constexpr (cuco::is_robin_hood_probing<
+                            typename ref_type::probing_scheme_type>::value) {
+              if (res == detail::equal_result::AVAILABLE and
+                  ref_.impl_.is_erased(bucket_slots[i()])) {
+                res = detail::equal_result::UNEQUAL;
+              }
+            }
             if (res != detail::equal_result::UNEQUAL) {
               result = detail::bucket_probing_results{res, i()};
             }
@@ -698,10 +710,9 @@ class operator_impl<
           size_type evicted_age           = 0;
           cuda::static_for<bucket_size>([&] __device__(auto i) {
             if (displace_idx < 0) {
-              auto const age = probing_scheme.template probe_distance<bucket_size>(
-                ref_.impl_.extract_key(bucket_slots[i()]),
-                static_cast<size_type>(*probing_iter + i()),
-                storage_ref.extent());
+              // `robin_hood_age` so a tombstone uses its payload-stored age (like any resident).
+              auto const age = ref_.impl_.robin_hood_age(
+                bucket_slots[i()], static_cast<size_type>(*probing_iter + i()));
               if (age < probe_step) {
                 displace_idx = i();
                 evicted_age  = age;
@@ -720,6 +731,8 @@ class operator_impl<
                 ref_.impl_.get_slot_ptr(*probing_iter, displace_idx), evicted, val);
             }
             if (group.shfl(status, src_lane) == detail::insert_result::SUCCESS) {
+              // Consuming a tombstone reuses its slot -- nothing to carry, so we are done.
+              if (group.shfl(ref_.impl_.is_erased(evicted), src_lane)) { return; }
               auto const new_key     = group.shfl(ref_.impl_.extract_key(evicted), src_lane);
               auto const new_payload = group.shfl(ref_.impl_.extract_payload(evicted), src_lane);
               auto const new_age     = group.shfl(evicted_age, src_lane);
@@ -1056,7 +1069,11 @@ class operator_impl<
             return false;
           }
         }
-        if (eq_res == detail::equal_result::AVAILABLE) {
+        // Robin Hood claims only a true empty here; a tombstone is handled as a resident by the
+        // displacement test below.
+        if (eq_res == detail::equal_result::AVAILABLE and
+            not(cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value and
+                ref_.impl_.is_erased(slot_content))) {
           switch (ref_.template attempt_insert_or_apply<UseDirectApply>(
             slot_ptr, slot_content, val, op)) {
             case insert_result::SUCCESS: return true;
@@ -1089,16 +1106,18 @@ class operator_impl<
           }
         }
 
-        // Robin Hood swap test (see `open_addressing_ref_impl::insert` for the rationale).
+        // Robin Hood swap test (see `open_addressing_ref_impl::insert` for the rationale). A
+        // tombstone is a resident too (age from its payload); picking one up consumes it -- the
+        // in-flight pair lands there, completing the insert.
         if constexpr (cuco::is_robin_hood_probing<typename ref_type::probing_scheme_type>::value) {
-          if (eq_res == detail::equal_result::UNEQUAL) {
-            auto const evicted_age = probing_scheme.template probe_distance<bucket_size>(
-              ref_.impl_.extract_key(slot_content),
-              static_cast<size_type>(*probing_iter + intra_bucket_index),
-              storage_ref.extent());
+          if (eq_res == detail::equal_result::UNEQUAL or ref_.impl_.is_erased(slot_content)) {
+            auto const evicted_age = ref_.impl_.robin_hood_age(
+              slot_content, static_cast<size_type>(*probing_iter + intra_bucket_index));
             if (evicted_age < probe_step) {
               if (ref_.impl_.attempt_insert(slot_ptr, slot_content, val) ==
                   detail::insert_result::SUCCESS) {
+                // Consuming a tombstone places the in-flight pair in its slot -- insert complete.
+                if (ref_.impl_.is_erased(slot_content)) { return true; }
                 val        = cuda::std::bit_cast<decltype(val)>(slot_content);
                 key        = ref_.impl_.extract_key(val);
                 probe_step = evicted_age;
@@ -1168,6 +1187,14 @@ class operator_impl<
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = ref_.impl_.predicate_.template operator()<is_insert::YES>(
               key, bucket_slots[i()].first);
+            // Robin Hood: a tombstone is a resident handled by the displacement scan, not AVAILABLE.
+            if constexpr (cuco::is_robin_hood_probing<
+                            typename ref_type::probing_scheme_type>::value) {
+              if (res == detail::equal_result::AVAILABLE and
+                  ref_.impl_.is_erased(bucket_slots[i()])) {
+                res = detail::equal_result::UNEQUAL;
+              }
+            }
             if (res != detail::equal_result::UNEQUAL) {
               result = detail::bucket_probing_results{res, i()};
             }
@@ -1241,10 +1268,9 @@ class operator_impl<
           size_type evicted_age           = 0;
           cuda::static_for<bucket_size>([&] __device__(auto i) {
             if (displace_idx < 0) {
-              auto const age = probing_scheme.template probe_distance<bucket_size>(
-                ref_.impl_.extract_key(bucket_slots[i()]),
-                static_cast<size_type>(*probing_iter + i()),
-                storage_ref.extent());
+              // `robin_hood_age` so a tombstone uses its payload-stored age (like any resident).
+              auto const age = ref_.impl_.robin_hood_age(
+                bucket_slots[i()], static_cast<size_type>(*probing_iter + i()));
               if (age < probe_step) {
                 displace_idx = i();
                 evicted_age  = age;
@@ -1263,6 +1289,8 @@ class operator_impl<
                 ref_.impl_.get_slot_ptr(*probing_iter, displace_idx), evicted, val);
             }
             if (group.shfl(status, src_lane) == detail::insert_result::SUCCESS) {
+              // Consuming a tombstone places the in-flight pair in its slot -- insert complete.
+              if (group.shfl(ref_.impl_.is_erased(evicted), src_lane)) { return true; }
               auto const new_key     = group.shfl(ref_.impl_.extract_key(evicted), src_lane);
               auto const new_payload = group.shfl(ref_.impl_.extract_payload(evicted), src_lane);
               auto const new_age     = group.shfl(evicted_age, src_lane);
