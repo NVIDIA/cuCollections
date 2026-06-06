@@ -187,11 +187,10 @@ TEMPLATE_TEST_CASE_SIG(
   (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
   (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2),
-  // Wider-slot Robin Hood rows: the packed displacement CAS needs atom.cas.b128.
-  (int32_t, int64_t, cuco::test::probe_sequence::robin_hood, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::robin_hood, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::robin_hood, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::robin_hood, 2),
+  // Wider-slot Robin Hood rows: RH displacement needs a single packed atom.cas.b128, so the slot
+  // must be packable (padding-free). Only int64/int64 qualifies -- int32/int64 and int64/int32 are
+  // padded (not is_packable), fall back to a split (back-to-back) CAS, and RH displacement would
+  // livelock on an occupied slot.
   (int64_t, int64_t, cuco::test::probe_sequence::robin_hood, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::robin_hood, 2)
 #endif

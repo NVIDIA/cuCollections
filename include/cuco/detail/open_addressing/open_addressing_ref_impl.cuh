@@ -130,6 +130,22 @@ class open_addressing_ref_impl
     storage_ref_type::bucket_size;             ///< Number of elements handled per bucket
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
 
+  // Robin Hood displacement swaps the in-flight pair into an *occupied* slot, which needs a single
+  // atomic CAS of the whole slot. That requires a packable slot: <= 8 bytes (atom.cas.b64), or
+  // padding-free and <= 16 bytes on an sm_90+ build (atom.cas.b128). A non-packable slot (e.g. a
+  // padded `pair<int32_t, int64_t>`) would fall back to a split key/value CAS, which cannot move an
+  // occupied slot -- displacement would livelock. Reject it at compile time rather than hang.
+  static constexpr bool robin_hood_slot_is_single_cas = sizeof(value_type) <= 8
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                                                        or cuco::detail::is_packable<value_type>()
+#endif
+    ;
+  static_assert(not cuco::is_robin_hood_probing<probing_scheme_type>::value or
+                  robin_hood_slot_is_single_cas,
+                "Robin Hood probing requires a single-CAS slot: the key+value must fit in 8 bytes, "
+                "or be packable (padding-free) and <= 16 bytes on an sm_90+ build. A padded slot "
+                "(e.g. pair<int32_t, int64_t>) is unsupported -- displacement would livelock.");
+
   /**
    * @brief Constructs open_addressing_ref_impl.
    *
