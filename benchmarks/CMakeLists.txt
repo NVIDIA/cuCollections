@@ -52,11 +52,12 @@ ConfigureBench(STATIC_SET_BENCH
 ###################################################################################################
 # - static_map benchmarks -------------------------------------------------------------------------
 ConfigureBench(STATIC_MAP_BENCH
-  static_map/insert_bench.cu
-  static_map/find_bench.cu
   static_map/contains_bench.cu
+  static_map/find_bench.cu
   static_map/erase_bench.cu
-  static_map/insert_or_apply_bench.cu)
+  static_map/insert_bench.cu)
+  #static_map/insert_or_apply_bench.cu) 
+  #TODO: re-enable insert_or_apply_bench once https://github.com/NVIDIA/cuCollections/issues/774 is fixed
 
 ###################################################################################################
 # - static_multiset benchmarks --------------------------------------------------------------------
