@@ -48,7 +48,7 @@ __host__ __device__ constexpr inline index_type distance(Iterator begin, Iterato
  * element < value
  */
 template <class ForwardIt, class T>
-constexpr ForwardIt lower_bound(ForwardIt first, ForwardIt last, const T& value)
+constexpr ForwardIt lower_bound(ForwardIt first, ForwardIt last, T const& value)
 {
   using diff_type = typename std::iterator_traits<ForwardIt>::difference_type;
 

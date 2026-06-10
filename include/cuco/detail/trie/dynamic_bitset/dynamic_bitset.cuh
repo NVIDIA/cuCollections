@@ -193,13 +193,13 @@ class dynamic_bitset {
    */
   // TODO: this is not a real ref type, to be changed
   struct storage_ref_type {
-    const word_type* words_ref_;  ///< Words ref
+    word_type const* words_ref_;  ///< Words ref
 
-    const rank_type* ranks_true_ref_;    ///< Ranks ref for 1 bits
-    const size_type* selects_true_ref_;  ///< Selects ref for 1 bits
+    rank_type const* ranks_true_ref_;    ///< Ranks ref for 1 bits
+    size_type const* selects_true_ref_;  ///< Selects ref for 1 bits
 
-    const rank_type* ranks_false_ref_;    ///< Ranks ref for 0 bits
-    const size_type* selects_false_ref_;  ///< Selects ref 0 bits
+    rank_type const* ranks_false_ref_;    ///< Ranks ref for 0 bits
+    size_type const* selects_false_ref_;  ///< Selects ref 0 bits
   };
 
   /**
@@ -280,7 +280,7 @@ class dynamic_bitset {
      */
     template <typename SelectsRef, typename RanksRef>
     [[nodiscard]] __device__ constexpr size_type initial_rank_estimate(
-      size_type count, const SelectsRef& selects, const RanksRef& ranks) const noexcept;
+      size_type count, SelectsRef const& selects, RanksRef const& ranks) const noexcept;
 
     /**
      * @brief Subtract rank estimate from input count and return an increment to word_id

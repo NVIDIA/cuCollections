@@ -51,7 +51,7 @@ struct cuda_error : public std::runtime_error {
    *
    * @param message The error char array used to construct `cuda_error`
    */
-  cuda_error(const char* message) : std::runtime_error(message) {}
+  cuda_error(char const* message) : std::runtime_error(message) {}
   /**
    * @brief Constructs a `cuda_error` object with the given `message` string.
    *

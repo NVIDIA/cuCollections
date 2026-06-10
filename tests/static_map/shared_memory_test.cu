@@ -38,8 +38,8 @@ __global__ void shared_memory_test_kernel(Ref* maps,
                                           bool* const keys_and_values_correct)
 {
   // Each block processes one map
-  const size_t map_id = blockIdx.x;
-  const size_t offset = map_id * number_of_elements;
+  size_t const map_id = blockIdx.x;
+  size_t const offset = map_id * number_of_elements;
 
   __shared__ typename Ref::value_type sm_buffer[ValidSize];
 
@@ -116,7 +116,7 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
         }));
     std::vector<ref_type> h_refs;
     for (std::size_t map_id = 0; map_id < number_of_maps; ++map_id) {
-      const std::size_t offset = map_id * elements_in_map;
+      std::size_t const offset = map_id * elements_in_map;
 
       map_type* map = maps[map_id].get();
       map->insert(pairs_begin + offset, pairs_begin + offset + elements_in_map);
