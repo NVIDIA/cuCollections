@@ -39,8 +39,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
                                           bool* const keys_correct)
 {
   // Each block processes one set
-  const size_t set_id = blockIdx.x;
-  const size_t offset = set_id * number_of_elements;
+  size_t const set_id = blockIdx.x;
+  size_t const offset = set_id * number_of_elements;
 
   __shared__ typename Ref::value_type sm_buffer[ValidSize];
 
@@ -118,7 +118,7 @@ TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
   {
     std::vector<ref_type> h_refs;
     for (std::size_t set_id = 0; set_id < number_of_sets; ++set_id) {
-      const std::size_t offset = set_id * elements_in_set;
+      std::size_t const offset = set_id * elements_in_set;
 
       set_type* set = sets[set_id].get();
       set->insert(d_keys.begin() + offset, d_keys.begin() + offset + elements_in_set);
