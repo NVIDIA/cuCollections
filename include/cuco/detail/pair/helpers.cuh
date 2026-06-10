@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
  */
 
 #pragma once
+
+#include <cuco/detail/__config>
 
 #include <cuda/functional>
 #include <cuda/std/bit>
@@ -46,6 +48,22 @@ struct packed {
 };
 
 /**
+ * @brief Denotes the packed type when the size of the object is 1.
+ */
+template <>
+struct packed<sizeof(uint8_t)> {
+  using type = uint8_t;  ///< Packed type as `uint8_t` if the size of the object is 1
+};
+
+/**
+ * @brief Denotes the packed type when the size of the object is 2.
+ */
+template <>
+struct packed<sizeof(uint16_t)> {
+  using type = uint16_t;  ///< Packed type as `uint16_t` if the size of the object is 2
+};
+
+/**
  * @brief Denotes the packed type when the size of the object is 8.
  */
 template <>
@@ -60,6 +78,17 @@ template <>
 struct packed<sizeof(uint32_t)> {
   using type = uint32_t;  ///< Packed type as `uint32_t` if the size of the object is 4
 };
+
+#ifdef CUCO_HAS_INT128
+/**
+ * @brief Denotes the packed type when the size of the object is 16.
+ */
+template <>
+struct packed<16> {
+  using type = unsigned __int128;  ///< Packed type as `unsigned __int128` if the size of the object
+                                   ///< is 16
+};
+#endif
 
 template <typename Pair>
 using packed_t = typename packed<sizeof(Pair)>::type;

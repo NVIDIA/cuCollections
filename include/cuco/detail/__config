@@ -17,6 +17,7 @@
 #pragma once
 
 #include <nv/target>
+#include <cuda/std/__cccl/ptx_isa.h>
 #include <cuda/std/version>
 
 #if !defined(__CUDACC_VER_MAJOR__) || !defined(__CUDACC_VER_MINOR__)
@@ -31,6 +32,15 @@
 
 #if !defined(CCCL_VERSION) || (CCCL_VERSION < 3000000)
 #error "CCCL version 3.0.0 or later is required"
+#endif
+
+// WAR for cuCollections/804: work around the nvcc __cuda_is_local / isspacep.local
+// miscompile on CUDA < 13.1. CCCL's auto-define of this macro only fires when
+// NDEBUG is not set, but cuco builds Release, so define it unconditionally for
+// affected toolkit versions.
+#if !defined(_CCCL_ATOMIC_UNSAFE_AUTOMATIC_STORAGE) \
+  && ((__CUDACC_VER_MAJOR__ < 13) || (__CUDACC_VER_MAJOR__ == 13 && __CUDACC_VER_MINOR__ < 1))
+#define _CCCL_ATOMIC_UNSAFE_AUTOMATIC_STORAGE
 #endif
 
 // WAR for libcudacxx/296
@@ -50,6 +60,10 @@
 
 #if defined(__SIZEOF_INT128__)
 #define CUCO_HAS_INT128
+#endif
+
+#if defined(CUCO_HAS_INT128) && (CUCO_CUDA_MINIMUM_ARCH >= 900) && (__cccl_ptx_isa >= 840)
+#define CUCO_HAS_128BIT_ATOMICS
 #endif
 
 #if defined(CUDART_VERSION) && (CUDART_VERSION >= 12000)

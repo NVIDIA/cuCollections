@@ -51,7 +51,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
 
   thrust::device_vector<pair_type> pairs(num_keys);
   thrust::transform(keys.begin(), keys.end(), pairs.begin(), [] __device__(Key const& key) {
-    return pair_type(key, static_cast<Value>(key));
+    return pair_type(key, static_cast<Value>(key) + 1);  // exclude sentinel (0)
   });
 
   state.add_element_count(num_keys);

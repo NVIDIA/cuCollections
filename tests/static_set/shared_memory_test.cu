@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
@@ -27,6 +28,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cstdint>
 #include <limits>
 
 template <std::size_t ValidSize, typename Ref>
@@ -46,6 +48,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
   auto find_ref   = insert_ref.rebind_operators(cuco::op::find);
 
+  g.sync();
+
   for (int i = g.thread_rank(); i < number_of_elements; i += g.size()) {
     auto found_it = find_ref.find(insterted_keys[offset + i]);
 
@@ -63,11 +67,25 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   }
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "static_set shared memory tests", "", ((typename Key), Key), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
+                       "",
+                       ((typename Key), Key),
+                       (int8_t),
+                       (int16_t),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
-  constexpr std::size_t number_of_sets  = 1000;
-  constexpr std::size_t elements_in_set = 500;
+  // For int8_t: sentinel = -1, so usable key range is -128...127 (excluding -1).
+  // For int16_t: sentinel = -1, so usable key range is -32768..32767 (excluding -1).
+  // thrust::sequence over number_of_sets*elements_in_set keys must not wrap.
+  // Use smaller set count and element count for smaller types.
+  constexpr std::size_t number_of_sets  = (sizeof(Key) <= 2) ? (sizeof(Key) == 1 ? 2 : 100) : 1000;
+  constexpr std::size_t elements_in_set = (sizeof(Key) <= 2) ? (sizeof(Key) == 1 ? 100 : 600) : 500;
   constexpr std::size_t set_capacity    = 2 * elements_in_set;
 
   using extent_type = cuco::extent<std::size_t, set_capacity>;
@@ -87,7 +105,8 @@ TEMPLATE_TEST_CASE_SIG(
   // operator yet
   std::vector<std::unique_ptr<set_type>> sets;
   for (std::size_t set_id = 0; set_id < number_of_sets; ++set_id) {
-    sets.push_back(std::make_unique<set_type>(extent_type{}, cuco::empty_key<Key>{-1}));
+    sets.push_back(
+      std::make_unique<set_type>(extent_type{}, cuco::empty_key<Key>{static_cast<Key>(-1)}));
   }
 
   thrust::device_vector<bool> d_keys_exist(number_of_sets * elements_in_set);

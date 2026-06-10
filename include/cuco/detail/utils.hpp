@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2021-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +24,23 @@
 namespace cuco {
 namespace detail {
 
+template <typename, typename = void>
+inline constexpr bool has_random_access_iterator_concept = false;
+
+template <typename Iterator>
+inline constexpr bool
+  has_random_access_iterator_concept<Iterator,
+                                     cuda::std::void_t<typename Iterator::iterator_concept>> =
+    cuda::std::is_base_of_v<cuda::std::random_access_iterator_tag,
+                            typename Iterator::iterator_concept>;
+
 template <typename Iterator>
 __host__ __device__ constexpr inline index_type distance(Iterator begin, Iterator end)
 {
   using category = typename cuda::std::iterator_traits<Iterator>::iterator_category;
-  static_assert(cuda::std::is_base_of_v<cuda::std::random_access_iterator_tag, category>,
+  static_assert(cuda::std::is_base_of_v<cuda::std::random_access_iterator_tag, category> ||
+                  has_random_access_iterator_concept<Iterator>,
                 "Input iterator should be a random access iterator.");
-  // `int64_t` instead of arch-dependant `long int`
   return static_cast<index_type>(cuda::std::distance(begin, end));
 }
 

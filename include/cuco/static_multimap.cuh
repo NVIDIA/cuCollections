@@ -51,7 +51,7 @@ namespace cuco {
  *
  * The singular device-side operations allow individual threads (or cooperative groups) to perform
  * independent modify or lookup operations from device code. These operations are accessed through
- * non-owning, trivially copyable reference types (or "ref"). User can combine any arbitrary
+ * non-owning, trivially copyable reference types (or "ref"). Users can combine any arbitrary
  * operators (see options in `include/cuco/operator.hpp`) when creating the ref. Concurrent modify
  * and lookup will be supported if both kinds of operators are specified during the ref
  * construction.
@@ -63,17 +63,19 @@ namespace cuco {
  * @note `ProbingScheme::cg_size` indicates how many threads are used to handle one independent
  * device operation. `cg_size == 1` uses the scalar (or non-CG) code paths.
  *
- * @throw If the size of the given key type is larger than 8 bytes
- * @throw If the size of the given payload type is larger than 8 bytes
- * @throw If the size of the given slot type is larger than 16 bytes
+ * @throw If the size of the given key type is larger than `cuco::open_addressing_max_key_size`
+ * @throw If the size of the given payload type is unsupported (4 or 8 bytes, or 16 with sm_90+)
+ * @throw If the size of the given slot type is larger than `cuco::open_addressing_max_slot_size`
  * @throw If the given key type doesn't have unique object representations, i.e.,
- * `cuco::bitwise_comparable_v<Key> == false`
+ * `cuco::is_bitwise_comparable_v<Key> == false`
  * @throw If the given mapped type doesn't have unique object representations, i.e.,
- * `cuco::bitwise_comparable_v<T> == false`
+ * `cuco::is_bitwise_comparable_v<T> == false`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
- * @tparam Key Type used for keys. Requires `cuco::is_bitwise_comparable_v<Key>`
- * @tparam T Type of the mapped values
+ * @tparam Key Type used for keys. Requires `sizeof(Key) <= cuco::open_addressing_max_key_size` and
+ * `cuco::is_bitwise_comparable_v<Key>`
+ * @tparam T Type of the mapped values. Requires size 4 or 8 bytes (or 16 with sm_90+) and
+ * `cuco::is_bitwise_comparable_v<T>`
  * @tparam Extent Data structure size type
  * @tparam Scope The scope in which operations will be performed by individual threads.
  * @tparam KeyEqual Binary callable type used to compare two keys for equality
@@ -91,15 +93,6 @@ template <class Key,
           class Allocator          = cuco::cuda_allocator<cuco::pair<Key, T>>,
           class Storage            = cuco::storage<2>>
 class static_multimap {
-  static_assert(sizeof(Key) <= 8, "Container does not support key types larger than 8 bytes.");
-
-  static_assert(sizeof(T) <= 8, "Container does not support payload types larger than 8 bytes.");
-
-  static_assert(cuco::is_bitwise_comparable_v<T>,
-                "Mapped type must have unique object representations or have been explicitly "
-                "declared as safe for bitwise comparison via specialization of "
-                "cuco::is_bitwise_comparable_v<T>.");
-
   using impl_type = cuco::detail::open_addressing_impl<Key,
                                                        cuco::pair<Key, T>,
                                                        Extent,
@@ -934,8 +927,7 @@ class static_multimap {
   [[nodiscard]] auto ref(Operators... ops) const noexcept;
 
  private:
-  std::unique_ptr<impl_type> impl_;   ///< Static map implementation
-  mapped_type empty_value_sentinel_;  ///< Sentinel value that indicates an empty payload
+  std::unique_ptr<impl_type> impl_;  ///< Static map implementation
 };
 
 }  // namespace cuco

@@ -28,6 +28,7 @@
 
 #include <cuda/atomic>
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/__algorithm/max.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/bit>
 #include <cuda/std/cstddef>
@@ -36,8 +37,6 @@
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
 #include <cuda/stream_ref>
-#include <thrust/iterator/constant_iterator.h>
-#include <thrust/type_traits/is_contiguous_iterator.h>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>
@@ -183,7 +182,7 @@ class hyperloglog_impl {
   __host__ constexpr void add_async(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->add_if_async(
-      first, last, thrust::constant_iterator<bool>{true}, cuda::std::identity{}, stream);
+      first, last, cuda::constant_iterator<bool>{true}, cuda::std::identity{}, stream);
   }
 
   /**
@@ -244,8 +243,8 @@ class hyperloglog_impl {
     int const shmem_bytes = sketch_bytes();
     void const* kernel    = nullptr;
 
-    if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
-      auto const ptr                  = thrust::raw_pointer_cast(&first[0]);
+    if constexpr (cuda::std::contiguous_iterator<InputIt>) {
+      auto const ptr                  = cuda::std::to_address(first);
       auto constexpr max_vector_bytes = 32;
       auto const alignment =
         1 << cuda::std::countr_zero(reinterpret_cast<cuda::std::uintptr_t>(ptr) | max_vector_bytes);
@@ -276,11 +275,11 @@ class hyperloglog_impl {
     }
 
     if (kernel != nullptr and this->try_reserve_shmem(kernel, shmem_bytes)) {
-      if constexpr (thrust::is_contiguous_iterator_v<InputIt>) {
+      if constexpr (cuda::std::contiguous_iterator<InputIt>) {
         CUCO_CUDA_TRY(
           cudaOccupancyMaxPotentialBlockSize(&grid_size, &block_size, kernel, shmem_bytes));
 
-        auto const ptr      = thrust::raw_pointer_cast(&first[0]);
+        auto const ptr      = cuda::std::to_address(first);
         void* kernel_args[] = {(void*)(&ptr),
                                (void*)(&num_items),
                                (void*)(&stencil),

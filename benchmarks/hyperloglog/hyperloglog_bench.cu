@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@
 #include <nvbench/nvbench.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/transform_iterator.h>
 
 #include <cmath>
 #include <cstddef>
@@ -40,7 +40,7 @@ template <typename InputIt>
   // Casting is valid since the keys generated are representable in int64_t.
   using T = std::int64_t;
 
-  auto cast_iter = thrust::make_transform_iterator(
+  auto cast_iter = cuda::make_transform_iterator(
     first, cuda::proclaim_return_type<T>([] __device__(auto i) { return static_cast<T>(i); }));
 
   auto set = cuco::static_set{n, 0.8, cuco::empty_key<T>{-1}};

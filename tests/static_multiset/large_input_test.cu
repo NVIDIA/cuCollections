@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +16,12 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_multiset.cuh>
 
+#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -34,7 +34,7 @@ void test_unique_sequence(Set& set, typename Set::value_type* res_begin, std::si
 {
   using Key = typename Set::key_type;
 
-  auto const keys_begin = thrust::counting_iterator<Key>(0);
+  auto const keys_begin = cuda::counting_iterator<Key>(0);
   auto const keys_end   = keys_begin + num_keys;
 
   set.insert(keys_begin, keys_end);
@@ -43,7 +43,7 @@ void test_unique_sequence(Set& set, typename Set::value_type* res_begin, std::si
   SECTION("All inserted keys can be retrieved.")
   {
     auto const [_, res_end] =
-      set.retrieve(keys_begin, keys_end, thrust::make_discard_iterator(), res_begin);
+      set.retrieve(keys_begin, keys_end, cuda::make_discard_iterator(), res_begin);
     REQUIRE(static_cast<std::size_t>(std::distance(res_begin, res_end)) == num_keys);
 
     thrust::sort(thrust::device, res_begin, res_end);
@@ -57,9 +57,17 @@ TEMPLATE_TEST_CASE_SIG(
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, cuco::test::probe_sequence::double_hashing, 2))
+  (int64_t, cuco::test::probe_sequence::double_hashing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2)
+#endif
+)
 {
-  constexpr std::size_t num_keys{1'200'000'000};
+  // Reduce the key count for 16-byte keys to stay within GPU memory.
+  // 1.2B * 8B * 2 (capacity) = 19.2GB; 300M * 16B * 2 = 9.6GB.
+  constexpr std::size_t num_keys = (sizeof(Key) >= 16) ? 300'000'000 : 1'200'000'000;
 
   using extent_type = cuco::extent<std::size_t>;
   using probe       = cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>;

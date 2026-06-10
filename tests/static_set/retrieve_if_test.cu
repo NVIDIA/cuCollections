@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,18 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+
+#include <cstdint>
 
 using size_type = std::size_t;
 
@@ -105,15 +109,27 @@ __global__ void test_retrieve_if_all_true_kernel(
                                  *atomic_counter);
 }
 
-TEMPLATE_TEST_CASE_SIG("static_set retrieve_if", "", ((typename Key), Key), (int32_t), (int64_t))
+TEMPLATE_TEST_CASE_SIG("static_set retrieve_if",
+                       "",
+                       ((typename Key), Key),
+                       (int8_t),
+                       (int16_t),
+                       (int32_t),
+                       (int64_t)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+                         ,
+                       (__int128_t)
+#endif
+)
 {
-  constexpr size_type num_keys{400};
+  // Limit key count for small types: keys start at 1, sentinel is -1
+  constexpr size_type num_keys = (sizeof(Key) == 1) ? 100 : 400;
 
   using container_type = cuco::static_set<Key>;
 
-  container_type container{num_keys * 2, cuco::empty_key<Key>{-1}};
+  container_type container{num_keys * 2, cuco::empty_key<Key>{static_cast<Key>(-1)}};
 
-  auto keys_begin = thrust::counting_iterator<Key>(1);
+  auto keys_begin = cuda::counting_iterator<Key>(1);
   auto keys_end   = keys_begin + num_keys;
 
   container.insert(keys_begin, keys_end);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,6 +27,7 @@
 #include <cub/device/device_for.cuh>
 #include <cub/device/device_transform.cuh>
 #include <cuda/atomic>
+#include <cuda/iterator>
 #include <cuda/std/__algorithm/max.h>
 #include <cuda/std/__algorithm/min.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/array>
@@ -36,7 +37,6 @@
 #include <cuda/std/type_traits>
 #include <cuda/stream_ref>
 #include <cuda/utility>
-#include <thrust/iterator/constant_iterator.h>
 
 #include <cooperative_groups.h>
 
@@ -605,7 +605,7 @@ class bloom_filter_impl {
                                OutputIt output_begin,
                                cuda::stream_ref stream) const noexcept
   {
-    auto const always_true = thrust::constant_iterator<bool>{true};
+    auto const always_true = cuda::constant_iterator<bool>{true};
     this->contains_if_async(first, last, always_true, cuda::std::identity{}, output_begin, stream);
   }
 

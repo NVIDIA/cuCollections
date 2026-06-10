@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, NVIDIA CORPORATION.
+ * Copyright (c) 2025-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,7 @@
 #include <cuco/hyperloglog.cuh>
 
 #include <cuda/functional>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
+#include <cuda/iterator>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -32,8 +31,8 @@ TEST_CASE("hyperloglog: type deduction bug with hash functions returning referen
   auto constexpr sketch_size_kb = 1;
   auto constexpr num_items      = 1000;
 
-  auto first = thrust::make_transform_iterator(thrust::counting_iterator<uint64_t>(0),
-                                               cuco::xxhash_64<uint64_t>{});
+  auto first = cuda::make_transform_iterator(cuda::counting_iterator<uint64_t>(0),
+                                             cuco::xxhash_64<uint64_t>{});
   auto last  = first + num_items;
 
   cuco::hyperloglog<uint64_t, cuda::thread_scope_device, cuda::std::identity> estimator{

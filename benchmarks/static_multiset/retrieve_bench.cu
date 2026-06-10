@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
@@ -54,7 +55,7 @@ void static_multiset_retrieve(nvbench::state& state, nvbench::type_list<Key, Dis
 
   auto const output_size = set.count(keys.begin(), keys.end());
   thrust::device_vector<Key> output_match(output_size);
-  auto output_probe_begin = thrust::discard_iterator{};
+  auto output_probe_begin = cuda::discard_iterator{};
 
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
     set.retrieve(

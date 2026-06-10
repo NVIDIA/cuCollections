@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2024, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
+#include <cuda/iterator>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -35,9 +34,9 @@ TEST_CASE("static_map rehash test", "")
                        cuco::empty_value<mapped_type>{-1},
                        cuco::erased_key<key_type>{-2}};
 
-  auto keys_begin = thrust::counting_iterator<key_type>(1);
+  auto keys_begin = cuda::counting_iterator<key_type>(1);
 
-  auto pairs_begin = thrust::make_transform_iterator(
+  auto pairs_begin = cuda::make_transform_iterator(
     keys_begin,
     cuda::proclaim_return_type<cuco::pair<key_type, mapped_type>>([] __device__(key_type const& x) {
       return cuco::pair<key_type, mapped_type>(x, static_cast<mapped_type>(x));

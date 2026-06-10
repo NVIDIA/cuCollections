@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,17 +16,16 @@
 
 #include <test_utils.hpp>
 
+#include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
+#include <cuda/iterator>
 #include <cuda/std/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/discard_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -41,9 +40,9 @@ void test_unique_sequence(Map& map, size_type num_keys)
   using Key   = typename Map::key_type;
   using Value = typename Map::mapped_type;
 
-  auto keys_begin  = thrust::counting_iterator<Key>{0};
-  auto pairs_begin = thrust::make_transform_iterator(
-    thrust::make_counting_iterator<size_type>(0),
+  auto keys_begin  = cuda::counting_iterator<Key>{0};
+  auto pairs_begin = cuda::make_transform_iterator(
+    cuda::make_counting_iterator<size_type>(0),
     cuda::proclaim_return_type<cuco::pair<Key, Value>>(
       [] __device__(auto i) { return cuco::pair<Key, Value>{i, i}; }));
 
@@ -57,8 +56,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
 
     REQUIRE(count == 0);
 
-    auto const [_, output_end] = map.retrieve(
-      keys_begin, keys_begin + num_keys, thrust::discard_iterator{}, d_results.begin());
+    auto const [_, output_end] =
+      map.retrieve(keys_begin, keys_begin + num_keys, cuda::discard_iterator{}, d_results.begin());
     auto const size = std::distance(d_results.begin(), output_end);
 
     REQUIRE(size == 0);
@@ -74,7 +73,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(count == num_keys);
 
     auto [_, output_end] =
-      map.retrieve(keys_begin, keys_begin + num_keys, thrust::discard_iterator{}, output_begin);
+      map.retrieve(keys_begin, keys_begin + num_keys, cuda::discard_iterator{}, output_begin);
     auto const size = cuda::std::distance(output_begin, output_end);
 
     REQUIRE(size == num_keys);
@@ -121,7 +120,14 @@ TEMPLATE_TEST_CASE_SIG(
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
   (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2))
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
 {
   constexpr size_type num_keys{1'000};
 

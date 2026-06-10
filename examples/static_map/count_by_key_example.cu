@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2023-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include <cuco/static_map.cuh>
 
 #include <cub/block/block_reduce.cuh>
+#include <cuda/iterator>
 #include <cuda/std/atomic>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
@@ -113,8 +114,8 @@ int main(void)
   thrust::device_vector<Key> insert_keys(num_keys);
   // Create a sequence of keys. Eeach distinct key has key_duplicates many matches.
   thrust::transform(
-    thrust::make_counting_iterator<Key>(0),
-    thrust::make_counting_iterator<Key>(insert_keys.size()),
+    cuda::make_counting_iterator<Key>(0),
+    cuda::make_counting_iterator<Key>(insert_keys.size()),
     insert_keys.begin(),
     [] __device__(auto i) -> Key { return static_cast<Key>(i % (num_keys / key_duplicates)); });
 

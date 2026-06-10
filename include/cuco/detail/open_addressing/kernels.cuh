@@ -707,43 +707,6 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
   }
 }
 
-/**
- * @brief Calculates the number of filled slots for the given bucket storage.
- *
- * @tparam BlockSize Number of threads in each block
- * @tparam StorageRef Type of non-owning ref allowing access to storage
- * @tparam Predicate Type of predicate indicating if the given slot is filled
- * @tparam AtomicT Atomic counter type
- *
- * @param storage Non-owning device ref used to access the slot storage
- * @param is_filled Predicate indicating if the given slot is filled
- * @param count Number of filled slots
- */
-template <int BlockSize, typename StorageRef, typename Predicate, typename AtomicT>
-CUCO_KERNEL __launch_bounds__(BlockSize) void size(StorageRef storage,
-                                                   Predicate is_filled,
-                                                   AtomicT* count)
-{
-  using size_type = typename StorageRef::size_type;
-
-  auto const loop_stride = cuco::detail::grid_stride();
-  auto idx               = cuco::detail::global_thread_id();
-
-  size_type thread_count = 0;
-  auto const n           = storage.capacity();
-
-  while (idx < n) {
-    thread_count += static_cast<size_type>(is_filled(*(storage.data() + idx)));
-
-    idx += loop_stride;
-  }
-
-  using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
-  __shared__ typename BlockReduce::TempStorage temp_storage;
-  auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
-  if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
-}
-
 template <int BlockSize, typename ContainerRef, typename Predicate>
 CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
   typename ContainerRef::storage_ref_type storage_ref,
