@@ -257,13 +257,16 @@ class bloom_filter_impl {
 #endif
     } else {
       auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
         if constexpr (tuning::use_invoke_one) {
           return cg::invoke_one_broadcast(group, [&] __device__() {
             auto const sh = policy_.split_hash(build_key);
             return cuda::std::make_tuple(
               sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
           });
-        } else {
+        } else
+#endif
+        {
           auto const sh = policy_.split_hash(build_key);
           return cuda::std::make_tuple(
             sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
@@ -412,13 +415,16 @@ class bloom_filter_impl {
 #endif
     } else {
       auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
+#if defined(CUCO_HAS_CG_INVOKE_ONE)
         if constexpr (tuning::use_invoke_one) {
           return cg::invoke_one_broadcast(group, [&] __device__() {
             auto const sh = policy_.split_hash(probe_key);
             return cuda::std::make_tuple(
               sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
           });
-        } else {
+        } else
+#endif
+        {
           auto const sh = policy_.split_hash(probe_key);
           return cuda::std::make_tuple(
             sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
