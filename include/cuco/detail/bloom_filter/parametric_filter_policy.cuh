@@ -391,7 +391,6 @@ class parametric_filter_policy {
   {
     if constexpr (SaltIndex < SaltEndIndex) {
       // Select top bit_index_width bits from salted hash to determine the bit index.
-      // if (threadIdx.x == 0) { printf("Salt Idx: %u\n", SaltIndex); }
       const uint32_t bit_index =
         (cuda::std::get<SaltIndex>(salts) * hash) >> (32 - bit_index_width);
 

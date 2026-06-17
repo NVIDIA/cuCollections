@@ -63,10 +63,10 @@ class bloom_filter_ref {
    * @param scope The scope in which operations will be performed
    * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
    */
-  __host__ __device__ explicit constexpr bloom_filter_ref(filter_block_type* data,
-                                                          Extent num_blocks,
-                                                          cuda_thread_scope<Scope> scope,
-                                                          Policy const& policy);
+  __host__ __device__ explicit bloom_filter_ref(filter_block_type* data,
+                                                Extent num_blocks,
+                                                cuda_thread_scope<Scope> scope,
+                                                Policy const& policy);
 
   /**
    * @brief Constructs the ref object from existing storage.
@@ -78,10 +78,10 @@ class bloom_filter_ref {
    * @param scope The scope in which operations will be performed
    * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
    */
-  __host__ __device__ explicit constexpr bloom_filter_ref(word_type* data,
-                                                          Extent num_blocks,
-                                                          cuda_thread_scope<Scope> scope,
-                                                          Policy const& policy);
+  __host__ __device__ explicit bloom_filter_ref(word_type* data,
+                                                Extent num_blocks,
+                                                cuda_thread_scope<Scope> scope,
+                                                Policy const& policy);
 
   /**
    * @brief Device function that cooperatively erases all information from the filter.
@@ -109,7 +109,7 @@ class bloom_filter_ref {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   __host__ constexpr void clear_async(cuda::stream_ref stream = cuda::stream_ref{
-                                        cudaStream_t{nullptr}}) noexcept;
+                                        cudaStream_t{nullptr}});
 
   /**
    * @brief Device function that adds a key to the filter.

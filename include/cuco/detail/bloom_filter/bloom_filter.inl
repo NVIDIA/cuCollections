@@ -27,12 +27,11 @@
 namespace cuco {
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
-__host__ constexpr bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(
-  Extent num_blocks,
-  cuda_thread_scope<Scope>,
-  Policy const& policy,
-  Allocator const& alloc,
-  cuda::stream_ref stream)
+__host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(Extent num_blocks,
+                                                                           cuda_thread_scope<Scope>,
+                                                                           Policy const& policy,
+                                                                           Allocator const& alloc,
+                                                                           cuda::stream_ref stream)
   : allocator_{alloc},
     data_{allocator_.allocate(static_cast<size_type>(num_blocks), stream),
           detail::custom_deleter<std::size_t, allocator_type>{
@@ -51,7 +50,7 @@ __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::cle
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::clear_async(
-  cuda::stream_ref stream) noexcept
+  cuda::stream_ref stream)
 {
   ref_.clear_async(stream);
 }

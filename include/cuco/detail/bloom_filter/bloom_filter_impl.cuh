@@ -24,6 +24,7 @@
 #include <cuco/detail/utility/math.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
+#include <cuco/utility/traits.hpp>
 
 #include <cub/device/device_for.cuh>
 #include <cub/device/device_transform.cuh>
@@ -53,9 +54,13 @@ class bloom_filter_impl {
   using size_type   = typename extent_type::value_type;
   using policy_type = Policy;
   using word_type   = typename policy_type::word_type;
-  // uint64_t may be unsigned long, but atomicOr requires unsigned long long
-  using atomic_word_type = typename cuda::std::
-    conditional_t<cuda::std::is_same_v<word_type, unsigned long>, unsigned long long, word_type>;
+  static_assert(sizeof(word_type) == 4 || sizeof(word_type) == 8,
+                "word_type must be 4 or 8 bytes wide for atomicOr");
+  // atomicOr overloads resolve on canonical 32- and 64-bit unsigned integer types.
+  // Normalize by size so any policy-provided word_type (uint32_t, uint64_t, unsigned long, ...)
+  // resolves to a matching overload via the reinterpret_cast in atomic_or().
+  using atomic_word_type =
+    cuda::std::conditional_t<sizeof(word_type) == 8, unsigned long long, unsigned int>;
 
   // Implementation-tuning knobs. Not part of the public API; reached via
   // `bloom_filter_impl::tuning::use_*` from internal kernels. Defaults reflect the ablation
@@ -90,9 +95,6 @@ class bloom_filter_impl {
 
   static constexpr bool is_cache_sectorized = policy_type::is_cache_sectorized;
 
-  static_assert((not tuning::use_cuda_atomic_ref) or
-                  (Scope == cuda::thread_scope::thread_scope_device),
-                "atomicOr requires device scope");
   static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
                 "Number of words per block must be a power-of-two and less than or equal to 32");
   static_assert(
@@ -118,20 +120,22 @@ class bloom_filter_impl {
     alignas(alignment()) word_type data_[words_per_block];
   };
 
-  __host__ __device__ explicit constexpr bloom_filter_impl(filter_block_type* filter,
-                                                           Extent num_blocks,
-                                                           cuda_thread_scope<Scope>,
-                                                           Policy policy) noexcept
+  __host__ __device__ explicit bloom_filter_impl(filter_block_type* filter,
+                                                 Extent num_blocks,
+                                                 cuda_thread_scope<Scope>,
+                                                 Policy policy)
     : words_{reinterpret_cast<word_type*>(filter)}, num_blocks_{num_blocks}, policy_{policy}
   {
+    NV_IF_TARGET(NV_IS_HOST, (l2_cache_size_ = static_cast<size_t>(cuco::detail::l2_cache_size());))
   }
 
-  __host__ __device__ explicit constexpr bloom_filter_impl(word_type* filter,
-                                                           Extent num_blocks,
-                                                           cuda_thread_scope<Scope>,
-                                                           Policy policy) noexcept
+  __host__ __device__ explicit bloom_filter_impl(word_type* filter,
+                                                 Extent num_blocks,
+                                                 cuda_thread_scope<Scope>,
+                                                 Policy policy)
     : words_{filter}, num_blocks_{num_blocks}, policy_{policy}
   {
+    NV_IF_TARGET(NV_IS_HOST, (l2_cache_size_ = static_cast<size_t>(cuco::detail::l2_cache_size());))
   }
 
   template <class CG>
@@ -154,13 +158,13 @@ class bloom_filter_impl {
 #endif
   }
 
-  __host__ constexpr void clear_async(cuda::stream_ref stream) noexcept
+  __host__ constexpr void clear_async(cuda::stream_ref stream)
   {
-    cub::DeviceFor::ForEachN(
+    CUCO_CUDA_TRY(cub::DeviceFor::ForEachN(
       words_,
       static_cast<size_type>(num_blocks_) * words_per_block,
       [] __device__(word_type & word) { word = 0; },
-      stream.get());
+      stream.get()));
   }
 
   __host__ constexpr void merge(bloom_filter_impl<Key, Extent, Scope, Policy> const& other,
@@ -324,22 +328,24 @@ class bloom_filter_impl {
     }
   }
 
-  template <bool ConditionalAtomic = true, class CG, class BuildKey>
-  __device__ void add_coop(CG group, BuildKey build_key, bool is_valid)
+  template <bool ConditionalAtomic = true, class CG, class InputIt, class Index>
+  __device__ void add_coop(CG group, InputIt first, Index idx, bool is_valid)
   {
     constexpr auto num_threads = tile_size_v<CG>;
 
-    // Compute the hash and block index only for lanes whose key is valid; invalid lanes' values
-    // are never used (the shfl loop below gates per-iteration work on `group.shfl(is_valid, i)`).
-    // Skipping the hash here saves work on sparse stencil-gated inserts.
+    // Load and hash only on lanes whose key is valid. Forming `first + idx` is also
+    // restricted to the is_valid branch: pointer/random-access-iterator arithmetic
+    // that moves more than one past the end is UB even without a dereference
+    // ([expr.add]/4), so we cannot eagerly compute the offset on out-of-range lanes.
     uint32_t upper_hash   = 0;
     uint32_t lower_hash   = 0;
     size_type block_index = 0;
     if (is_valid) {
-      auto const sh = policy_.split_hash(build_key);
-      upper_hash    = sh.first;
-      lower_hash    = sh.second;
-      block_index   = policy_.block_index(upper_hash, num_blocks_);
+      auto const& key = *(first + idx);
+      auto const sh   = policy_.split_hash(key);
+      upper_hash      = sh.first;
+      lower_hash      = sh.second;
+      block_index     = policy_.block_index(upper_hash, num_blocks_);
     }
 
     if constexpr (is_cache_sectorized) {
@@ -381,15 +387,13 @@ class bloom_filter_impl {
   template <class CG, class InputIt>
   __device__ void add(CG group, InputIt first, InputIt last)
   {
-    using key_type      = typename cuda::std::iterator_traits<InputIt>::value_type;
     auto const num_keys = cuco::detail::distance(first, last);
     if constexpr (tile_size_v<CG> == add_horizontal_layout && add_horizontal_layout > 1) {
       auto constexpr num_threads = static_cast<decltype(num_keys)>(tile_size_v<CG>);
       for (decltype(num_keys) batch = 0; batch < num_keys; batch += num_threads) {
         auto const idx      = batch + static_cast<decltype(num_keys)>(group.thread_rank());
         auto const is_valid = idx < num_keys;
-        key_type const key  = is_valid ? *(first + idx) : key_type{};
-        this->template add_coop<true>(group, key, is_valid);
+        this->template add_coop<true>(group, first, idx, is_valid);
       }
     } else {
       auto const stride = static_cast<decltype(num_keys)>(tile_size_v<CG>);
@@ -412,11 +416,10 @@ class bloom_filter_impl {
     auto const grid_size      = tuning::use_warp_cooperative_add_kernel
                                   ? cuco::detail::int_div_ceil(num_keys, block_size)
                                   : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
-    auto const l2_cache_size  = static_cast<size_t>(cuco::detail::l2_cache_size());
     auto const filter_size    = static_cast<size_t>(static_cast<size_type>(num_blocks_)) *
                              words_per_block * sizeof(word_type);
 
-    if (2 * filter_size < l2_cache_size) {
+    if (2 * filter_size < l2_cache_size_) {
       if constexpr (tuning::use_work_stealing_add_kernel) {
         detail::bloom_filter_ns::add_work_stealing_n<false, cg_size, block_size>
           <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
@@ -556,22 +559,24 @@ class bloom_filter_impl {
     return result_out;
   }
 
-  template <class CG, class ProbeKey>
-  __device__ bool contains_coop(CG group, ProbeKey probe_key, bool is_valid) const
+  template <class CG, class InputIt, class Index>
+  __device__ bool contains_coop(CG group, InputIt first, Index idx, bool is_valid) const
   {
     constexpr auto num_threads = tile_size_v<CG>;
 
-    // Compute the hash and block index only for lanes whose key is valid; invalid lanes' values
-    // are never used (the shfl loop below gates per-iteration work on `group.shfl(is_valid, i)`).
-    // Skipping the hash here saves work on sparse stencil-gated queries.
+    // Load and hash only on lanes whose key is valid. Forming `first + idx` is also
+    // restricted to the is_valid branch: pointer/random-access-iterator arithmetic
+    // that moves more than one past the end is UB even without a dereference
+    // ([expr.add]/4), so we cannot eagerly compute the offset on out-of-range lanes.
     uint32_t upper_hash   = 0;
     uint32_t lower_hash   = 0;
     size_type block_index = 0;
     if (is_valid) {
-      auto const sh = policy_.split_hash(probe_key);
-      upper_hash    = sh.first;
-      lower_hash    = sh.second;
-      block_index   = policy_.block_index(upper_hash, num_blocks_);
+      auto const& key = *(first + idx);
+      auto const sh   = policy_.split_hash(key);
+      upper_hash      = sh.first;
+      lower_hash      = sh.second;
+      block_index     = policy_.block_index(upper_hash, num_blocks_);
     }
 
     bool result_out = false;
@@ -618,15 +623,13 @@ class bloom_filter_impl {
   template <class CG, class InputIt, class OutputIt>
   __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin) const
   {
-    using key_type      = typename cuda::std::iterator_traits<InputIt>::value_type;
     auto const num_keys = cuco::detail::distance(first, last);
     if constexpr (tile_size_v<CG> == contains_horizontal_layout && contains_horizontal_layout > 1) {
       auto constexpr num_threads = static_cast<decltype(num_keys)>(tile_size_v<CG>);
       for (decltype(num_keys) batch = 0; batch < num_keys; batch += num_threads) {
         auto const idx      = batch + static_cast<decltype(num_keys)>(group.thread_rank());
         auto const is_valid = idx < num_keys;
-        key_type const key  = is_valid ? *(first + idx) : key_type{};
-        auto const result   = this->contains_coop(group, key, is_valid);
+        auto const result   = this->contains_coop(group, first, idx, is_valid);
         if (is_valid) { *(output_begin + idx) = result; }
       }
     } else {
@@ -702,11 +705,10 @@ class bloom_filter_impl {
     auto const grid_size      = tuning::use_warp_cooperative_add_kernel
                                   ? cuco::detail::int_div_ceil(num_keys, block_size)
                                   : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
-    auto const l2_cache_size  = static_cast<size_t>(cuco::detail::l2_cache_size());
     auto const filter_size    = static_cast<size_t>(static_cast<size_type>(num_blocks_)) *
                              words_per_block * sizeof(word_type);
 
-    if (2 * filter_size < l2_cache_size) {
+    if (2 * filter_size < l2_cache_size_) {
       detail::bloom_filter_ns::add_if_n<false, cg_size, block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
     } else {
@@ -908,26 +910,35 @@ class bloom_filter_impl {
   template <bool ConditionalAtomic>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    if constexpr (tuning::use_cuda_atomic_ref) {
-      if constexpr (ConditionalAtomic) {
-        if ((*word_ptr & pattern) != pattern) {
-          auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*word_ptr};
-          atom_word.fetch_or(pattern, cuda::memory_order_relaxed);
-        }
+    auto const do_or = [&]() {
+      if constexpr (tuning::use_cuda_atomic_ref) {
+        cuda::atomic_ref<word_type, thread_scope>{*word_ptr}.fetch_or(pattern,
+                                                                      cuda::memory_order_relaxed);
       } else {
-        auto atom_word = cuda::atomic_ref<word_type, thread_scope>{*word_ptr};
-        atom_word.fetch_or(pattern, cuda::memory_order_relaxed);
+        auto* const p = reinterpret_cast<atomic_word_type*>(word_ptr);
+        auto const v  = static_cast<atomic_word_type>(pattern);
+        if constexpr (thread_scope == cuda::thread_scope_thread) {
+          // Thread scope: no inter-thread synchronization required; a plain OR is
+          // the semantically correct operation. No atomic intrinsic exists for
+          // this scope.
+          *p |= v;
+        } else if constexpr (thread_scope == cuda::thread_scope_block) {
+          atomicOr_block(p, v);
+        } else if constexpr (thread_scope == cuda::thread_scope_device) {
+          atomicOr(p, v);
+        } else if constexpr (thread_scope == cuda::thread_scope_system) {
+          atomicOr_system(p, v);
+        } else {
+          static_assert(cuco::dependent_false<word_type>,
+                        "unsupported cuda::thread_scope for native atomic_or");
+        }
       }
+    };
+
+    if constexpr (ConditionalAtomic) {
+      if ((*word_ptr & pattern) != pattern) { do_or(); }
     } else {
-      if constexpr (ConditionalAtomic) {
-        if ((*word_ptr & pattern) != pattern) {
-          atomicOr(reinterpret_cast<atomic_word_type*>(word_ptr),
-                   static_cast<atomic_word_type>(pattern));
-        }
-      } else {
-        atomicOr(reinterpret_cast<atomic_word_type*>(word_ptr),
-                 static_cast<atomic_word_type>(pattern));
-      }
+      do_or();
     }
   }
 
@@ -1100,6 +1111,10 @@ class bloom_filter_impl {
   word_type* words_;
   extent_type num_blocks_;
   policy_type policy_;
+  // L2 cache size cached at construction time so async paths can stay `noexcept`.
+  // Populated only on host construction via `cuco::detail::l2_cache_size()`; device-side
+  // ctor invocations leave it at zero, which is fine because async paths run on the host.
+  size_t l2_cache_size_ = 0;
 };
 
 }  // namespace cuco::detail

@@ -46,8 +46,7 @@ __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
       ref.add_coop<ConditionalAtomic>(group, key);
     } else {
       auto const is_valid = idx < n;
-      key_type const& key = is_valid ? *(first + idx) : key_type{};
-      ref.add_coop<ConditionalAtomic>(group, key, is_valid);
+      ref.add_coop<ConditionalAtomic>(group, first, idx, is_valid);
     }
   } else {
     auto const idx = cuco::detail::global_thread_id() / CGSize;
@@ -122,8 +121,7 @@ __device__ void add_work_stealing_n_impl(InputIt first, cuco::detail::index_type
         ref.add_coop<ConditionalAtomic>(group, key);
       } else {
         auto const is_valid = idx < n;
-        key_type const& key = is_valid ? *(first + idx) : key_type{};
-        ref.add_coop<ConditionalAtomic>(group, key, is_valid);
+        ref.add_coop<ConditionalAtomic>(group, first, idx, is_valid);
       }
     } else {
       cuco::detail::index_type const idx =
@@ -195,8 +193,7 @@ __device__ void contains_n_impl(InputIt first,
       *(output_begin + idx) = ref.contains_coop(group, key);
     } else {
       auto const is_valid = idx < n;
-      key_type const& key = is_valid ? *(first + idx) : key_type{};
-      auto const result   = ref.contains_coop(group, key, is_valid);
+      auto const result   = ref.contains_coop(group, first, idx, is_valid);
       if (is_valid) { *(output_begin + idx) = result; }
     }
   } else {
@@ -278,8 +275,7 @@ __device__ void contains_work_stealing_n_impl(InputIt first,
         *(output_begin + idx) = ref.contains_coop(group, key);
       } else {
         auto const is_valid = idx < n;
-        key_type const& key = is_valid ? *(first + idx) : key_type{};
-        auto const result   = ref.contains_coop(group, key, is_valid);
+        auto const result   = ref.contains_coop(group, first, idx, is_valid);
         if (is_valid) { *(output_begin + idx) = result; }
       }
     } else {
@@ -353,13 +349,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
     auto const idx      = cuco::detail::global_thread_id();
     auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const in_range = idx < n;
-    bool is_valid       = false;
-    key_type key{};
-    if (in_range) {
-      key      = *(first + idx);
-      is_valid = pred(*(stencil + idx));
-    }
-    ref.template add_coop<ConditionalAtomic>(group, key, is_valid);
+    auto const is_valid = in_range && pred(*(stencil + idx));
+    ref.template add_coop<ConditionalAtomic>(group, first, idx, is_valid);
   } else {
     auto const idx = cuco::detail::global_thread_id() / CGSize;
     if (idx < n && pred(*(stencil + idx))) {
@@ -395,13 +386,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
     auto const idx      = cuco::detail::global_thread_id();
     auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const in_range = idx < n;
-    bool is_valid       = false;
-    key_type key{};
-    if (in_range) {
-      key      = *(first + idx);
-      is_valid = pred(*(stencil + idx));
-    }
-    auto const result = ref.contains_coop(group, key, is_valid);
+    auto const is_valid = in_range && pred(*(stencil + idx));
+    auto const result   = ref.contains_coop(group, first, idx, is_valid);
     if (in_range) { *(output_begin + idx) = is_valid ? result : false; }
   } else {
     auto const idx = cuco::detail::global_thread_id() / CGSize;

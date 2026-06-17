@@ -125,12 +125,11 @@ class bloom_filter {
    * @param alloc Allocator used for allocating device-accessible storage
    * @param stream CUDA stream used to initialize the filter
    */
-  __host__ explicit constexpr bloom_filter(Extent num_blocks,
-                                           cuda_thread_scope<Scope> scope = {},
-                                           Policy const& policy           = {},
-                                           Allocator const& alloc         = {},
-                                           cuda::stream_ref stream        = cuda::stream_ref{
-                                             cudaStream_t{nullptr}});
+  __host__ explicit bloom_filter(Extent num_blocks,
+                                 cuda_thread_scope<Scope> scope = {},
+                                 Policy const& policy           = {},
+                                 Allocator const& alloc         = {},
+                                 cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Erases all information from the filter.
@@ -148,7 +147,7 @@ class bloom_filter {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   __host__ constexpr void clear_async(cuda::stream_ref stream = cuda::stream_ref{
-                                        cudaStream_t{nullptr}}) noexcept;
+                                        cudaStream_t{nullptr}});
 
   /**
    * @brief Adds all keys in the range `[first, last)` to the filter.
