@@ -65,13 +65,6 @@ __device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(ProbeKey const
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
-template <class InputIt>
-__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(InputIt first, InputIt last)
-{
-  impl_.add(first, last);
-}
-
-template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class CG, class ProbeKey>
 __device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::add(CG group, ProbeKey const& key)
 {
@@ -126,15 +119,6 @@ template <class ProbeKey>
   ProbeKey const& key) const
 {
   return impl_.contains(key);
-}
-
-template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
-template <class InputIt, class OutputIt>
-__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(InputIt first,
-                                                                       InputIt last,
-                                                                       OutputIt output_begin) const
-{
-  impl_.contains(first, last, output_begin);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>

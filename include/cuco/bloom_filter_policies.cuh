@@ -27,13 +27,10 @@ namespace cuco {
  * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
  *
  * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
- * GPU Architectures" (arXiv:2512.15595). Distributes `PatternBits` set bits across `WordsPerBlock`
- * words via compile-time salt-based multiplicative hashing.
+ * GPU Architectures" (arXiv:2512.15595).
  *
  * Requires a 64-bit hash function: the result is split into upper 32 bits (block selection via
- * multiply-shift) and lower 32 bits (pattern generation). This is a permanent design requirement.
- *
- * @note Constructor signature: `parametric_filter_policy(Hash hash = {})`.
+ * multiply-shift) and lower 32 bits (pattern generation).
  *
  * @tparam Hash 64-bit hash functor.
  * @tparam Word Underlying word type of a filter block.

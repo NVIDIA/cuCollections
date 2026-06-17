@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,17 +120,6 @@ class bloom_filter_ref {
    */
   template <class ProbeKey>
   __device__ void add(ProbeKey const& key);
-
-  /**
-   * @brief Device function that adds all keys in the range `[first, last)` to the filter.
-   *
-   * @tparam InputIt Device-accessible random access input key iterator
-   *
-   * @param first Beginning of the sequence of keys
-   * @param last End of the sequence of keys
-   */
-  template <class InputIt>
-  __device__ void add(InputIt first, InputIt last);
 
   /**
    * @brief Device function that cooperatively adds a key to the filter.
@@ -260,20 +249,6 @@ class bloom_filter_ref {
    */
   template <class ProbeKey>
   [[nodiscard]] __device__ bool contains(ProbeKey const& key) const;
-
-  /**
-   * @brief Device function that tests if all keys in the range `[first, last)` are present in the
-   * filter.
-   *
-   * @tparam InputIt Device-accessible random access input key iterator
-   * @tparam OutputIt Device-accessible output iterator assignable from `bool`
-   *
-   * @param first Beginning of the sequence of keys
-   * @param last End of the sequence of keys
-   * @param output_begin Beginning of the sequence of booleans for the presence of each key
-   */
-  template <class InputIt, class OutputIt>
-  __device__ void contains(InputIt first, InputIt last, OutputIt output_begin) const;
 
   /**
    * @brief Device function that tests if a key's fingerprint is present in the filter.

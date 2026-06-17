@@ -88,13 +88,6 @@ __global__ void cg_contains_kernel(Ref ref, Key const* keys, size_type n, bool* 
   }
 }
 
-template <class Ref, class Key>
-__global__ void scalar_range_contains_kernel(Ref ref, Key const* first, Key const* last, bool* out)
-{
-  // Single-thread device-range contains: serial loop over the input range.
-  if (blockIdx.x == 0 && threadIdx.x == 0) { ref.contains(first, last, out); }
-}
-
 template <int CGSize, class Ref, class Key>
 __global__ void cg_range_contains_kernel(Ref ref, Key const* first, Key const* last, bool* out)
 {
@@ -237,18 +230,6 @@ TEMPLATE_TEST_CASE_SIG(
     int const grid_size      = (num_probe * CGSize + block_size - 1) / block_size;
     cg_contains_kernel<CGSize><<<grid_size, block_size>>>(
       ref, probe_raw, num_probe, thrust::raw_pointer_cast(ref_result.data()));
-    CUCO_CUDA_TRY(cudaDeviceSynchronize());
-
-    REQUIRE(cuco::test::equal(
-      bulk_result.begin(), bulk_result.end(), ref_result.begin(), cuda::std::equal_to<bool>{}));
-  }
-
-  SECTION("device-range scalar ref.contains(first, last, out)")
-  {
-    thrust::device_vector<bool> ref_result(num_probe);
-    auto ref = filter.ref();
-    scalar_range_contains_kernel<<<1, 1>>>(
-      ref, probe_raw, probe_raw + num_probe, thrust::raw_pointer_cast(ref_result.data()));
     CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
     REQUIRE(cuco::test::equal(

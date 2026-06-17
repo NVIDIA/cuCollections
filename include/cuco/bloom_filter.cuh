@@ -38,16 +38,11 @@ namespace cuco {
 /**
  * @brief A GPU-accelerated Bloom filter.
  *
- * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
- * GPU Architectures" (arXiv:2512.15595). Fingerprint generation is parameterized by
- * `parametric_filter_policy` (see `cuco/bloom_filter_policies.cuh`), which exposes the paper's
- * Theta/Phi vectorization layout as compile-time template parameters.
- *
  * The `bloom_filter` supports two types of operations:
  * - Host-side "bulk" operations
  * - Device-side "singular" operations
  *
- * The host-side bulk operations include add(), contains(), etc. These APIs should be used when
+ * The host-side bulk operations include `add()`, `contains()`, etc. These APIs should be used when
  * there are a large number of keys to add or lookup. For example, given a range of keys
  * specified by device-accessible iterators, the bulk `add` function will add all keys into
  * the filter.
@@ -55,12 +50,6 @@ namespace cuco {
  * The singular device-side operations allow individual threads (or Cooperative Groups) to perform
  * independent add or lookup operations from device code. These operations are accessed through
  * non-owning, trivially copyable reference types (or "ref").
- *
- * @note The default `Policy` (`cuco::default_filter_policy<Key>`) is an alias for a
- * `parametric_filter_policy` instantiation with paper-recommended layouts on a 256-bit block. Users
- * who need different layouts (smaller/larger blocks, different fingerprint bit counts) can
- * instantiate `cuco::parametric_filter_policy<...>` directly and pass it as the `Policy` template
- * argument.
  *
  * @tparam Key Key type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
@@ -114,9 +103,6 @@ class bloom_filter {
 
   /**
    * @brief Constructs a statically-sized Bloom filter.
-   *
-   * @note The total number of bits in the filter is determined by `words_per_block * num_blocks *
-   * sizeof(word_type) * CHAR_BIT`.
    *
    * @param num_blocks Number of sub-filters or blocks
    * @param scope The scope in which operations will be performed
@@ -338,7 +324,7 @@ class bloom_filter {
                                               cudaStream_t{nullptr}}) const noexcept;
 
   /**
-   * @brief Merge another bloom filter into this.
+   * @brief Merge another bloom filter into `*this`.
    *
    * @note Modifies `this` in place.
    * @note This function synchronizes the given stream. For asynchronous execution use
@@ -358,7 +344,7 @@ class bloom_filter {
                                 cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
-   * @brief Asynchronously merge another bloom filter into this.
+   * @brief Asynchronously merge another bloom filter into `*this`.
    *
    * @note Modifies `this` in place.
    *
@@ -377,7 +363,7 @@ class bloom_filter {
     cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
-   * @brief Intersect another bloom filter into this.
+   * @brief Intersect another bloom filter into `*this`.
    *
    * @note Modifies `this` in place.
    * @note This function synchronizes the given stream. For asynchronous execution use
@@ -401,7 +387,7 @@ class bloom_filter {
     cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
-   * @brief Asynchronously intersect another bloom filter into this.
+   * @brief Asynchronously intersect another bloom filter into `*this`.
    *
    * @note Modifies `this` in place.
    *

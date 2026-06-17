@@ -324,16 +324,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Device-side range add (single-thread): loops over keys.
-  template <class InputIt>
-  __device__ void add(InputIt first, InputIt last)
-  {
-    auto num_keys = cuco::detail::distance(first, last);
-    for (decltype(num_keys) i = 0; i < num_keys; ++i) {
-      this->add(*(first + i));
-    }
-  }
-
   // Device-side range add (cooperative). When the tile size matches `add_horizontal_layout`,
   // each batch loads/hashes one key per lane in parallel, then the tile cooperatively processes
   // them via `add_coop`. Otherwise the tile parallelizes across the key range with each lane
@@ -509,16 +499,6 @@ class bloom_filter_impl {
       }
     }
     return result_out;
-  }
-
-  // Device-side range contains (single-thread): loops over keys.
-  template <class InputIt, class OutputIt>
-  __device__ void contains(InputIt first, InputIt last, OutputIt output_begin) const
-  {
-    auto num_keys = cuco::detail::distance(first, last);
-    for (decltype(num_keys) i = 0; i < num_keys; ++i) {
-      *(output_begin + i) = this->contains(*(first + i));
-    }
   }
 
   // Device-side range contains (cooperative). When the tile size matches
