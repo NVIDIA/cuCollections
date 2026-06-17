@@ -26,10 +26,9 @@ namespace cuco {
 /**
  * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
  *
- * Implements the Sectorized Bloom Filter (SBF) and Cache-Sectorized Bloom Filter (CSBF) variants
- * from "Optimizing Bloom Filters for Modern GPU Architectures" (arXiv:2512.15595). Distributes
- * `PatternBits` set bits across `WordsPerBlock` words via compile-time salt-based multiplicative
- * hashing.
+ * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
+ * GPU Architectures" (arXiv:2512.15595). Distributes `PatternBits` set bits across `WordsPerBlock`
+ * words via compile-time salt-based multiplicative hashing.
  *
  * Requires a 64-bit hash function: the result is split into upper 32 bits (block selection via
  * multiply-shift) and lower 32 bits (pattern generation). This is a permanent design requirement.
@@ -44,8 +43,6 @@ namespace cuco {
  * @tparam AddVerticalLayout Words per thread per add step (paper's Phi).
  * @tparam ContainsHorizontalLayout CG size for contains.
  * @tparam ContainsVerticalLayout Words per thread per contains step.
- * @tparam GroupsPerBlock Cache-sectorization groups (paper's z). Defaults to `WordsPerBlock`
- * (non-CSBF).
  */
 template <class Hash,
           class Word,
@@ -54,8 +51,7 @@ template <class Hash,
           std::uint32_t AddHorizontalLayout,
           std::uint32_t AddVerticalLayout,
           std::uint32_t ContainsHorizontalLayout,
-          std::uint32_t ContainsVerticalLayout,
-          std::uint32_t GroupsPerBlock = WordsPerBlock>
+          std::uint32_t ContainsVerticalLayout>
 using parametric_filter_policy = detail::parametric_filter_policy<Hash,
                                                                   Word,
                                                                   WordsPerBlock,
@@ -63,8 +59,7 @@ using parametric_filter_policy = detail::parametric_filter_policy<Hash,
                                                                   AddHorizontalLayout,
                                                                   AddVerticalLayout,
                                                                   ContainsHorizontalLayout,
-                                                                  ContainsVerticalLayout,
-                                                                  GroupsPerBlock>;
+                                                                  ContainsVerticalLayout>;
 
 /**
  * @brief Default Bloom filter policy used by `cuco::bloom_filter` when no policy is specified.

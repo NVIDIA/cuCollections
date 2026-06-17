@@ -32,11 +32,11 @@ namespace cuco::detail {
 /**
  * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
  *
- * Implements the Sectorized Bloom Filter (SBF) and Cache-Sectorized Bloom Filter (CSBF) variants
- * from "Optimizing Bloom Filters for Modern GPU Architectures" (arXiv:2512.15595). Distributes
- * `PatternBits` set bits across `WordsPerBlock` words using compile-time salt-based multiplicative
- * hashing. The hash result is split into upper 32 bits (block selection via multiply-shift) and
- * lower 32 bits (pattern generation), so a 64-bit hash function is required by design.
+ * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
+ * GPU Architectures" (arXiv:2512.15595). Distributes `PatternBits` set bits across `WordsPerBlock`
+ * words using compile-time salt-based multiplicative hashing. The hash result is split into upper
+ * 32 bits (block selection via multiply-shift) and lower 32 bits (pattern generation), so a 64-bit
+ * hash function is required by design.
  *
  * @tparam Hash 64-bit hash functor whose return type satisfies `is_same_v<hash_result_type,
  * uint64_t>`.
@@ -49,8 +49,6 @@ namespace cuco::detail {
  * @tparam ContainsHorizontalLayout CG size used for `contains` (paper's Theta).
  * @tparam ContainsVerticalLayout Contiguous words processed per thread per `contains` step (paper's
  * Phi).
- * @tparam GroupsPerBlock Cache-sectorization groups per block (paper's z). Defaults to
- * `WordsPerBlock` for non-CSBF mode; setting `GroupsPerBlock < WordsPerBlock` enables CSBF.
  */
 template <class Hash,
           class Word,
@@ -59,8 +57,7 @@ template <class Hash,
           uint32_t AddHorizontalLayout,
           uint32_t AddVerticalLayout,
           uint32_t ContainsHorizontalLayout,
-          uint32_t ContainsVerticalLayout,
-          uint32_t GroupsPerBlock = WordsPerBlock>
+          uint32_t ContainsVerticalLayout>
 class parametric_filter_policy {
  public:
   using hasher             = Hash;                            ///< 64-bit hash functor type
@@ -106,41 +103,15 @@ class parametric_filter_policy {
   /// number of available salts.
   static constexpr auto max_pattern_bits = cuda::std::min(word_bits * words_per_block, max_salts);
 
-  //===----------Cache-Sectorized----------===//
-  static constexpr uint32_t groups_per_block =
-    GroupsPerBlock;  ///< Cache-sectorization groups per block (paper's z)
-  static constexpr bool is_cache_sectorized =
-    groups_per_block != words_per_block ? true : false;  ///< CSBF mode flag
-  static constexpr uint32_t words_per_group =
-    words_per_block / groups_per_block;  ///< Words per cache-sectorization group
-  // TODO: when `pattern_bits % groups_per_block != 0`, using a ceil packs all remainder bits into
-  // the first `pattern_bits / max_bits_per_group` groups, leaving later groups with a zero
-  // expected pattern. This wastes block capacity and inflates FPR. Distribute floor bits to every
-  // group plus one extra bit to the first `pattern_bits % groups_per_block` groups, and update
-  // the salt-to-group mapping in `set_bits` accordingly.
-  static constexpr uint32_t max_bits_per_group = cuco::detail::int_div_ceil(
-    pattern_bits, groups_per_block);  ///< CSBF: max fingerprint bits set per group per key
-  static constexpr uint32_t add_groups_per_vertical_layout =
-    add_vertical_layout / words_per_group;  ///< CSBF: groups touched per add vertical step
-  static constexpr uint32_t contains_groups_per_vertical_layout =
-    contains_vertical_layout /
-    words_per_group;  ///< CSBF: groups touched per contains vertical step
-  static constexpr uint32_t group_index_salt =
-    0x5bd1e995U;  ///< CSBF: salt for selecting one word per group
-  static constexpr uint32_t group_index_width = cuda::std::bit_width(
-    words_per_group - 1);  ///< CSBF: bits needed to encode an in-group word index
-  static constexpr uint32_t group_index_mask =
-    words_per_group - 1;  ///< CSBF: mask for selecting an in-group word index
-
  private:
   static constexpr uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
-  // TODO: same problem as `max_bits_per_group`. For non-multiple
-  // `(pattern_bits, words_per_block)` configs (e.g. PatternBits=12, WordsPerBlock=8), the salt
-  // walk in `set_bits` advances `PatternArrayIndex` every `max_bits_per_word` salts, packing all
-  // bits into the first `ceil(pattern_bits / words_per_block)` words and leaving the rest at
-  // zero. This wastes block capacity and inflates FPR. Distribute floor bits to every word plus
-  // one extra bit to the first `pattern_bits % words_per_block` words, and update the
-  // salt-to-word mapping in `set_bits` accordingly.
+  // TODO: for non-multiple `(pattern_bits, words_per_block)` configs (e.g. PatternBits=12,
+  // WordsPerBlock=8), the salt walk in `set_bits` advances `PatternArrayIndex` every
+  // `max_bits_per_word` salts, packing all bits into the first
+  // `ceil(pattern_bits / words_per_block)` words and leaving the rest at zero. This wastes block
+  // capacity and inflates FPR. Distribute floor bits to every word plus one extra bit to the
+  // first `pattern_bits % words_per_block` words, and update the salt-to-word mapping in
+  // `set_bits` accordingly.
   static constexpr uint32_t max_bits_per_word =
     cuco::detail::int_div_ceil(pattern_bits, words_per_block);
 
@@ -171,26 +142,6 @@ class parametric_filter_policy {
     // hashing). This is a permanent design requirement, not a temporary limitation.
     static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
                   "parametric_filter_policy requires a 64-bit hash function");
-
-    //===----------Cache-Sectorized----------===//
-    static_assert(
-      is_cache_sectorized == false || (groups_per_block > 0 && groups_per_block < words_per_block &&
-                                       (words_per_block % groups_per_block == 0)),
-      "in cache-sectorized filter, the number of groups must be positive, be fewer "
-      "than words_per_block, and evenly divide words_per_block");
-    // Require the vertical layout to be a multiple of `words_per_group`. Floor-dividing
-    // `add_vertical_layout / words_per_group` to derive `add_groups_per_vertical_layout` would
-    // otherwise drop group-coverage for the trailing partial group, producing the same false-
-    // negative bug as the non-tiling check above.
-    static_assert(is_cache_sectorized == false || (add_vertical_layout % words_per_group == 0),
-                  "in cache-sectorized filter, add_vertical_layout must be a multiple of "
-                  "words_per_group");
-    static_assert(is_cache_sectorized == false || (contains_vertical_layout % words_per_group == 0),
-                  "in cache-sectorized filter, contains_vertical_layout must be a multiple of "
-                  "words_per_group");
-    static_assert(is_cache_sectorized == false || groups_per_block * group_index_width <= 32,
-                  "in cache-sectorized filter, the number of bits needed to index groups must fit "
-                  "within 32 bits");
   }
 
   /**
@@ -235,7 +186,7 @@ class parametric_filter_policy {
    *
    * @param lower_hash_value Lower 32 bits of the key's hash.
    *
-   * @return Array of `VerticalLayout` (or `groups_per_vertical_layout` in CSBF mode) words.
+   * @return Array of `VerticalLayout` words.
    */
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
@@ -253,8 +204,7 @@ class parametric_filter_policy {
    * @param lower_hash_value Lower 32 bits of the key's hash.
    * @param thread_index Caller's rank within the cooperative group.
    *
-   * @return Array of `VerticalLayout` (or `groups_per_vertical_layout` in CSBF mode) words owned
-   * by the calling thread.
+   * @return Array of `VerticalLayout` words owned by the calling thread.
    */
   template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value, uint32_t thread_index) const
@@ -282,12 +232,7 @@ class parametric_filter_policy {
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto pattern_impl(uint32_t hash) const
   {
-    // For cache-sectorized, we set bits for one word for each group per vertical layout.
-    constexpr uint32_t groups_per_vertical_layout = VerticalLayout / words_per_group;
-    using pattern_array_t =
-      cuda::std::conditional_t<is_cache_sectorized,
-                               cuda::std::array<word_type, groups_per_vertical_layout>,
-                               cuda::std::array<word_type, VerticalLayout>>;
+    using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
 
     // Sanity check
     constexpr uint32_t num_iterations = words_per_block / VerticalLayout;
@@ -295,14 +240,9 @@ class parametric_filter_policy {
                   "the loop index cannot exceed the number of loop iterations");
 
     pattern_array_t pattern_array{0};
-    constexpr uint32_t salt_start_index =
-      is_cache_sectorized ? max_bits_per_group * groups_per_vertical_layout * LoopIndex
-                          : max_bits_per_word * VerticalLayout * LoopIndex;
+    constexpr uint32_t salt_start_index = max_bits_per_word * VerticalLayout * LoopIndex;
     constexpr uint32_t salt_end_index =
-      is_cache_sectorized
-        ? cuda::std::min(salt_start_index + max_bits_per_group * groups_per_vertical_layout,
-                         pattern_bits)
-        : cuda::std::min(salt_start_index + max_bits_per_word * VerticalLayout, pattern_bits);
+      cuda::std::min(salt_start_index + max_bits_per_word * VerticalLayout, pattern_bits);
     constexpr uint32_t pattern_array_start_index = 0;
     set_bits<salt_start_index, salt_end_index, pattern_array_start_index>(hash, pattern_array);
     return pattern_array;
@@ -312,12 +252,7 @@ class parametric_filter_policy {
   template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto pattern_impl(uint32_t hash, uint32_t thread_index) const
   {
-    // For cache-sectorized, we set bits for one word for each group per vertical layout.
-    constexpr uint32_t groups_per_vertical_layout = VerticalLayout / words_per_group;
-    using pattern_array_t =
-      cuda::std::conditional_t<is_cache_sectorized,
-                               cuda::std::array<word_type, groups_per_vertical_layout>,
-                               cuda::std::array<word_type, VerticalLayout>>;
+    using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
 
     // Sanity check
     constexpr uint32_t num_iterations = words_per_block / (HorizontalLayout * VerticalLayout);
@@ -330,18 +265,15 @@ class parametric_filter_policy {
     constexpr uint32_t upper_bound = lower_bound + HorizontalLayout;
 
     // A virtual thread flips max_bits_per_virtual_thread bits in the pattern array, excepting
-    // potentially some of the last virtual threads (if [sectorized] pattern_bits % words_per_block
-    // != 0 or [cache-sectorized] pattern_bits & groups_per_block != 0).
-    constexpr uint32_t max_bits_per_virtual_thread =
-      is_cache_sectorized ? max_bits_per_group * groups_per_vertical_layout
-                          : max_bits_per_word * VerticalLayout;
+    // potentially some of the last virtual threads (if pattern_bits % words_per_block != 0).
+    constexpr uint32_t max_bits_per_virtual_thread = max_bits_per_word * VerticalLayout;
 
     pattern_array_t pattern_array{0};
     if constexpr (num_iterations == 1) {
       thread_dispatch<max_bits_per_virtual_thread, lower_bound, upper_bound>(
         hash, thread_index, pattern_array);
     } else {
-      const uint32_t virtual_thread_index = LoopIndex * HorizontalLayout + thread_index;
+      uint32_t const virtual_thread_index = LoopIndex * HorizontalLayout + thread_index;
       thread_dispatch<max_bits_per_virtual_thread, lower_bound, upper_bound>(
         hash, virtual_thread_index, pattern_array);
     }
@@ -391,7 +323,7 @@ class parametric_filter_policy {
   {
     if constexpr (SaltIndex < SaltEndIndex) {
       // Select top bit_index_width bits from salted hash to determine the bit index.
-      const uint32_t bit_index =
+      uint32_t const bit_index =
         (cuda::std::get<SaltIndex>(salts) * hash) >> (32 - bit_index_width);
 
       // Set the bit in the pattern array.
@@ -400,9 +332,7 @@ class parametric_filter_policy {
       // Recurse.
       constexpr uint32_t next_salt_index = SaltIndex + 1;
       constexpr uint32_t next_pattern_array_index =
-        is_cache_sectorized
-          ? PatternArrayIndex + (next_salt_index % max_bits_per_group == 0 ? 1 : 0)
-          : PatternArrayIndex + (next_salt_index % max_bits_per_word == 0 ? 1 : 0);
+        PatternArrayIndex + (next_salt_index % max_bits_per_word == 0 ? 1 : 0);
       set_bits<next_salt_index, SaltEndIndex, next_pattern_array_index>(hash, pattern_array);
     }
   }

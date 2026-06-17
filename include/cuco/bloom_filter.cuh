@@ -38,11 +38,10 @@ namespace cuco {
 /**
  * @brief A GPU-accelerated Bloom filter.
  *
- * Implements the Sectorized Bloom Filter (SBF) and Cache-Sectorized Bloom Filter (CSBF) variants
- * from "Optimizing Bloom Filters for Modern GPU Architectures" (arXiv:2512.15595). Fingerprint
- * generation is parameterized by `parametric_filter_policy` (see `cuco/bloom_filter_policies.cuh`),
- * which exposes the paper's Theta/Phi vectorization layout and optional `GroupsPerBlock`
- * cache-sectorization parameters as compile-time template parameters.
+ * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
+ * GPU Architectures" (arXiv:2512.15595). Fingerprint generation is parameterized by
+ * `parametric_filter_policy` (see `cuco/bloom_filter_policies.cuh`), which exposes the paper's
+ * Theta/Phi vectorization layout as compile-time template parameters.
  *
  * The `bloom_filter` supports two types of operations:
  * - Host-side "bulk" operations
@@ -59,9 +58,9 @@ namespace cuco {
  *
  * @note The default `Policy` (`cuco::default_filter_policy<Key>`) is an alias for a
  * `parametric_filter_policy` instantiation with paper-recommended layouts on a 256-bit block. Users
- * who need different layouts (smaller/larger blocks, different fingerprint bit counts, CSBF mode)
- * can instantiate `cuco::parametric_filter_policy<...>` directly and pass it as the `Policy`
- * template argument.
+ * who need different layouts (smaller/larger blocks, different fingerprint bit counts) can
+ * instantiate `cuco::parametric_filter_policy<...>` directly and pass it as the `Policy` template
+ * argument.
  *
  * @tparam Key Key type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
