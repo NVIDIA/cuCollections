@@ -260,24 +260,23 @@ class bloom_filter_impl {
       if (group.thread_rank() == 0) { this->template add<ConditionalAtomic>(build_key); }
       group.sync();
 #endif
-      return;
-    }
-
-    auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
-      if constexpr (tuning::use_invoke_one) {
-        return cg::invoke_one_broadcast(group, [&] __device__() {
+    } else {
+      auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
+        if constexpr (tuning::use_invoke_one) {
+          return cg::invoke_one_broadcast(group, [&] __device__() {
+            auto const sh = policy_.split_hash(build_key);
+            return cuda::std::make_tuple(
+              sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
+          });
+        } else {
           auto const sh = policy_.split_hash(build_key);
           return cuda::std::make_tuple(
             sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
-        });
-      } else {
-        auto const sh = policy_.split_hash(build_key);
-        return cuda::std::make_tuple(
-          sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
-      }
-    }();
+        }
+      }();
 
-    add_patterns<ConditionalAtomic, 0>(block_index, lower_hash, group.thread_rank());
+      add_patterns<ConditionalAtomic, 0>(block_index, lower_hash, group.thread_rank());
+    }
   }
 
   // Warp-cooperative Add
@@ -329,7 +328,7 @@ class bloom_filter_impl {
   template <class InputIt>
   __device__ void add(InputIt first, InputIt last)
   {
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto num_keys = cuco::detail::distance(first, last);
     for (decltype(num_keys) i = 0; i < num_keys; ++i) {
       this->add(*(first + i));
     }
@@ -342,7 +341,7 @@ class bloom_filter_impl {
   template <class CG, class InputIt>
   __device__ void add(CG group, InputIt first, InputIt last)
   {
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto num_keys = cuco::detail::distance(first, last);
     if constexpr (tile_size_v<CG> == add_horizontal_layout && add_horizontal_layout > 1) {
       auto constexpr num_threads = static_cast<decltype(num_keys)>(tile_size_v<CG>);
       for (decltype(num_keys) batch = 0; batch < num_keys; batch += num_threads) {
@@ -442,23 +441,23 @@ class bloom_filter_impl {
       // All lanes recompute the same deterministic scalar query.
       return this->contains(probe_key);
 #endif
-    }
-
-    auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
-      if constexpr (tuning::use_invoke_one) {
-        return cg::invoke_one_broadcast(group, [&] __device__() {
+    } else {
+      auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
+        if constexpr (tuning::use_invoke_one) {
+          return cg::invoke_one_broadcast(group, [&] __device__() {
+            auto const sh = policy_.split_hash(probe_key);
+            return cuda::std::make_tuple(
+              sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
+          });
+        } else {
           auto const sh = policy_.split_hash(probe_key);
           return cuda::std::make_tuple(
             sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
-        });
-      } else {
-        auto const sh = policy_.split_hash(probe_key);
-        return cuda::std::make_tuple(
-          sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
-      }
-    }();
+        }
+      }();
 
-    return group.all(compare_patterns<0>(block_index, lower_hash, group.thread_rank()));
+      return group.all(compare_patterns<0>(block_index, lower_hash, group.thread_rank()));
+    }
   }
 
   // Warp-cooperative Contains
@@ -516,7 +515,7 @@ class bloom_filter_impl {
   template <class InputIt, class OutputIt>
   __device__ void contains(InputIt first, InputIt last, OutputIt output_begin) const
   {
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto num_keys = cuco::detail::distance(first, last);
     for (decltype(num_keys) i = 0; i < num_keys; ++i) {
       *(output_begin + i) = this->contains(*(first + i));
     }
@@ -530,7 +529,7 @@ class bloom_filter_impl {
   template <class CG, class InputIt, class OutputIt>
   __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin) const
   {
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto num_keys = cuco::detail::distance(first, last);
     if constexpr (tile_size_v<CG> == contains_horizontal_layout && contains_horizontal_layout > 1) {
       auto constexpr num_threads = static_cast<decltype(num_keys)>(tile_size_v<CG>);
       for (decltype(num_keys) batch = 0; batch < num_keys; batch += num_threads) {

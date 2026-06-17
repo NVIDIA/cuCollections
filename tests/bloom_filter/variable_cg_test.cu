@@ -69,6 +69,14 @@ __global__ void cg_contains_consistency_kernel(Ref ref,
   if (tile.thread_rank() == 0 && all_agree != any_agree) { atomicAdd(mismatches, 1); }
 }
 
+template <int CGSize, class Ref>
+__global__ void cooperative_clear_kernel(Ref ref)
+{
+  auto const block = cg::this_thread_block();
+  auto const tile  = cg::tiled_partition<CGSize>(block);
+  ref.clear(tile);
+}
+
 TEMPLATE_TEST_CASE_SIG(
   "bloom_filter device ref scalar add and contains",
   "",
@@ -149,4 +157,34 @@ TEMPLATE_TEST_CASE_SIG(
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   REQUIRE(static_cast<int>(mismatches[0]) == 0);
+}
+
+TEMPLATE_TEST_CASE_SIG("bloom_filter device ref cooperative clear",
+                       "",
+                       ((int32_t CGSize, class Key, class Policy), CGSize, Key, Policy),
+                       (1, int32_t, cuco::default_filter_policy<int32_t>),
+                       (4, int32_t, cuco::default_filter_policy<int32_t>),
+                       (8, int32_t, cuco::default_filter_policy<int32_t>),
+                       (32, int32_t, cuco::default_filter_policy<int32_t>))
+{
+  using filter_type =
+    cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
+  constexpr size_type num_keys{400};
+
+  auto filter = filter_type{1000};
+
+  thrust::device_vector<Key> keys(num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+  filter.add(keys.begin(), keys.end());
+
+  thrust::device_vector<bool> contained(num_keys, false);
+  filter.contains(keys.begin(), keys.end(), contained.begin());
+  REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
+
+  // Device cooperative clear via a single tile that iterates over all filter words.
+  cooperative_clear_kernel<CGSize><<<1, CGSize>>>(filter.ref());
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+
+  filter.contains(keys.begin(), keys.end(), contained.begin());
+  REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
 }

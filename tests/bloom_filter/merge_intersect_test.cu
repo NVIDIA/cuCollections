@@ -162,6 +162,7 @@ TEMPLATE_TEST_CASE_SIG(
   "bloom_filter merge and intersect tests",
   "",
   ((class Key, class Policy), Key, Policy),
+  (int32_t, cuco::default_filter_policy<int32_t>),
   (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
   (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 1, 8>),
   (int64_t, cuco::parametric_filter_policy<cuco::xxhash_64<int64_t>, uint64_t, 1, 1, 1, 1, 1, 1>),

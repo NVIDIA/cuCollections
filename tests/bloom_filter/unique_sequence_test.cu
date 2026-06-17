@@ -89,6 +89,7 @@ TEMPLATE_TEST_CASE_SIG(
   "bloom_filter parametric policy tests",
   "",
   ((class Key, class Policy), Key, Policy),
+  (int32_t, cuco::default_filter_policy<int32_t>),
   (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
   (uint64_t,
    cuco::parametric_filter_policy<cuco::xxhash_64<uint64_t>, uint32_t, 8, 12, 8, 1, 4, 2>),
