@@ -24,7 +24,6 @@
 
 #include <nvbench/nvbench.cuh>
 
-#include <cuda/iterator>
 #include <cuda/std/limits>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -38,22 +37,21 @@ using namespace cuco::benchmark;  // defaults, dist_from_state, rebind_hasher_t,
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
- * @brief Implementation of `cuco::bloom_filter::add_async`
+ * @brief A benchmark evaluating `cuco::bloom_filter::add_async` performance
  */
-template <bool ExcludeIO,
-          typename Key,
+template <typename Key,
           typename Word,
           nvbench::int32_t BlockBits,
           nvbench::int32_t PatternBits,
           nvbench::int32_t HorizontalLayout,
           nvbench::int32_t VerticalLayout>
-void bloom_filter_add_impl(nvbench::state& state,
-                           nvbench::type_list<Key,
-                                              Word,
-                                              nvbench::enum_type<BlockBits>,
-                                              nvbench::enum_type<PatternBits>,
-                                              nvbench::enum_type<HorizontalLayout>,
-                                              nvbench::enum_type<VerticalLayout>>)
+void bloom_filter_add(nvbench::state& state,
+                      nvbench::type_list<Key,
+                                         Word,
+                                         nvbench::enum_type<BlockBits>,
+                                         nvbench::enum_type<PatternBits>,
+                                         nvbench::enum_type<HorizontalLayout>,
+                                         nvbench::enum_type<VerticalLayout>>)
 {
   auto constexpr words_per_block       = BlockBits / cuda::std::numeric_limits<Word>::digits;
   auto constexpr pattern_bits_per_word = PatternBits / words_per_block;
@@ -100,71 +98,16 @@ void bloom_filter_add_impl(nvbench::state& state,
 
     filter_type filter{static_cast<size_type>(num_sub_filters)};
 
-    if constexpr (ExcludeIO) {
-      state.add_global_memory_writes<Word>(num_keys * words_per_block);
+    thrust::device_vector<Key> keys(num_keys);
+    thrust::sequence(thrust::device, keys.begin(), keys.end(), 0);
 
-      cuda::counting_iterator<Key> keys(0);
-
-      state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-        timer.start();
-        filter.add_async(keys, keys + num_keys, {launch.get_stream()});
-        timer.stop();
-        filter.clear_async({launch.get_stream()});
-      });
-    } else {
-      thrust::device_vector<Key> keys(num_keys);
-      thrust::sequence(thrust::device, keys.begin(), keys.end(), 0);
-
-      state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-        timer.start();
-        filter.add_async(keys.begin(), keys.end(), {launch.get_stream()});
-        timer.stop();
-        filter.clear_async({launch.get_stream()});
-      });
-    }
+    state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+      timer.start();
+      filter.add_async(keys.begin(), keys.end(), {launch.get_stream()});
+      timer.stop();
+      filter.clear_async({launch.get_stream()});
+    });
   }
-}
-
-/**
- * @brief A benchmark evaluating `cuco::bloom_filter::add_async` performance with IO
- */
-template <typename Key,
-          typename Word,
-          nvbench::int32_t BlockBits,
-          nvbench::int32_t PatternBits,
-          nvbench::int32_t HorizontalLayout,
-          nvbench::int32_t VerticalLayout>
-void bloom_filter_add(nvbench::state& state,
-                      nvbench::type_list<Key,
-                                         Word,
-                                         nvbench::enum_type<BlockBits>,
-                                         nvbench::enum_type<PatternBits>,
-                                         nvbench::enum_type<HorizontalLayout>,
-                                         nvbench::enum_type<VerticalLayout>> type_list)
-{
-  constexpr bool exclude_io = false;
-  bloom_filter_add_impl<exclude_io>(state, type_list);
-}
-
-/**
- * @brief A benchmark evaluating `cuco::bloom_filter::add_async` performance without IO
- */
-template <typename Key,
-          typename Word,
-          nvbench::int32_t BlockBits,
-          nvbench::int32_t PatternBits,
-          nvbench::int32_t HorizontalLayout,
-          nvbench::int32_t VerticalLayout>
-void bloom_filter_add_exclude_io(nvbench::state& state,
-                                 nvbench::type_list<Key,
-                                                    Word,
-                                                    nvbench::enum_type<BlockBits>,
-                                                    nvbench::enum_type<PatternBits>,
-                                                    nvbench::enum_type<HorizontalLayout>,
-                                                    nvbench::enum_type<VerticalLayout>> type_list)
-{
-  constexpr bool exclude_io = true;
-  bloom_filter_add_impl<exclude_io>(state, type_list);
 }
 
 NVBENCH_BENCH_TYPES(
@@ -177,21 +120,6 @@ NVBENCH_BENCH_TYPES(
                     nvbench::enum_type_list<1, 2, 4>                   ///< VerticalLayout
                     ))
   .set_name("bloom_filter_add_unique_size_u64")
-  .set_type_axes_names(
-    {"Key", "Word", "BlockBits", "PatternBits", "HorizontalLayout", "VerticalLayout"})
-  .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_FRONTIER_CACHE);
-
-NVBENCH_BENCH_TYPES(
-  bloom_filter_add_exclude_io,
-  NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                    nvbench::type_list<nvbench::uint64_t>,             ///< Word
-                    nvbench::enum_type_list<64, 128, 256, 512, 1024>,  ///< BlockBits
-                    nvbench::enum_type_list<16>,                       ///< PatternBits
-                    nvbench::enum_type_list<1, 2, 4, 8, 16>,           ///< HorizontalLayout
-                    nvbench::enum_type_list<1, 2, 4>                   ///< VerticalLayout
-                    ))
-  .set_name("bloom_filter_add_exclude_io_unique_size_u64")
   .set_type_axes_names(
     {"Key", "Word", "BlockBits", "PatternBits", "HorizontalLayout", "VerticalLayout"})
   .add_int64_axis("NumInputs", {defaults::BF_N})
