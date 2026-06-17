@@ -79,7 +79,7 @@ void test_retrieve(Map& map, std::size_t num_items)
       thrust::device,
       d_results.begin(),
       d_results.end(),
-      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
+      [] __device__(cuco::pair<Key, Value> const& lhs, cuco::pair<Key, Value> const& rhs) {
         if (lhs.first != rhs.first) { return lhs.first < rhs.first; }
         return lhs.second < rhs.second;
       });

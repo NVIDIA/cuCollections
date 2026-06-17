@@ -25,6 +25,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cstdint>
+
 template <typename Set>
 void test_insert_and_find(Set& set, std::size_t num_keys)
 {
@@ -56,6 +58,13 @@ TEMPLATE_TEST_CASE_SIG(
   "static_set Insert and find",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  (int8_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 2),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -73,7 +82,8 @@ TEMPLATE_TEST_CASE_SIG(
 #endif
 )
 {
-  constexpr std::size_t num_keys{400};
+  // Limit key count for small types: leave room for the -1 sentinel
+  constexpr std::size_t num_keys = (sizeof(Key) == 1) ? 100 : 400;
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,

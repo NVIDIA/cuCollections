@@ -34,7 +34,7 @@ struct plus {
    * in the payload.
    */
   template <typename T, cuda::thread_scope Scope>
-  __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, const T& val)
+  __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, T const& val)
   {
     payload_ref.fetch_add(val, cuda::memory_order_relaxed);
   }
@@ -55,7 +55,7 @@ struct max {
    * in the payload.
    */
   template <typename T, cuda::thread_scope Scope>
-  __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, const T& val)
+  __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, T const& val)
   {
     payload_ref.fetch_max(val, cuda::memory_order_relaxed);
   }
@@ -76,7 +76,7 @@ struct min {
    * in the payload.
    */
   template <typename T, cuda::thread_scope Scope>
-  __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, const T& val)
+  __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, T const& val)
   {
     payload_ref.fetch_min(val, cuda::memory_order_relaxed);
   }

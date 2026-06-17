@@ -27,6 +27,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cstdint>
+
 template <typename Set>
 void test_unique_sequence(Set& set, std::size_t num_keys)
 {
@@ -61,6 +63,13 @@ TEMPLATE_TEST_CASE_SIG(
   "static_set::retrieve_all tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  (int8_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 2),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -78,7 +87,8 @@ TEMPLATE_TEST_CASE_SIG(
 #endif
 )
 {
-  constexpr std::size_t num_keys{400};
+  // Limit key count for small types: leave room for the -1 sentinel
+  constexpr std::size_t num_keys       = (sizeof(Key) == 1) ? 100 : 400;
   constexpr double desired_load_factor = 1.;
 
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
@@ -87,10 +97,15 @@ TEMPLATE_TEST_CASE_SIG(
 
   constexpr std::size_t gold_capacity = [&]() {
     if constexpr (cuco::is_double_hashing<probe>::value) {
-      return (CGSize == 1) ? 401   // 401 x 1 x 1
-                           : 422;  // 211 x 2 x 1
+      if constexpr (num_keys == 100) {
+        return (CGSize == 1) ? 101   // 101 x 1 x 1
+                             : 106;  // 53 x 2 x 1
+      } else {
+        return (CGSize == 1) ? 401   // 401 x 1 x 1
+                             : 422;  // 211 x 2 x 1
+      }
     } else {
-      return 400;
+      return num_keys;
     }
   }();
 

@@ -27,6 +27,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cstdint>
+
 using size_type = std::size_t;
 
 template <class Container>
@@ -110,6 +112,8 @@ __global__ void test_retrieve_if_all_true_kernel(
 TEMPLATE_TEST_CASE_SIG("static_set retrieve_if",
                        "",
                        ((typename Key), Key),
+                       (int8_t),
+                       (int16_t),
                        (int32_t),
                        (int64_t)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
@@ -118,7 +122,8 @@ TEMPLATE_TEST_CASE_SIG("static_set retrieve_if",
 #endif
 )
 {
-  constexpr size_type num_keys{400};
+  // Limit key count for small types: keys start at 1, sentinel is -1
+  constexpr size_type num_keys = (sizeof(Key) == 1) ? 100 : 400;
 
   using container_type = cuco::static_set<Key>;
 

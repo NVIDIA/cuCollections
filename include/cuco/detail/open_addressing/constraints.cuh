@@ -48,16 +48,16 @@ struct open_addressing_compatible {
     [] {
       if constexpr (has_payload) {
         constexpr auto payload_size = sizeof(typename Value::second_type);
-        return payload_size == 4 or payload_size == 8
 #if defined(CUCO_HAS_128BIT_ATOMICS)
-               or payload_size == 16
+        return payload_size <= 16;
+#else
+        return payload_size <= 8;
 #endif
-          ;
       } else {
         return true;
       }
     }(),
-    "Payload size must be 4 or 8 bytes (or 16 with sm_90+).");
+    "Payload size exceeds the maximum supported size (8 bytes, or 16 with sm_90+).");
 
   static_assert(
     cuco::is_bitwise_comparable_v<Key>,

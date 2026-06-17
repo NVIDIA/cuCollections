@@ -83,7 +83,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
       thrust::device,
       d_results.begin(),
       d_results.end(),
-      [] __device__(const cuco::pair<Key, Value>& lhs, const cuco::pair<Key, Value>& rhs) {
+      [] __device__(cuco::pair<Key, Value> const& lhs, cuco::pair<Key, Value> const& rhs) {
         return lhs.first < rhs.first;
       });
 

@@ -29,6 +29,8 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cstdint>
+
 using size_type = int32_t;
 
 int32_t constexpr SENTINEL = -1;
@@ -141,6 +143,13 @@ TEMPLATE_TEST_CASE_SIG(
   "static_set unique sequence tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  (int8_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 2),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -158,17 +167,23 @@ TEMPLATE_TEST_CASE_SIG(
 #endif
 )
 {
-  constexpr size_type num_keys{400};
+  // Limit key count for small types: leave room for the -1 sentinel
+  constexpr size_type num_keys = (sizeof(Key) == 1) ? 100 : 400;
   using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
                                    cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
                                    cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
 
   constexpr size_type gold_capacity = [&]() {
     if constexpr (cuco::is_double_hashing<probe>::value) {
-      return (CGSize == 1) ? 422   // 211 x 1 x 2
-                           : 404;  // 101 x 2 x 2
+      if constexpr (num_keys == 100) {
+        return (CGSize == 1) ? 106  // 53 x 1 x 2
+                             : 106;
+      } else {
+        return (CGSize == 1) ? 422   // 211 x 1 x 2
+                             : 404;  // 101 x 2 x 2
+      }
     } else {
-      return 400;
+      return num_keys;
     }
   }();
 

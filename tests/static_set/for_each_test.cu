@@ -26,10 +26,12 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <cstdint>
+
 using size_type = std::size_t;
 
 template <typename Set>
-void test_for_each(Set& set, size_type num_keys)
+void test_for_each(Set& set, size_type num_keys, size_type expected_evens, size_type expected_odds)
 {
   using Key = typename Set::key_type;
 
@@ -40,7 +42,7 @@ void test_for_each(Set& set, size_type num_keys)
   // Insert keys
   auto keys_begin = cuda::make_transform_iterator(
     cuda::counting_iterator<size_type>{0}, cuda::proclaim_return_type<Key>([] __device__(auto i) {
-      // generates a sequence of 1, 2, 1, 2, ...
+      // generates a sequence of 0, 1, 2, ...
       return static_cast<Key>(i);
     }));
   set.insert(keys_begin, keys_begin + num_keys, stream);
@@ -56,7 +58,7 @@ void test_for_each(Set& set, size_type num_keys)
       if (slot % 2 == 0) { counter->fetch_add(slot, cuda::memory_order_relaxed); }
     },
     stream);
-  REQUIRE(counter_storage.load_to_host(stream) == 249'500);
+  REQUIRE(counter_storage.load_to_host(stream) == expected_evens);
 
   counter_storage.reset(stream);
 
@@ -68,13 +70,21 @@ void test_for_each(Set& set, size_type num_keys)
       if (!(slot % 2 == 0)) { counter->fetch_add(slot, cuda::memory_order_relaxed); }
     },
     stream);
-  REQUIRE(counter_storage.load_to_host(stream) == 250'000);
+  REQUIRE(counter_storage.load_to_host(stream) == expected_odds);
 }
 
 TEMPLATE_TEST_CASE_SIG(
   "static_set for_each tests",
   "",
   ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  (int8_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int8_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int8_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int16_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int16_t, cuco::test::probe_sequence::linear_probing, 2),
   (int32_t, cuco::test::probe_sequence::double_hashing, 1),
   (int32_t, cuco::test::probe_sequence::double_hashing, 2),
   (int64_t, cuco::test::probe_sequence::double_hashing, 1),
@@ -92,7 +102,14 @@ TEMPLATE_TEST_CASE_SIG(
 #endif
 )
 {
-  constexpr size_type num_keys{1'000};
+  // Limit key count for small types: leave room for the -1 sentinel.
+  // Expected sums are pre-computed per type class:
+  //   int16_t (num_keys=100): sum of evens 0..98 = 2450, sum of odds 1..99 = 2500
+  //   int16_t+ (num_keys=1000): sum of evens 0..998 = 249'500, sum of odds 1..999 = 250'000
+  constexpr size_type num_keys       = (sizeof(Key) == 1) ? 100 : 1'000;
+  constexpr size_type expected_evens = (sizeof(Key) == 1) ? 2'450 : 249'500;
+  constexpr size_type expected_odds  = (sizeof(Key) == 1) ? 2'500 : 250'000;
+
   using probe = std::conditional_t<
     Probe == cuco::test::probe_sequence::linear_probing,
     cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
@@ -107,5 +124,5 @@ TEMPLATE_TEST_CASE_SIG(
                                  cuco::storage<2>>;
 
   auto set = set_t{num_keys, cuco::empty_key<Key>{static_cast<Key>(-1)}};
-  test_for_each(set, num_keys);
+  test_for_each(set, num_keys, expected_evens, expected_odds);
 }
