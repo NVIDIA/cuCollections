@@ -225,8 +225,6 @@ class bloom_filter_impl {
     return num_blocks_;
   }
 
-  // Single Thread Add. Layout-agnostic: when `add_horizontal_layout > 1`, runs the per-virtual-
-  // thread work serially in the calling thread.
   template <bool ConditionalAtomic = true, class BuildKey>
   __device__ void add(BuildKey build_key)
   {
@@ -243,9 +241,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Multi Thread Add. Layout-flexible: when the CG size matches `add_horizontal_layout`, runs the
-  // optimal cooperative path with one shared hash evaluation; otherwise has one lane perform the
-  // layout-agnostic scalar insert and synchronizes the rest.
   template <bool ConditionalAtomic = true, class CG, class BuildKey>
   __device__ void add(CG group, BuildKey build_key)
   {
@@ -279,7 +274,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Warp-cooperative Add
   template <bool ConditionalAtomic = true, class CG, class BuildKey>
   __device__ void add_coop(CG group, BuildKey build_key)
   {
@@ -300,10 +294,6 @@ class bloom_filter_impl {
   {
     constexpr auto num_threads = tile_size_v<CG>;
 
-    // Load and hash only on lanes whose key is valid. Forming `first + idx` is also
-    // restricted to the is_valid branch: pointer/random-access-iterator arithmetic
-    // that moves more than one past the end is UB even without a dereference
-    // ([expr.add]/4), so we cannot eagerly compute the offset on out-of-range lanes.
     uint32_t upper_hash   = 0;
     uint32_t lower_hash   = 0;
     size_type block_index = 0;
@@ -324,10 +314,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Device-side range add (cooperative). When the tile size matches `add_horizontal_layout`,
-  // each batch loads/hashes one key per lane in parallel, then the tile cooperatively processes
-  // them via `add_coop`. Otherwise the tile parallelizes across the key range with each lane
-  // scalar-inserting its own keys.
   template <class CG, class InputIt>
   __device__ void add(CG group, InputIt first, InputIt last)
   {
@@ -348,7 +334,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Host-side Add Entry Points
   template <class InputIt>
   __host__ void add_async(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
   {
@@ -393,8 +378,6 @@ class bloom_filter_impl {
 #endif
   }
 
-  // Single Thread Contains. Layout-agnostic: when `contains_horizontal_layout > 1`, runs the
-  // per-virtual-thread work serially in the calling thread.
   template <class ProbeKey>
   __device__ bool contains(ProbeKey probe_key) const
   {
@@ -413,10 +396,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Multi Thread Contains. Layout-flexible: when the CG size matches `contains_horizontal_layout`,
-  // runs the optimal cooperative path with one shared hash evaluation and an AND-reduction across
-  // the group; otherwise has one lane do the layout-agnostic scalar query and broadcasts the
-  // result so every lane returns the same value.
   template <class CG, class ProbeKey>
   __device__ bool contains(CG group, ProbeKey probe_key) const
   {
@@ -450,7 +429,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Warp-cooperative Contains
   template <class CG, class ProbeKey>
   __device__ bool contains_coop(CG group, ProbeKey probe_key) const
   {
@@ -474,10 +452,6 @@ class bloom_filter_impl {
   {
     constexpr auto num_threads = tile_size_v<CG>;
 
-    // Load and hash only on lanes whose key is valid. Forming `first + idx` is also
-    // restricted to the is_valid branch: pointer/random-access-iterator arithmetic
-    // that moves more than one past the end is UB even without a dereference
-    // ([expr.add]/4), so we cannot eagerly compute the offset on out-of-range lanes.
     uint32_t upper_hash   = 0;
     uint32_t lower_hash   = 0;
     size_type block_index = 0;
@@ -501,11 +475,6 @@ class bloom_filter_impl {
     return result_out;
   }
 
-  // Device-side range contains (cooperative). When the tile size matches
-  // `contains_horizontal_layout`, each batch loads/hashes one key per lane in parallel, then the
-  // tile cooperatively processes them via `contains_coop` so each lane gets the result for its
-  // own key. Otherwise the tile parallelizes across the key range with each lane scalar-querying
-  // its own keys.
   template <class CG, class InputIt, class OutputIt>
   __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin) const
   {
@@ -527,7 +496,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Host-side Contains Entry Points
   template <class InputIt, class OutputIt>
   __host__ void contains_async(InputIt first,
                                InputIt last,
@@ -575,7 +543,6 @@ class bloom_filter_impl {
 #endif
   }
 
-  // Host-side stencil-gated Add Entry Points
   template <class InputIt, class StencilIt, class Predicate>
   __host__ void add_if_async(InputIt first,
                              InputIt last,
@@ -618,7 +585,6 @@ class bloom_filter_impl {
 #endif
   }
 
-  // Host-side stencil-gated Contains Entry Points
   template <class InputIt, class StencilIt, class Predicate, class OutputIt>
   __host__ void contains_if_async(InputIt first,
                                   InputIt last,
@@ -678,11 +644,6 @@ class bloom_filter_impl {
       __builtin_assume_aligned(words_ + index, load_alignment));
   }
 
-  //===--------------------------------------------------===//
-  // Parametric Filter Policy
-  //===--------------------------------------------------===//
-  /// Insert the given pattern into the filter
-  // Precondition: add_horizontal_layout == 1
   template <bool ConditionalAtomic, uint32_t LoopIndex>
   __device__ constexpr void add_pattern(uint32_t block_index, uint32_t lower_hash)
   {
@@ -702,7 +663,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Precondition: add_horizontal_layout > 1
   template <bool ConditionalAtomic, uint32_t LoopIndex>
   __device__ constexpr void add_patterns(uint32_t block_index,
                                          uint32_t lower_hash,
@@ -738,9 +698,6 @@ class bloom_filter_impl {
         auto* const p = reinterpret_cast<atomic_word_type*>(word_ptr);
         auto const v  = static_cast<atomic_word_type>(pattern);
         if constexpr (thread_scope == cuda::thread_scope_thread) {
-          // Thread scope: no inter-thread synchronization required; a plain OR is
-          // the semantically correct operation. No atomic intrinsic exists for
-          // this scope.
           *p |= v;
         } else if constexpr (thread_scope == cuda::thread_scope_block) {
           atomicOr_block(p, v);
@@ -795,9 +752,6 @@ class bloom_filter_impl {
     }
   }
 
-  // Precondition: contains_horizontal_layout > 1.
-  // Returns the per-thread AND across the loop-iteration slice owned by `thread_index`. Callers
-  // that need a per-CG result must reduce across the group (e.g. `group.all(...)`).
   template <uint32_t LoopIndex>
   __device__ constexpr bool compare_patterns(uint32_t block_index,
                                              uint32_t lower_hash,
@@ -836,9 +790,6 @@ class bloom_filter_impl {
   word_type* words_;
   extent_type num_blocks_;
   policy_type policy_;
-  // L2 cache size cached at construction time so async paths can stay `noexcept`.
-  // Populated only on host construction via `cuco::detail::l2_cache_size()`; device-side
-  // ctor invocations leave it at zero, which is fine because async paths run on the host.
   size_t l2_cache_size_ = 0;
 };
 
