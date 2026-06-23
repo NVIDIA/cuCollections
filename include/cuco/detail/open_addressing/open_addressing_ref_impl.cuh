@@ -1294,7 +1294,7 @@ class open_addressing_ref_impl
       if (active_flag) {
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
-        auto const probe_key = *(input_probe + idx);
+        probe_type const probe_key = *(input_probe + idx);
 
         auto probing_iter = probing_scheme_.template make_iterator<bucket_size>(
           probing_tile, probe_key, storage_ref_.extent());
