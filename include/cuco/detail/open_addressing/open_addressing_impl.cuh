@@ -1324,10 +1324,10 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
 
     auto constexpr block_size = cuco::detail::default_block_size();
 
-    auto constexpr grid_stride = 1;
+    auto constexpr grid_stride = 4;
     auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
 
-    detail::open_addressing_ns::retrieve<IsOuter, block_size>
+    detail::open_addressing_ns::retrieve<IsOuter, block_size, grid_stride>
       <<<grid_size, block_size, 0, stream.get()>>>(
         first, n, output_probe, output_match, counter.data(), container_ref);
 
