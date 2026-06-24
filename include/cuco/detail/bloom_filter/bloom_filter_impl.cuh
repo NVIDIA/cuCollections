@@ -62,9 +62,7 @@ class bloom_filter_impl {
   using atomic_word_type =
     cuda::std::conditional_t<sizeof(word_type) == 8, unsigned long long, unsigned int>;
 
-  // Implementation-tuning knobs. Not part of the public API; reached via
-  // `bloom_filter_impl::tuning::use_*` from internal kernels. Defaults reflect the ablation
-  // measurements from arXiv:2512.15595; flip in source for tuning experiments.
+  // Implementation-tuning knob. Not part of the public API; flip in source for experiments.
   struct tuning {
     static constexpr bool use_early_exit = false;
   };
@@ -127,7 +125,6 @@ class bloom_filter_impl {
   template <class CG>
   __device__ constexpr void clear(CG group)
   {
-    // TODO optimize this
     for (int i = group.thread_rank(); i < static_cast<size_type>(num_blocks_) * words_per_block;
          i += group.size()) {
       words_[i] = 0;
@@ -275,17 +272,18 @@ class bloom_filter_impl {
   template <class CG, class InputIt>
   __device__ void add(CG group, InputIt first, InputIt last)
   {
-    auto num_keys = cuco::detail::distance(first, last);
+    auto const num_keys = cuco::detail::distance(first, last);
     if constexpr (tile_size_v<CG> == add_horizontal_layout && add_horizontal_layout > 1) {
-      auto constexpr num_threads = static_cast<decltype(num_keys)>(tile_size_v<CG>);
-      for (decltype(num_keys) batch = 0; batch < num_keys; batch += num_threads) {
-        auto const idx      = batch + static_cast<decltype(num_keys)>(group.thread_rank());
+      auto constexpr num_threads = static_cast<cuco::detail::index_type>(tile_size_v<CG>);
+      for (cuco::detail::index_type batch = 0; batch < num_keys; batch += num_threads) {
+        auto const idx      = batch + static_cast<cuco::detail::index_type>(group.thread_rank());
         auto const is_valid = idx < num_keys;
         this->template add_coop<true>(group, first, idx, is_valid);
       }
     } else {
-      auto const stride = static_cast<decltype(num_keys)>(tile_size_v<CG>);
-      for (auto i = static_cast<decltype(num_keys)>(group.thread_rank()); i < num_keys;
+      auto const stride = static_cast<cuco::detail::index_type>(tile_size_v<CG>);
+      for (cuco::detail::index_type i = static_cast<cuco::detail::index_type>(group.thread_rank());
+           i < num_keys;
            i += stride) {
         this->add(*(first + i));
       }
@@ -402,18 +400,19 @@ class bloom_filter_impl {
   template <class CG, class InputIt, class OutputIt>
   __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin) const
   {
-    auto num_keys = cuco::detail::distance(first, last);
+    auto const num_keys = cuco::detail::distance(first, last);
     if constexpr (tile_size_v<CG> == contains_horizontal_layout && contains_horizontal_layout > 1) {
-      auto constexpr num_threads = static_cast<decltype(num_keys)>(tile_size_v<CG>);
-      for (decltype(num_keys) batch = 0; batch < num_keys; batch += num_threads) {
-        auto const idx      = batch + static_cast<decltype(num_keys)>(group.thread_rank());
+      auto constexpr num_threads = static_cast<cuco::detail::index_type>(tile_size_v<CG>);
+      for (cuco::detail::index_type batch = 0; batch < num_keys; batch += num_threads) {
+        auto const idx      = batch + static_cast<cuco::detail::index_type>(group.thread_rank());
         auto const is_valid = idx < num_keys;
         auto const result   = this->contains_coop(group, first, idx, is_valid);
         if (is_valid) { *(output_begin + idx) = result; }
       }
     } else {
-      auto const stride = static_cast<decltype(num_keys)>(tile_size_v<CG>);
-      for (auto i = static_cast<decltype(num_keys)>(group.thread_rank()); i < num_keys;
+      auto const stride = static_cast<cuco::detail::index_type>(tile_size_v<CG>);
+      for (cuco::detail::index_type i = static_cast<cuco::detail::index_type>(group.thread_rank());
+           i < num_keys;
            i += stride) {
         *(output_begin + i) = this->contains(*(first + i));
       }
@@ -514,14 +513,6 @@ class bloom_filter_impl {
     this->contains_if_async(first, last, stencil, pred, output_begin, stream);
     stream.sync();
   }
-
-  // TODO
-  // [[nodiscard]] __host__ double occupancy() const;
-  // [[nodiscard]] __host__ double expected_false_positive_rate(size_t unique_keys) const
-  // [[nodiscard]] __host__ __device__ static uint32_t optimal_pattern_bits(size_t num_blocks)
-  // template <typename CG, cuda::thread_scope NewScope = thread_scope>
-  // [[nodiscard]] __device__ constexpr auto make_copy(CG group, word_type* const
-  // memory_to_use, cuda_thread_scope<NewScope> scope = {}) const noexcept;
 
   //  private:
   template <uint32_t NumWords>
