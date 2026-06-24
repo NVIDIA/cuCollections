@@ -27,7 +27,6 @@
 
 #include <cuda/atomic>
 #include <cuda/iterator>
-#include <cuda/std/bit>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
@@ -129,22 +128,6 @@ class open_addressing_ref_impl
   static constexpr auto bucket_size =
     storage_ref_type::bucket_size;             ///< Number of elements handled per bucket
   static constexpr auto thread_scope = Scope;  ///< CUDA thread scope
-
-  // Robin Hood displacement swaps the in-flight pair into an *occupied* slot, which needs a single
-  // atomic CAS of the whole slot. That requires a packable slot: <= 8 bytes (atom.cas.b64), or
-  // padding-free and <= 16 bytes on an sm_90+ build (atom.cas.b128). A non-packable slot (e.g. a
-  // padded `pair<int32_t, int64_t>`) would fall back to a split key/value CAS, which cannot move an
-  // occupied slot -- displacement would livelock. Reject it at compile time rather than hang.
-  static constexpr bool robin_hood_slot_is_single_cas = sizeof(value_type) <= 8
-#if defined(CUCO_HAS_128BIT_ATOMICS)
-                                                        or cuco::detail::is_packable<value_type>()
-#endif
-    ;
-  static_assert(not cuco::is_robin_hood_probing<probing_scheme_type>::value or
-                  robin_hood_slot_is_single_cas,
-                "Robin Hood probing requires a single-CAS slot: the key+value must fit in 8 bytes, "
-                "or be packable (padding-free) and <= 16 bytes on an sm_90+ build. A padded slot "
-                "(e.g. pair<int32_t, int64_t>) is unsupported -- displacement would livelock.");
 
   /**
    * @brief Constructs open_addressing_ref_impl.
@@ -395,18 +378,15 @@ class open_addressing_ref_impl
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
-    auto val = this->heterogeneous_value(value);
-    auto key = this->extract_key(val);
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
 
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx                   = *probing_iter;
-    [[maybe_unused]] size_type probe_step = 0;
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
-
-      [[maybe_unused]] bool retry = false;
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -416,13 +396,7 @@ class open_addressing_ref_impl
           // If the key is already in the container, return false
           if (eq_res == detail::equal_result::EQUAL) { return false; }
         }
-        // Robin Hood claims only a true empty here; a tombstone carries an age and is handled as a
-        // resident by the displacement test below. Skipping it must gate the CAS (once claimed it
-        // is already consumed), so it is folded into this condition. For non-Robin-Hood the second
-        // clause is a compile-time `false`, leaving the original `eq_res == AVAILABLE`.
-        if (eq_res == detail::equal_result::AVAILABLE and
-            not(cuco::is_robin_hood_probing<probing_scheme_type>::value and
-                this->is_erased(slot_content))) {
+        if (eq_res == detail::equal_result::AVAILABLE) {
           auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
           switch (attempt_insert(
             this->get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, val)) {
@@ -433,68 +407,11 @@ class open_addressing_ref_impl
                 return false;
               }
             }
-            case insert_result::CONTINUE: {
-              // Retry on a lost CAS. Plain probing keeps scanning this (now stale) bucket; Robin
-              // Hood must re-read it instead, so the in-flight pair is re-evaluated against the new
-              // occupants -- otherwise it could be placed past a slot it should have displaced,
-              // breaking the invariant (and therefore lookups).
-              if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-                retry = true;
-                break;
-              } else {
-                continue;
-              }
-            }
+            case insert_result::CONTINUE: continue;
             case insert_result::SUCCESS: return true;
           }
-          if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-            if (retry) { break; }  // leave the scan to re-read the bucket
-          }
-        }
-
-        // Robin Hood swap test. A resident "richer" than the in-flight pair (a smaller probe
-        // distance than our current probe step) is displaced: we swap our pair into its slot, adopt
-        // the evicted resident, and re-probe forward. A tombstone is treated as a resident too --
-        // its age comes from its payload (`robin_hood_age`) -- but picking one up *consumes* it: we
-        // take the slot and are done, since there is nothing to carry forward.
-        if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-          if (eq_res == detail::equal_result::UNEQUAL or this->is_erased(slot_content)) {
-            auto const intra_bucket_index =
-              cuda::std::distance(bucket_slots.begin(), &slot_content);
-            auto const evicted_age = this->robin_hood_age(
-              slot_content, static_cast<size_type>(*probing_iter + intra_bucket_index));
-            if (evicted_age < probe_step) {
-              if (this->attempt_insert(this->get_slot_ptr(*probing_iter, intra_bucket_index),
-                                       slot_content,
-                                       val) == insert_result::SUCCESS) {
-                // Consuming a tombstone reuses its freed slot -- nothing to carry, so we are done.
-                if (this->is_erased(slot_content)) { return true; }
-                // Adopt the evicted pair and re-probe THIS bucket -- its bucket distance here is
-                // `evicted_age`, and it may belong in another slot of the same bucket: an empty
-                // one, or one holding an even-richer resident it can displace in turn. Re-reading
-                // the bucket (rather than advancing past it) is the within-bucket linear probe,
-                // i.e. the combined bucket+slot distance that makes displacement correct for
-                // bucket_size > 1. The `slot_distance` term cancels in every comparison, so it
-                // never appears here; it shows up only as this slot-by-slot continuation.
-                // `bit_cast` keeps the adoption valid for heterogeneous insert types
-                // (layout-compatible by contract; identity in the common case).
-                val        = cuda::std::bit_cast<decltype(val)>(slot_content);
-                key        = this->extract_key(val);
-                probe_step = evicted_age;
-              }
-              retry =
-                true;  // re-read this bucket: re-probe with the victim, or re-evaluate a lost CAS
-              break;
-            }
-          }
         }
       }
-
-      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-        if (retry) { continue; }  // re-probe (re-read this bucket, or move on after displacement)
-        ++probe_step;
-      }
-
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
     }
@@ -515,12 +432,11 @@ class open_addressing_ref_impl
   __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                          Value value) noexcept
   {
-    auto val = this->heterogeneous_value(value);
-    auto key = this->extract_key(val);
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx                   = *probing_iter;
-    [[maybe_unused]] size_type probe_step = 0;
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -531,18 +447,9 @@ class open_addressing_ref_impl
           if (result.state_ == detail::equal_result::UNEQUAL) {
             switch (this->predicate_.template operator()<is_insert::YES>(
               key, this->extract_key(bucket_slots[i()]))) {
-              case detail::equal_result::AVAILABLE: {
-                // Robin Hood: only a true empty is AVAILABLE; a tombstone is a resident handled by
-                // the displacement scan below, so leave it UNEQUAL here.
-                bool empty_slot = true;
-                if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-                  empty_slot = not this->is_erased(bucket_slots[i()]);
-                }
-                if (empty_slot) {
-                  result = bucket_probing_results{detail::equal_result::AVAILABLE, i()};
-                }
+              case detail::equal_result::AVAILABLE:
+                result = bucket_probing_results{detail::equal_result::AVAILABLE, i()};
                 break;
-              }
               case detail::equal_result::EQUAL: {
                 if constexpr (!allows_duplicates) {
                   result = bucket_probing_results{detail::equal_result::EQUAL, i()};
@@ -589,62 +496,6 @@ class open_addressing_ref_impl
           default: continue;
         }
       } else {
-        if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-          // Robin Hood displacement: no match, no empty slot in this bucket. Displace the first
-          // resident in probe (lane) order that is richer than the in-flight pair, adopt it, and
-          // re-probe THIS bucket -- the victim may belong in another slot of it. The within-bucket
-          // linear probe (combined bucket+slot distance) is identical to the scalar path; the
-          // `slot_distance` term cancels, so the test is again `resident distance < probe_step`.
-          cuda::std::int32_t displace_idx = -1;
-          size_type evicted_age           = 0;
-          cuda::static_for<bucket_size>([&] __device__(auto i) {
-            if (displace_idx < 0) {
-              // `robin_hood_age` so a tombstone uses its payload-stored age: it is displaced (i.e.
-              // consumed) exactly when richer than the in-flight pair, like any other resident.
-              auto const age = this->robin_hood_age(bucket_slots[i()],
-                                                    static_cast<size_type>(*probing_iter + i()));
-              if (age < probe_step) {
-                displace_idx = i();
-                evicted_age  = age;
-              }
-            }
-          });
-
-          auto const group_displaceable = group.ballot(displace_idx >= 0);
-          if (group_displaceable) {
-            auto const src_lane = __ffs(group_displaceable) - 1;
-            auto status         = insert_result::CONTINUE;
-            // Only `src_lane` reads `evicted` meaningfully; other lanes just need a valid value to
-            // feed the broadcast `shfl` below, so seed it with the empty-slot sentinel.
-            value_type evicted = this->empty_slot_sentinel();
-            if (group.thread_rank() == src_lane) {
-              evicted = bucket_slots[displace_idx];
-              status =
-                attempt_insert(this->get_slot_ptr(*probing_iter, displace_idx), evicted, val);
-            }
-            if (group.shfl(status, src_lane) == insert_result::SUCCESS) {
-              // Consuming a tombstone reuses its freed slot -- nothing to carry, so we are done.
-              if (group.shfl(this->is_erased(evicted), src_lane)) { return true; }
-              // Broadcast the evicted pair and its probe distance from the winning lane, and adopt
-              // it on every lane (all lanes need the new in-flight pair for the next scan).
-              auto const new_key = group.shfl(this->extract_key(evicted), src_lane);
-              auto const new_age = group.shfl(evicted_age, src_lane);
-              value_type evicted_slot;
-              if constexpr (has_payload) {
-                auto const new_payload = group.shfl(this->extract_payload(evicted), src_lane);
-                evicted_slot           = value_type{new_key, new_payload};
-              } else {
-                evicted_slot = new_key;
-              }
-              val        = cuda::std::bit_cast<decltype(val)>(evicted_slot);
-              key        = this->extract_key(val);
-              probe_step = new_age;
-            }
-            continue;  // success: re-probe this bucket with the victim; lost CAS: re-read it
-          }
-          // No displaceable resident: fall through to the shared advance below.
-          ++probe_step;
-        }
         ++probing_iter;
         if (*probing_iter == init_idx) { return false; }
       }
@@ -677,20 +528,14 @@ class open_addressing_ref_impl
                   "pre-Volta GPUs.");
 #endif
 
-    auto val = this->heterogeneous_value(value);
-    auto key = this->extract_key(val);
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx                   = *probing_iter;
-    [[maybe_unused]] size_type probe_step = 0;
-    // Robin Hood may displace the original key before the chain ends; remember the slot it landed
-    // in so we return an iterator to it (not to a later victim's slot).
-    [[maybe_unused]] value_type* placed_ptr = nullptr;
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
-
-      [[maybe_unused]] bool retry = false;
 
       for (auto i = 0; i < bucket_size; ++i) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -702,71 +547,19 @@ class open_addressing_ref_impl
           this->maybe_wait_for_payload(slot_ptr);
           return {iterator{slot_ptr}, false};
         }
-        // Robin Hood claims only a true empty here; a tombstone is handled as a resident by the
-        // displacement test below (see `insert`).
-        if (eq_res == detail::equal_result::AVAILABLE and
-            not(cuco::is_robin_hood_probing<probing_scheme_type>::value and
-                this->is_erased(bucket_slots[i]))) {
+        if (eq_res == detail::equal_result::AVAILABLE) {
           switch (this->attempt_insert_stable(slot_ptr, bucket_slots[i], val)) {
             case insert_result::SUCCESS: {
-              // The in-flight pair is placed in an empty slot, ending any displacement chain. The
-              // iterator to return is the original key's slot (captured on its first placement).
-              auto* result_ptr = slot_ptr;
-              if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-                if (placed_ptr != nullptr) { result_ptr = placed_ptr; }
-              }
-              this->maybe_wait_for_payload(result_ptr);
-              return {iterator{result_ptr}, true};
+              this->maybe_wait_for_payload(slot_ptr);
+              return {iterator{slot_ptr}, true};
             }
             case insert_result::DUPLICATE: {
               this->maybe_wait_for_payload(slot_ptr);
               return {iterator{slot_ptr}, false};
             }
-            case insert_result::CONTINUE: {
-              if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-                retry = true;
-                break;
-              } else {
-                continue;
-              }
-            }
-          }
-          if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-            if (retry) { break; }
+            default: continue;
           }
         }
-
-        // Robin Hood swap test (see `insert` for the full rationale). A tombstone is a resident too
-        // (age from its payload); picking one up consumes it -- the in-flight pair lands there and
-        // we are done.
-        if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-          if (eq_res == detail::equal_result::UNEQUAL or this->is_erased(bucket_slots[i])) {
-            auto const evicted_age =
-              this->robin_hood_age(bucket_slots[i], static_cast<size_type>(*probing_iter + i));
-            if (evicted_age < probe_step) {
-              if (this->attempt_insert(slot_ptr, bucket_slots[i], val) == insert_result::SUCCESS) {
-                if (this->is_erased(bucket_slots[i])) {
-                  // Consumed a tombstone: the in-flight pair is placed here; return the original
-                  // key's slot (this one if it was never displaced).
-                  auto* result_ptr = (placed_ptr != nullptr) ? placed_ptr : slot_ptr;
-                  this->maybe_wait_for_payload(result_ptr);
-                  return {iterator{result_ptr}, true};
-                }
-                if (placed_ptr == nullptr) { placed_ptr = slot_ptr; }  // original key's slot
-                val        = cuda::std::bit_cast<decltype(val)>(bucket_slots[i]);
-                key        = this->extract_key(val);
-                probe_step = evicted_age;
-              }
-              retry = true;
-              break;
-            }
-          }
-        }
-      }
-
-      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-        if (retry) { continue; }
-        ++probe_step;
       }
       ++probing_iter;
       if (*probing_iter == init_idx) { return {this->end(), false}; }
@@ -801,15 +594,11 @@ class open_addressing_ref_impl
                   "pre-Volta GPUs.");
 #endif
 
-    auto val = this->heterogeneous_value(value);
-    auto key = this->extract_key(val);
+    auto const val = this->heterogeneous_value(value);
+    auto const key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx                   = *probing_iter;
-    [[maybe_unused]] size_type probe_step = 0;
-    // Robin Hood may displace the original key before the chain ends; remember (broadcast) the slot
-    // it first landed in so we return an iterator to it. 0 means "not yet placed".
-    [[maybe_unused]] intptr_t placed_ptr = 0;
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -820,13 +609,6 @@ class open_addressing_ref_impl
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = this->predicate_.template operator()<is_insert::YES>(
               key, this->extract_key(bucket_slots[i()]));
-            // Robin Hood: a tombstone is a resident handled by the displacement scan below, not
-            // AVAILABLE, so leave it UNEQUAL here.
-            if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-              if (res == detail::equal_result::AVAILABLE and this->is_erased(bucket_slots[i()])) {
-                res = detail::equal_result::UNEQUAL;
-              }
-            }
             if (res != detail::equal_result::UNEQUAL) { result = bucket_probing_results{res, i()}; }
           }
         });
@@ -856,15 +638,9 @@ class open_addressing_ref_impl
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: {
-            // The in-flight pair is placed in an empty slot, ending any displacement chain. Return
-            // the original key's slot (the first placement) if it was displaced earlier.
-            auto result = res;
-            if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-              if (placed_ptr != 0) { result = placed_ptr; }
-            }
             if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
             group.sync();
-            return {iterator{reinterpret_cast<value_type*>(result)}, true};
+            return {iterator{reinterpret_cast<value_type*>(res)}, true};
           }
           case insert_result::DUPLICATE: {
             if (group.thread_rank() == src_lane) { this->maybe_wait_for_payload(slot_ptr); }
@@ -874,64 +650,6 @@ class open_addressing_ref_impl
           default: continue;
         }
       } else {
-        if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-          // Robin Hood displacement (see CG `insert` for the full rationale).
-          cuda::std::int32_t displace_idx = -1;
-          size_type evicted_age           = 0;
-          cuda::static_for<bucket_size>([&] __device__(auto i) {
-            if (displace_idx < 0) {
-              // `robin_hood_age` so a tombstone uses its payload-stored age: it is displaced (i.e.
-              // consumed) exactly when richer than the in-flight pair, like any other resident.
-              auto const age = this->robin_hood_age(bucket_slots[i()],
-                                                    static_cast<size_type>(*probing_iter + i()));
-              if (age < probe_step) {
-                displace_idx = i();
-                evicted_age  = age;
-              }
-            }
-          });
-
-          auto const group_displaceable = group.ballot(displace_idx >= 0);
-          if (group_displaceable) {
-            auto const src_lane = __ffs(group_displaceable) - 1;
-            auto status         = insert_result::CONTINUE;
-            value_type evicted  = this->empty_slot_sentinel();
-            intptr_t displaced  = 0;
-            if (group.thread_rank() == src_lane) {
-              auto* dptr = this->get_slot_ptr(*probing_iter, displace_idx);
-              evicted    = bucket_slots[displace_idx];
-              status     = attempt_insert(dptr, evicted, val);
-              displaced  = reinterpret_cast<intptr_t>(dptr);
-            }
-            if (group.shfl(status, src_lane) == insert_result::SUCCESS) {
-              if (placed_ptr == 0) { placed_ptr = group.shfl(displaced, src_lane); }
-              // Consumed a tombstone: the in-flight pair is placed in its slot; we are done. Return
-              // the original key's slot (`placed_ptr`, which is this slot if it was never
-              // displaced).
-              if (group.shfl(this->is_erased(evicted), src_lane)) {
-                if (group.thread_rank() == src_lane) {
-                  this->maybe_wait_for_payload(reinterpret_cast<value_type*>(displaced));
-                }
-                group.sync();
-                return {iterator{reinterpret_cast<value_type*>(placed_ptr)}, true};
-              }
-              auto const new_key = group.shfl(this->extract_key(evicted), src_lane);
-              auto const new_age = group.shfl(evicted_age, src_lane);
-              value_type evicted_slot;
-              if constexpr (has_payload) {
-                auto const new_payload = group.shfl(this->extract_payload(evicted), src_lane);
-                evicted_slot           = value_type{new_key, new_payload};
-              } else {
-                evicted_slot = new_key;
-              }
-              val        = cuda::std::bit_cast<decltype(val)>(evicted_slot);
-              key        = this->extract_key(val);
-              probe_step = new_age;
-            }
-            continue;
-          }
-          ++probe_step;
-        }
         ++probing_iter;
         if (*probing_iter == init_idx) { return {this->end(), false}; }
       }
@@ -968,15 +686,9 @@ class open_addressing_ref_impl
         // Key exists, return true if successfully deleted
         if (eq_res == detail::equal_result::EQUAL) {
           auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
-          // Robin Hood records the erased key's age in the tombstone payload (1a); other schemes
-          // use the plain erased sentinel.
-          value_type erased = this->erased_slot_sentinel();
-          if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-            erased = this->robin_hood_erased_sentinel(
-              slot_content, static_cast<size_type>(*probing_iter + intra_bucket_index));
-          }
-          switch (attempt_insert_stable(
-            this->get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, erased)) {
+          switch (attempt_insert_stable(this->get_slot_ptr(*probing_iter, intra_bucket_index),
+                                        slot_content,
+                                        this->erased_slot_sentinel())) {
             case insert_result::SUCCESS: return true;
             case insert_result::DUPLICATE: return false;
             default: continue;
@@ -1025,20 +737,12 @@ class open_addressing_ref_impl
       auto const group_contains_equal = group.ballot(state == detail::equal_result::EQUAL);
       if (group_contains_equal) {
         auto const src_lane = __ffs(group_contains_equal) - 1;
-        auto status         = insert_result::CONTINUE;
-        if (group.thread_rank() == src_lane) {
-          // Robin Hood records the erased key's age in the tombstone payload (1a); other schemes
-          // use the plain erased sentinel.
-          value_type erased = this->erased_slot_sentinel();
-          if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-            erased = this->robin_hood_erased_sentinel(
-              bucket_slots[intra_bucket_index],
-              static_cast<size_type>(*probing_iter + intra_bucket_index));
-          }
-          status = attempt_insert_stable(this->get_slot_ptr(*probing_iter, intra_bucket_index),
-                                         bucket_slots[intra_bucket_index],
-                                         erased);
-        }
+        auto const status =
+          (group.thread_rank() == src_lane)
+            ? attempt_insert_stable(this->get_slot_ptr(*probing_iter, intra_bucket_index),
+                                    bucket_slots[intra_bucket_index],
+                                    this->erased_slot_sentinel())
+            : insert_result::CONTINUE;
 
         switch (group.shfl(status, src_lane)) {
           case insert_result::SUCCESS: return true;
@@ -1073,8 +777,7 @@ class open_addressing_ref_impl
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx                   = *probing_iter;
-    [[maybe_unused]] size_type probe_step = 0;
+    auto const init_idx = *probing_iter;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -1087,13 +790,6 @@ class open_addressing_ref_impl
           case detail::equal_result::EMPTY: return false;
           case detail::equal_result::EQUAL: return true;
         }
-      }
-      // Robin Hood: a resident richer than us proves the key is absent.
-      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-        if (this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step)) {
-          return false;
-        }
-        ++probe_step;
       }
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
@@ -1120,8 +816,7 @@ class open_addressing_ref_impl
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx                   = *probing_iter;
-    [[maybe_unused]] size_type probe_step = 0;
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -1139,13 +834,6 @@ class open_addressing_ref_impl
       if (group.any(state == detail::equal_result::EQUAL)) { return true; }
       if (group.any(state == detail::equal_result::EMPTY)) { return false; }
 
-      // Robin Hood: a resident richer than us (in any lane's bucket) proves the key is absent.
-      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-        if (group.any(this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step))) {
-          return false;
-        }
-        ++probe_step;
-      }
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
     }
@@ -1169,8 +857,7 @@ class open_addressing_ref_impl
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx                   = *probing_iter;
-    [[maybe_unused]] size_type probe_step = 0;
+    auto const init_idx = *probing_iter;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
@@ -1187,13 +874,6 @@ class open_addressing_ref_impl
           }
           default: continue;
         }
-      }
-      // Robin Hood: a resident richer than us proves the key is absent.
-      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-        if (this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step)) {
-          return this->end();
-        }
-        ++probe_step;
       }
       ++probing_iter;
       if (*probing_iter == init_idx) { return this->end(); }
@@ -1220,8 +900,7 @@ class open_addressing_ref_impl
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx                   = *probing_iter;
-    [[maybe_unused]] size_type probe_step = 0;
+    auto const init_idx = *probing_iter;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -1251,13 +930,6 @@ class open_addressing_ref_impl
       // Find an empty slot, meaning that the probe key isn't present in the container
       if (group.any(state == detail::equal_result::EMPTY)) { return this->end(); }
 
-      // Robin Hood: a resident richer than us (in any lane's bucket) proves the key is absent.
-      if constexpr (cuco::is_robin_hood_probing<probing_scheme_type>::value) {
-        if (group.any(this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step))) {
-          return this->end();
-        }
-        ++probe_step;
-      }
       ++probing_iter;
       if (*probing_iter == init_idx) { return this->end(); }
     }
@@ -1918,104 +1590,6 @@ class open_addressing_ref_impl
                                       cuda::std::int32_t intra_bucket_idx) const noexcept
   {
     return storage_ref_.data() + probing_idx + intra_bucket_idx;
-  }
-
-  /**
-   * @brief Determines whether the Robin Hood invariant proves the probe key absent at the current
-   * probe step.
-   *
-   * @note Only meaningful for Robin Hood probing. The key is proven absent when the bucket holds a
-   * resident that is "richer" than the probe key — i.e. whose own probe distance is smaller than
-   * the probe key's probe distance at the current step (`probe_step`). Such a resident would have
-   * been displaced on insertion if the probe key lived here, so the probe key cannot be present.
-   *
-   * @note Behavior is only well-defined when every slot in the bucket is occupied (the callers
-   * reach this check only after ruling out empty and matching slots), since probe distance is
-   * meaningless for an empty slot.
-   *
-   * @tparam BucketSlots Bucket slot array type
-   *
-   * @param bucket_slots The slots of the bucket currently being probed
-   * @param bucket_base The slot index of the first slot in the bucket
-   * @param probe_step The probe key's own probe distance at the current step
-   *
-   * @return True if some resident in the bucket is richer than the probe key
-   */
-  template <typename BucketSlots>
-  [[nodiscard]] __device__ bool robin_hood_proves_absent(BucketSlots const& bucket_slots,
-                                                         size_type bucket_base,
-                                                         size_type probe_step) const noexcept
-  {
-    bool richer = false;
-    cuda::static_for<bucket_size>([&](auto i) {
-      auto const resident_age =
-        this->robin_hood_age(bucket_slots[i()], static_cast<size_type>(bucket_base + i()));
-      if (resident_age < probe_step) { richer = true; }
-    });
-    return richer;
-  }
-
-  /**
-   * @brief Whether `slot` holds a tombstone (erased marker).
-   *
-   * @note Returns false when erase is disabled (the erased and empty sentinels coincide, so no slot
-   * is a tombstone) -- this keeps the test correct even for empty slots.
-   *
-   * @param slot The slot to test
-   *
-   * @return True if `slot` is an erased tombstone
-   */
-  [[nodiscard]] __device__ bool is_erased(value_type const& slot) const noexcept
-  {
-    return not cuco::detail::bitwise_compare(this->erased_key_sentinel(),
-                                             this->empty_key_sentinel()) and
-           cuco::detail::bitwise_compare(this->extract_key(slot), this->erased_key_sentinel());
-  }
-
-  /**
-   * @brief Robin Hood probe distance ("age") of an occupied slot.
-   *
-   * A live key's age is its `probe_distance`. A Robin Hood tombstone keeps the age of the key it
-   * replaced in its payload (the original key is gone and cannot be rehashed; see `erase`), so it
-   * is read back here -- a tombstone then participates in every Robin Hood comparison exactly like
-   * the resident it stood in for.
-   *
-   * @param slot The (occupied) slot
-   * @param slot_index The slot's index
-   *
-   * @return The slot's probe distance
-   */
-  [[nodiscard]] __device__ size_type robin_hood_age(value_type const& slot,
-                                                    size_type slot_index) const noexcept
-  {
-    if constexpr (has_payload) {
-      if (this->is_erased(slot)) { return static_cast<size_type>(this->extract_payload(slot)); }
-    }
-    return probing_scheme_.template probe_distance<bucket_size>(
-      this->extract_key(slot), slot_index, storage_ref_.extent());
-  }
-
-  /**
-   * @brief The Robin Hood tombstone for erasing the live key currently in `slot` at `slot_index`.
-   *
-   * The erased key's age is stashed in the payload (1a) so the tombstone keeps its place in the
-   * Robin Hood ordering (the original key is gone and cannot be rehashed). Other probing schemes
-   * use the plain `erased_slot_sentinel()` and never call this.
-   *
-   * @param slot The slot's current (live) contents
-   * @param slot_index The slot's index
-   *
-   * @return The value to CAS into the slot to erase it
-   */
-  [[nodiscard]] __device__ value_type
-  robin_hood_erased_sentinel(value_type const& slot, size_type slot_index) const noexcept
-  {
-    static_assert(has_payload,
-                  "Robin Hood erase requires a mapped payload to store the tombstone age");
-    auto const age = probing_scheme_.template probe_distance<bucket_size>(
-      this->extract_key(slot), slot_index, storage_ref_.extent());
-    return cuco::pair{this->erased_key_sentinel(),
-                      static_cast<decltype(this->empty_value_sentinel())>(age)};
   }
 
   /**

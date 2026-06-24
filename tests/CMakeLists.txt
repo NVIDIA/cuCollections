@@ -89,7 +89,6 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/insert_or_assign_test.cu
     static_map/insert_or_apply_test.cu
     static_map/key_sentinel_test.cu
-    static_map/probing_scheme_invariants_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
     static_map/rehash_test.cu

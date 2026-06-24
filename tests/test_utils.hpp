@@ -33,7 +33,7 @@ namespace cg = cooperative_groups;
 
 constexpr int32_t block_size = 128;
 
-enum class probe_sequence { linear_probing, double_hashing, robin_hood };
+enum class probe_sequence { linear_probing, double_hashing };
 
 // User-defined logical algorithms to reduce compilation time
 template <typename Iterator, typename Predicate>

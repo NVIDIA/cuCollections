@@ -210,87 +210,6 @@ class double_hashing : private detail::probing_scheme_base<CGSize> {
 };
 
 /**
- * @brief Public Robin Hood probing scheme class.
- *
- * @note Robin Hood probing wraps an underlying probe sequence (e.g. `cuco::linear_probing`) and
- * pairs it with the Robin Hood invariant: on insert, an in-flight key displaces any resident that
- * sits closer to its own home than the in-flight key is to its home, and the displaced resident is
- * then re-inserted from that point onward. This keeps probe lengths tightly distributed, which is
- * especially valuable on GPUs where a tile's tail latency is set by its longest probe.
- *
- * @note This class is a thin decorator over `Underlying`. It forwards the forward probe sequence
- * (`make_iterator`, `hash_function`) unchanged and contributes the `cuco::is_robin_hood_probing`
- * trait that selects the displacement (insert) and early-termination (find) control flow in the
- * open-addressing ref implementation. The invariant's one extra requirement — the inverse
- * primitive `probe_distance`, which recovers a resident's probe distance ("age") from the slot it
- * occupies — is delegated to `cuco::detail::probe_distance`, which is overloaded per underlying
- * scheme. Only `cuco::linear_probing` provides that overload today; a `cuco::double_hashing`
- * variant would compose simply by adding a matching `cuco::detail::probe_distance` overload, with
- * no change to this class or the ref implementation.
- *
- * @tparam Underlying The wrapped probe-sequence scheme (e.g. `cuco::linear_probing<CGSize, Hash>`)
- */
-template <typename Underlying>
-class robin_hood_probing : private Underlying {
- public:
-  using typename Underlying::hasher;  ///< Hash function type (from the underlying scheme)
-  using Underlying::cg_size;          ///< Cooperative group size (from the underlying scheme)
-  using Underlying::hash_function;    ///< Forwarded: gets the function(s) used to hash keys
-  using Underlying::make_iterator;    ///< Forwarded: the (unchanged) forward probe sequence
-
-  /**
-   * @brief Constructs a Robin Hood probing scheme wrapping the given underlying scheme.
-   *
-   * @param probing The underlying probe-sequence scheme to wrap
-   */
-  __host__ __device__ constexpr robin_hood_probing(Underlying const& probing = {});
-
-  /**
-   * @brief Makes a copy of the current probing method with the given hasher.
-   *
-   * @note Forwards to the underlying scheme's `rebind_hash_function` and re-wraps the result so the
-   * returned scheme is again a `robin_hood_probing`.
-   *
-   * @tparam NewHash New hasher type
-   *
-   * @param hash Hasher
-   *
-   * @return Copy of the current probing method
-   */
-  template <typename NewHash>
-  [[nodiscard]] __host__ __device__ constexpr auto rebind_hash_function(
-    NewHash const& hash) const noexcept;
-
-  /**
-   * @brief Computes the probe distance ("age") of a resident key.
-   *
-   * @note This is the inverse of the probe sequence: given a resident key and the slot index at
-   * which it currently lives, it returns how many probing steps that resident is from its own home
-   * bucket. The Robin Hood insert/find logic compares this against the in-flight key's own probe
-   * distance to decide displacement (insert) or early termination (find).
-   *
-   * @note Delegates to the `cuco::detail::probe_distance` overload for `Underlying`. Instantiating
-   * this for an `Underlying` without such an overload (e.g. `cuco::double_hashing` today) is a
-   * compile-time error — that is the single seam where a new underlying scheme would supply its own
-   * inverse.
-   *
-   * @tparam BucketSize Size of the bucket
-   * @tparam ProbeKey Type of probing key
-   * @tparam Extent Type of extent
-   *
-   * @param resident_key The key currently residing in the slot
-   * @param slot_index The slot index at which `resident_key` resides
-   * @param upper_bound Upper bound of the iteration
-   * @return The resident's probe distance, in probing steps
-   */
-  template <int32_t BucketSize, typename ProbeKey, typename Extent>
-  [[nodiscard]] __host__ __device__ constexpr typename Extent::value_type probe_distance(
-    ProbeKey resident_key,
-    typename Extent::value_type slot_index,
-    Extent upper_bound) const noexcept;
-};
-
-/**
  * @brief Trait indicating whether the given probing scheme is of `double_hashing` type or not
  *
  * @tparam T Input probing scheme type
@@ -307,22 +226,6 @@ struct is_double_hashing : cuda::std::false_type {};
  */
 template <int32_t CGSize, typename Hash1, typename Hash2>
 struct is_double_hashing<cuco::double_hashing<CGSize, Hash1, Hash2>> : cuda::std::true_type {};
-
-/**
- * @brief Trait indicating whether the given probing scheme is of `robin_hood_probing` type or not
- *
- * @tparam T Input probing scheme type
- */
-template <typename T>
-struct is_robin_hood_probing : cuda::std::false_type {};
-
-/**
- * @brief Trait indicating whether the given probing scheme is of `robin_hood_probing` type or not
- *
- * @tparam Underlying The wrapped probe-sequence scheme
- */
-template <typename Underlying>
-struct is_robin_hood_probing<cuco::robin_hood_probing<Underlying>> : cuda::std::true_type {};
 
 }  // namespace cuco
 
