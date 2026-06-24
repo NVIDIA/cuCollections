@@ -76,8 +76,6 @@ class bloom_filter_impl {
     static constexpr bool use_cub_kernels                      = true;
     static constexpr bool use_warp_cooperative_add_kernel      = true;
     static constexpr bool use_warp_cooperative_contains_kernel = true;
-    static constexpr bool use_work_stealing_add_kernel         = false;
-    static constexpr bool use_work_stealing_contains_kernel    = false;
     static constexpr bool use_cuda_atomic_ref                  = false;
   };
 
@@ -352,21 +350,11 @@ class bloom_filter_impl {
                              words_per_block * sizeof(word_type);
 
     if (2 * filter_size < l2_cache_size_) {
-      if constexpr (tuning::use_work_stealing_add_kernel) {
-        detail::bloom_filter_ns::add_work_stealing_n<false, cg_size, block_size>
-          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
-      } else {
-        detail::bloom_filter_ns::add_n<false, cg_size, block_size>
-          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
-      }
+      detail::bloom_filter_ns::add_n<false, cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
     } else {
-      if constexpr (tuning::use_work_stealing_add_kernel) {
-        detail::bloom_filter_ns::add_work_stealing_n<true, cg_size, block_size>
-          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
-      } else {
-        detail::bloom_filter_ns::add_n<true, cg_size, block_size>
-          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
-      }
+      detail::bloom_filter_ns::add_n<true, cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
     }
   }
 
@@ -525,13 +513,8 @@ class bloom_filter_impl {
                                     ? cuco::detail::int_div_ceil(num_keys, block_size)
                                     : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
 
-      if constexpr (tuning::use_work_stealing_contains_kernel) {
-        detail::bloom_filter_ns::contains_work_stealing_n<cg_size, block_size>
-          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
-      } else {
-        detail::bloom_filter_ns::contains_n<cg_size, block_size>
-          <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
-      }
+      detail::bloom_filter_ns::contains_n<cg_size, block_size>
+        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
     }
   }
 
