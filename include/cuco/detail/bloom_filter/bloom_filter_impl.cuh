@@ -70,7 +70,6 @@ class bloom_filter_impl {
     static constexpr bool use_cub_kernels                      = true;
     static constexpr bool use_warp_cooperative_add_kernel      = true;
     static constexpr bool use_warp_cooperative_contains_kernel = true;
-    static constexpr bool use_cuda_atomic_ref                  = false;
   };
 
   static constexpr auto thread_scope    = Scope;
@@ -631,25 +630,21 @@ class bloom_filter_impl {
   template <bool ConditionalAtomic>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
+    // Native atomicOr: cuda::atomic_ref::fetch_or produces consistently slower codegen here.
     auto const do_or = [&]() {
-      if constexpr (tuning::use_cuda_atomic_ref) {
-        cuda::atomic_ref<word_type, thread_scope>{*word_ptr}.fetch_or(pattern,
-                                                                      cuda::memory_order_relaxed);
+      auto* const p = reinterpret_cast<atomic_word_type*>(word_ptr);
+      auto const v  = static_cast<atomic_word_type>(pattern);
+      if constexpr (thread_scope == cuda::thread_scope_thread) {
+        *p |= v;
+      } else if constexpr (thread_scope == cuda::thread_scope_block) {
+        atomicOr_block(p, v);
+      } else if constexpr (thread_scope == cuda::thread_scope_device) {
+        atomicOr(p, v);
+      } else if constexpr (thread_scope == cuda::thread_scope_system) {
+        atomicOr_system(p, v);
       } else {
-        auto* const p = reinterpret_cast<atomic_word_type*>(word_ptr);
-        auto const v  = static_cast<atomic_word_type>(pattern);
-        if constexpr (thread_scope == cuda::thread_scope_thread) {
-          *p |= v;
-        } else if constexpr (thread_scope == cuda::thread_scope_block) {
-          atomicOr_block(p, v);
-        } else if constexpr (thread_scope == cuda::thread_scope_device) {
-          atomicOr(p, v);
-        } else if constexpr (thread_scope == cuda::thread_scope_system) {
-          atomicOr_system(p, v);
-        } else {
-          static_assert(cuco::dependent_false<word_type>,
-                        "unsupported cuda::thread_scope for native atomic_or");
-        }
+        static_assert(cuco::dependent_false<word_type>,
+                      "unsupported cuda::thread_scope for native atomic_or");
       }
     };
 
