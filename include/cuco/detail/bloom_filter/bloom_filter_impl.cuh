@@ -66,8 +66,7 @@ class bloom_filter_impl {
   // `bloom_filter_impl::tuning::use_*` from internal kernels. Defaults reflect the ablation
   // measurements from arXiv:2512.15595; flip in source for tuning experiments.
   struct tuning {
-    static constexpr bool use_early_exit  = false;
-    static constexpr bool use_cub_kernels = true;
+    static constexpr bool use_early_exit = false;
   };
 
   static constexpr auto thread_scope    = Scope;
@@ -446,21 +445,12 @@ class bloom_filter_impl {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
-    if constexpr (tuning::use_cub_kernels and ((words_per_block / contains_vertical_layout) == 1)) {
-      cub::DeviceTransform::Transform(
-        first,
-        output_begin,
-        num_keys,
-        [*this] __device__(auto const& key) { return this->contains(key); },
-        stream.get());
-    } else {
-      auto constexpr block_size = 256;
-      auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
-      auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
+    auto constexpr block_size = 256;
+    auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
+    auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
 
-      detail::bloom_filter_ns::contains_n<cg_size, block_size>
-        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
-    }
+    detail::bloom_filter_ns::contains_n<cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
   }
 
   template <class InputIt, class OutputIt>
