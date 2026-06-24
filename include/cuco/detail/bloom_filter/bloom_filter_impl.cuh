@@ -66,12 +66,6 @@ class bloom_filter_impl {
   // `bloom_filter_impl::tuning::use_*` from internal kernels. Defaults reflect the ablation
   // measurements from arXiv:2512.15595; flip in source for tuning experiments.
   struct tuning {
-    static constexpr bool use_invoke_one =
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-      true;
-#else
-      false;  // cg::invoke_one_broadcast requires CTK >= 12.1
-#endif
     static constexpr bool use_early_exit                       = false;
     static constexpr bool use_cub_kernels                      = true;
     static constexpr bool use_warp_cooperative_add_kernel      = true;
@@ -242,34 +236,13 @@ class bloom_filter_impl {
   template <bool ConditionalAtomic = true, class CG, class BuildKey>
   __device__ void add(CG group, BuildKey build_key)
   {
-    namespace cg = cooperative_groups;
-
     if constexpr (add_horizontal_layout == 1 || tile_size_v<CG> != add_horizontal_layout) {
-      // Tile size doesn't match the layout. Pick one lane to do the scalar (layout-agnostic)
-      // insert; the rest wait at the implicit sync.
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-      cg::invoke_one(group, [&] __device__() { this->template add<ConditionalAtomic>(build_key); });
-#else
       if (group.thread_rank() == 0) { this->template add<ConditionalAtomic>(build_key); }
       group.sync();
-#endif
     } else {
-      auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-        if constexpr (tuning::use_invoke_one) {
-          return cg::invoke_one_broadcast(group, [&] __device__() {
-            auto const sh = policy_.split_hash(build_key);
-            return cuda::std::make_tuple(
-              sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
-          });
-        } else
-#endif
-        {
-          auto const sh = policy_.split_hash(build_key);
-          return cuda::std::make_tuple(
-            sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
-        }
-      }();
+      auto const sh          = policy_.split_hash(build_key);
+      auto const lower_hash  = sh.second;
+      auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
       add_patterns<ConditionalAtomic, 0>(block_index, lower_hash, group.thread_rank());
     }
@@ -390,34 +363,13 @@ class bloom_filter_impl {
   template <class CG, class ProbeKey>
   __device__ bool contains(CG group, ProbeKey probe_key) const
   {
-    namespace cg = cooperative_groups;
-
     if constexpr (contains_horizontal_layout == 1 ||
                   tile_size_v<CG> != contains_horizontal_layout) {
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-      return cg::invoke_one_broadcast(
-        group, [&] __device__() -> bool { return this->contains(probe_key); });
-#else
-      // All lanes recompute the same deterministic scalar query.
       return this->contains(probe_key);
-#endif
     } else {
-      auto const [upper_hash, lower_hash, block_index] = [&] __device__ {
-#if defined(CUCO_HAS_CG_INVOKE_ONE)
-        if constexpr (tuning::use_invoke_one) {
-          return cg::invoke_one_broadcast(group, [&] __device__() {
-            auto const sh = policy_.split_hash(probe_key);
-            return cuda::std::make_tuple(
-              sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
-          });
-        } else
-#endif
-        {
-          auto const sh = policy_.split_hash(probe_key);
-          return cuda::std::make_tuple(
-            sh.first, sh.second, policy_.block_index(sh.first, num_blocks_));
-        }
-      }();
+      auto const sh          = policy_.split_hash(probe_key);
+      auto const lower_hash  = sh.second;
+      auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
       return group.all(compare_patterns<0>(block_index, lower_hash, group.thread_rank()));
     }
