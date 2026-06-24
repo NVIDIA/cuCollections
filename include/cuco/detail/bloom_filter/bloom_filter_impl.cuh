@@ -66,10 +66,8 @@ class bloom_filter_impl {
   // `bloom_filter_impl::tuning::use_*` from internal kernels. Defaults reflect the ablation
   // measurements from arXiv:2512.15595; flip in source for tuning experiments.
   struct tuning {
-    static constexpr bool use_early_exit                       = false;
-    static constexpr bool use_cub_kernels                      = true;
-    static constexpr bool use_warp_cooperative_add_kernel      = true;
-    static constexpr bool use_warp_cooperative_contains_kernel = true;
+    static constexpr bool use_early_exit  = false;
+    static constexpr bool use_cub_kernels = true;
   };
 
   static constexpr auto thread_scope    = Scope;
@@ -315,9 +313,7 @@ class bloom_filter_impl {
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
-    auto const grid_size      = tuning::use_warp_cooperative_add_kernel
-                                  ? cuco::detail::int_div_ceil(num_keys, block_size)
-                                  : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+    auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
     auto const filter_size    = static_cast<size_t>(static_cast<size_type>(num_blocks_)) *
                              words_per_block * sizeof(word_type);
 
@@ -460,9 +456,7 @@ class bloom_filter_impl {
     } else {
       auto constexpr block_size = 256;
       auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
-      auto const grid_size      = tuning::use_warp_cooperative_contains_kernel
-                                    ? cuco::detail::int_div_ceil(num_keys, block_size)
-                                    : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+      auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
 
       detail::bloom_filter_ns::contains_n<cg_size, block_size>
         <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
@@ -495,9 +489,7 @@ class bloom_filter_impl {
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
-    auto const grid_size      = tuning::use_warp_cooperative_add_kernel
-                                  ? cuco::detail::int_div_ceil(num_keys, block_size)
-                                  : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+    auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
     auto const filter_size    = static_cast<size_t>(static_cast<size_type>(num_blocks_)) *
                              words_per_block * sizeof(word_type);
 
@@ -538,9 +530,7 @@ class bloom_filter_impl {
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
-    auto const grid_size      = tuning::use_warp_cooperative_contains_kernel
-                                  ? cuco::detail::int_div_ceil(num_keys, block_size)
-                                  : cuco::detail::int_div_ceil(num_keys * cg_size, block_size);
+    auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
 
     detail::bloom_filter_ns::contains_if_n<cg_size, block_size>
       <<<grid_size, block_size, 0, stream.get()>>>(

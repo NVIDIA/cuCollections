@@ -34,8 +34,7 @@ __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
   namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  // Only use warp-cooperative kernels when CGSize > 1
-  if constexpr (Ref::tuning::use_warp_cooperative_add_kernel && CGSize > 1) {
+  if constexpr (CGSize > 1) {
     auto const idx          = cuco::detail::global_thread_id();
     auto group              = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const is_full_tile = (blockIdx.x + 1) * BlockSize <= n;
@@ -47,18 +46,10 @@ __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
       ref.add_coop<ConditionalAtomic>(group, first, idx, is_valid);
     }
   } else {
-    auto const idx = cuco::detail::global_thread_id() / CGSize;
-    if constexpr (CGSize == 1) {
-      if (idx < n) {
-        key_type const& key = *(first + idx);
-        ref.add<ConditionalAtomic>(key);
-      }
-    } else {
-      auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
-      if (idx < n) {
-        key_type const& key = *(first + idx);
-        ref.add<ConditionalAtomic>(group, key);
-      }
+    auto const idx = cuco::detail::global_thread_id();
+    if (idx < n) {
+      key_type const& key = *(first + idx);
+      ref.add<ConditionalAtomic>(key);
     }
   }
 }
@@ -80,8 +71,7 @@ __device__ void contains_n_impl(InputIt first,
   namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  // Only use warp-cooperative kernels when CGSize > 1
-  if constexpr (Ref::tuning::use_warp_cooperative_contains_kernel && CGSize > 1) {
+  if constexpr (CGSize > 1) {
     auto const idx          = cuco::detail::global_thread_id();
     auto group              = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const is_full_tile = (blockIdx.x + 1) * BlockSize <= n;
@@ -94,20 +84,10 @@ __device__ void contains_n_impl(InputIt first,
       if (is_valid) { *(output_begin + idx) = result; }
     }
   } else {
-    auto idx = cuco::detail::global_thread_id() / CGSize;
-    if constexpr (CGSize == 1) {
-      if (idx < n) {
-        key_type const& key   = *(first + idx);
-        *(output_begin + idx) = ref.contains(key);
-      }
-    } else {
-      auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
-      if (idx < n) {
-        key_type const& key = *(first + idx);
-        // ref.contains(group, key) already reduces across the group via group.all(...).
-        auto const found = ref.contains(group, key);
-        if (group.thread_rank() == 0) { *(output_begin + idx) = found; }
-      }
+    auto const idx = cuco::detail::global_thread_id();
+    if (idx < n) {
+      key_type const& key   = *(first + idx);
+      *(output_begin + idx) = ref.contains(key);
     }
   }
 }
@@ -134,22 +114,17 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  if constexpr (Ref::tuning::use_warp_cooperative_add_kernel && CGSize > 1) {
+  if constexpr (CGSize > 1) {
     auto const idx      = cuco::detail::global_thread_id();
     auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const in_range = idx < n;
     auto const is_valid = in_range && pred(*(stencil + idx));
     ref.template add_coop<ConditionalAtomic>(group, first, idx, is_valid);
   } else {
-    auto const idx = cuco::detail::global_thread_id() / CGSize;
+    auto const idx = cuco::detail::global_thread_id();
     if (idx < n && pred(*(stencil + idx))) {
       key_type const& key = *(first + idx);
-      if constexpr (CGSize == 1) {
-        ref.template add<ConditionalAtomic>(key);
-      } else {
-        auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
-        ref.template add<ConditionalAtomic>(group, key);
-      }
+      ref.template add<ConditionalAtomic>(key);
     }
   }
 }
@@ -171,7 +146,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  if constexpr (Ref::tuning::use_warp_cooperative_contains_kernel && CGSize > 1) {
+  if constexpr (CGSize > 1) {
     auto const idx      = cuco::detail::global_thread_id();
     auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const in_range = idx < n;
@@ -179,24 +154,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
     auto const result   = ref.contains_coop(group, first, idx, is_valid);
     if (in_range) { *(output_begin + idx) = is_valid ? result : false; }
   } else {
-    auto const idx = cuco::detail::global_thread_id() / CGSize;
+    auto const idx = cuco::detail::global_thread_id();
     if (idx < n) {
-      if constexpr (CGSize == 1) {
-        if (pred(*(stencil + idx))) {
-          key_type const& key   = *(first + idx);
-          *(output_begin + idx) = ref.contains(key);
-        } else {
-          *(output_begin + idx) = false;
-        }
+      if (pred(*(stencil + idx))) {
+        key_type const& key   = *(first + idx);
+        *(output_begin + idx) = ref.contains(key);
       } else {
-        auto group  = cg::tiled_partition<CGSize>(cg::this_thread_block());
-        bool result = false;
-        if (pred(*(stencil + idx))) {
-          key_type const& key = *(first + idx);
-          // ref.contains(group, key) already reduces across the group via group.all(...).
-          result = ref.contains(group, key);
-        }
-        if (group.thread_rank() == 0) { *(output_begin + idx) = result; }
+        *(output_begin + idx) = false;
       }
     }
   }
