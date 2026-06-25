@@ -300,7 +300,7 @@ class bloom_filter_impl {
   }
 
   template <class InputIt>
-  __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
+  __host__ void add(InputIt first, InputIt last, cuda::stream_ref stream)
   {
     this->add_async(first, last, stream);
     stream.sync();
@@ -428,7 +428,7 @@ class bloom_filter_impl {
   __host__ void contains(InputIt first,
                          InputIt last,
                          OutputIt output_begin,
-                         cuda::stream_ref stream) const noexcept
+                         cuda::stream_ref stream) const
   {
     this->contains_async(first, last, output_begin, stream);
     stream.sync();
@@ -453,11 +453,8 @@ class bloom_filter_impl {
   }
 
   template <class InputIt, class StencilIt, class Predicate>
-  __host__ void add_if(InputIt first,
-                       InputIt last,
-                       StencilIt stencil,
-                       Predicate pred,
-                       cuda::stream_ref stream) noexcept
+  __host__ void add_if(
+    InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
   {
     this->add_if_async(first, last, stencil, pred, stream);
     stream.sync();
@@ -489,7 +486,7 @@ class bloom_filter_impl {
                             StencilIt stencil,
                             Predicate pred,
                             OutputIt output_begin,
-                            cuda::stream_ref stream) const noexcept
+                            cuda::stream_ref stream) const
   {
     this->contains_if_async(first, last, stencil, pred, output_begin, stream);
     stream.sync();
@@ -516,7 +513,8 @@ class bloom_filter_impl {
     if constexpr (LoopIndex < add_loop_count) {
       auto const pattern =
         policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
-      auto* word_base = words_ + block_index * words_per_block + LoopIndex * add_vertical_layout;
+      auto* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+                        LoopIndex * add_vertical_layout;
 
       for (int i = 0; i < add_vertical_layout; ++i) {
         atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
@@ -538,7 +536,7 @@ class bloom_filter_impl {
       auto const pattern =
         policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
           lower_hash, thread_index);
-      auto* word_base = words_ + block_index * words_per_block +
+      auto* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout * add_horizontal_layout +
                         thread_index * add_vertical_layout;
 
@@ -590,7 +588,8 @@ class bloom_filter_impl {
 
     if constexpr (LoopIndex < contains_loop_count) {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
-        block_index * words_per_block + LoopIndex * contains_vertical_layout);
+        static_cast<size_type>(block_index) * words_per_block +
+        LoopIndex * contains_vertical_layout);
       auto const expected_pattern =
         policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
 
@@ -623,7 +622,7 @@ class bloom_filter_impl {
 
     if constexpr (LoopIndex < contains_loop_count) {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
-        block_index * words_per_block +
+        static_cast<size_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout * contains_horizontal_layout +
         thread_index * contains_vertical_layout);
       auto const expected_pattern =

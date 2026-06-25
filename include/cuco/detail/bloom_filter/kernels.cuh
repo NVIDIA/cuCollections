@@ -35,9 +35,10 @@ __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
-    auto const idx          = cuco::detail::global_thread_id();
-    auto group              = cg::tiled_partition<CGSize>(cg::this_thread_block());
-    auto const is_full_tile = (blockIdx.x + 1) * BlockSize <= n;
+    auto const idx = cuco::detail::global_thread_id();
+    auto group     = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    auto const is_full_tile =
+      static_cast<cuco::detail::index_type>(blockIdx.x + 1) * BlockSize <= n;
     if (is_full_tile) {
       key_type const& key = *(first + idx);
       ref.add_coop<ConditionalAdd>(group, key);
@@ -72,9 +73,10 @@ __device__ void contains_n_impl(InputIt first,
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
-    auto const idx          = cuco::detail::global_thread_id();
-    auto group              = cg::tiled_partition<CGSize>(cg::this_thread_block());
-    auto const is_full_tile = (blockIdx.x + 1) * BlockSize <= n;
+    auto const idx = cuco::detail::global_thread_id();
+    auto group     = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    auto const is_full_tile =
+      static_cast<cuco::detail::index_type>(blockIdx.x + 1) * BlockSize <= n;
     if (is_full_tile) {
       key_type const& key   = *(first + idx);
       *(output_begin + idx) = ref.contains_coop(group, key);
