@@ -646,7 +646,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
  * unspecified.
  *
  * @tparam IsOuter Flag indicating whether it's an outer count or not
- * @tparam block_size The size of the thread block
+ * @tparam BlockSize The size of the thread block
+ * @tparam TileStride Number of tile batches assigned to each thread block
  * @tparam InputProbeIt Device accessible input iterator
  * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the `InputProbeIt`'s `value_type`
@@ -667,6 +668,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
  */
 template <bool IsOuter,
           int BlockSize,
+          int TileStride,
           class InputProbeIt,
           class OutputProbeIt,
           class OutputMatchIt,
@@ -681,12 +683,13 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
 {
   namespace cg = cooperative_groups;
 
-  auto const block              = cg::this_thread_block();
-  auto constexpr tiles_in_block = BlockSize / Ref::cg_size;
+  auto const block               = cg::this_thread_block();
+  auto constexpr tiles_in_block  = BlockSize / Ref::cg_size;
+  auto constexpr tiles_per_block = TileStride * tiles_in_block;
 
-  auto const block_begin_offset = block.group_index().x * tiles_in_block;
+  auto const block_begin_offset = block.group_index().x * tiles_per_block;
   auto const block_end_offset =
-    min(n, static_cast<cuco::detail::index_type>(block_begin_offset + tiles_in_block));
+    min(n, static_cast<cuco::detail::index_type>(block_begin_offset + tiles_per_block));
 
   if (block_begin_offset < block_end_offset) {
     if constexpr (IsOuter) {
