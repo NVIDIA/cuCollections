@@ -447,7 +447,7 @@ class open_addressing_ref_impl
 
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
     size_type probe_step = 0;
 
     while (true) {
@@ -496,9 +496,8 @@ class open_addressing_ref_impl
         // its age comes from its payload (`robin_hood_age`) -- but picking one up *consumes* it: we
         // take the slot and are done, since there is nothing to carry forward.
         if (eq_res == detail::equal_result::UNEQUAL or this->is_erased(slot_content)) {
-          auto const intra_bucket_index =
-            cuda::std::distance(bucket_slots.begin(), &slot_content);
-          auto const evicted_age = this->robin_hood_age(
+          auto const intra_bucket_index = cuda::std::distance(bucket_slots.begin(), &slot_content);
+          auto const evicted_age        = this->robin_hood_age(
             slot_content, static_cast<size_type>(*probing_iter + intra_bucket_index));
           if (evicted_age < probe_step) {
             if (this->attempt_insert(this->get_slot_ptr(*probing_iter, intra_bucket_index),
@@ -553,7 +552,7 @@ class open_addressing_ref_impl
     auto key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
     size_type probe_step = 0;
 
     while (true) {
@@ -631,8 +630,8 @@ class open_addressing_ref_impl
           if (displace_idx < 0) {
             // `robin_hood_age` so a tombstone uses its payload-stored age: it is displaced (i.e.
             // consumed) exactly when richer than the in-flight pair, like any other resident.
-            auto const age = this->robin_hood_age(bucket_slots[i()],
-                                                  static_cast<size_type>(*probing_iter + i()));
+            auto const age =
+              this->robin_hood_age(bucket_slots[i()], static_cast<size_type>(*probing_iter + i()));
             if (age < probe_step) {
               displace_idx = i();
               evicted_age  = age;
@@ -649,8 +648,7 @@ class open_addressing_ref_impl
           value_type evicted = this->empty_slot_sentinel();
           if (group.thread_rank() == src_lane) {
             evicted = bucket_slots[displace_idx];
-            status =
-              attempt_insert(this->get_slot_ptr(*probing_iter, displace_idx), evicted, val);
+            status  = attempt_insert(this->get_slot_ptr(*probing_iter, displace_idx), evicted, val);
           }
           if (group.shfl(status, src_lane) == insert_result::SUCCESS) {
             // Consuming a tombstone reuses its freed slot -- nothing to carry, so we are done.
@@ -710,7 +708,7 @@ class open_addressing_ref_impl
     auto key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
     size_type probe_step = 0;
     // Robin Hood may displace the original key before the chain ends; remember the slot it landed
     // in so we return an iterator to it (not to a later victim's slot).
@@ -820,7 +818,7 @@ class open_addressing_ref_impl
     auto key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
     size_type probe_step = 0;
     // Robin Hood may displace the original key before the chain ends; remember (broadcast) the slot
     // it first landed in so we return an iterator to it. 0 means "not yet placed".
@@ -892,8 +890,8 @@ class open_addressing_ref_impl
           if (displace_idx < 0) {
             // `robin_hood_age` so a tombstone uses its payload-stored age: it is displaced (i.e.
             // consumed) exactly when richer than the in-flight pair, like any other resident.
-            auto const age = this->robin_hood_age(bucket_slots[i()],
-                                                  static_cast<size_type>(*probing_iter + i()));
+            auto const age =
+              this->robin_hood_age(bucket_slots[i()], static_cast<size_type>(*probing_iter + i()));
             if (age < probe_step) {
               displace_idx = i();
               evicted_age  = age;
@@ -1076,7 +1074,7 @@ class open_addressing_ref_impl
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
     size_type probe_step = 0;
 
     while (true) {
@@ -1092,9 +1090,7 @@ class open_addressing_ref_impl
         }
       }
       // Robin Hood: a resident richer than us proves the key is absent.
-      if (this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step)) {
-        return false;
-      }
+      if (this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step)) { return false; }
       ++probe_step;
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
@@ -1121,7 +1117,7 @@ class open_addressing_ref_impl
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
     size_type probe_step = 0;
 
     while (true) {
@@ -1168,7 +1164,7 @@ class open_addressing_ref_impl
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
     size_type probe_step = 0;
 
     while (true) {
@@ -1217,7 +1213,7 @@ class open_addressing_ref_impl
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
     size_type probe_step = 0;
 
     while (true) {
