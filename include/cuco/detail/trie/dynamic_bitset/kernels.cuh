@@ -159,7 +159,7 @@ CUCO_KERNEL void bit_counts_kernel(WordType const* words,
  * @param words_per_block Number of words in each block
  */
 template <typename SizeType>
-CUCO_KERNEL void encode_ranks_from_prefix_bit_counts(const SizeType* prefix_bit_counts,
+CUCO_KERNEL void encode_ranks_from_prefix_bit_counts(SizeType const* prefix_bit_counts,
                                                      rank* ranks,
                                                      SizeType num_words,
                                                      SizeType num_blocks,

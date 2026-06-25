@@ -1,10 +1,5 @@
 # cuCollections
 
-<table><tr>
-<th><b><a href="https://github.com/NVIDIA/cuCollections/tree/dev/examples">Examples</a></b></th>
-<th><b><a href="">Doxygen Documentation (TODO)</a></b></th>
-</tr></table>
-
 `cuCollections` (`cuco`) is an open-source, header-only library of GPU-accelerated, concurrent data structures.
 
 Similar to how [Thrust](https://github.com/thrust/thrust) and [CUB](https://github.com/thrust/cub) provide STL-like, GPU-accelerated algorithms and primitives, `cuCollections` provides STL-like concurrent data structures. `cuCollections` is not a one-to-one, drop-in replacement for STL data structures like `std::unordered_map`. Instead, it provides functionally similar data structures optimized for efficient use with GPUs.
