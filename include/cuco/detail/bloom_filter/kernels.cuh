@@ -28,7 +28,7 @@
 namespace cuco::detail::bloom_filter_ns {
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
-template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+template <bool ConditionalAdd, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
 __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
 {
   namespace cg   = cooperative_groups;
@@ -40,26 +40,26 @@ __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
     auto const is_full_tile = (blockIdx.x + 1) * BlockSize <= n;
     if (is_full_tile) {
       key_type const& key = *(first + idx);
-      ref.add_coop<ConditionalAtomic>(group, key);
+      ref.add_coop<ConditionalAdd>(group, key);
     } else {
       auto const is_valid = idx < n;
-      ref.add_coop<ConditionalAtomic>(group, first, idx, is_valid);
+      ref.add_coop<ConditionalAdd>(group, first, idx, is_valid);
     }
   } else {
     auto const idx = cuco::detail::global_thread_id();
     if (idx < n) {
       key_type const& key = *(first + idx);
-      ref.add<ConditionalAtomic>(key);
+      ref.add<ConditionalAdd>(key);
     }
   }
 }
 
-template <bool ConditionalAtomic, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+template <bool ConditionalAdd, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_n(InputIt first,
                                                     cuco::detail::index_type n,
                                                     Ref ref)
 {
-  add_n_impl<ConditionalAtomic, CGSize, BlockSize>(first, n, ref);
+  add_n_impl<ConditionalAdd, CGSize, BlockSize>(first, n, ref);
 }
 
 template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
@@ -101,7 +101,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_n(InputIt first,
   contains_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);
 }
 
-template <bool ConditionalAtomic,
+template <bool ConditionalAdd,
           int32_t CGSize,
           int32_t BlockSize,
           class InputIt,
@@ -119,12 +119,12 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
     auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
     auto const in_range = idx < n;
     auto const is_valid = in_range && pred(*(stencil + idx));
-    ref.template add_coop<ConditionalAtomic>(group, first, idx, is_valid);
+    ref.template add_coop<ConditionalAdd>(group, first, idx, is_valid);
   } else {
     auto const idx = cuco::detail::global_thread_id();
     if (idx < n && pred(*(stencil + idx))) {
       key_type const& key = *(first + idx);
-      ref.template add<ConditionalAtomic>(key);
+      ref.template add<ConditionalAdd>(key);
     }
   }
 }

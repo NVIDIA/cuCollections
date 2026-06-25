@@ -49,6 +49,13 @@ namespace cuco::detail {
  * @tparam ContainsHorizontalLayout CG size used for `contains` (paper's Theta).
  * @tparam ContainsVerticalLayout Contiguous words processed per thread per `contains` step (paper's
  * Phi).
+ * @tparam ConditionalAdd When `true`, `add` reads each word before the atomic OR and skips the
+ * write when the required bits are already set. This trades a read for fewer atomic writes and is
+ * beneficial when the filter is highly contended (e.g. close to full) or the input contains many
+ * duplicate keys, where most writes would be redundant.
+ * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
+ * first missing fingerprint slice. Beneficial when queried keys have a low match rate (most lookups
+ * miss) and filter contention is low, so the common negative path exits early.
  */
 template <class Hash,
           class Word,
@@ -57,7 +64,9 @@ template <class Hash,
           uint32_t AddHorizontalLayout,
           uint32_t AddVerticalLayout,
           uint32_t ContainsHorizontalLayout,
-          uint32_t ContainsVerticalLayout>
+          uint32_t ContainsVerticalLayout,
+          bool ConditionalAdd,
+          bool EarlyExitContains>
 class parametric_filter_policy {
  public:
   using hasher             = Hash;                            ///< 64-bit hash functor type
@@ -94,6 +103,11 @@ class parametric_filter_policy {
     ContainsHorizontalLayout;  ///< horizontal vectorization layout for contains operation
   static constexpr uint32_t contains_vertical_layout =
     ContainsVerticalLayout;  ///< vertical vectorization layout for contains operation
+
+  static constexpr bool conditional_add =
+    ConditionalAdd;  ///< read-before-atomic on add (skip redundant writes)
+  static constexpr bool early_exit_contains =
+    EarlyExitContains;  ///< short-circuit contains on first missing slice
 
   static constexpr size_t max_filter_blocks =
     cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks

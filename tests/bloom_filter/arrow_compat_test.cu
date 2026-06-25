@@ -154,8 +154,8 @@ TEMPLATE_TEST_CASE_SIG("bloom_filter arrow-compatible parametric policy bitset v
 
   // Apache Arrow Block-Split Bloom Filter parameters: 256-bit blocks (8 x uint32_t), 8 fingerprint
   // bits per key, fully horizontal add (Theta=8) and fully vertical contains (Phi=8).
-  using policy_type =
-    cuco::parametric_filter_policy<cuco::xxhash_64<Key>, std::uint32_t, 8, 8, 8, 1, 1, 8>;
+  using policy_type = cuco::
+    parametric_filter_policy<cuco::xxhash_64<Key>, std::uint32_t, 8, 8, 8, 1, 1, 8, false, false>;
   cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type> filter{
     sub_filters};
 

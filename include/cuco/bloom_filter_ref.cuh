@@ -63,10 +63,10 @@ class bloom_filter_ref {
    * @param scope The scope in which operations will be performed
    * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
    */
-  __host__ __device__ explicit bloom_filter_ref(filter_block_type* data,
-                                                Extent num_blocks,
-                                                cuda_thread_scope<Scope> scope,
-                                                Policy const& policy);
+  __host__ __device__ explicit constexpr bloom_filter_ref(filter_block_type* data,
+                                                          Extent num_blocks,
+                                                          cuda_thread_scope<Scope> scope,
+                                                          Policy const& policy);
 
   /**
    * @brief Constructs the ref object from existing storage.
@@ -78,10 +78,10 @@ class bloom_filter_ref {
    * @param scope The scope in which operations will be performed
    * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
    */
-  __host__ __device__ explicit bloom_filter_ref(word_type* data,
-                                                Extent num_blocks,
-                                                cuda_thread_scope<Scope> scope,
-                                                Policy const& policy);
+  __host__ __device__ explicit constexpr bloom_filter_ref(word_type* data,
+                                                          Extent num_blocks,
+                                                          cuda_thread_scope<Scope> scope,
+                                                          Policy const& policy);
 
   /**
    * @brief Device function that cooperatively erases all information from the filter.

@@ -40,6 +40,12 @@ namespace cuco {
  * @tparam AddVerticalLayout Words per thread per add step (paper's Phi).
  * @tparam ContainsHorizontalLayout CG size for contains.
  * @tparam ContainsVerticalLayout Words per thread per contains step.
+ * @tparam ConditionalAdd When `true`, `add` reads each word before the atomic OR and skips the
+ * write when the required bits are already set. Trades a read for fewer atomic writes; beneficial
+ * when the filter is highly contended (e.g. close to full) or the input has many duplicate keys.
+ * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
+ * first missing fingerprint slice. Beneficial when queried keys have a low match rate and filter
+ * contention is low.
  */
 template <class Hash,
           class Word,
@@ -48,7 +54,9 @@ template <class Hash,
           std::uint32_t AddHorizontalLayout,
           std::uint32_t AddVerticalLayout,
           std::uint32_t ContainsHorizontalLayout,
-          std::uint32_t ContainsVerticalLayout>
+          std::uint32_t ContainsVerticalLayout,
+          bool ConditionalAdd,
+          bool EarlyExitContains>
 using parametric_filter_policy = detail::parametric_filter_policy<Hash,
                                                                   Word,
                                                                   WordsPerBlock,
@@ -56,7 +64,9 @@ using parametric_filter_policy = detail::parametric_filter_policy<Hash,
                                                                   AddHorizontalLayout,
                                                                   AddVerticalLayout,
                                                                   ContainsHorizontalLayout,
-                                                                  ContainsVerticalLayout>;
+                                                                  ContainsVerticalLayout,
+                                                                  ConditionalAdd,
+                                                                  EarlyExitContains>;
 
 /**
  * @brief Default Bloom filter policy used by `cuco::bloom_filter` when no policy is specified.
@@ -70,6 +80,6 @@ using parametric_filter_policy = detail::parametric_filter_policy<Hash,
  */
 template <class Key, template <typename> class XXHash64 = cuco::xxhash_64>
 using default_filter_policy =
-  parametric_filter_policy<XXHash64<Key>, std::uint32_t, 8, 8, 8, 1, 1, 8>;
+  parametric_filter_policy<XXHash64<Key>, std::uint32_t, 8, 8, 8, 1, 1, 8, false, false>;
 
 }  // namespace cuco

@@ -90,11 +90,26 @@ TEMPLATE_TEST_CASE_SIG(
   "",
   ((class Key, class Policy), Key, Policy),
   (int32_t, cuco::default_filter_policy<int32_t>),
-  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
+  (int32_t,
+   cuco::
+     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1, false, false>),
   (uint64_t,
-   cuco::parametric_filter_policy<cuco::xxhash_64<uint64_t>, uint32_t, 8, 12, 8, 1, 4, 2>),
-  (float, cuco::parametric_filter_policy<cuco::xxhash_64<float>, uint64_t, 4, 4, 2, 2, 1, 2>),
-  (int32_t, cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 2, 1, 8>))
+   cuco::parametric_filter_policy<cuco::xxhash_64<uint64_t>,
+                                  uint32_t,
+                                  8,
+                                  12,
+                                  8,
+                                  1,
+                                  4,
+                                  2,
+                                  false,
+                                  false>),
+  (float,
+   cuco::
+     parametric_filter_policy<cuco::xxhash_64<float>, uint64_t, 4, 4, 2, 2, 1, 2, false, false>),
+  (int32_t,
+   cuco::
+     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 2, 1, 8, false, false>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;

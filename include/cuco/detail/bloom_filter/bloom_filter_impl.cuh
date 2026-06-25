@@ -62,11 +62,6 @@ class bloom_filter_impl {
   using atomic_word_type =
     cuda::std::conditional_t<sizeof(word_type) == 8, unsigned long long, unsigned int>;
 
-  // Implementation-tuning knob. Not part of the public API; flip in source for experiments.
-  struct tuning {
-    static constexpr bool use_early_exit = false;
-  };
-
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
 
@@ -74,6 +69,8 @@ class bloom_filter_impl {
   static constexpr auto add_horizontal_layout      = policy_type::add_horizontal_layout;
   static constexpr auto contains_vertical_layout   = policy_type::contains_vertical_layout;
   static constexpr auto contains_horizontal_layout = policy_type::contains_horizontal_layout;
+  static constexpr bool conditional_add            = policy_type::conditional_add;
+  static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -104,22 +101,20 @@ class bloom_filter_impl {
     alignas(alignment()) word_type data_[words_per_block];
   };
 
-  __host__ __device__ explicit bloom_filter_impl(filter_block_type* filter,
-                                                 Extent num_blocks,
-                                                 cuda_thread_scope<Scope>,
-                                                 Policy policy)
+  __host__ __device__ explicit constexpr bloom_filter_impl(filter_block_type* filter,
+                                                           Extent num_blocks,
+                                                           cuda_thread_scope<Scope>,
+                                                           Policy policy)
     : words_{reinterpret_cast<word_type*>(filter)}, num_blocks_{num_blocks}, policy_{policy}
   {
-    NV_IF_TARGET(NV_IS_HOST, (l2_cache_size_ = static_cast<size_t>(cuco::detail::l2_cache_size());))
   }
 
-  __host__ __device__ explicit bloom_filter_impl(word_type* filter,
-                                                 Extent num_blocks,
-                                                 cuda_thread_scope<Scope>,
-                                                 Policy policy)
+  __host__ __device__ explicit constexpr bloom_filter_impl(word_type* filter,
+                                                           Extent num_blocks,
+                                                           cuda_thread_scope<Scope>,
+                                                           Policy policy)
     : words_{filter}, num_blocks_{num_blocks}, policy_{policy}
   {
-    NV_IF_TARGET(NV_IS_HOST, (l2_cache_size_ = static_cast<size_t>(cuco::detail::l2_cache_size());))
   }
 
   template <class CG>
@@ -198,38 +193,38 @@ class bloom_filter_impl {
     return num_blocks_;
   }
 
-  template <bool ConditionalAtomic = true, class BuildKey>
+  template <bool ConditionalAdd = conditional_add, class BuildKey>
   __device__ void add(BuildKey build_key)
   {
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
     if constexpr (add_horizontal_layout == 1) {
-      add_pattern<ConditionalAtomic, 0>(block_index, lower_hash);
+      add_pattern<ConditionalAdd, 0>(block_index, lower_hash);
     } else {
 #pragma unroll
       for (uint32_t thread_index = 0; thread_index < add_horizontal_layout; ++thread_index) {
-        add_patterns<ConditionalAtomic, 0>(block_index, lower_hash, thread_index);
+        add_patterns<ConditionalAdd, 0>(block_index, lower_hash, thread_index);
       }
     }
   }
 
-  template <bool ConditionalAtomic = true, class CG, class BuildKey>
+  template <bool ConditionalAdd = conditional_add, class CG, class BuildKey>
   __device__ void add(CG group, BuildKey build_key)
   {
     if constexpr (add_horizontal_layout == 1 || tile_size_v<CG> != add_horizontal_layout) {
-      if (group.thread_rank() == 0) { this->template add<ConditionalAtomic>(build_key); }
+      if (group.thread_rank() == 0) { this->template add<ConditionalAdd>(build_key); }
       group.sync();
     } else {
       auto const sh          = policy_.split_hash(build_key);
       auto const lower_hash  = sh.second;
       auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
-      add_patterns<ConditionalAtomic, 0>(block_index, lower_hash, group.thread_rank());
+      add_patterns<ConditionalAdd, 0>(block_index, lower_hash, group.thread_rank());
     }
   }
 
-  template <bool ConditionalAtomic = true, class CG, class BuildKey>
+  template <bool ConditionalAdd = conditional_add, class CG, class BuildKey>
   __device__ void add_coop(CG group, BuildKey build_key)
   {
     constexpr auto num_threads = tile_size_v<CG>;
@@ -239,12 +234,12 @@ class bloom_filter_impl {
 
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      add_patterns<ConditionalAtomic, 0>(
+      add_patterns<ConditionalAdd, 0>(
         group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
     }
   }
 
-  template <bool ConditionalAtomic = true, class CG, class InputIt, class Index>
+  template <bool ConditionalAdd = conditional_add, class CG, class InputIt, class Index>
   __device__ void add_coop(CG group, InputIt first, Index idx, bool is_valid)
   {
     constexpr auto num_threads = tile_size_v<CG>;
@@ -263,7 +258,7 @@ class bloom_filter_impl {
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
       if (group.shfl(is_valid, i)) {
-        add_patterns<ConditionalAtomic, 0>(
+        add_patterns<ConditionalAdd, 0>(
           group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
       }
     }
@@ -278,7 +273,7 @@ class bloom_filter_impl {
       for (cuco::detail::index_type batch = 0; batch < num_keys; batch += num_threads) {
         auto const idx      = batch + static_cast<cuco::detail::index_type>(group.thread_rank());
         auto const is_valid = idx < num_keys;
-        this->template add_coop<true>(group, first, idx, is_valid);
+        this->template add_coop<conditional_add>(group, first, idx, is_valid);
       }
     } else {
       auto const stride = static_cast<cuco::detail::index_type>(tile_size_v<CG>);
@@ -299,16 +294,9 @@ class bloom_filter_impl {
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
     auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
-    auto const filter_size    = static_cast<size_t>(static_cast<size_type>(num_blocks_)) *
-                             words_per_block * sizeof(word_type);
 
-    if (2 * filter_size < l2_cache_size_) {
-      detail::bloom_filter_ns::add_n<false, cg_size, block_size>
-        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
-    } else {
-      detail::bloom_filter_ns::add_n<true, cg_size, block_size>
-        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
-    }
+    detail::bloom_filter_ns::add_n<conditional_add, cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
   }
 
   template <class InputIt>
@@ -459,16 +447,9 @@ class bloom_filter_impl {
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
     auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
-    auto const filter_size    = static_cast<size_t>(static_cast<size_type>(num_blocks_)) *
-                             words_per_block * sizeof(word_type);
 
-    if (2 * filter_size < l2_cache_size_) {
-      detail::bloom_filter_ns::add_if_n<false, cg_size, block_size>
-        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
-    } else {
-      detail::bloom_filter_ns::add_if_n<true, cg_size, block_size>
-        <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
-    }
+    detail::bloom_filter_ns::add_if_n<conditional_add, cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, stencil, pred, *this);
   }
 
   template <class InputIt, class StencilIt, class Predicate>
@@ -527,7 +508,7 @@ class bloom_filter_impl {
       __builtin_assume_aligned(words_ + index, load_alignment));
   }
 
-  template <bool ConditionalAtomic, uint32_t LoopIndex>
+  template <bool ConditionalAdd, uint32_t LoopIndex>
   __device__ constexpr void add_pattern(uint32_t block_index, uint32_t lower_hash)
   {
     static_assert(add_horizontal_layout == 1, "add_pattern() requires add_horizontal_layout == 1");
@@ -538,15 +519,15 @@ class bloom_filter_impl {
       auto* word_base = words_ + block_index * words_per_block + LoopIndex * add_vertical_layout;
 
       for (int i = 0; i < add_vertical_layout; ++i) {
-        atomic_or<ConditionalAtomic>(word_base + i, pattern[i]);
+        atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
       }
 
       // Recurse.
-      add_pattern<ConditionalAtomic, LoopIndex + 1>(block_index, lower_hash);
+      add_pattern<ConditionalAdd, LoopIndex + 1>(block_index, lower_hash);
     }
   }
 
-  template <bool ConditionalAtomic, uint32_t LoopIndex>
+  template <bool ConditionalAdd, uint32_t LoopIndex>
   __device__ constexpr void add_patterns(uint32_t block_index,
                                          uint32_t lower_hash,
                                          uint32_t thread_index)
@@ -562,15 +543,15 @@ class bloom_filter_impl {
                         thread_index * add_vertical_layout;
 
       for (int i = 0; i < add_vertical_layout; ++i) {
-        atomic_or<ConditionalAtomic>(word_base + i, pattern[i]);
+        atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
       }
 
       // Recurse.
-      add_patterns<ConditionalAtomic, LoopIndex + 1>(block_index, lower_hash, thread_index);
+      add_patterns<ConditionalAdd, LoopIndex + 1>(block_index, lower_hash, thread_index);
     }
   }
 
-  template <bool ConditionalAtomic>
+  template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
     // Native atomicOr: cuda::atomic_ref::fetch_or produces consistently slower codegen here.
@@ -591,7 +572,8 @@ class bloom_filter_impl {
       }
     };
 
-    if constexpr (ConditionalAtomic) {
+    if constexpr (ConditionalAdd) {
+      // Benign non-atomic read racing with atomicOr; technically UB but used throughout cuco.
       if ((*word_ptr & pattern) != pattern) { do_or(); }
     } else {
       do_or();
@@ -620,7 +602,7 @@ class bloom_filter_impl {
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
       // words.
-      if constexpr (tuning::use_early_exit) {
+      if constexpr (early_exit_contains) {
         if (!match) { return false; }
         return compare_pattern<LoopIndex + 1>(block_index, lower_hash);
       } else {
@@ -655,7 +637,7 @@ class bloom_filter_impl {
       }
 
       // Per-thread early exit: short-circuit this thread's recursion if its slice already missed.
-      if constexpr (tuning::use_early_exit) {
+      if constexpr (early_exit_contains) {
         if (!match) { return false; }
         return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index);
       } else {
@@ -669,7 +651,6 @@ class bloom_filter_impl {
   word_type* words_;
   extent_type num_blocks_;
   policy_type policy_;
-  size_t l2_cache_size_ = 0;
 };
 
 }  // namespace cuco::detail
