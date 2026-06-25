@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cuco/detail/open_addressing/open_addressing_ref_impl.cuh>
+#include <cuco/detail/open_addressing/robin_hood/open_addressing_ref_impl.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/operator.hpp>
 #include <cuco/probing_scheme.cuh>
@@ -74,7 +75,12 @@ class static_map_ref
   static constexpr auto allows_duplicates = false;
 
   /// Implementation type
-  using impl_type = detail::
+  //
+  // HARD-WIRE (experimental Robin Hood PR): static_map is routed through the Robin Hood engine
+  // instead of the generic open-addressing engine. This single line is what makes static_map use
+  // Robin Hood probing; downstream front-end work replaces it with a proper backend-selection
+  // mechanism. See robin_hood_refactor_plan.md.
+  using impl_type = detail::robin_hood::
     open_addressing_ref_impl<Key, Scope, KeyEqual, ProbingScheme, StorageRef, allows_duplicates>;
 
  public:
