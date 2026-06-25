@@ -33,10 +33,21 @@ namespace cuco::detail {
  * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
  *
  * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
- * GPU Architectures" (arXiv:2512.15595). Distributes `PatternBits` set bits across `WordsPerBlock`
- * words using compile-time salt-based multiplicative hashing. The hash result is split into upper
- * 32 bits (block selection via multiply-shift) and lower 32 bits (pattern generation), so a 64-bit
- * hash function is required by design.
+ * GPU Architectures" (arXiv:2512.15595).
+ *
+ * Each key selects exactly one fixed-size block of `WordsPerBlock` words: the upper 32 bits of the
+ * 64-bit hash pick the block via multiply-shift, and the lower 32 bits drive compile-time
+ * salt-based multiplicative hashing that distributes `PatternBits` set bits across that block's
+ * words (so a 64-bit hash function is required). Confining a key's probes to one block keeps a
+ * lookup to a single contiguous region, minimizing memory transactions; throughput is best while
+ * the whole filter fits the GPU cache domain, so sizing it relative to L2 is the main lever.
+ *
+ * `add` and `contains` take independent vectorization layouts (horizontal = cooperative-group size,
+ * vertical = contiguous words per thread per step) because they favor opposite access patterns:
+ * `add` spreads a block's words across cooperating threads so atomic writes proceed in parallel
+ * (default: fully horizontal), while `contains` lets one thread read the whole block with wide,
+ * coalesced loads (default: fully vertical). `PatternBits` trades false-positive rate against
+ * space.
  *
  * @tparam Hash 64-bit hash functor whose return type satisfies `is_same_v<hash_result_type,
  * uint64_t>`.
