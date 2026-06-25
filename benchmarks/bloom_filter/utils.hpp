@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,21 +26,6 @@
 #include <thrust/sequence.h>
 
 #include <cstdint>
-
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_64<char>, "xxhash_64", "cuco::xxhash_64");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_32<char>, "xxhash_32", "cuco::xxhash_32");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_32<char>,
-                             "murmurhash3_32",
-                             "cuco::murmurhash3_32");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x86_128<char>,
-                             "murmurhash3_x86_128",
-                             "cuco::murmurhash3_x86_128");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x64_128<char>,
-                             "murmurhash3_x64_128",
-                             "cuco::murmurhash3_x64_128");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::identity_hash<char>,
-                             "identity_hash",
-                             "cuco::identity_hash");
 
 namespace cuco::benchmark {
 

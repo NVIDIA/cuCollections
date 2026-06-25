@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -92,7 +92,7 @@ __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add(InputI
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
 template <class InputIt>
 __host__ constexpr void bloom_filter_ref<Key, Extent, Scope, Policy>::add_async(
-  InputIt first, InputIt last, cuda::stream_ref stream)
+  InputIt first, InputIt last, cuda::stream_ref stream) noexcept
 {
   impl_.add_async(first, last, stream);
 }
@@ -127,6 +127,16 @@ template <class CG, class ProbeKey>
   CG group, ProbeKey const& key) const
 {
   return impl_.contains(group, key);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy>
+template <class CG, class InputIt, class OutputIt>
+__device__ void bloom_filter_ref<Key, Extent, Scope, Policy>::contains(CG group,
+                                                                       InputIt first,
+                                                                       InputIt last,
+                                                                       OutputIt output_begin) const
+{
+  impl_.contains(group, first, last, output_begin);
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy>

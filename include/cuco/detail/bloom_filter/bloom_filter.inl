@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,15 +27,15 @@
 namespace cuco {
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
-__host__ constexpr bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(
-  Extent num_blocks,
-  cuda_thread_scope<Scope>,
-  Policy const& policy,
-  Allocator const& alloc,
-  cuda::stream_ref stream)
+__host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(Extent num_blocks,
+                                                                           cuda_thread_scope<Scope>,
+                                                                           Policy const& policy,
+                                                                           Allocator const& alloc,
+                                                                           cuda::stream_ref stream)
   : allocator_{alloc},
-    data_{allocator_.allocate(num_blocks, stream),
-          detail::custom_deleter<std::size_t, allocator_type>{num_blocks, allocator_, stream}},
+    data_{allocator_.allocate(static_cast<size_type>(num_blocks), stream),
+          detail::custom_deleter<std::size_t, allocator_type>{
+            static_cast<size_type>(num_blocks), allocator_, stream}},
     ref_{data_.get(), num_blocks, {}, policy}
 {
   this->clear_async(stream);
@@ -66,7 +66,7 @@ __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::add
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::add_async(
-  InputIt first, InputIt last, cuda::stream_ref stream)
+  InputIt first, InputIt last, cuda::stream_ref stream) noexcept
 {
   ref_.add_async(first, last, stream);
 }

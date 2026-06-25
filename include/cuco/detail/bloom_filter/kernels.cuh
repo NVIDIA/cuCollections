@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include <cuco/detail/__config>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utility/math.cuh>
 
@@ -27,30 +28,83 @@
 namespace cuco::detail::bloom_filter_ns {
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
-
-template <int32_t BlockSize, class InputIt, class Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void add(InputIt first,
-                                                  cuco::detail::index_type n,
-                                                  Ref ref)
+template <bool ConditionalAdd, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+__device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
 {
-  namespace cg = cooperative_groups;
+  namespace cg   = cooperative_groups;
+  using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  constexpr auto tile_size = cuco::detail::warp_size();
-
-  auto const tile_idx       = cuco::detail::global_thread_id() / tile_size;
-  auto const n_tiles        = gridDim.x * BlockSize / tile_size;
-  auto const items_per_tile = cuco::detail::int_div_ceil(n, n_tiles);
-
-  auto const tile_start = tile_idx * items_per_tile;
-  if (tile_start >= n) { return; }
-  auto const tile_stop = (tile_start + items_per_tile < n) ? tile_start + items_per_tile : n;
-
-  auto const tile = cg::tiled_partition<tile_size, cg::thread_block>(cg::this_thread_block());
-
-  ref.add(tile, first + tile_start, first + tile_stop);
+  if constexpr (CGSize > 1) {
+    auto const idx = cuco::detail::global_thread_id();
+    auto group     = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    auto const is_full_tile =
+      static_cast<cuco::detail::index_type>(blockIdx.x + 1) * BlockSize <= n;
+    if (is_full_tile) {
+      key_type const& key = *(first + idx);
+      ref.add_coop<ConditionalAdd>(group, key);
+    } else {
+      auto const is_valid = idx < n;
+      ref.add_coop<ConditionalAdd>(group, first, idx, is_valid);
+    }
+  } else {
+    auto const idx = cuco::detail::global_thread_id();
+    if (idx < n) {
+      key_type const& key = *(first + idx);
+      ref.add<ConditionalAdd>(key);
+    }
+  }
 }
 
-template <int32_t CGSize,
+template <bool ConditionalAdd, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void add_n(InputIt first,
+                                                    cuco::detail::index_type n,
+                                                    Ref ref)
+{
+  add_n_impl<ConditionalAdd, CGSize, BlockSize>(first, n, ref);
+}
+
+template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
+__device__ void contains_n_impl(InputIt first,
+                                cuco::detail::index_type n,
+                                OutputIt output_begin,
+                                Ref ref)
+{
+  namespace cg   = cooperative_groups;
+  using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
+
+  if constexpr (CGSize > 1) {
+    auto const idx = cuco::detail::global_thread_id();
+    auto group     = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    auto const is_full_tile =
+      static_cast<cuco::detail::index_type>(blockIdx.x + 1) * BlockSize <= n;
+    if (is_full_tile) {
+      key_type const& key   = *(first + idx);
+      *(output_begin + idx) = ref.contains_coop(group, key);
+    } else {
+      auto const is_valid = idx < n;
+      auto const result   = ref.contains_coop(group, first, idx, is_valid);
+      if (is_valid) { *(output_begin + idx) = result; }
+    }
+  } else {
+    auto const idx = cuco::detail::global_thread_id();
+    if (idx < n) {
+      key_type const& key   = *(first + idx);
+      *(output_begin + idx) = ref.contains(key);
+    }
+  }
+}
+
+template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_n(InputIt first,
+                                                         cuco::detail::index_type n,
+                                                         OutputIt output_begin,
+                                                         Ref ref)
+{
+  contains_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);
+}
+
+template <bool ConditionalAdd,
+          int32_t CGSize,
           int32_t BlockSize,
           class InputIt,
           class StencilIt,
@@ -59,21 +113,21 @@ template <int32_t CGSize,
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
-  namespace cg = cooperative_groups;
+  namespace cg   = cooperative_groups;
+  using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
-  auto idx               = cuco::detail::global_thread_id() / CGSize;
-
-  [[maybe_unused]] auto const tile =
-    cg::tiled_partition<CGSize, cg::thread_block>(cg::this_thread_block());
-
-  while (idx < n) {
-    if (pred(*(stencil + idx))) {
-      typename cuda::std::iterator_traits<InputIt>::value_type const& insert_element{
-        *(first + idx)};
-      ref.add(tile, insert_element);
+  if constexpr (CGSize > 1) {
+    auto const idx      = cuco::detail::global_thread_id();
+    auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    auto const in_range = idx < n;
+    auto const is_valid = in_range && pred(*(stencil + idx));
+    ref.template add_coop<ConditionalAdd>(group, first, idx, is_valid);
+  } else {
+    auto const idx = cuco::detail::global_thread_id();
+    if (idx < n && pred(*(stencil + idx))) {
+      key_type const& key = *(first + idx);
+      ref.template add<ConditionalAdd>(key);
     }
-    idx += loop_stride;
   }
 }
 
@@ -88,30 +142,28 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
                                                             cuco::detail::index_type n,
                                                             StencilIt stencil,
                                                             Predicate pred,
-                                                            OutputIt out,
+                                                            OutputIt output_begin,
                                                             Ref ref)
 {
-  namespace cg = cooperative_groups;
+  namespace cg   = cooperative_groups;
+  using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
-  auto idx               = cuco::detail::global_thread_id() / CGSize;
-
-  [[maybe_unused]] auto const tile =
-    cg::tiled_partition<CGSize, cg::thread_block>(cg::this_thread_block());
-
-  if constexpr (CGSize == 1) {
-    while (idx < n) {
-      typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-      *(out + idx) = pred(*(stencil + idx)) ? ref.contains(key) : false;
-      idx += loop_stride;
-    }
+  if constexpr (CGSize > 1) {
+    auto const idx      = cuco::detail::global_thread_id();
+    auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    auto const in_range = idx < n;
+    auto const is_valid = in_range && pred(*(stencil + idx));
+    auto const result   = ref.contains_coop(group, first, idx, is_valid);
+    if (in_range) { *(output_begin + idx) = is_valid ? result : false; }
   } else {
-    auto const tile = cg::tiled_partition<CGSize, cg::thread_block>(cg::this_thread_block());
-    while (idx < n) {
-      typename cuda::std::iterator_traits<InputIt>::value_type const& key = *(first + idx);
-      auto const found = pred(*(stencil + idx)) ? ref.contains(tile, key) : false;
-      if (tile.thread_rank() == 0) { *(out + idx) = found; }
-      idx += loop_stride;
+    auto const idx = cuco::detail::global_thread_id();
+    if (idx < n) {
+      if (pred(*(stencil + idx))) {
+        key_type const& key   = *(first + idx);
+        *(output_begin + idx) = ref.contains(key);
+      } else {
+        *(output_begin + idx) = false;
+      }
     }
   }
 }

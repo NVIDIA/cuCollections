@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,7 @@
 
 #pragma once
 
-#include <cuco/detail/bloom_filter/arrow_filter_policy.cuh>
-#include <cuco/detail/bloom_filter/default_filter_policy_impl.cuh>
+#include <cuco/detail/bloom_filter/parametric_filter_policy.cuh>
 #include <cuco/hash_functions.cuh>
 
 #include <cstdint>
@@ -25,110 +24,62 @@
 namespace cuco {
 
 /**
- * @brief A policy that defines how Arrow Block-Split Bloom Filter generates and stores a key's
- * fingerprint.
+ * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
  *
- * @tparam Key The type of the values to generate a fingerprint for.
- * @tparam XXHash64 Custom (64 bit) XXHash hasher to generate a key's fingerprint.
- * By default, cuco::xxhash_64 hasher will be used.
+ * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
+ * GPU Architectures" (arXiv:2512.15595).
  *
+ * Requires a 64-bit hash function: the result is split into upper 32 bits (block selection via
+ * multiply-shift) and lower 32 bits (pattern generation).
+ *
+ * @tparam Hash 64-bit hash functor.
+ * @tparam Word Underlying word type of a filter block.
+ * @tparam WordsPerBlock Words per filter block.
+ * @tparam PatternBits Fingerprint bits per key (paper's k).
+ * @tparam AddHorizontalLayout CG size for add (paper's Theta).
+ * @tparam AddVerticalLayout Words per thread per add step (paper's Phi).
+ * @tparam ContainsHorizontalLayout CG size for contains.
+ * @tparam ContainsVerticalLayout Words per thread per contains step.
+ * @tparam ConditionalAdd When `true`, `add` reads each word before the atomic OR and skips the
+ * write when the required bits are already set. Trades a read for fewer atomic writes; beneficial
+ * when the filter is highly contended (e.g. close to full) or the input has many duplicate keys.
+ * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
+ * first missing fingerprint slice. Beneficial when queried keys have a low match rate and filter
+ * contention is low.
  */
-template <typename Key, template <typename> class XXHash64 = cuco::xxhash_64>
-using arrow_filter_policy = detail::arrow_filter_policy<Key, XXHash64>;
+template <class Hash,
+          class Word,
+          std::uint32_t WordsPerBlock,
+          std::uint32_t PatternBits,
+          std::uint32_t AddHorizontalLayout,
+          std::uint32_t AddVerticalLayout,
+          std::uint32_t ContainsHorizontalLayout,
+          std::uint32_t ContainsVerticalLayout,
+          bool ConditionalAdd,
+          bool EarlyExitContains>
+using parametric_filter_policy = detail::parametric_filter_policy<Hash,
+                                                                  Word,
+                                                                  WordsPerBlock,
+                                                                  PatternBits,
+                                                                  AddHorizontalLayout,
+                                                                  AddVerticalLayout,
+                                                                  ContainsHorizontalLayout,
+                                                                  ContainsVerticalLayout,
+                                                                  ConditionalAdd,
+                                                                  EarlyExitContains>;
 
 /**
- * @brief The default policy that defines how a Blocked Bloom Filter generates and stores a key's
- * fingerprint.
+ * @brief Default Bloom filter policy used by `cuco::bloom_filter` when no policy is specified.
  *
- * @note `Word` type must be an atomically updatable integral type. `WordsPerBlock` must
- * be a power-of-two.
+ * Alias for a `parametric_filter_policy` instantiation with paper-recommended layouts on a 256-bit
+ * block: 8 x `uint32_t` words, 8 fingerprint bits per key, fully horizontal add (Theta=8) and fully
+ * vertical contains (Phi=8).
  *
- * @tparam Hash Hash function used to generate a key's fingerprint
- * @tparam Word Underlying word/segment type of a filter block
- * @tparam WordsPerBlock Number of words/segments in each block
+ * @tparam Key The key type to generate a fingerprint for.
+ * @tparam XXHash64 64-bit XXHash functor template. Defaults to `cuco::xxhash_64`.
  */
-template <class Hash, class Word, std::uint32_t WordsPerBlock>
-class default_filter_policy {
-  using impl_type = cuco::detail::default_filter_policy_impl<Hash, Word, WordsPerBlock>;
-
- public:
-  using hasher             = typename impl_type::hasher;              ///< Type of the hash function
-  using hash_argument_type = typename impl_type::hash_argument_type;  ///< Hash function input type
-  using hash_result_type   = typename impl_type::hash_result_type;    ///< hash function output type
-  using word_type =
-    typename impl_type::word_type;  ///< Underlying word/segment type of a filter block
-
-  static constexpr std::uint32_t words_per_block =
-    impl_type::words_per_block;  ///< Number of words/segments in each filter block
-
- public:
-  /**
-   * @brief Constructs the `default_filter_policy` object.
-   *
-   * @throws Compile-time error if the specified number of words in a filter block is not a
-   * power-of-two or is larger than 32. If called from host: throws exception; If called from
-   * device: Traps the kernel.
-   *
-   * @throws If the `hash_result_type` is too narrow to generate the requested number of
-   * `pattern_bits`. If called from host: throws exception; If called from device: Traps the kernel.
-   *
-   * @throws If `pattern_bits` is smaller than the number of words in a filter block or larger than
-   * the total number of bits in a filter block. If called from host: throws exception; If called
-   * from device: Traps the kernel.
-   *
-   * @param pattern_bits Number of bits in a key's fingerprint
-   * @param hash Hash function used to generate a key's fingerprint
-   */
-  __host__ __device__ constexpr default_filter_policy(std::uint32_t pattern_bits = words_per_block,
-                                                      Hash hash                  = {});
-
-  /**
-   * @brief Generates the hash value for a given key.
-   *
-   * @note This function is meant as a customization point and is only used in the internals of the
-   * `bloom_filter(_ref)` implementation.
-   *
-   * @param key The key to hash
-   *
-   * @return The hash value of the key
-   */
-  __device__ constexpr hash_result_type hash(hash_argument_type const& key) const;
-
-  /**
-   * @brief Determines the filter block a key is added into.
-   *
-   * @note This function is meant as a customization point and is only used in the internals of the
-   * `bloom_filter(_ref)` implementation.
-   *
-   * @tparam Extent Size type that is used to determine the number of blocks in the filter
-   *
-   * @param hash Hash value of the key
-   * @param num_blocks Number of block in the filter
-   *
-   * @return The block index for the given key's hash value
-   */
-  template <class Extent>
-  __device__ constexpr auto block_index(hash_result_type hash, Extent num_blocks) const;
-
-  /**
-   * @brief Determines the fingerprint pattern for a word/segment within the filter block for a
-   * given key's hash value.
-   *
-   * @note This function is meant as a customization point and is only used in the internals of the
-   * `bloom_filter(_ref)` implementation.
-   *
-   * @param hash Hash value of the key
-   * @param word_index Target word/segment within the filter block
-   *
-   * @return The bit pattern for the word/segment in the filter block
-   */
-  __device__ constexpr word_type word_pattern(hash_result_type hash,
-                                              std::uint32_t word_index) const;
-
- private:
-  impl_type impl_;  ///< Policy implementation
-};
+template <class Key, template <typename> class XXHash64 = cuco::xxhash_64>
+using default_filter_policy =
+  parametric_filter_policy<XXHash64<Key>, std::uint32_t, 8, 8, 8, 1, 1, 8, false, false>;
 
 }  // namespace cuco
-
-#include <cuco/detail/bloom_filter/default_filter_policy.inl>

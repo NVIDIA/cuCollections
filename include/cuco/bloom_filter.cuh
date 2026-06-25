@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,20 +36,31 @@
 namespace cuco {
 
 /**
- * @brief A GPU-accelerated Blocked Bloom Filter.
+ * @brief A GPU-accelerated Bloom filter.
  *
- * The `bloom_filter` supports two types of operations:
- * - Host-side "bulk" operations
- * - Device-side "singular" operations
+ * The `bloom_filter` supports two operation contexts:
+ * - Host-side bulk operations
+ * - Device-side operations via refs
  *
- * The host-side bulk operations include add(), contains(), etc. These APIs should be used when
- * there are a large number of keys to add or lookup. For example, given a range of keys
- * specified by device-accessible iterators, the bulk `add` function will add all keys into
+ * The host-side bulk operations include `add()`, `contains()`, etc. These APIs should be used when
+ * there are a large number of keys to add or lookup from host code. For example, given a range of
+ * keys specified by device-accessible iterators, the bulk `add` function will add all keys into
  * the filter.
  *
- * The singular device-side operations allow individual threads (or Cooperative Groups) to perform
- * independent add or lookup operations from device code. These operations are accessed through
- * non-owning, trivially copyable reference types (or "ref").
+ * Device-side operations are accessed through non-owning, trivially copyable reference types
+ * (or "ref"). Refs expose per-key `add`/`contains`, cooperative variants that take a Cooperative
+ * Group, and cooperative bulk variants over iterator ranges `[first, last)` for use inside user
+ * kernels.
+ *
+ * The implementation follows the Sectorized Bloom Filter (SBF) design from "Optimizing Bloom
+ * Filters for Modern GPU Architectures" (arXiv:2512.15595,
+ * https://arxiv.org/abs/2512.15595). The bit array is partitioned into fixed-size blocks, each
+ * consisting of several machine-word segments. One block is selected per key by hashing; the key's
+ * fingerprint bits are distributed evenly across the words of that block, confining all probes to
+ * a single block. Fingerprint positions are generated via branchless multiplicative hashing.
+ * Block size, the number of fingerprint bits, and separate horizontal/vertical vectorization
+ * layouts for bulk `add` and `contains` are configured by the `Policy` type (see
+ * `cuco/bloom_filter_policies.cuh`).
  *
  * @tparam Key Key type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
@@ -61,8 +72,8 @@ namespace cuco {
 template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Policy    = cuco::default_filter_policy<cuco::xxhash_64<Key>, std::uint32_t, 8>,
-          class Allocator = cuco::cuda_allocator<cuda::std::byte>>
+          class Policy             = cuco::default_filter_policy<Key>,
+          class Allocator          = cuco::cuda_allocator<cuda::std::byte>>
 class bloom_filter {
  public:
   /**
@@ -104,21 +115,17 @@ class bloom_filter {
   /**
    * @brief Constructs a statically-sized Bloom filter.
    *
-   * @note The total number of bits in the filter is determined by `words_per_block * num_blocks *
-   * sizeof(word_type) * CHAR_BIT`.
-   *
    * @param num_blocks Number of sub-filters or blocks
    * @param scope The scope in which operations will be performed
    * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
    * @param alloc Allocator used for allocating device-accessible storage
    * @param stream CUDA stream used to initialize the filter
    */
-  __host__ explicit constexpr bloom_filter(Extent num_blocks,
-                                           cuda_thread_scope<Scope> scope = {},
-                                           Policy const& policy           = {},
-                                           Allocator const& alloc         = {},
-                                           cuda::stream_ref stream        = cuda::stream_ref{
-                                             cudaStream_t{nullptr}});
+  __host__ explicit bloom_filter(Extent num_blocks,
+                                 cuda_thread_scope<Scope> scope = {},
+                                 Policy const& policy           = {},
+                                 Allocator const& alloc         = {},
+                                 cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
    * @brief Erases all information from the filter.
@@ -164,8 +171,10 @@ class bloom_filter {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt>
-  __host__ constexpr void add_async(
-    InputIt first, InputIt last, cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+  __host__ constexpr void add_async(InputIt first,
+                                    InputIt last,
+                                    cuda::stream_ref stream = cuda::stream_ref{
+                                      cudaStream_t{nullptr}}) noexcept;
 
   /**
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns
@@ -326,7 +335,7 @@ class bloom_filter {
                                               cudaStream_t{nullptr}}) const noexcept;
 
   /**
-   * @brief Merge another bloom filter into this.
+   * @brief Merge another bloom filter into `*this`.
    *
    * @note Modifies `this` in place.
    * @note This function synchronizes the given stream. For asynchronous execution use
@@ -346,7 +355,7 @@ class bloom_filter {
                                 cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
-   * @brief Asynchronously merge another bloom filter into this.
+   * @brief Asynchronously merge another bloom filter into `*this`.
    *
    * @note Modifies `this` in place.
    *
@@ -365,7 +374,7 @@ class bloom_filter {
     cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
-   * @brief Intersect another bloom filter into this.
+   * @brief Intersect another bloom filter into `*this`.
    *
    * @note Modifies `this` in place.
    * @note This function synchronizes the given stream. For asynchronous execution use
@@ -389,7 +398,7 @@ class bloom_filter {
     cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
-   * @brief Asynchronously intersect another bloom filter into this.
+   * @brief Asynchronously intersect another bloom filter into `*this`.
    *
    * @note Modifies `this` in place.
    *
