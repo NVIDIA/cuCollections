@@ -81,11 +81,10 @@ __global__ void robin_hood_invariant_kernel(Ref ref, int* violations)
       if (slot.first != empty_key) {  // tombstones count as residents (erase enabled => != empty)
         ++occupied_g;
         // A tombstone keeps its age in its payload; a live key's age is its probe distance.
-        auto const age =
-          (slot.first == erased_key)
-            ? static_cast<size_type>(slot.second)
-            : cuco::detail::robin_hood::probe_distance<bs>(
-                scheme, slot.first, static_cast<size_type>(g * stride + s), extent);
+        auto const age = (slot.first == erased_key)
+                           ? static_cast<size_type>(slot.second)
+                           : cuco::detail::robin_hood::probe_distance<bs>(
+                               scheme, slot.first, static_cast<size_type>(g * stride + s), extent);
         if (age > max_age_g) { max_age_g = age; }
       }
     }
@@ -97,11 +96,10 @@ __global__ void robin_hood_invariant_kernel(Ref ref, int* violations)
     for (int s = 0; s < stride; ++s) {
       auto const slot = slots[pg * stride + s];
       if (slot.first != empty_key) {
-        auto const age =
-          (slot.first == erased_key)
-            ? static_cast<size_type>(slot.second)
-            : cuco::detail::robin_hood::probe_distance<bs>(
-                scheme, slot.first, static_cast<size_type>(pg * stride + s), extent);
+        auto const age = (slot.first == erased_key)
+                           ? static_cast<size_type>(slot.second)
+                           : cuco::detail::robin_hood::probe_distance<bs>(
+                               scheme, slot.first, static_cast<size_type>(pg * stride + s), extent);
         if (occupied_p == 0 || age < min_age_p) { min_age_p = age; }
         ++occupied_p;
       }
@@ -155,7 +153,8 @@ __global__ void generate_cg_probe_distance_sequence(Key key,
 
     for (std::size_t i = 0; i < seq_length; ++i) {
       out_seq[i * cg_size + tile.thread_rank()] =
-        cuco::detail::robin_hood::probe_distance<BucketSize>(probing_scheme, key, *iter, upper_bound);
+        cuco::detail::robin_hood::probe_distance<BucketSize>(
+          probing_scheme, key, *iter, upper_bound);
       ++iter;
     }
   }
@@ -211,7 +210,7 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, int32_t, 1, 1),
   (int32_t, int32_t, 1, 2)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
-  ,
+    ,
   (int64_t, int64_t, 1, 1),
   (int64_t, int64_t, 1, 2)
 #endif
@@ -235,10 +234,8 @@ TEMPLATE_TEST_CASE_SIG(
                                        cuco::storage<BucketSize>>;
 
   // High load factor: size the table for ~95% occupancy so Robin Hood is exercised near-full.
-  auto map = map_type{extent_type{num_keys},
-                      0.95,
-                      cuco::empty_key<Key>{-1},
-                      cuco::empty_value<Value>{-1}};
+  auto map =
+    map_type{extent_type{num_keys}, 0.95, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
 
   auto keys_begin  = cuda::counting_iterator<Key>{0};
   auto pairs_begin = cuda::make_transform_iterator(

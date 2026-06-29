@@ -29,9 +29,10 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 // Disabled under the experimental hard-wired Robin Hood static_map.
-// insert_or_assign is excluded under Robin Hood: a value-only-atomic update races RH displacement; it needs a whole-slot-CAS update API (see stuff_to_raise_in_pr.md).
-// Re-enable (and trim slot types / probe scheme as needed) once Robin Hood support is generalized.
-// See robin_hood_refactor_plan.md.
+// insert_or_assign is excluded under Robin Hood: a value-only-atomic update races RH displacement;
+// it needs a whole-slot-CAS update API (see stuff_to_raise_in_pr.md). Re-enable (and trim slot
+// types / probe scheme as needed) once Robin Hood support is generalized. See
+// robin_hood_refactor_plan.md.
 //
 // using size_type = std::size_t;
 //

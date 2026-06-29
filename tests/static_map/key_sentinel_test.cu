@@ -41,7 +41,8 @@ TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests",
                        // slots. 16B packable slots (int64) need 128-bit atomics, so they sit under
                        // the #if.
                        (int32_t)
-#if defined(CUCO_HAS_128BIT_ATOMICS)  // int64/int64 is a 16B slot -> single-CAS only with 128-bit atomics
+#if defined(CUCO_HAS_128BIT_ATOMICS)  // int64/int64 is a 16B slot -> single-CAS only with 128-bit
+                                      // atomics
                          ,
                        (int64_t)
 // (__int128_t)

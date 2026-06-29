@@ -30,14 +30,15 @@
 #include <tuple>
 
 // Disabled under the experimental hard-wired Robin Hood static_map.
-// This test does a HETEROGENEOUS insert (InsertKey = key_pair<T>, but the stored Key = T), which the
-// Robin Hood engine cannot support as-is: (1) robin_hood_age re-hashes the STORED key (T), but this
-// test's custom_hasher only accepts the input key type (returns `k.a`) and rejects a plain T;
-// (2) the displacement victim-adoption uses cuda::std::bit_cast<decltype(val)>(slot), which requires
-// sizeof(in-flight insert value) == sizeof(slot), but pair<key_pair<T>, T> != pair<T, T>. The
-// pre-refactor code compiled this only because heterogeneous_lookup used double_hashing (the generic
-// path), never the Robin Hood engine. Re-enabling needs real RH heterogeneous-insert support
-// (native_value narrowing + a hasher accepting the stored key type). See stuff_to_raise_in_pr.md.
+// This test does a HETEROGENEOUS insert (InsertKey = key_pair<T>, but the stored Key = T), which
+// the Robin Hood engine cannot support as-is: (1) robin_hood_age re-hashes the STORED key (T), but
+// this test's custom_hasher only accepts the input key type (returns `k.a`) and rejects a plain T;
+// (2) the displacement victim-adoption uses cuda::std::bit_cast<decltype(val)>(slot), which
+// requires sizeof(in-flight insert value) == sizeof(slot), but pair<key_pair<T>, T> != pair<T, T>.
+// The pre-refactor code compiled this only because heterogeneous_lookup used double_hashing (the
+// generic path), never the Robin Hood engine. Re-enabling needs real RH heterogeneous-insert
+// support (native_value narrowing + a hasher accepting the stored key type). See
+// stuff_to_raise_in_pr.md.
 //
 // // insert key type
 // template <typename T>
@@ -50,7 +51,8 @@
 //
 //   // Device equality operator is mandatory due to libcudacxx bug:
 //   // https://github.com/NVIDIA/libcudacxx/issues/223
-//   __device__ bool operator==(key_pair const& other) const { return a == other.a and b == other.b; }
+//   __device__ bool operator==(key_pair const& other) const { return a == other.a and b == other.b;
+//   }
 //
 //   __device__ explicit operator T() const noexcept { return a; }
 // };
@@ -94,7 +96,8 @@
 // TEMPLATE_TEST_CASE_SIG("static_map heterogeneous lookup tests",
 //                        "",
 //                        ((typename T, int CGSize), T, CGSize),
-// #if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70 and
+// #if defined(CUCO_HAS_INDEPENDENT_THREADS)  // Key type larger than 8B only supported for sm_70
+// and
 //                                            // up
 //                        (int64_t, 1),
 //                        (int64_t, 2),

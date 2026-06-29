@@ -28,9 +28,9 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 // Disabled under the experimental hard-wired Robin Hood static_map.
-// insert_and_find is excluded under Robin Hood: its returned iterator can dangle once a later insert displaces the key (pointer instability).
-// Re-enable (and trim slot types / probe scheme as needed) once Robin Hood support is generalized.
-// See robin_hood_refactor_plan.md.
+// insert_and_find is excluded under Robin Hood: its returned iterator can dangle once a later
+// insert displaces the key (pointer instability). Re-enable (and trim slot types / probe scheme as
+// needed) once Robin Hood support is generalized. See robin_hood_refactor_plan.md.
 //
 // using size_type = std::size_t;
 //
@@ -107,6 +107,7 @@
 //
 //     // both found1 and found2 should be same, as keys will be referring to same slot
 //     REQUIRE(
-//       cuco::test::equal(found1.begin(), found1.end(), found2.begin(), cuda::std::equal_to<Key>{}));
+//       cuco::test::equal(found1.begin(), found1.end(), found2.begin(),
+//       cuda::std::equal_to<Key>{}));
 //   }
 // }

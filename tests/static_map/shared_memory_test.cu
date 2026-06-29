@@ -75,9 +75,10 @@ TEMPLATE_TEST_CASE_SIG("static_map shared memory tests",
                        // (int32/int64, int64/int32) and >16B slots. 16B packable slots
                        // (int64/int64) need 128-bit atomics, so they sit under the #if.
                        (int32_t, int32_t)
-                       // (int32_t, int64_t),
-                       // (int64_t, int32_t),
-#if defined(CUCO_HAS_128BIT_ATOMICS)  // int64/int64 is a 16B slot -> single-CAS only with 128-bit atomics
+// (int32_t, int64_t),
+// (int64_t, int32_t),
+#if defined(CUCO_HAS_128BIT_ATOMICS)  // int64/int64 is a 16B slot -> single-CAS only with 128-bit
+                                      // atomics
                          ,
                        (int64_t, int64_t)
 // (__int128_t, __int128_t)

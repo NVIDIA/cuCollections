@@ -118,9 +118,9 @@ TEMPLATE_TEST_CASE_SIG(
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
   //  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),  // padded 12B slot
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2)
-  //  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),  // padded 12B slot
-  //  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),  // padded 12B slot
-  //  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),  // padded 12B slot
+//  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),  // padded 12B slot
+//  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),  // padded 12B slot
+//  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),  // padded 12B slot
 #if defined(CUCO_HAS_128BIT_ATOMICS)
     ,
   (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
