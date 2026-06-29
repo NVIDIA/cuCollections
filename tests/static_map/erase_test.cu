@@ -87,27 +87,31 @@ TEMPLATE_TEST_CASE_SIG(
    Value,
    Probe,
    CGSize),
-  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  // Robin Hood is linear-probing + single-CAS only. Unsupported variants are kept commented for
+  // reference / easy re-enable: double_hashing (no RH probe_distance), padded >8B slots
+  // (int32/int64, int64/int32), and >16B slots. 16B packable slots (int64/int64) need 128-bit
+  // atomics, so they sit under the #if.
+  // (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  // (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  // (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  // (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  // (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  // (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  // (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  // (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+  // (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2)
+  // (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
+  // (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  // (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
 #if defined(CUCO_HAS_128BIT_ATOMICS)
-    ,
-  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
-  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+  ,
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+  // (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  // (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  // (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
 #endif
 )
 {

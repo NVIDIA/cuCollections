@@ -23,8 +23,9 @@
 
 TEST_CASE("static_map rehash test", "")
 {
-  using key_type    = int;
-  using mapped_type = long;
+  using key_type = int;
+  // int (not long): Robin Hood needs a single-CAS slot, and pair<int, long> is a padded 16B slot.
+  using mapped_type = int;
 
   constexpr std::size_t num_keys{400};
   constexpr std::size_t num_erased_keys{100};

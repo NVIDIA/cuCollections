@@ -31,7 +31,7 @@ using size_type = std::size_t;
 template <typename Key, typename Hash>
 void test_hash_function()
 {
-  using Value = int64_t;
+  using Value = Key;
 
   constexpr size_type num_keys{400};
 
@@ -63,15 +63,17 @@ void test_hash_function()
   REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 }
 
+// Robin Hood is linear-probing + single-CAS only; unsupported variants (double_hashing,
+// padded/oversized slots) are commented; 16B int64/int64 needs 128-bit atomics.
 TEMPLATE_TEST_CASE_SIG("static_map hash tests",
                        "",
                        ((typename Key)),
-                       (int32_t),
-                       (int64_t)
+                       (int32_t)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
                          ,
-                       (__int128_t)
+                       (int64_t)
 #endif
+                       //  (__int128_t)  // 32B slot: oversized for single-CAS Robin Hood
 )
 {
   test_hash_function<Key, cuco::murmurhash3_32<Key>>();

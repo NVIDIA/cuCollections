@@ -85,28 +85,30 @@ TEMPLATE_TEST_CASE_SIG(
    Value,
    Probe,
    CGSize),
-  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  // Robin Hood is linear-probing + single-CAS only; unsupported variants (double_hashing,
+  // padded/oversized slots) are commented; 16B int64/int64 needs 128-bit atomics.
+  //  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  //  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  //  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  //  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  //  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  //  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  //  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  //  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
   (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
+  //  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),  // padded 12B slot
+  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2)
+  //  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),  // padded 12B slot
+  //  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),  // padded 12B slot
+  //  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),  // padded 12B slot
 #if defined(CUCO_HAS_128BIT_ATOMICS)
     ,
-  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
-  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
 #endif
+  //  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),  // 32B slot
+  //  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),     // oversized slot
+  //  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)      // oversized slot
 )
 {
   constexpr size_type num_keys{100};
