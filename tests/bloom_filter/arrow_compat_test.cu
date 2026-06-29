@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,18 +14,23 @@
  * limitations under the License.
  */
 
+// Verifies that a `parametric_filter_policy` instantiation with Apache Arrow's Block-Split Bloom
+// Filter parameters (256-bit blocks of 8 x uint32_t, 8 fingerprint bits per key, fully horizontal
+// add, fully vertical contains) produces byte-identical bitsets to a precomputed Arrow reference.
+
 #include <test_utils.hpp>
 
 #include <cuco/bloom_filter.cuh>
 
 #include <cuda/functional>
 #include <thrust/device_vector.h>
-#include <thrust/functional.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
-#include <random>
+#include <numeric>
 #include <type_traits>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -73,11 +78,11 @@ thrust::device_vector<uint32_t> get_arrow_filter_reference_bitset()
   };
 
   if constexpr (std::is_same_v<Key, int32_t>) {
-    return reference_bitsets[0];  // int32
+    return reference_bitsets[0];
   } else if constexpr (std::is_same_v<Key, int64_t>) {
-    return reference_bitsets[1];  // int64
+    return reference_bitsets[1];
   } else if constexpr (std::is_same_v<Key, float>) {
-    return reference_bitsets[2];  // float
+    return reference_bitsets[2];
   } else {
     throw std::invalid_argument("Reference bitsets available for int32, int64, float only.\n\n");
   }
@@ -93,11 +98,11 @@ std::pair<size_t, size_t> get_arrow_filter_test_settings()
   };
 
   if constexpr (std::is_same_v<Key, int32_t>) {
-    return test_settings[0];  // int32
+    return test_settings[0];
   } else if constexpr (std::is_same_v<Key, int64_t>) {
-    return test_settings[1];  // int64
+    return test_settings[1];
   } else if constexpr (std::is_same_v<Key, float>) {
-    return test_settings[2];  // float
+    return test_settings[2];
   } else {
     throw std::invalid_argument("Test settings available for int32, int64, float only.\n\n");
   }
@@ -119,20 +124,14 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
   using key_type  = typename Filter::key_type;
   using word_type = typename Filter::word_type;
 
-  // Generate keys
   auto const h_keys = sequence_values<key_type>(num_keys);
   thrust::device_vector<key_type> d_keys(h_keys.begin(), h_keys.end());
 
-  // Insert to the bloom filter
   filter.add(d_keys.begin(), d_keys.begin() + num_keys);
 
-  // Get reference words device_vector
   auto const reference_words = get_arrow_filter_reference_bitset<key_type>();
+  auto const num_words       = filter.block_extent() * filter.words_per_block;
 
-  // Number of words in the filter
-  auto const num_words = filter.block_extent() * filter.words_per_block;
-
-  // Get the bitset
   thrust::device_vector<word_type> filter_words(filter.data(), filter.data() + num_words);
 
   REQUIRE(cuco::test::equal(
@@ -144,17 +143,19 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
     })));
 }
 
-TEMPLATE_TEST_CASE_SIG("bloom_filter arrow filter policy bitset validation",
+TEMPLATE_TEST_CASE_SIG("bloom_filter arrow-compatible parametric policy bitset validation",
                        "",
                        (class Key),
                        (int32_t),
                        (int64_t),
                        (float))
 {
-  // Get test settings
   auto const [sub_filters, num_keys] = get_arrow_filter_test_settings<Key>();
 
-  using policy_type = cuco::arrow_filter_policy<Key>;
+  // Apache Arrow Block-Split Bloom Filter parameters: 256-bit blocks (8 x uint32_t), 8 fingerprint
+  // bits per key, fully horizontal add (Theta=8) and fully vertical contains (Phi=8).
+  using policy_type = cuco::
+    parametric_filter_policy<cuco::xxhash_64<Key>, std::uint32_t, 8, 8, 8, 1, 1, 8, false, false>;
   cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type> filter{
     sub_filters};
 

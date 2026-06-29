@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024-2025, NVIDIA CORPORATION.
+ * Copyright (c) 2024-2026, NVIDIA CORPORATION.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -178,8 +178,10 @@ class bloom_filter_ref {
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
   template <class InputIt>
-  __host__ constexpr void add_async(
-    InputIt first, InputIt last, cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+  __host__ constexpr void add_async(InputIt first,
+                                    InputIt last,
+                                    cuda::stream_ref stream = cuda::stream_ref{
+                                      cudaStream_t{nullptr}}) noexcept;
 
   /**
    * @brief Adds keys in the range `[first, last)` if `pred` of the corresponding `stencil` returns
@@ -265,10 +267,21 @@ class bloom_filter_ref {
   template <class CG, class ProbeKey>
   [[nodiscard]] __device__ bool contains(CG group, ProbeKey const& key) const;
 
-  // TODO
-  // template <class CG, class InputIt, class OutputIt>
-  // __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin)
-  // const;
+  /**
+   * @brief Device function that tests if all keys in the range `[first, last)` are present in the
+   * filter.
+   *
+   * @tparam CG Cooperative Group type
+   * @tparam InputIt Device-accessible random access input key iterator
+   * @tparam OutputIt Device-accessible output iterator assignable from `bool`
+   *
+   * @param group The Cooperative Group this operation is executed with
+   * @param first Beginning of the sequence of keys
+   * @param last End of the sequence of keys
+   * @param output_begin Beginning of the sequence of booleans for the presence of each key
+   */
+  template <class CG, class InputIt, class OutputIt>
+  __device__ void contains(CG group, InputIt first, InputIt last, OutputIt output_begin) const;
 
   /**
    * @brief Tests all keys in the range `[first, last)` if their fingerprints are present in the

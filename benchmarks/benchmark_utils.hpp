@@ -18,6 +18,7 @@
 
 #include <cuco/detail/__config>
 #include <cuco/detail/error.hpp>
+#include <cuco/hash_functions.cuh>
 #include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
@@ -65,7 +66,9 @@ struct lazy_discard {
   __device__ void device_dispatch(index_type index, value_type const& value) const
   {
     // pick some predicate that is always false, but depends on the runtime value
-    if (threadIdx.x > 2025 + *reinterpret_cast<char const*>(&value)) { *(it + index) = value; }
+    if (threadIdx.x > 2025 + *reinterpret_cast<char const*>(&value) + static_cast<int>(index)) {
+      *(it + index) = value;
+    }
   }
   __host__ __device__ void operator()(index_type index, value_type const& value) const
   {
@@ -93,6 +96,21 @@ NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::uniform,
 NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::gaussian,
                              "GAUSSIAN",
                              "distribution::gaussian");
+
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_64<char>, "xxhash_64", "cuco::xxhash_64");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_32<char>, "xxhash_32", "cuco::xxhash_32");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_32<char>,
+                             "murmurhash3_32",
+                             "cuco::murmurhash3_32");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x86_128<char>,
+                             "murmurhash3_x86_128",
+                             "cuco::murmurhash3_x86_128");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x64_128<char>,
+                             "murmurhash3_x64_128",
+                             "cuco::murmurhash3_x64_128");
+NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::identity_hash<char>,
+                             "identity_hash",
+                             "cuco::identity_hash");
 
 #if defined(CUCO_HAS_128BIT_ATOMICS)
 NVBENCH_DECLARE_TYPE_STRINGS(__int128_t, "I128", "__int128_t");
