@@ -1224,11 +1224,12 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator(), stream};
     counter.reset(stream);
 
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+    auto constexpr block_size  = cuco::detail::default_block_size();
+    auto constexpr grid_stride = 4;
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size, grid_stride, block_size);
 
-    detail::open_addressing_ns::count<IsOuter, cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-        first, num_keys, counter.data(), container_ref);
+    detail::open_addressing_ns::count<IsOuter, cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
   }
