@@ -49,8 +49,7 @@ namespace cuco::detail {
  * coalesced loads (default: fully vertical). `PatternBits` trades false-positive rate against
  * space.
  *
- * @tparam Hash 64-bit hash functor whose return type satisfies `is_same_v<hash_result_type,
- * uint64_t>`.
+ * @tparam Hash 64-bit hash functor whose call operator returns `uint64_t`.
  * @tparam Word Underlying word type of a filter block. Must be an atomically updatable integral.
  * @tparam WordsPerBlock Words per filter block. Must be a power of two and <= 32.
  * @tparam PatternBits Number of fingerprint bits (k in the paper).
@@ -80,12 +79,9 @@ template <class Hash,
           bool EarlyExitContains>
 class parametric_filter_policy {
  public:
-  using hasher             = Hash;                            ///< 64-bit hash functor type
-  using word_type          = Word;                            ///< Underlying filter-block word type
-  using hash_argument_type = typename hasher::argument_type;  ///< Hash function input type
-  using hash_result_type =
-    decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));  ///< Hash function
-                                                                           ///< output type
+  using hasher           = Hash;      ///< 64-bit hash functor type
+  using word_type        = Word;      ///< Underlying filter-block word type
+  using hash_result_type = uint64_t;  ///< Hash function output type
 
  private:
   static constexpr uint32_t max_salts                          = 64;
@@ -162,11 +158,6 @@ class parametric_filter_policy {
     static_assert(
       words_per_block % (contains_horizontal_layout * contains_vertical_layout) == 0,
       "contains_horizontal_layout * contains_vertical_layout must evenly divide words_per_block");
-    // The split_hash() design requires a 64-bit hash split into upper 32 bits (block selection
-    // via multiply-shift) and lower 32 bits (pattern generation via salt-based multiplicative
-    // hashing). This is a permanent design requirement, not a temporary limitation.
-    static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
-                  "parametric_filter_policy requires a 64-bit hash function");
   }
 
   /**
@@ -175,12 +166,20 @@ class parametric_filter_policy {
    * The upper half is used for block selection (via multiply-shift); the lower half drives the
    * per-word fingerprint pattern via salt-based multiplicative hashing.
    *
+   * @tparam Key Key type.
+   *
    * @param key Key to hash.
    *
    * @return `{upper 32 bits, lower 32 bits}` of the 64-bit hash.
    */
-  __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(hash_argument_type key) const
+  template <class Key>
+  __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(Key const& key) const
   {
+    // The split_hash() design requires a 64-bit hash split into upper 32 bits (block selection
+    // via multiply-shift) and lower 32 bits (pattern generation via salt-based multiplicative
+    // hashing). This is a permanent design requirement, not a temporary limitation.
+    static_assert(cuda::std::is_same_v<decltype(hash_(key)), hash_result_type>,
+                  "parametric_filter_policy requires a 64-bit hash function");
     auto const hash_value = hash_(key);
     return {static_cast<uint32_t>(hash_value >> 32), static_cast<uint32_t>(hash_value)};
   }
