@@ -158,7 +158,8 @@ ConfigureTest(BLOOM_FILTER_TEST
     bloom_filter/merge_intersect_test.cu
     bloom_filter/arrow_compat_test.cu
     bloom_filter/bulk_ref_equivalence_test.cu
-    bloom_filter/layout_equivalence_test.cu)
+    bloom_filter/layout_equivalence_test.cu
+    bloom_filter/persisting_l2_access_test.cu)
 
 ###################################################################################################
 # - roaring_bitmap ---------------------------------------------------------------------------------
