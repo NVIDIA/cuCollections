@@ -185,9 +185,7 @@ struct XXHash_32 {
   template <typename Extent>
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
-  {
-    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
-  }
+  { return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size); }
 
  private:
   // avalanche helper
@@ -402,9 +400,7 @@ struct XXHash_64 {
   template <typename Extent>
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
-  {
-    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
-  }
+  { return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size); }
 
  private:
   // avalanche helper

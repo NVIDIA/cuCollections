@@ -32,14 +32,10 @@ constexpr __host__ __device__ T load_chunk(U const* const data, Extent index) no
 
 constexpr __host__ __device__ cuda::std::uint32_t rotl32(cuda::std::uint32_t x,
                                                          cuda::std::int8_t r) noexcept
-{
-  return (x << r) | (x >> (32 - r));
-}
+{ return (x << r) | (x >> (32 - r)); }
 
 constexpr __host__ __device__ cuda::std::uint64_t rotl64(cuda::std::uint64_t x,
                                                          cuda::std::int8_t r) noexcept
-{
-  return (x << r) | (x >> (64 - r));
-}
+{ return (x << r) | (x >> (64 - r)); }
 
 };  // namespace cuco::detail

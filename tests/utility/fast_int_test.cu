@@ -34,9 +34,7 @@ TEMPLATE_TEST_CASE(
   cuco::utility::fast_int fast_value{value};
 
   SECTION("Should be explicitly convertible to the underlying integer type.")
-  {
-    REQUIRE(static_cast<TestType>(fast_value) == value);
-  }
+  { REQUIRE(static_cast<TestType>(fast_value) == value); }
 
   SECTION("Fast div/mod should produce correct result.")
   {

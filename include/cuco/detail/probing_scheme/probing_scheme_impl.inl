@@ -100,9 +100,7 @@ template <int32_t CGSize, typename Hash>
 template <typename NewHash>
 __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::rebind_hash_function(
   NewHash const& hash) const noexcept
-{
-  return linear_probing<cg_size, NewHash>{hash};
-}
+{ return linear_probing<cg_size, NewHash>{hash}; }
 
 template <int32_t CGSize, typename Hash>
 template <int32_t BucketSize, typename ProbeKey, typename Extent>
@@ -133,9 +131,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
 template <int32_t CGSize, typename Hash>
 __host__ __device__ constexpr linear_probing<CGSize, Hash>::hasher
 linear_probing<CGSize, Hash>::hash_function() const noexcept
-{
-  return hash_;
-}
+{ return hash_; }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
 __host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::double_hashing(
@@ -204,8 +200,6 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_it
 template <int32_t CGSize, typename Hash1, typename Hash2>
 __host__ __device__ constexpr double_hashing<CGSize, Hash1, Hash2>::hasher
 double_hashing<CGSize, Hash1, Hash2>::hash_function() const noexcept
-{
-  return {hash1_, hash2_};
-}
+{ return {hash1_, hash2_}; }
 
 }  // namespace cuco

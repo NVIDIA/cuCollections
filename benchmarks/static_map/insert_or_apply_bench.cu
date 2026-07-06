@@ -70,9 +70,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_insert_or_apply(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
-{
-  state.skip("Key should be the same type as Value.");
-}
+{ state.skip("Key should be the same type as Value."); }
 
 NVBENCH_BENCH_TYPES(static_map_insert_or_apply,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,

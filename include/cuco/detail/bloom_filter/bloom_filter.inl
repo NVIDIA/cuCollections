@@ -37,71 +37,53 @@ __host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(Exten
           detail::custom_deleter<std::size_t, allocator_type>{
             static_cast<size_type>(num_blocks), allocator_, stream}},
     ref_{data_.get(), num_blocks, {}, policy}
-{
-  this->clear_async(stream);
-}
+{ this->clear_async(stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::clear(
   cuda::stream_ref stream)
-{
-  ref_.clear(stream);
-}
+{ ref_.clear(stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::clear_async(
   cuda::stream_ref stream)
-{
-  ref_.clear_async(stream);
-}
+{ ref_.clear_async(stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::add(
   InputIt first, InputIt last, cuda::stream_ref stream)
-{
-  ref_.add(first, last, stream);
-}
+{ ref_.add(first, last, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::add_async(
   InputIt first, InputIt last, cuda::stream_ref stream) noexcept
-{
-  ref_.add_async(first, last, stream);
-}
+{ ref_.add_async(first, last, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt, class StencilIt, class Predicate>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::add_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
-{
-  ref_.add_if(first, last, stencil, pred, stream);
-}
+{ ref_.add_if(first, last, stencil, pred, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt, class StencilIt, class Predicate>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::add_if_async(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream) noexcept
-{
-  ref_.add_if_async(first, last, stencil, pred, stream);
-}
+{ ref_.add_if_async(first, last, stencil, pred, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt, class OutputIt>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::contains(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
-{
-  ref_.contains(first, last, output_begin, stream);
-}
+{ ref_.contains(first, last, output_begin, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt, class OutputIt>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::contains_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const noexcept
-{
-  ref_.contains_async(first, last, output_begin, stream);
-}
+{ ref_.contains_async(first, last, output_begin, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt, class StencilIt, class Predicate, class OutputIt>
@@ -112,9 +94,7 @@ __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::con
   Predicate pred,
   OutputIt output_begin,
   cuda::stream_ref stream) const
-{
-  ref_.contains_if(first, last, stencil, pred, output_begin, stream);
-}
+{ ref_.contains_if(first, last, stencil, pred, output_begin, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class InputIt, class StencilIt, class Predicate, class OutputIt>
@@ -125,76 +105,56 @@ __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::con
   Predicate pred,
   OutputIt output_begin,
   cuda::stream_ref stream) const noexcept
-{
-  ref_.contains_if_async(first, last, stencil, pred, output_begin, stream);
-}
+{ ref_.contains_if_async(first, last, stencil, pred, output_begin, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::merge(
   bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other, cuda::stream_ref stream)
-{
-  ref_.merge(other.ref_, stream);
-}
+{ ref_.merge(other.ref_, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::merge_async(
   bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other, cuda::stream_ref stream)
-{
-  ref_.merge_async(other.ref_, stream);
-}
+{ ref_.merge_async(other.ref_, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::intersect(
   bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other, cuda::stream_ref stream)
-{
-  ref_.intersect(other.ref_, stream);
-}
+{ ref_.intersect(other.ref_, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ constexpr void bloom_filter<Key, Extent, Scope, Policy, Allocator>::intersect_async(
   bloom_filter<Key, Extent, Scope, Policy, Allocator> const& other, cuda::stream_ref stream)
-{
-  ref_.intersect_async(other.ref_, stream);
-}
+{ ref_.intersect_async(other.ref_, stream); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
   typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::word_type*
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::data() noexcept
-{
-  return ref_.data();
-}
+{ return ref_.data(); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
   typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::word_type const*
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::data() const noexcept
-{
-  return ref_.data();
-}
+{ return ref_.data(); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
   typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::extent_type
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::block_extent() const noexcept
-{
-  return ref_.block_extent();
-}
+{ return ref_.block_extent(); }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
   typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::allocator_type
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::allocator() const noexcept
-{
-  return allocator_;
-}
+{ return allocator_; }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr
   typename bloom_filter<Key, Extent, Scope, Policy, Allocator>::template ref_type<>
   bloom_filter<Key, Extent, Scope, Policy, Allocator>::ref() const noexcept
-{
-  return ref_;
-}
+{ return ref_; }
 
 }  // namespace cuco

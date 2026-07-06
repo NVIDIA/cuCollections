@@ -492,9 +492,7 @@ class hyperloglog_impl {
    * @return The hash function
    */
   [[nodiscard]] __host__ __device__ constexpr auto hash_function() const noexcept
-  {
-    return this->hash_;
-  }
+  { return this->hash_; }
 
   /**
    * @brief Gets the span of the sketch.
@@ -514,9 +512,7 @@ class hyperloglog_impl {
    * @return The number of bytes required for the sketch
    */
   [[nodiscard]] __host__ __device__ constexpr size_t sketch_bytes() const noexcept
-  {
-    return (1ull << this->precision_) * sizeof(register_type);
-  }
+  { return (1ull << this->precision_) * sizeof(register_type); }
 
   /**
    * @brief Gets the number of bytes required for the sketch storage.
@@ -581,9 +577,7 @@ class hyperloglog_impl {
    * @return The required alignment
    */
   [[nodiscard]] __host__ __device__ static constexpr cuda::std::size_t sketch_alignment() noexcept
-  {
-    return cuda::std::size_t{alignof(register_type)};
-  }
+  { return cuda::std::size_t{alignof(register_type)}; }
 
  private:
   /**

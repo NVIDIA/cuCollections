@@ -134,9 +134,9 @@ TEMPLATE_TEST_CASE_SIG(
   // XXX: testing static extent is intended, DO NOT CHANGE
   using extent_type = cuco::extent<size_type, num_keys>;
   using probe       = std::conditional_t<
-          Probe == cuco::test::probe_sequence::linear_probing,
-          cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-          cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
   auto map = cuco::static_map<Key,
                               Value,

@@ -31,9 +31,7 @@
 struct custom_key_eq {
   template <typename T>
   __device__ bool operator()(T const& lhs, T const& rhs) const
-  {
-    return lhs % 2 == 0 ? lhs == rhs : false;
-  }
+  { return lhs % 2 == 0 ? lhs == rhs : false; }
 };
 
 template <typename Map>
@@ -65,11 +63,11 @@ void test_retrieve(Map& map, std::size_t num_items)
     REQUIRE(num == num_gold);
 
     auto [_, output_end]   = map.retrieve(keys_begin,
-                                        keys_begin + num_items,
-                                        custom_key_eq{},
-                                        map.hash_function(),
-                                        cuda::discard_iterator{},
-                                        output_begin);
+                                          keys_begin + num_items,
+                                          custom_key_eq{},
+                                          map.hash_function(),
+                                          cuda::discard_iterator{},
+                                          output_begin);
     std::size_t const size = cuda::std::distance(output_begin, output_end);
 
     REQUIRE(size == num_gold);

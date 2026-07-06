@@ -45,17 +45,13 @@ struct custom_hash {
   __host__ __device__ custom_hash([[maybe_unused]] int i) {}
   template <typename custom_type>
   __device__ custom_type operator()(custom_type k) const
-  {
-    return k / XXX;
-  };
+  { return k / XXX; };
 };
 
 struct custom_key_eq {
   template <typename lhs_type, typename rhs_type>
   __device__ bool operator()(lhs_type lhs, rhs_type rhs) const
-  {
-    return lhs / XXX == rhs;
-  }
+  { return lhs / XXX == rhs; }
 };
 
 template <typename Set>

@@ -64,9 +64,7 @@ class cuda_allocator {
    * @param stream The stream to order the deallocation on
    */
   void deallocate(value_type* p, std::size_t, cuda::stream_ref stream)
-  {
-    CUCO_CUDA_TRY(cudaFreeAsync(p, stream.get()));
-  }
+  { CUCO_CUDA_TRY(cudaFreeAsync(p, stream.get())); }
 };
 
 /**
@@ -79,9 +77,7 @@ class cuda_allocator {
  */
 template <typename T, typename U>
 bool operator==(cuda_allocator<T> const&, cuda_allocator<U> const&) noexcept
-{
-  return true;
-}
+{ return true; }
 
 /**
  * @brief Inequality comparison operator.
@@ -96,8 +92,6 @@ bool operator==(cuda_allocator<T> const&, cuda_allocator<U> const&) noexcept
  */
 template <typename T, typename U>
 bool operator!=(cuda_allocator<T> const& lhs, cuda_allocator<U> const& rhs) noexcept
-{
-  return not(lhs == rhs);
-}
+{ return not(lhs == rhs); }
 
 }  // namespace cuco

@@ -64,9 +64,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
       container_offsets_{metadata_.offsets_in_serialized_data
                            ? (bitmap + metadata_.container_offsets)
                            : reinterpret_cast<cuda::std::byte const*>(metadata_.computed_offsets)}
-  {
-    assert(metadata.valid);
-  }
+  { assert(metadata.valid); }
 
   /**
    * @brief Constructs a storage reference from bitmap data
@@ -107,9 +105,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
    * @return Pointer to the run container bitmap data
    */
   __host__ __device__ cuda::std::byte const* run_container_bitmap() const noexcept
-  {
-    return run_container_bitmap_;
-  }
+  { return run_container_bitmap_; }
 
   /**
    * @brief Returns pointer to the key cardinalities data
@@ -124,9 +120,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
    * @return Pointer to the container offsets data
    */
   __host__ __device__ cuda::std::byte const* container_offsets() const noexcept
-  {
-    return container_offsets_;
-  }
+  { return container_offsets_; }
 
  private:
   metadata_type metadata_;
@@ -192,9 +186,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint64_t> {
   __host__ __device__
     cuda::std::pair<cuda::std::uint32_t, roaring_bitmap_storage_ref<cuda::std::uint32_t>>*
     buckets() const noexcept
-  {
-    return buckets_;
-  }
+  { return buckets_; }
 
  private:
   metadata_type metadata_;

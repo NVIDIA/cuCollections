@@ -43,9 +43,7 @@ __host__ void roaring_bitmap_ref<T>::contains(InputIt first,
                                               InputIt last,
                                               OutputIt output,
                                               cuda::stream_ref stream) const
-{
-  impl_.contains(first, last, output, stream);
-}
+{ impl_.contains(first, last, output, stream); }
 
 template <class T>
 template <class InputIt, class OutputIt>
@@ -53,38 +51,26 @@ __host__ void roaring_bitmap_ref<T>::contains_async(InputIt first,
                                                     InputIt last,
                                                     OutputIt output,
                                                     cuda::stream_ref stream) const noexcept
-{
-  impl_.contains_async(first, last, output, stream);
-}
+{ impl_.contains_async(first, last, output, stream); }
 
 template <class T>
 __device__ bool roaring_bitmap_ref<T>::contains(T value) const
-{
-  return impl_.contains(value);
-}
+{ return impl_.contains(value); }
 
 template <class T>
 __host__ __device__ cuda::std::size_t roaring_bitmap_ref<T>::size() const noexcept
-{
-  return impl_.size();
-}
+{ return impl_.size(); }
 
 template <class T>
 __host__ __device__ bool roaring_bitmap_ref<T>::empty() const noexcept
-{
-  return impl_.empty();
-}
+{ return impl_.empty(); }
 
 template <class T>
 __host__ __device__ cuda::std::byte const* roaring_bitmap_ref<T>::data() const noexcept
-{
-  return impl_.data();
-}
+{ return impl_.data(); }
 
 template <class T>
 __host__ __device__ cuda::std::size_t roaring_bitmap_ref<T>::size_bytes() const noexcept
-{
-  return impl_.size_bytes();
-}
+{ return impl_.size_bytes(); }
 
 }  // namespace cuco::experimental

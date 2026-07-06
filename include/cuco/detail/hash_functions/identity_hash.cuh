@@ -48,9 +48,7 @@ struct identity_hash : private cuda::std::identity {
    * @return A resulting hash value for `x`
    */
   __host__ __device__ result_type operator()(Key const& x) const
-  {
-    return static_cast<result_type>(cuda::std::identity::operator()(x));
-  }
+  { return static_cast<result_type>(cuda::std::identity::operator()(x)); }
 };  // identity_hash
 
 }  //  namespace cuco::detail

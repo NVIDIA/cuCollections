@@ -119,9 +119,7 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   Operators...>::key_equal
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::key_eq()
   const noexcept
-{
-  return impl_.key_eq();
-}
+{ return impl_.key_eq(); }
 
 template <typename Key,
           typename T,
@@ -139,9 +137,7 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   Operators...>::hasher
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   hash_function() const noexcept
-{
-  return impl_.hash_function();
-}
+{ return impl_.hash_function(); }
 
 template <typename Key,
           typename T,
@@ -159,9 +155,7 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   Operators...>::const_iterator
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::end()
   const noexcept
-{
-  return impl_.end();
-}
+{ return impl_.end(); }
 
 template <typename Key,
           typename T,
@@ -179,9 +173,7 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   Operators...>::iterator
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   end() noexcept
-{
-  return this->impl_.end();
-}
+{ return this->impl_.end(); }
 
 template <typename Key,
           typename T,
@@ -193,9 +185,7 @@ template <typename Key,
 __host__ __device__ constexpr auto
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::capacity()
   const noexcept
-{
-  return impl_.capacity();
-}
+{ return impl_.capacity(); }
 
 template <typename Key,
           typename T,
@@ -207,9 +197,7 @@ template <typename Key,
 __host__ __device__ constexpr auto
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::storage_ref()
   const noexcept
-{
-  return this->impl_.storage_ref();
-}
+{ return this->impl_.storage_ref(); }
 
 template <typename Key,
           typename T,
@@ -221,9 +209,7 @@ template <typename Key,
 __host__ __device__ constexpr auto
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   probing_scheme() const noexcept
-{
-  return this->impl_.probing_scheme();
-}
+{ return this->impl_.probing_scheme(); }
 
 template <typename Key,
           typename T,
@@ -241,9 +227,7 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   Operators...>::extent_type
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::extent()
   const noexcept
-{
-  return impl_.extent();
-}
+{ return impl_.extent(); }
 
 template <typename Key,
           typename T,
@@ -261,9 +245,7 @@ __host__ __device__ constexpr static_multimap_ref<Key,
                                                   Operators...>::extent_type
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   bucket_extent() const noexcept
-{
-  return this->extent();
-}
+{ return this->extent(); }
 
 template <typename Key,
           typename T,
@@ -275,9 +257,7 @@ template <typename Key,
 __host__ __device__ constexpr Key
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   empty_key_sentinel() const noexcept
-{
-  return impl_.empty_key_sentinel();
-}
+{ return impl_.empty_key_sentinel(); }
 
 template <typename Key,
           typename T,
@@ -289,9 +269,7 @@ template <typename Key,
 __host__ __device__ constexpr T
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   empty_value_sentinel() const noexcept
-{
-  return impl_.empty_value_sentinel();
-}
+{ return impl_.empty_value_sentinel(); }
 
 template <typename Key,
           typename T,
@@ -303,9 +281,7 @@ template <typename Key,
 __host__ __device__ constexpr Key
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::
   erased_key_sentinel() const noexcept
-{
-  return impl_.erased_key_sentinel();
-}
+{ return impl_.erased_key_sentinel(); }
 
 template <typename Key,
           typename T,
@@ -415,9 +391,7 @@ template <typename CG>
 __device__ constexpr void
 static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::initialize(
   CG tile) noexcept
-{
-  impl_.initialize(tile);
-}
+{ impl_.initialize(tile); }
 
 namespace detail {
 

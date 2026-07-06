@@ -184,14 +184,10 @@ class bloom_filter_impl {
   [[nodiscard]] __host__ __device__ constexpr word_type* data() noexcept { return words_; }
 
   [[nodiscard]] __host__ __device__ constexpr word_type const* data() const noexcept
-  {
-    return words_;
-  }
+  { return words_; }
 
   [[nodiscard]] __host__ __device__ constexpr extent_type block_extent() const noexcept
-  {
-    return num_blocks_;
-  }
+  { return num_blocks_; }
 
   template <bool ConditionalAdd = conditional_add, class BuildKey>
   __device__ void add(BuildKey build_key)

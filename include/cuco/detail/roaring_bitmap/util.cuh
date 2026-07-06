@@ -31,9 +31,7 @@ namespace cuco::experimental::detail {
 
 template <class T>
 __host__ __device__ __forceinline__ T aligned_load(cuda::std::byte const* ptr)
-{
-  return *reinterpret_cast<T const*>(cuda::std::assume_aligned<alignof(T)>(ptr));
-}
+{ return *reinterpret_cast<T const*>(cuda::std::assume_aligned<alignof(T)>(ptr)); }
 
 template <class T>
 __host__ __device__ __forceinline__ T misaligned_load(cuda::std::byte const* ptr)

@@ -45,9 +45,7 @@ struct large_key {
 
 template <typename T>
 constexpr __host__ __device__ void hash_result_aggregate(T& agg, T hash_val)
-{
-  agg += hash_val;
-}
+{ agg += hash_val; }
 
 template <>
 constexpr __host__ __device__ void hash_result_aggregate(cuda::std::array<uint64_t, 2>& agg,

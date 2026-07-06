@@ -59,9 +59,7 @@ template <bool ConditionalAdd, int32_t CGSize, int32_t BlockSize, class InputIt,
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_n(InputIt first,
                                                     cuco::detail::index_type n,
                                                     Ref ref)
-{
-  add_n_impl<ConditionalAdd, CGSize, BlockSize>(first, n, ref);
-}
+{ add_n_impl<ConditionalAdd, CGSize, BlockSize>(first, n, ref); }
 
 template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
 __device__ void contains_n_impl(InputIt first,
@@ -99,9 +97,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_n(InputIt first,
                                                          cuco::detail::index_type n,
                                                          OutputIt output_begin,
                                                          Ref ref)
-{
-  contains_n_impl<CGSize, BlockSize>(first, n, output_begin, ref);
-}
+{ contains_n_impl<CGSize, BlockSize>(first, n, output_begin, ref); }
 
 template <bool ConditionalAdd,
           int32_t CGSize,

@@ -43,25 +43,19 @@ __host__ __device__ inline int cuda_memcmp(void const* __lhs, void const* __rhs,
 template <std::size_t TypeSize>
 struct bitwise_compare_impl {
   __host__ __device__ static bool compare(char const* lhs, char const* rhs)
-  {
-    return cuda_memcmp(lhs, rhs, TypeSize) == 0;
-  }
+  { return cuda_memcmp(lhs, rhs, TypeSize) == 0; }
 };
 
 template <>
 struct bitwise_compare_impl<4> {
   __host__ __device__ inline static bool compare(char const* lhs, char const* rhs)
-  {
-    return *reinterpret_cast<uint32_t const*>(lhs) == *reinterpret_cast<uint32_t const*>(rhs);
-  }
+  { return *reinterpret_cast<uint32_t const*>(lhs) == *reinterpret_cast<uint32_t const*>(rhs); }
 };
 
 template <>
 struct bitwise_compare_impl<8> {
   __host__ __device__ inline static bool compare(char const* lhs, char const* rhs)
-  {
-    return *reinterpret_cast<uint64_t const*>(lhs) == *reinterpret_cast<uint64_t const*>(rhs);
-  }
+  { return *reinterpret_cast<uint64_t const*>(lhs) == *reinterpret_cast<uint64_t const*>(rhs); }
 };
 
 #ifdef CUCO_HAS_INT128

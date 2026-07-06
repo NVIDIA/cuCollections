@@ -70,16 +70,16 @@ void bloom_filter_add(nvbench::state& state,
     using hasher                              = cuco::xxhash_64<Key>;
     auto constexpr contains_vertical_layout   = words_per_block;
     auto constexpr contains_horizontal_layout = 1;
-    using policy_type                         = cuco::parametric_filter_policy<hasher,
-                                                                               Word,
-                                                                               words_per_block,
-                                                                               PatternBits,
-                                                                               HorizontalLayout,
-                                                                               VerticalLayout,
-                                                                               contains_horizontal_layout,
-                                                                               contains_vertical_layout,
-                                                                               false,
-                                                                               false>;
+    using policy_type = cuco::parametric_filter_policy<hasher,
+                                                       Word,
+                                                       words_per_block,
+                                                       PatternBits,
+                                                       HorizontalLayout,
+                                                       VerticalLayout,
+                                                       contains_horizontal_layout,
+                                                       contains_vertical_layout,
+                                                       false,
+                                                       false>;
     using filter_type =
       cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
 

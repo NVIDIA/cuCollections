@@ -49,9 +49,7 @@ struct rank {
    * @return The base rank
    */
   __host__ __device__ constexpr uint64_t base() const noexcept
-  {
-    return (static_cast<uint64_t>(base_hi_) << CHAR_BIT) | base_lo_;
-  }
+  { return (static_cast<uint64_t>(base_hi_) << CHAR_BIT) | base_lo_; }
 
   /**
    * @brief Sets base rank of current 256-bit interval

@@ -26,139 +26,101 @@ __host__ __device__ constexpr hyperloglog_ref<T, Scope, Hash>::hyperloglog_ref(
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class CG>
 __device__ constexpr void hyperloglog_ref<T, Scope, Hash>::clear(CG group) noexcept
-{
-  impl_.clear(group);
-}
+{ impl_.clear(group); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::clear_async(
   cuda::stream_ref stream) noexcept
-{
-  impl_.clear_async(stream);
-}
+{ impl_.clear_async(stream); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::clear(cuda::stream_ref stream)
-{
-  impl_.clear(stream);
-}
+{ impl_.clear(stream); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __device__ constexpr void hyperloglog_ref<T, Scope, Hash>::add(T const& item) noexcept
-{
-  impl_.add(item);
-}
+{ impl_.add(item); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class InputIt>
 __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::add_async(InputIt first,
                                                                    InputIt last,
                                                                    cuda::stream_ref stream)
-{
-  impl_.add_async(first, last, stream);
-}
+{ impl_.add_async(first, last, stream); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class InputIt>
 __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::add(InputIt first,
                                                              InputIt last,
                                                              cuda::stream_ref stream)
-{
-  impl_.add(first, last, stream);
-}
+{ impl_.add(first, last, stream); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class InputIt, class StencilIt, class Predicate>
 __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::add_if_async(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
-{
-  impl_.add_if_async(first, last, stencil, pred, stream);
-}
+{ impl_.add_if_async(first, last, stencil, pred, stream); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <class CG, cuda::thread_scope OtherScope>
 __device__ constexpr void hyperloglog_ref<T, Scope, Hash>::merge(
   CG group, hyperloglog_ref<T, OtherScope, Hash> const& other)
-{
-  impl_.merge(group, other.impl_);
-}
+{ impl_.merge(group, other.impl_); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <cuda::thread_scope OtherScope>
 __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::merge_async(
   hyperloglog_ref<T, OtherScope, Hash> const& other, cuda::stream_ref stream)
-{
-  impl_.merge_async(other.impl_, stream);
-}
+{ impl_.merge_async(other.impl_, stream); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 template <cuda::thread_scope OtherScope>
 __host__ constexpr void hyperloglog_ref<T, Scope, Hash>::merge(
   hyperloglog_ref<T, OtherScope, Hash> const& other, cuda::stream_ref stream)
-{
-  impl_.merge(other.impl_, stream);
-}
+{ impl_.merge(other.impl_, stream); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __device__ std::size_t hyperloglog_ref<T, Scope, Hash>::estimate(
   cooperative_groups::thread_block const& group) const noexcept
-{
-  return impl_.estimate(group);
-}
+{ return impl_.estimate(group); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ constexpr std::size_t hyperloglog_ref<T, Scope, Hash>::estimate(
   cuda::stream_ref stream) const
-{
-  return impl_.estimate(stream);
-}
+{ return impl_.estimate(stream); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr auto hyperloglog_ref<T, Scope, Hash>::hash_function() const noexcept
-{
-  return impl_.hash_function();
-}
+{ return impl_.hash_function(); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr cuda::std::span<cuda::std::byte>
 hyperloglog_ref<T, Scope, Hash>::sketch() const noexcept
-{
-  return impl_.sketch();
-}
+{ return impl_.sketch(); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr std::size_t hyperloglog_ref<T, Scope, Hash>::sketch_bytes()
   const noexcept
-{
-  return impl_.sketch_bytes();
-}
+{ return impl_.sketch_bytes(); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr std::size_t hyperloglog_ref<T, Scope, Hash>::sketch_bytes(
   cuco::sketch_size_kb sketch_size_kb) noexcept
-{
-  return impl_type::sketch_bytes(sketch_size_kb);
-}
+{ return impl_type::sketch_bytes(sketch_size_kb); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr std::size_t hyperloglog_ref<T, Scope, Hash>::sketch_bytes(
   cuco::standard_deviation standard_deviation) noexcept
-{
-  return impl_type::sketch_bytes(standard_deviation);
-}
+{ return impl_type::sketch_bytes(standard_deviation); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr std::size_t hyperloglog_ref<T, Scope, Hash>::sketch_bytes(
   cuco::precision precision) noexcept
-{
-  return impl_type::sketch_bytes(precision);
-}
+{ return impl_type::sketch_bytes(precision); }
 
 template <class T, cuda::thread_scope Scope, class Hash>
 __host__ __device__ constexpr std::size_t
 hyperloglog_ref<T, Scope, Hash>::sketch_alignment() noexcept
-{
-  return impl_type::sketch_alignment();
-}
+{ return impl_type::sketch_alignment(); }
 
 }  // namespace cuco

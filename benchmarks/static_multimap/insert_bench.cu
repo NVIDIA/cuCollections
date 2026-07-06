@@ -75,9 +75,7 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
 template <typename Key, typename Value, typename Dist>
 std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_multimap_insert(
   nvbench::state& state, nvbench::type_list<Key, Value, Dist>)
-{
-  state.skip("Key should be the same type as Value.");
-}
+{ state.skip("Key should be the same type as Value."); }
 
 NVBENCH_BENCH_TYPES(static_multimap_insert,
                     NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,

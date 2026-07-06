@@ -35,9 +35,7 @@ struct plus {
    */
   template <typename T, cuda::thread_scope Scope>
   __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, T const& val)
-  {
-    payload_ref.fetch_add(val, cuda::memory_order_relaxed);
-  }
+  { payload_ref.fetch_add(val, cuda::memory_order_relaxed); }
 };
 
 /**
@@ -56,9 +54,7 @@ struct max {
    */
   template <typename T, cuda::thread_scope Scope>
   __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, T const& val)
-  {
-    payload_ref.fetch_max(val, cuda::memory_order_relaxed);
-  }
+  { payload_ref.fetch_max(val, cuda::memory_order_relaxed); }
 };
 
 /**
@@ -77,9 +73,7 @@ struct min {
    */
   template <typename T, cuda::thread_scope Scope>
   __device__ void operator()(cuda::atomic_ref<T, Scope> payload_ref, T const& val)
-  {
-    payload_ref.fetch_min(val, cuda::memory_order_relaxed);
-  }
+  { payload_ref.fetch_min(val, cuda::memory_order_relaxed); }
 };
 
 }  // namespace cuco::reduce

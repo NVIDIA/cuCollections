@@ -52,14 +52,10 @@ using precision = detail::precision;
 }  // namespace cuco
 
 __host__ __device__ constexpr cuco::sketch_size_kb operator""_KB(long double value)
-{
-  return cuco::sketch_size_kb{static_cast<double>(value)};
-}
+{ return cuco::sketch_size_kb{static_cast<double>(value)}; }
 
 __host__ __device__ constexpr cuco::sketch_size_kb operator""_KB(unsigned long long int value)
-{
-  return cuco::sketch_size_kb{static_cast<double>(value)};
-}
+{ return cuco::sketch_size_kb{static_cast<double>(value)}; }
 
 namespace cuco {
 /**

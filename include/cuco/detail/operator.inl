@@ -49,9 +49,7 @@ class operator_impl {
  */
 template <typename Operator, typename... Operators>
 __host__ __device__ static constexpr bool has_operator()
-{
-  return ((std::is_same_v<Operators, Operator>) || ...);
-}
+{ return ((std::is_same_v<Operators, Operator>) || ...); }
 
 }  // namespace detail
 }  // namespace cuco

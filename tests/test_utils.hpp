@@ -75,9 +75,7 @@ bool any_of(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
 
 template <typename Iterator, typename Predicate>
 bool none_of(Iterator begin, Iterator end, Predicate p, cudaStream_t stream = 0)
-{
-  return not all_of(begin, end, p, stream);
-}
+{ return not all_of(begin, end, p, stream); }
 
 template <typename Iterator1, typename Iterator2, typename Predicate>
 bool equal(Iterator1 begin1, Iterator1 end1, Iterator2 begin2, Predicate p, cudaStream_t stream = 0)

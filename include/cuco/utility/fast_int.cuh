@@ -49,9 +49,7 @@ struct fast_int {
    * @param value Integer value
    */
   __host__ __device__ explicit constexpr fast_int(T value) noexcept : value_{value}
-  {
-    evaluate_magic_numbers();
-  }
+  { evaluate_magic_numbers(); }
 
   /**
    * @brief Get the underlying integer value.
@@ -108,9 +106,7 @@ struct fast_int {
    * @return Log2 of the unsigned integer
    */
   __host__ __device__ constexpr value_type log2(value_type v) const noexcept
-  {
-    return cuda::std::bit_width(unsigned_value_type(v)) - 1;
-  }
+  { return cuda::std::bit_width(unsigned_value_type(v)) - 1; }
 
   /**
    * @brief Computes the magic numbers for the fast division.
@@ -154,20 +150,14 @@ struct fast_int {
 
   template <typename Rhs>
   friend __host__ __device__ constexpr auto operator-(fast_int const& lhs, Rhs rhs) noexcept
-  {
-    return lhs.value() - rhs;
-  }
+  { return lhs.value() - rhs; }
 
   template <typename Rhs>
   friend __host__ __device__ constexpr auto operator/(fast_int const& lhs, Rhs rhs) noexcept
-  {
-    return lhs.value() / rhs;
-  }
+  { return lhs.value() / rhs; }
 
   template <typename Lhs>
   friend __host__ __device__ constexpr value_type operator%(Lhs lhs, fast_int const& rhs) noexcept
-  {
-    return lhs - (lhs / rhs) * rhs.value_;
-  }
+  { return lhs - (lhs / rhs) * rhs.value_; }
 };
 }  // namespace cuco::utility

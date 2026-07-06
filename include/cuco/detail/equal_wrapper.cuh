@@ -72,9 +72,7 @@ struct equal_wrapper {
    */
   template <typename LHS, typename RHS>
   __device__ constexpr equal_result equal_to(LHS const& lhs, RHS const& rhs) const noexcept
-  {
-    return equal_(lhs, rhs) ? equal_result::EQUAL : equal_result::UNEQUAL;
-  }
+  { return equal_(lhs, rhs) ? equal_result::EQUAL : equal_result::UNEQUAL; }
 
   /**
    * @brief Order-sensitive equality operator.

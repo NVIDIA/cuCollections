@@ -154,21 +154,15 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   }
 
   [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept
-  {
-    return storage_ref_.metadata().num_keys;
-  }
+  { return storage_ref_.metadata().num_keys; }
 
   [[nodiscard]] __host__ __device__ bool empty() const noexcept { return this->size() == 0; }
 
   [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept
-  {
-    return storage_ref_.data();
-  }
+  { return storage_ref_.data(); }
 
   [[nodiscard]] __host__ __device__ cuda::std::size_t size_bytes() const noexcept
-  {
-    return storage_ref_.metadata().size_bytes;
-  }
+  { return storage_ref_.metadata().size_bytes; }
 
   template <bool Aligned>
   __device__ bool contains_container(cuda::std::uint16_t lower, cuda::std::uint32_t index) const
@@ -249,9 +243,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
 
   __device__ bool contains_bitset_container(cuda::std::byte const* container,
                                             cuda::std::uint16_t lower) const
-  {
-    return check_bit(container, lower);
-  }
+  { return check_bit(container, lower); }
 
   template <bool Aligned>
   __device__ bool contains_run_container(cuda::std::byte const* container,
@@ -276,11 +268,11 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
       if constexpr (Aligned) {
         start = aligned_load<cuda::std::uint16_t>(start_ptr);
         end   = static_cast<cuda::std::uint32_t>(start) +
-              aligned_load<cuda::std::uint16_t>(start_ptr + sizeof(cuda::std::uint16_t));
+                aligned_load<cuda::std::uint16_t>(start_ptr + sizeof(cuda::std::uint16_t));
       } else {
         start = misaligned_load<cuda::std::uint16_t>(start_ptr);
         end   = static_cast<cuda::std::uint32_t>(start) +
-              misaligned_load<cuda::std::uint16_t>(start_ptr + sizeof(cuda::std::uint16_t));
+                misaligned_load<cuda::std::uint16_t>(start_ptr + sizeof(cuda::std::uint16_t));
       }
       if (start <= lower && end >= lower) { return true; }
       if (start > lower) { break; }
@@ -366,21 +358,15 @@ class roaring_bitmap_impl<cuda::std::uint64_t> {
   }
 
   [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept
-  {
-    return storage_ref_.metadata().num_keys;
-  }
+  { return storage_ref_.metadata().num_keys; }
 
   [[nodiscard]] __host__ __device__ bool empty() const noexcept { return this->size() == 0; }
 
   [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept
-  {
-    return storage_ref_.data();
-  }
+  { return storage_ref_.data(); }
 
   [[nodiscard]] __host__ __device__ cuda::std::size_t size_bytes() const noexcept
-  {
-    return storage_ref_.metadata().size_bytes;
-  }
+  { return storage_ref_.metadata().size_bytes; }
 
   storage_ref_type storage_ref_;
 };

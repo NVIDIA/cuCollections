@@ -62,23 +62,17 @@ struct valid_extent {
   template <typename Rhs>
   friend __host__ __device__ constexpr value_type operator-(valid_extent const& lhs,
                                                             Rhs rhs) noexcept
-  {
-    return lhs.value() - rhs;
-  }
+  { return lhs.value() - rhs; }
 
   template <typename Rhs>
   friend __host__ __device__ constexpr value_type operator/(valid_extent const& lhs,
                                                             Rhs rhs) noexcept
-  {
-    return lhs.value() / rhs;
-  }
+  { return lhs.value() / rhs; }
 
   template <typename Lhs>
   friend __host__ __device__ constexpr value_type operator%(Lhs lhs,
                                                             valid_extent const& rhs) noexcept
-  {
-    return lhs % rhs.value();
-  }
+  { return lhs % rhs.value(); }
 };
 
 template <typename SizeType>
@@ -130,9 +124,7 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 // Overload for SizeType without extent
 template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 [[nodiscard]] auto constexpr make_valid_extent(SizeType size)
-{
-  return make_valid_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size});
-}
+{ return make_valid_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size}); }
 
 // Implementation for ProbingScheme and Storage types
 template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>

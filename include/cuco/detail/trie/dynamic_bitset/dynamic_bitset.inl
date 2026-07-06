@@ -67,9 +67,7 @@ constexpr void dynamic_bitset<Allocator>::set(size_type index, bool bit) noexcep
 
 template <class Allocator>
 constexpr void dynamic_bitset<Allocator>::set_last(bool bit) noexcept
-{
-  set(n_bits_ - 1, bit);
-}
+{ set(n_bits_ - 1, bit); }
 
 template <class Allocator>
 template <typename KeyIt, typename OutputIt>
@@ -270,9 +268,7 @@ constexpr dynamic_bitset<Allocator>::ref_type dynamic_bitset<Allocator>::ref() c
 
 template <class Allocator>
 constexpr dynamic_bitset<Allocator>::size_type dynamic_bitset<Allocator>::size() const noexcept
-{
-  return n_bits_;
-}
+{ return n_bits_; }
 
 // Device reference implementations
 
@@ -285,16 +281,12 @@ __host__ __device__ constexpr dynamic_bitset<Allocator>::reference::reference(
 
 template <class Allocator>
 __device__ constexpr bool dynamic_bitset<Allocator>::reference::test(size_type key) const noexcept
-{
-  return (storage_.words_ref_[key / bits_per_word] >> (key % bits_per_word)) & 1UL;
-}
+{ return (storage_.words_ref_[key / bits_per_word] >> (key % bits_per_word)) & 1UL; }
 
 template <class Allocator>
 __device__ constexpr typename dynamic_bitset<Allocator>::word_type
 dynamic_bitset<Allocator>::reference::word(size_type word_id) const noexcept
-{
-  return storage_.words_ref_[word_id];
-}
+{ return storage_.words_ref_[word_id]; }
 
 template <class Allocator>
 __device__ typename dynamic_bitset<Allocator>::size_type

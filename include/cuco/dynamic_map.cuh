@@ -404,9 +404,7 @@ class dynamic_map {
    * @return The sentinel value used to represent an empty key slot
    */
   [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept
-  {
-    return submaps_.front()->empty_key_sentinel();
-  }
+  { return submaps_.front()->empty_key_sentinel(); }
 
   /**
    * @brief Gets the sentinel value used to represent an empty value slot.
@@ -414,9 +412,7 @@ class dynamic_map {
    * @return The sentinel value used to represent an empty value slot
    */
   [[nodiscard]] constexpr mapped_type empty_value_sentinel() const noexcept
-  {
-    return submaps_.front()->empty_value_sentinel();
-  }
+  { return submaps_.front()->empty_value_sentinel(); }
 
   /**
    * @brief Gets the sentinel value used to represent an erased key slot.
@@ -424,9 +420,7 @@ class dynamic_map {
    * @return The sentinel value used to represent an erased key slot
    */
   [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept
-  {
-    return submaps_.front()->erased_key_sentinel();
-  }
+  { return submaps_.front()->erased_key_sentinel(); }
 
   /**
    * @brief Gets the function used to compare keys for equality
@@ -441,9 +435,7 @@ class dynamic_map {
    * @return The function(s) used to hash keys
    */
   [[nodiscard]] constexpr hasher hash_function() const noexcept
-  {
-    return submaps_.front()->hash_function();
-  }
+  { return submaps_.front()->hash_function(); }
 
  private:
   size_type size_;      ///< Number of keys in the map

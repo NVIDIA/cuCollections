@@ -50,9 +50,7 @@ using index_type = cuda::std::int64_t;  ///< CUDA thread index type
  * @return The global thread index
  */
 [[nodiscard]] __device__ inline index_type global_thread_id() noexcept
-{
-  return index_type{threadIdx.x} + index_type{blockDim.x} * index_type{blockIdx.x};
-}
+{ return index_type{threadIdx.x} + index_type{blockDim.x} * index_type{blockIdx.x}; }
 
 /**
  * @brief Returns the grid stride of a 1D grid
@@ -60,9 +58,7 @@ using index_type = cuda::std::int64_t;  ///< CUDA thread index type
  * @return The grid stride
  */
 [[nodiscard]] __device__ inline index_type grid_stride() noexcept
-{
-  return index_type{gridDim.x} * index_type{blockDim.x};
-}
+{ return index_type{gridDim.x} * index_type{blockDim.x}; }
 
 /**
  * @brief Constexpr helper to extract the size of a Cooperative Group.

@@ -109,9 +109,9 @@ TEMPLATE_TEST_CASE_SIG(
 
   using extent_type = cuco::extent<std::size_t>;
   using probe       = std::conditional_t<
-          Probe == cuco::test::probe_sequence::linear_probing,
-          cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-          cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+    Probe == cuco::test::probe_sequence::linear_probing,
+    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
+    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
 
   auto map = cuco::static_multimap<Key,
                                    Value,

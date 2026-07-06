@@ -55,27 +55,21 @@ struct key_triplet {
   // Device equality operator is mandatory due to libcudacxx bug:
   // https://github.com/NVIDIA/libcudacxx/issues/223
   __device__ bool operator==(key_triplet const& other) const
-  {
-    return a == other.a and b == other.b and c == other.c;
-  }
+  { return a == other.a and b == other.b and c == other.c; }
 };
 
 // User-defined device hasher
 struct custom_hasher {
   template <typename CustomKey>
   __device__ uint32_t operator()(CustomKey const& k) const
-  {
-    return thrust::raw_reference_cast(k).a;
-  };
+  { return thrust::raw_reference_cast(k).a; };
 };
 
 // User-defined device key equality
 struct custom_key_equal {
   template <typename LHS, typename RHS>
   __device__ bool operator()(LHS const& lhs, RHS const& rhs) const
-  {
-    return thrust::raw_reference_cast(lhs).a == thrust::raw_reference_cast(rhs).a;
-  }
+  { return thrust::raw_reference_cast(lhs).a == thrust::raw_reference_cast(rhs).a; }
 };
 
 // TODO: extend with __int128_t once the multimap can handle slots larger than

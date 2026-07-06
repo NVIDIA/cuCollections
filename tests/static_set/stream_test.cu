@@ -55,13 +55,13 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
     constexpr std::size_t num_keys = (sizeof(Key) == 1)   ? 100
                                      : (sizeof(Key) == 2) ? 1'000
                                                           : 500'000;
-    auto set                       = cuco::static_set{num_keys * 2,
+    auto set = cuco::static_set{num_keys * 2,
                                 cuco::empty_key<Key>{static_cast<Key>(-1)},
-                                                      {},
+                                {},
                                 cuco::linear_probing<1, cuco::default_hash_function<Key>>{},
-                                                      {},
-                                                      {},
-                                                      {},
+                                {},
+                                {},
+                                {},
                                 constructor_stream};
 
     thrust::device_vector<Key> d_keys(num_keys);

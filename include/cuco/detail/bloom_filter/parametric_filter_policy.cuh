@@ -214,9 +214,7 @@ class parametric_filter_policy {
    */
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
-  {
-    return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
-  }
+  { return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value); }
 
   /**
    * @brief Generates the per-word fingerprint pattern for a key when the horizontal layout is > 1.

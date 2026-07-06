@@ -83,9 +83,7 @@ struct lazy_discard {
  */
 template <class OutputIt>
 auto make_lazy_discard_iterator(OutputIt it)
-{
-  return cuda::make_tabulate_output_iterator(lazy_discard<OutputIt>{it});
-}
+{ return cuda::make_tabulate_output_iterator(lazy_discard<OutputIt>{it}); }
 
 }  // namespace cuco::benchmark
 

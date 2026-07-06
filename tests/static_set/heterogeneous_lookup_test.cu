@@ -58,27 +58,21 @@ struct key_triplet {
   // Device equality operator is mandatory due to libcudacxx bug:
   // https://github.com/NVIDIA/libcudacxx/issues/223
   __device__ bool operator==(key_triplet const& other) const
-  {
-    return a == other.a and b == other.b and c == other.c;
-  }
+  { return a == other.a and b == other.b and c == other.c; }
 };
 
 // User-defined device hasher
 struct custom_hasher {
   template <typename CustomKey>
   __device__ uint32_t operator()(CustomKey const& k) const
-  {
-    return k.a;
-  };
+  { return k.a; };
 };
 
 // User-defined device key equality
 struct custom_key_equal {
   template <typename InsertKey, typename SlotKey>
   __device__ bool operator()(InsertKey const& lhs, SlotKey const& rhs) const
-  {
-    return lhs.a == rhs;
-  }
+  { return lhs.a == rhs; }
 };
 
 TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup tests",

@@ -31,9 +31,7 @@ namespace detail {
  */
 __device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda::std::uint32_t x,
                                                                            cuda::std::int32_t n)
-{
-  return __popc(x & (1 << n) - 1);
-}
+{ return __popc(x & (1 << n) - 1); }
 
 template <typename SizeType, typename HashType>
 __host__ __device__ constexpr SizeType to_positive(HashType hash)

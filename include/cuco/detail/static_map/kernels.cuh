@@ -207,11 +207,11 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_or_apply_shmem(
   block.sync();
 
   auto shared_map     = SharedMapRefType{cuco::empty_key<Key>{ref.empty_key_sentinel()},
-                                     cuco::empty_value<Value>{ref.empty_value_sentinel()},
-                                     ref.key_eq(),
-                                     ref.probing_scheme(),
+                                         cuco::empty_value<Value>{ref.empty_value_sentinel()},
+                                         ref.key_eq(),
+                                         ref.probing_scheme(),
                                          {},
-                                     storage};
+                                         storage};
   auto shared_map_ref = shared_map.rebind_operators(cuco::op::insert_or_apply);
   shared_map_ref.initialize(block);
   block.sync();

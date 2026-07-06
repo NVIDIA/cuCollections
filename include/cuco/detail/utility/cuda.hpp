@@ -41,9 +41,7 @@ constexpr auto grid_size(index_type num,
                          std::int32_t cg_size    = 1,
                          std::int32_t stride     = default_stride(),
                          std::int32_t block_size = default_block_size()) noexcept
-{
-  return (cg_size * num + stride * block_size - 1) / (stride * block_size);
-}
+{ return (cg_size * num + stride * block_size - 1) / (stride * block_size); }
 
 /**
  * @brief Computes the ideal 1D grid size with the given parameters

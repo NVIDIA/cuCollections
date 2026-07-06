@@ -84,9 +84,7 @@ class storage_base {
    * @return The total number of elements
    */
   [[nodiscard]] __host__ __device__ constexpr size_type capacity() const noexcept
-  {
-    return static_cast<size_type>(extent_);
-  }
+  { return static_cast<size_type>(extent_); }
 
   /**
    * @brief Gets the extent of the current storage.
@@ -94,9 +92,7 @@ class storage_base {
    * @return The extent.
    */
   [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept
-  {
-    return extent_;
-  }
+  { return extent_; }
 
  protected:
   extent_type extent_;  ///< Total number of elements

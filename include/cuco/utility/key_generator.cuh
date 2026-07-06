@@ -61,9 +61,7 @@ struct uniform : public cuco::detail::strong_type<int64_t> {
    * @param multiplicity Average key multiplicity of the distribution.
    */
   uniform(int64_t multiplicity) : cuco::detail::strong_type<int64_t>{multiplicity}
-  {
-    CUCO_EXPECTS(multiplicity > 0, "Multiplicity must be greater than 0");
-  }
+  { CUCO_EXPECTS(multiplicity > 0, "Multiplicity must be greater than 0"); }
 };
 
 /**
@@ -74,9 +72,7 @@ struct gaussian : public cuco::detail::strong_type<double> {
    * @param skew 0 represents a uniform distribution; &infin; represents a Dirac delta distribution.
    */
   gaussian(double skew) : cuco::detail::strong_type<double>{skew}
-  {
-    CUCO_EXPECTS(skew > 0, "Skew must be greater than 0");
-  }
+  { CUCO_EXPECTS(skew > 0, "Skew must be greater than 0"); }
 };
 
 }  // namespace distribution
@@ -344,9 +340,7 @@ class key_generator {
    */
   template <typename Dist, typename OutputIt>
   void generate(Dist dist, OutputIt out_begin, OutputIt out_end, cudaStream_t stream)
-  {
-    generate(dist, out_begin, out_end, thrust::cuda::par_nosync.on(stream));
-  }
+  { generate(dist, out_begin, out_end, thrust::cuda::par_nosync.on(stream)); }
 
   /**
    * @brief Randomly replaces previously generated keys with new keys outside the input

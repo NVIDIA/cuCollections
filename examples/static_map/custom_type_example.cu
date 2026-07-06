@@ -50,9 +50,7 @@ struct custom_hash {
 // User-defined device key equal callable
 struct custom_key_equal {
   __device__ bool operator()(custom_key_type const& lhs, custom_key_type const& rhs) const noexcept
-  {
-    return lhs.a == rhs.a;
-  }
+  { return lhs.a == rhs.a; }
 };
 
 int main(void)

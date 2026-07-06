@@ -109,9 +109,7 @@ struct MurmurHash3_fmix32 {
    * @return A resulting hash value for `key`
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
-  {
-    return fmix32(key, seed_);
-  }
+  { return fmix32(key, seed_); }
 
  private:
   std::uint32_t seed_;
@@ -141,9 +139,7 @@ struct MurmurHash3_fmix64 {
    * @return A resulting hash value for `key`
    */
   constexpr result_type __host__ __device__ operator()(Key const& key) const noexcept
-  {
-    return fmix64(key, seed_);
-  }
+  { return fmix64(key, seed_); }
 
  private:
   std::uint64_t seed_;
@@ -259,9 +255,7 @@ struct MurmurHash3_32 {
   template <typename Extent>
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
-  {
-    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
-  }
+  { return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size); }
 
  private:
   std::uint32_t seed_;
@@ -420,9 +414,7 @@ struct MurmurHash3_x64_128 {
   template <typename Extent>
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
-  {
-    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
-  }
+  { return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size); }
 
  private:
   std::uint64_t seed_;
@@ -635,9 +627,7 @@ struct MurmurHash3_x86_128 {
   template <typename Extent>
   constexpr result_type __host__ __device__ compute_hash(std::byte const* bytes,
                                                          Extent size) const noexcept
-  {
-    return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size);
-  }
+  { return this->compute_hash(reinterpret_cast<cuda::std::byte const*>(bytes), size); }
 
  private:
   std::uint32_t seed_;
