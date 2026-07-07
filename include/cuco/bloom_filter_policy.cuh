@@ -75,4 +75,49 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         ConditionalAdd,
                                                         EarlyExitContains>;
 
+/**
+ * @brief Deprecated compatibility alias for the old parametric Bloom filter policy API.
+ *
+ * Alias for the same policy type exposed by `bloom_filter_policy`, but with the template
+ * parameters from the old `parametric_filter_policy` API.
+ *
+ * @note This alias should not be used in new code and may be removed on short notice. Use
+ * `cuco::bloom_filter_policy` directly instead.
+ *
+ * @tparam Hash 64-bit hash functor type.
+ * @tparam Word Underlying word type of a filter block.
+ * @tparam WordsPerBlock Words per filter block.
+ * @tparam PatternBits Fingerprint bits per key (paper's k).
+ * @tparam AddHorizontalLayout CG size for add (paper's Theta).
+ * @tparam AddVerticalLayout Words per thread per add step (paper's Phi).
+ * @tparam ContainsHorizontalLayout CG size for contains.
+ * @tparam ContainsVerticalLayout Words per thread per contains step.
+ * @tparam ConditionalAdd When `true`, `add` reads each word before the atomic OR and skips the
+ * write when the required bits are already set. Trades a read for fewer atomic writes; beneficial
+ * when the filter is highly contended (e.g. close to full) or the input has many duplicate keys.
+ * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
+ * first missing fingerprint slice. Beneficial when queried keys have a low match rate and filter
+ * contention is low.
+ */
+template <class Hash,
+          class Word,
+          std::uint32_t WordsPerBlock,
+          std::uint32_t PatternBits,
+          std::uint32_t AddHorizontalLayout,
+          std::uint32_t AddVerticalLayout,
+          std::uint32_t ContainsHorizontalLayout,
+          std::uint32_t ContainsVerticalLayout,
+          bool ConditionalAdd,
+          bool EarlyExitContains>
+using parametric_filter_policy = detail::bloom_filter_policy<Hash,
+                                                             Word,
+                                                             WordsPerBlock,
+                                                             PatternBits,
+                                                             AddHorizontalLayout,
+                                                             AddVerticalLayout,
+                                                             ContainsHorizontalLayout,
+                                                             ContainsVerticalLayout,
+                                                             ConditionalAdd,
+                                                             EarlyExitContains>;
+
 }  // namespace cuco
