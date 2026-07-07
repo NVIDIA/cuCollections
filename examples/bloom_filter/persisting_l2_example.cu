@@ -20,8 +20,6 @@
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
 
-#include <cuda_runtime_api.h>
-
 #include <cstddef>
 #include <cstdint>
 
