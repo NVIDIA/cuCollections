@@ -67,19 +67,19 @@ void bloom_filter_contains(nvbench::state& state,
     state.skip("Invalid pattern bits per word");
   } else {
     using size_type                      = std::uint32_t;
-    using hasher                         = cuco::xxhash_64<Key>;
     auto constexpr add_vertical_layout   = 1;
     auto constexpr add_horizontal_layout = words_per_block;
-    using policy_type                    = cuco::parametric_filter_policy<hasher,
-                                                                          Word,
-                                                                          words_per_block,
-                                                                          PatternBits,
-                                                                          add_horizontal_layout,
-                                                                          add_vertical_layout,
-                                                                          HorizontalLayout,
-                                                                          VerticalLayout,
-                                                                          false,
-                                                                          false>;
+    using policy_type                    = cuco::bloom_filter_policy<Key,
+                                                                     cuco::xxhash_64<Key>,
+                                                                     Word,
+                                                                     words_per_block,
+                                                                     PatternBits,
+                                                                     add_horizontal_layout,
+                                                                     add_vertical_layout,
+                                                                     HorizontalLayout,
+                                                                     VerticalLayout,
+                                                                     false,
+                                                                     false>;
     using filter_type =
       cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
 
@@ -133,8 +133,7 @@ void bloom_filter_contains(nvbench::state& state,
   }
 }
 
-// Default benchmark: single layout matching `cuco::default_filter_policy` (256-bit block,
-// 8-bit fingerprint, fully vertical contains) swept across the standard FilterSizeMB range.
+// Default benchmark: single layout matching default `cuco::bloom_filter_policy`.
 NVBENCH_BENCH_TYPES(bloom_filter_contains,
                     NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
                                       nvbench::type_list<nvbench::uint32_t>,  ///< Word

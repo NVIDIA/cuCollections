@@ -77,7 +77,7 @@ template <class Hash,
           uint32_t ContainsVerticalLayout,
           bool ConditionalAdd,
           bool EarlyExitContains>
-class parametric_filter_policy {
+class bloom_filter_policy {
  public:
   using hasher           = Hash;      ///< 64-bit hash functor type
   using word_type        = Word;      ///< Underlying filter-block word type
@@ -138,11 +138,11 @@ class parametric_filter_policy {
 
  public:
   /**
-   * @brief Constructs a parametric filter policy.
+   * @brief Constructs a Bloom filter policy.
    *
    * @param hash Hash function used to generate fingerprints.
    */
-  __host__ __device__ constexpr parametric_filter_policy(Hash hash = {}) : hash_{hash}
+  __host__ __device__ constexpr bloom_filter_policy(Hash hash = {}) : hash_{hash}
   {
     static_assert(pattern_bits >= min_pattern_bits,
                   "pattern_bits must be at least words_per_block");
@@ -179,7 +179,7 @@ class parametric_filter_policy {
     // via multiply-shift) and lower 32 bits (pattern generation via salt-based multiplicative
     // hashing). This is a permanent design requirement, not a temporary limitation.
     static_assert(cuda::std::is_same_v<decltype(hash_(key)), hash_result_type>,
-                  "parametric_filter_policy requires a 64-bit hash function");
+                  "bloom_filter_policy requires a 64-bit hash function");
     auto const hash_value = hash_(key);
     return {static_cast<uint32_t>(hash_value >> 32), static_cast<uint32_t>(hash_value)};
   }
