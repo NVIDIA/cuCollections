@@ -66,6 +66,15 @@ namespace cuco::detail {
  * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
  * first missing fingerprint slice. Beneficial when queried keys have a low match rate (most lookups
  * miss) and filter contention is low, so the common negative path exits early.
+ * @tparam PersistingL2Access When `true`, filter word accesses in `add` and `contains` are
+ * annotated with a persisting L2 access policy when the filter storage is in global memory. This
+ * only emits cache-policy hints on the generated memory instructions; it does not reserve
+ * persisting L2 capacity, and non-global storage such as shared memory is left unannotated. Pair
+ * this with an application-managed L2 set-aside (for example
+ * `cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize, bytes)`) and reset the persisting cache after
+ * the Bloom-filter phase. Use this only when the filter fits the reserved L2 region or the key
+ * stream has sufficient locality: filters far larger than L2 can continually mark random lines as
+ * persisting, thrashing the cache and affecting unrelated kernels.
  */
 template <class Hash,
           class Word,
@@ -76,7 +85,8 @@ template <class Hash,
           uint32_t ContainsHorizontalLayout,
           uint32_t ContainsVerticalLayout,
           bool ConditionalAdd,
-          bool EarlyExitContains>
+          bool EarlyExitContains,
+          bool PersistingL2Access>
 class bloom_filter_policy {
  public:
   using hasher           = Hash;      ///< 64-bit hash functor type
@@ -115,6 +125,8 @@ class bloom_filter_policy {
     ConditionalAdd;  ///< read-before-atomic on add (skip redundant writes)
   static constexpr bool early_exit_contains =
     EarlyExitContains;  ///< short-circuit contains on first missing slice
+  static constexpr bool persisting_l2_access =
+    PersistingL2Access;  ///< apply persisting L2 cache-policy hints to filter accesses
 
   static constexpr size_t max_filter_blocks =
     cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks

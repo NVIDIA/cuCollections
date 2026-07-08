@@ -79,6 +79,7 @@ void bloom_filter_add(nvbench::state& state,
                                                                           contains_horizontal_layout,
                                                                           contains_vertical_layout,
                                                                           false,
+                                                                          false,
                                                                           false>;
     using filter_type =
       cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;

@@ -52,6 +52,10 @@ namespace cuco {
  * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
  * first missing fingerprint slice. Beneficial when queried keys have a low match rate and filter
  * contention is low.
+ * @tparam PersistingL2Access When `true`, annotates global-memory filter accesses with an L2
+ * persisting access policy. Reserve/reset persisting L2
+ * separately (e.g. `cudaDeviceSetLimit`). Enable only when the working set fits the reserved
+ * region, otherwise persisting lines can thrash the cache and slow other work.
  */
 template <class Key,
           class Hash                             = cuco::xxhash_64<Key>,
@@ -63,7 +67,8 @@ template <class Key,
           std::uint32_t ContainsHorizontalLayout = 1,
           std::uint32_t ContainsVerticalLayout   = WordsPerBlock,
           bool ConditionalAdd                    = false,
-          bool EarlyExitContains                 = false>
+          bool EarlyExitContains                 = false,
+          bool PersistingL2Access                = false>
 using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         Word,
                                                         WordsPerBlock,
@@ -73,7 +78,8 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         ContainsHorizontalLayout,
                                                         ContainsVerticalLayout,
                                                         ConditionalAdd,
-                                                        EarlyExitContains>;
+                                                        EarlyExitContains,
+                                                        PersistingL2Access>;
 
 /**
  * @brief Deprecated compatibility alias for the old parametric Bloom filter policy API.
@@ -98,6 +104,8 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
  * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
  * first missing fingerprint slice. Beneficial when queried keys have a low match rate and filter
  * contention is low.
+ * @tparam PersistingL2Access When `true`, annotates global-memory filter accesses with an L2
+ * persisting access policy. Defaults to `false` for compatibility with the old API surface.
  */
 template <class Hash,
           class Word,
@@ -108,7 +116,8 @@ template <class Hash,
           std::uint32_t ContainsHorizontalLayout,
           std::uint32_t ContainsVerticalLayout,
           bool ConditionalAdd,
-          bool EarlyExitContains>
+          bool EarlyExitContains,
+          bool PersistingL2Access = false>
 using parametric_filter_policy = detail::bloom_filter_policy<Hash,
                                                              Word,
                                                              WordsPerBlock,
@@ -118,6 +127,7 @@ using parametric_filter_policy = detail::bloom_filter_policy<Hash,
                                                              ContainsHorizontalLayout,
                                                              ContainsVerticalLayout,
                                                              ConditionalAdd,
-                                                             EarlyExitContains>;
+                                                             EarlyExitContains,
+                                                             PersistingL2Access>;
 
 }  // namespace cuco
