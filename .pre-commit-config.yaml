@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
 ci:
     autofix_commit_msg: |
       [pre-commit.ci] auto code formatting
@@ -15,6 +18,17 @@ repos:
               - id: clang-format
                 types_or: [c, c++, cuda]
                 args: ['-fallback-style=none', '-style=file', '-i']
+      - repo: https://github.com/rapidsai/pre-commit-hooks
+        rev: v1.6.0
+        hooks:
+              - id: verify-copyright
+                args: [--fix, --spdx]
+                exclude: ^[.]github/ISSUE_TEMPLATE/bug_report[.]yml$
+                files: |
+                  (?x)
+                    [.](cmake|cpp|cu|cuh|h|hpp|inl|sh|py|yaml|yml)$|
+                    CMakeLists[.]txt$|
+                    ^include/cuco/detail/__config$
       - repo: local
         hooks:
               - id: check-doxygen
