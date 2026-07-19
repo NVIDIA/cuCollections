@@ -31,10 +31,12 @@
 //  * type that is different from the container's key type, without having to first construct an
 //  * object of the container's key type.
 //  *
-//  * In many workflows the format of the keys used when inserting into a hash table differs from the
+//  * In many workflows the format of the keys used when inserting into a hash table differs from
+//  the
 //  * format that is available at query time. This example stores keys as `cuco::pair<int, int>`
 //  * representing `(sensor_id, channel)` but performs lookups directly using 3-element tuples
-//  * `(sensor_id, channel, timestamp)` without needing to construct intermediate `cuco::pair` objects.
+//  * `(sensor_id, channel, timestamp)` without needing to construct intermediate `cuco::pair`
+//  objects.
 //  *
 //  * Heterogeneous lookup is enabled by custom hash and equality functors that can operate on
 //  * "compatible" key types. The functors only consider the first two elements, allowing both
@@ -43,7 +45,8 @@
 //
 // using stored_key = cuco::pair<int, int>;  // Key type used for insertion: (sensor_id, channel)
 // using probe_key =
-//   cuda::std::tuple<int, int, int>;  // Key type used for querying: (sensor_id, channel, timestamp)
+//   cuda::std::tuple<int, int, int>;  // Key type used for querying: (sensor_id, channel,
+//   timestamp)
 // using value_type = float;
 //
 // // Declare that value_type is bitwise comparable since float doesn't have unique object
@@ -132,7 +135,8 @@
 //     auto const& query  = h_queries[i];
 //     auto const present = h_contains[i];
 //     std::cout << "Lookup tuple (sensor " << cuda::std::get<0>(query) << ", channel "
-//               << cuda::std::get<1>(query) << ", timestamp " << cuda::std::get<2>(query) << ") -> "
+//               << cuda::std::get<1>(query) << ", timestamp " << cuda::std::get<2>(query) << ") ->
+//               "
 //               << (present ? "found" : "missing");
 //
 //     if (present) { std::cout << ", stored value = " << h_found[i]; }
