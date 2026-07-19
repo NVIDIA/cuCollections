@@ -74,9 +74,12 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_find(
   state.skip("Key should be the same type as Value.");
 }
 
+// Robin Hood (hard-wired into static_map) requires a single-CAS slot, so the shared
+// defaults::KEY_TYPE_RANGE x VALUE_TYPE_RANGE cross product cannot be used here: the padded
+// int32/int64 and int64/int32 combos (12 bytes) are unsupported. Restricted to int32/int32 (8B).
 NVBENCH_BENCH_TYPES(static_map_find,
-                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      defaults::VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
+                                      nvbench::type_list<nvbench::int32_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_map_find_unique_capacity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
@@ -85,8 +88,8 @@ NVBENCH_BENCH_TYPES(static_map_find,
   .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE});
 
 NVBENCH_BENCH_TYPES(static_map_find,
-                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      defaults::VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
+                                      nvbench::type_list<nvbench::int32_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_map_find_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
@@ -95,8 +98,8 @@ NVBENCH_BENCH_TYPES(static_map_find,
   .add_float64_axis("MatchingRate", {defaults::MATCHING_RATE});
 
 NVBENCH_BENCH_TYPES(static_map_find,
-                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      defaults::VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
+                                      nvbench::type_list<nvbench::int32_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_map_find_unique_matching_rate")
   .set_type_axes_names({"Key", "Value", "Distribution"})
