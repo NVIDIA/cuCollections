@@ -1,17 +1,6 @@
 /*
- * Copyright (c) 2024-2026, NVIDIA CORPORATION.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #pragma once
@@ -28,6 +17,8 @@
 
 #include <cub/device/device_for.cuh>
 #include <cub/device/device_transform.cuh>
+#include <cuda/__memory/address_space.h>
+#include <cuda/annotated_ptr>
 #include <cuda/atomic>
 #include <cuda/iterator>
 #include <cuda/std/__algorithm/max.h>
@@ -71,6 +62,7 @@ class bloom_filter_impl {
   static constexpr auto contains_horizontal_layout = policy_type::contains_horizontal_layout;
   static constexpr bool conditional_add            = policy_type::conditional_add;
   static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
+  static constexpr bool persisting_l2_access       = policy_type::persisting_l2_access;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -493,6 +485,18 @@ class bloom_filter_impl {
   }
 
   //  private:
+  template <class Pointer>
+  [[nodiscard]] __device__ static Pointer filter_access(Pointer ptr) noexcept
+  {
+    if constexpr (persisting_l2_access) {
+      return cuda::device::is_address_from(ptr, cuda::device::address_space::global)
+               ? cuda::associate_access_property(ptr, cuda::access_property::persisting{})
+               : ptr;
+    } else {
+      return ptr;
+    }
+  }
+
   template <uint32_t NumWords>
   __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
   {
@@ -501,8 +505,10 @@ class bloom_filter_impl {
     // compiler the alignment that's actually delivered, not the block-level maximum.
     constexpr auto load_alignment =
       cuda::std::min<size_t>(NumWords * sizeof(word_type), alignment());
-    return *reinterpret_cast<cuda::std::array<word_type, NumWords>*>(
-      __builtin_assume_aligned(words_ + index, load_alignment));
+    auto const* ptr =
+      reinterpret_cast<cuda::std::array<word_type, NumWords> const*>(words_ + index);
+    return *static_cast<cuda::std::array<word_type, NumWords> const*>(
+      __builtin_assume_aligned(filter_access(ptr), load_alignment));
   }
 
   template <bool ConditionalAdd, uint32_t LoopIndex>
@@ -554,7 +560,7 @@ class bloom_filter_impl {
   {
     // Native atomicOr: cuda::atomic_ref::fetch_or produces consistently slower codegen here.
     auto const do_or = [&]() {
-      auto* const p = reinterpret_cast<atomic_word_type*>(word_ptr);
+      auto* const p = filter_access(reinterpret_cast<atomic_word_type*>(word_ptr));
       auto const v  = static_cast<atomic_word_type>(pattern);
       if constexpr (thread_scope == cuda::thread_scope_thread) {
         *p |= v;
@@ -572,7 +578,7 @@ class bloom_filter_impl {
 
     if constexpr (ConditionalAdd) {
       // Benign non-atomic read racing with atomicOr; technically UB but used throughout cuco.
-      if ((*word_ptr & pattern) != pattern) { do_or(); }
+      if ((*filter_access(word_ptr) & pattern) != pattern) { do_or(); }
     } else {
       do_or();
     }

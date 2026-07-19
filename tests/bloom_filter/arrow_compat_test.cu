@@ -1,26 +1,16 @@
 /*
- * Copyright (c) 2024-2026, NVIDIA CORPORATION.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
-// Verifies that a `parametric_filter_policy` instantiation with Apache Arrow's Block-Split Bloom
+// Verifies that a `bloom_filter_policy` instantiation with Apache Arrow's Block-Split Bloom
 // Filter parameters (256-bit blocks of 8 x uint32_t, 8 fingerprint bits per key, fully horizontal
 // add, fully vertical contains) produces byte-identical bitsets to a precomputed Arrow reference.
 
 #include <test_utils.hpp>
 
 #include <cuco/bloom_filter.cuh>
+#include <cuco/bloom_filter_policy.cuh>
 
 #include <cuda/functional>
 #include <thrust/device_vector.h>
@@ -143,7 +133,7 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
     })));
 }
 
-TEMPLATE_TEST_CASE_SIG("bloom_filter arrow-compatible parametric policy bitset validation",
+TEMPLATE_TEST_CASE_SIG("bloom_filter arrow-compatible policy bitset validation",
                        "",
                        (class Key),
                        (int32_t),
@@ -154,8 +144,8 @@ TEMPLATE_TEST_CASE_SIG("bloom_filter arrow-compatible parametric policy bitset v
 
   // Apache Arrow Block-Split Bloom Filter parameters: 256-bit blocks (8 x uint32_t), 8 fingerprint
   // bits per key, fully horizontal add (Theta=8) and fully vertical contains (Phi=8).
-  using policy_type = cuco::
-    parametric_filter_policy<cuco::xxhash_64<Key>, std::uint32_t, 8, 8, 8, 1, 1, 8, false, false>;
+  using policy_type =
+    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 1, 8>;
   cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, policy_type> filter{
     sub_filters};
 

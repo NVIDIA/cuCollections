@@ -1,17 +1,6 @@
 /*
- * Copyright (c) 2025-2026, NVIDIA CORPORATION.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 // Exercises `cuco::bloom_filter_ref` device-side APIs (`ref.add(key)`, `ref.contains(key)`,
@@ -77,21 +66,15 @@ __global__ void cooperative_clear_kernel(Ref ref)
   ref.clear(tile);
 }
 
-// Catch2 hard-caps a TEMPLATE_TEST_CASE_SIG case at 11 commas, which our policy hits; alias as a
-// workaround.
-using policy_cg1 = cuco::
-  parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1, false, false>;
-using policy_cg4 = cuco::
-  parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 4, 2, false, false>;
-using policy_cg8 = cuco::
-  parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 8, 1, false, false>;
-
-TEMPLATE_TEST_CASE_SIG("bloom_filter device ref scalar add and contains",
-                       "",
-                       ((class Key, class Policy), Key, Policy),
-                       (int32_t, cuco::default_filter_policy<int32_t>),
-                       (int32_t, policy_cg1),
-                       (int32_t, policy_cg4))
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter device ref scalar add and contains",
+  "",
+  ((class Key, class Policy), Key, Policy),
+  (int32_t, cuco::bloom_filter_policy<int32_t>),
+  (int32_t,
+   cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
+  (int32_t,
+   cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 4, 2>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
@@ -121,11 +104,16 @@ TEMPLATE_TEST_CASE_SIG("bloom_filter device ref scalar add and contains",
   REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
 }
 
-TEMPLATE_TEST_CASE_SIG("bloom_filter device ref CG contains is reduced across the group",
-                       "",
-                       ((int32_t CGSize, class Key, class Policy), CGSize, Key, Policy),
-                       (4, int32_t, policy_cg4),
-                       (8, int32_t, policy_cg8))
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter device ref CG contains is reduced across the group",
+  "",
+  ((int32_t CGSize, class Key, class Policy), CGSize, Key, Policy),
+  (4,
+   int32_t,
+   cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 4, 2>),
+  (8,
+   int32_t,
+   cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 8, 1>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
@@ -165,10 +153,10 @@ TEMPLATE_TEST_CASE_SIG("bloom_filter device ref CG contains is reduced across th
 TEMPLATE_TEST_CASE_SIG("bloom_filter device ref cooperative clear",
                        "",
                        ((int32_t CGSize, class Key, class Policy), CGSize, Key, Policy),
-                       (1, int32_t, cuco::default_filter_policy<int32_t>),
-                       (4, int32_t, cuco::default_filter_policy<int32_t>),
-                       (8, int32_t, cuco::default_filter_policy<int32_t>),
-                       (32, int32_t, cuco::default_filter_policy<int32_t>))
+                       (1, int32_t, cuco::bloom_filter_policy<int32_t>),
+                       (4, int32_t, cuco::bloom_filter_policy<int32_t>),
+                       (8, int32_t, cuco::bloom_filter_policy<int32_t>),
+                       (32, int32_t, cuco::bloom_filter_policy<int32_t>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;

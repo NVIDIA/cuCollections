@@ -1,17 +1,6 @@
 /*
- * Copyright (c) 2026, NVIDIA CORPORATION.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 // Byte-equal bitsets across (AddH, AddV) layout permutations, identical contains results
@@ -40,19 +29,14 @@ TEMPLATE_TEST_CASE_SIG(
   "bloom_filter: bitset is invariant under (AddH, AddV) layout permutations",
   "",
   ((class AltPolicy), AltPolicy),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 1, 8, 1, 8, false, false>),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 4, 1, 8, false, false>),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 1, 8, false, false>),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 2, 1, 8, false, false>),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 1, 1, 8, false, false>))
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 1, 8, 1, 8>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 4, 1, 8>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 1, 8>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 2, 1, 8>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 1, 1, 8>))
 {
   using Key            = int32_t;
-  using default_policy = cuco::default_filter_policy<Key>;
+  using default_policy = cuco::bloom_filter_policy<Key>;
   using filter_default_t =
     cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, default_policy>;
   using filter_alt_t =
@@ -80,19 +64,14 @@ TEMPLATE_TEST_CASE_SIG(
   "bloom_filter: contains results are invariant under (ContainsH, ContainsV) permutations",
   "",
   ((class AltPolicy), AltPolicy),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 8, 1, false, false>),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 2, 4, false, false>),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 4, 2, false, false>),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 2, 2, false, false>),
-  (cuco::
-     parametric_filter_policy<cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 1, 4, false, false>))
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 8, 1>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 2, 4>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 4, 2>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 2, 2>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 1, 4>))
 {
   using Key            = int32_t;
-  using default_policy = cuco::default_filter_policy<Key>;
+  using default_policy = cuco::bloom_filter_policy<Key>;
   using filter_default_t =
     cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, default_policy>;
   using filter_alt_t =
@@ -125,7 +104,7 @@ TEMPLATE_TEST_CASE_SIG(
 TEST_CASE("bloom_filter: bitset is invariant under dynamic vs static cuco::extent", "")
 {
   using Key                        = int32_t;
-  using Policy                     = cuco::default_filter_policy<Key>;
+  using Policy                     = cuco::bloom_filter_policy<Key>;
   constexpr std::size_t num_blocks = 1'000;
   constexpr int32_t num_keys       = 400;
 
@@ -156,14 +135,15 @@ TEST_CASE("bloom_filter: bitset is invariant under ConditionalAdd", "")
 {
   using Key = int32_t;
   // Same layout, ConditionalAdd off vs on. The read-before-atomic skip must yield the same bits.
-  using off_policy =
-    cuco::parametric_filter_policy<cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 1, 8, false, false>;
-  using on_policy =
-    cuco::parametric_filter_policy<cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 1, 8, true, false>;
-  using filter_off_t =
-    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, off_policy>;
-  using filter_on_t =
-    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, on_policy>;
+  using filter_off_t = cuco::bloom_filter<Key,
+                                          cuco::extent<std::size_t>,
+                                          cuda::thread_scope_device,
+                                          cuco::bloom_filter_policy<Key>>;
+  using filter_on_t  = cuco::bloom_filter<
+     Key,
+     cuco::extent<std::size_t>,
+     cuda::thread_scope_device,
+     cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 1, 8, true>>;
 
   constexpr int32_t num_blocks = 1'000;
   constexpr int32_t num_keys   = 400;
@@ -190,14 +170,16 @@ TEST_CASE("bloom_filter: contains results are invariant under EarlyExitContains"
 {
   using Key = int32_t;
   // ContainsHorizontalLayout > 1 so the compare_patterns early-exit branch is actually used.
-  using off_policy =
-    cuco::parametric_filter_policy<cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 8, 1, false, false>;
-  using on_policy =
-    cuco::parametric_filter_policy<cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 8, 1, false, true>;
-  using filter_off_t =
-    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, off_policy>;
-  using filter_on_t =
-    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, on_policy>;
+  using filter_off_t = cuco::bloom_filter<
+    Key,
+    cuco::extent<std::size_t>,
+    cuda::thread_scope_device,
+    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 8, 1>>;
+  using filter_on_t = cuco::bloom_filter<
+    Key,
+    cuco::extent<std::size_t>,
+    cuda::thread_scope_device,
+    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 8, 1, false, true>>;
 
   constexpr int32_t num_blocks = 1'000;
   constexpr int32_t num_keys   = 400;

@@ -1,17 +1,6 @@
 /*
- * Copyright (c) 2025-2026, NVIDIA CORPORATION.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #pragma once
@@ -49,8 +38,7 @@ namespace cuco::detail {
  * coalesced loads (default: fully vertical). `PatternBits` trades false-positive rate against
  * space.
  *
- * @tparam Hash 64-bit hash functor whose return type satisfies `is_same_v<hash_result_type,
- * uint64_t>`.
+ * @tparam Hash 64-bit hash functor whose call operator returns `uint64_t`.
  * @tparam Word Underlying word type of a filter block. Must be an atomically updatable integral.
  * @tparam WordsPerBlock Words per filter block. Must be a power of two and <= 32.
  * @tparam PatternBits Number of fingerprint bits (k in the paper).
@@ -67,6 +55,15 @@ namespace cuco::detail {
  * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
  * first missing fingerprint slice. Beneficial when queried keys have a low match rate (most lookups
  * miss) and filter contention is low, so the common negative path exits early.
+ * @tparam PersistingL2Access When `true`, filter word accesses in `add` and `contains` are
+ * annotated with a persisting L2 access policy when the filter storage is in global memory. This
+ * only emits cache-policy hints on the generated memory instructions; it does not reserve
+ * persisting L2 capacity, and non-global storage such as shared memory is left unannotated. Pair
+ * this with an application-managed L2 set-aside (for example
+ * `cudaDeviceSetLimit(cudaLimitPersistingL2CacheSize, bytes)`) and reset the persisting cache after
+ * the Bloom-filter phase. Use this only when the filter fits the reserved L2 region or the key
+ * stream has sufficient locality: filters far larger than L2 can continually mark random lines as
+ * persisting, thrashing the cache and affecting unrelated kernels.
  */
 template <class Hash,
           class Word,
@@ -77,15 +74,13 @@ template <class Hash,
           uint32_t ContainsHorizontalLayout,
           uint32_t ContainsVerticalLayout,
           bool ConditionalAdd,
-          bool EarlyExitContains>
-class parametric_filter_policy {
+          bool EarlyExitContains,
+          bool PersistingL2Access>
+class bloom_filter_policy {
  public:
-  using hasher             = Hash;                            ///< 64-bit hash functor type
-  using word_type          = Word;                            ///< Underlying filter-block word type
-  using hash_argument_type = typename hasher::argument_type;  ///< Hash function input type
-  using hash_result_type =
-    decltype(std::declval<hasher>()(std::declval<hash_argument_type>()));  ///< Hash function
-                                                                           ///< output type
+  using hasher           = Hash;      ///< 64-bit hash functor type
+  using word_type        = Word;      ///< Underlying filter-block word type
+  using hash_result_type = uint64_t;  ///< Hash function output type
 
  private:
   static constexpr uint32_t max_salts                          = 64;
@@ -119,6 +114,8 @@ class parametric_filter_policy {
     ConditionalAdd;  ///< read-before-atomic on add (skip redundant writes)
   static constexpr bool early_exit_contains =
     EarlyExitContains;  ///< short-circuit contains on first missing slice
+  static constexpr bool persisting_l2_access =
+    PersistingL2Access;  ///< apply persisting L2 cache-policy hints to filter accesses
 
   static constexpr size_t max_filter_blocks =
     cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks
@@ -142,11 +139,11 @@ class parametric_filter_policy {
 
  public:
   /**
-   * @brief Constructs a parametric filter policy.
+   * @brief Constructs a Bloom filter policy.
    *
    * @param hash Hash function used to generate fingerprints.
    */
-  __host__ __device__ constexpr parametric_filter_policy(Hash hash = {}) : hash_{hash}
+  __host__ __device__ constexpr bloom_filter_policy(Hash hash = {}) : hash_{hash}
   {
     static_assert(pattern_bits >= min_pattern_bits,
                   "pattern_bits must be at least words_per_block");
@@ -162,11 +159,6 @@ class parametric_filter_policy {
     static_assert(
       words_per_block % (contains_horizontal_layout * contains_vertical_layout) == 0,
       "contains_horizontal_layout * contains_vertical_layout must evenly divide words_per_block");
-    // The split_hash() design requires a 64-bit hash split into upper 32 bits (block selection
-    // via multiply-shift) and lower 32 bits (pattern generation via salt-based multiplicative
-    // hashing). This is a permanent design requirement, not a temporary limitation.
-    static_assert(cuda::std::is_same_v<hash_result_type, uint64_t>,
-                  "parametric_filter_policy requires a 64-bit hash function");
   }
 
   /**
@@ -175,12 +167,20 @@ class parametric_filter_policy {
    * The upper half is used for block selection (via multiply-shift); the lower half drives the
    * per-word fingerprint pattern via salt-based multiplicative hashing.
    *
+   * @tparam Key Key type.
+   *
    * @param key Key to hash.
    *
    * @return `{upper 32 bits, lower 32 bits}` of the 64-bit hash.
    */
-  __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(hash_argument_type key) const
+  template <class Key>
+  __device__ constexpr cuda::std::pair<uint32_t, uint32_t> split_hash(Key const& key) const
   {
+    // The split_hash() design requires a 64-bit hash split into upper 32 bits (block selection
+    // via multiply-shift) and lower 32 bits (pattern generation via salt-based multiplicative
+    // hashing). This is a permanent design requirement, not a temporary limitation.
+    static_assert(cuda::std::is_same_v<decltype(hash_(key)), hash_result_type>,
+                  "bloom_filter_policy requires a 64-bit hash function");
     auto const hash_value = hash_(key);
     return {static_cast<uint32_t>(hash_value >> 32), static_cast<uint32_t>(hash_value)};
   }

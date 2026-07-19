@@ -1,22 +1,11 @@
 /*
- * Copyright (c) 2024-2026, NVIDIA CORPORATION.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * SPDX-FileCopyrightText: Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #pragma once
 
-#include <cuco/bloom_filter_policies.cuh>
+#include <cuco/bloom_filter_policy.cuh>
 #include <cuco/bloom_filter_ref.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/extent.cuh>
@@ -60,19 +49,19 @@ namespace cuco {
  * a single block. Fingerprint positions are generated via branchless multiplicative hashing.
  * Block size, the number of fingerprint bits, and separate horizontal/vertical vectorization
  * layouts for bulk `add` and `contains` are configured by the `Policy` type (see
- * `cuco/bloom_filter_policies.cuh`).
+ * `cuco/bloom_filter_policy.cuh`).
  *
  * @tparam Key Key type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Policy Type that defines how to generate and store key fingerprints (see
- * `cuco/bloom_filter_policies.cuh`)
+ * `cuco/bloom_filter_policy.cuh`)
  * @tparam Allocator Type of allocator used for device-accessible storage
  */
 template <class Key,
           class Extent             = cuco::extent<std::size_t>,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Policy             = cuco::default_filter_policy<Key>,
+          class Policy             = cuco::bloom_filter_policy<Key>,
           class Allocator          = cuco::cuda_allocator<cuda::std::byte>>
 class bloom_filter {
  public:
@@ -117,7 +106,7 @@ class bloom_filter {
    *
    * @param num_blocks Number of sub-filters or blocks
    * @param scope The scope in which operations will be performed
-   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policies.cuh`)
+   * @param policy Fingerprint generation policy (see `cuco/bloom_filter_policy.cuh`)
    * @param alloc Allocator used for allocating device-accessible storage
    * @param stream CUDA stream used to initialize the filter
    */
