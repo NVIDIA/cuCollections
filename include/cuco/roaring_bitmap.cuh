@@ -10,6 +10,7 @@
 #include <cuco/utility/allocator.hpp>
 
 #include <cuda/std/cstddef>
+#include <cuda/std/span>
 #include <cuda/stream_ref>
 
 namespace cuco::experimental {
@@ -40,6 +41,23 @@ class roaring_bitmap {
   /**
    * @brief Constructs a `roaring_bitmap` by copying the serialized bytes to device-accessible
    *        storage.
+   *
+   * @param bitmap Serialized bitmap bytes in host memory
+   * @param alloc Allocator used to allocate device-accessible storage
+   * @param stream CUDA stream used for device memory operations during construction
+   */
+  roaring_bitmap(cuda::std::span<cuda::std::byte const> bitmap,
+                 Allocator const& alloc  = {},
+                 cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
+   * @brief Constructs a `roaring_bitmap` by copying the serialized bytes to device-accessible
+   *        storage.
+   *
+   * @deprecated Use the overload accepting `cuda::std::span` to enable bounds validation.
+   *
+   * @note The caller must ensure `bitmap` points to a complete, valid serialized bitmap. This
+   *       overload cannot validate the bounds of the serialized data.
    *
    * @param bitmap Pointer to the beginning of the serialized bitmap in host memory
    * @param alloc Allocator used to allocate device-accessible storage

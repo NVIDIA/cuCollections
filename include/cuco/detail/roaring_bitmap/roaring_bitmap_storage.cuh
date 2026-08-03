@@ -12,6 +12,7 @@
 
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
+#include <cuda/std/span>
 #include <cuda/stream_ref>
 
 #include <memory>
@@ -246,6 +247,27 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
   ~roaring_bitmap_storage() = default;
 
   /**
+   * @brief Constructs storage by validating and copying bitmap data to device memory
+   *
+   * @param bitmap Serialized bitmap bytes in host memory
+   * @param alloc Allocator for device memory allocation
+   * @param stream CUDA stream for memory operations
+   */
+  roaring_bitmap_storage(cuda::std::span<cuda::std::byte const> bitmap,
+                         Allocator const& alloc,
+                         cuda::stream_ref stream)
+    : allocator_{alloc},
+      metadata_{bitmap},
+      data_{allocator_.allocate(metadata_.size_bytes, stream),
+            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
+              metadata_.size_bytes, allocator_, stream}},
+      ref_{data_.get(), metadata_}
+  {
+    CUCO_CUDA_TRY(cudaMemcpyAsync(
+      data_.get(), bitmap.data(), metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
+  }
+
+  /**
    * @brief Constructs storage by copying bitmap data to device memory
    *
    * @param bitmap Pointer to the serialized bitmap data in host memory
@@ -334,6 +356,48 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
   roaring_bitmap_storage& operator=(roaring_bitmap_storage&& other) = default;
 
   ~roaring_bitmap_storage() = default;
+
+  /**
+   * @brief Constructs storage by validating and copying bitmap data to device memory
+   *
+   * @param bitmap Serialized bitmap bytes in host memory
+   * @param alloc Allocator for device memory allocation
+   * @param stream CUDA stream for memory operations
+   */
+  roaring_bitmap_storage(cuda::std::span<cuda::std::byte const> bitmap,
+                         Allocator const& alloc,
+                         cuda::stream_ref stream)
+    : allocator_{alloc},
+      bucket_allocator_{alloc},
+      bucket_metadata_{},
+      buckets_h_{},
+      metadata_{
+        [bitmap](std::vector<typename ref_type::metadata_type::bucket_metadata>& bucket_metadata) {
+          return typename ref_type::metadata_type{bitmap, bucket_metadata};
+        }(bucket_metadata_)},
+      data_{allocator_.allocate(metadata_.size_bytes, stream),
+            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
+              metadata_.size_bytes, allocator_, stream}},
+      buckets_{bucket_allocator_.allocate(metadata_.num_buckets, stream),
+               cuco::detail::custom_deleter<cuda::std::size_t, bucket_allocator_type>{
+                 metadata_.num_buckets, bucket_allocator_, stream}},
+      ref_{data_.get(), metadata_, buckets_.get()}
+  {
+    assert(metadata_.valid);
+    buckets_h_.reserve(bucket_metadata_.size());
+    for (auto const& meta : bucket_metadata_) {
+      buckets_h_.emplace_back(meta.key,
+                              bucket_ref_type{data_.get() + meta.byte_offset, meta.metadata});
+    }
+    CUCO_CUDA_TRY(cudaMemcpyAsync(
+      data_.get(), bitmap.data(), metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
+    CUCO_CUDA_TRY(cudaMemcpyAsync(
+      buckets_.get(),
+      buckets_h_.data(),
+      metadata_.num_buckets * sizeof(cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>),
+      cudaMemcpyHostToDevice,
+      stream.get()));
+  }
 
   /**
    * @brief Constructs storage by copying bitmap data to device memory

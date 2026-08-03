@@ -8,6 +8,7 @@
 
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
+#include <cuda/std/span>
 #include <cuda/std/type_traits>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
@@ -70,7 +71,7 @@ bool check(std::string const& bitmap_file_path)
   file.close();
 
   cuco::experimental::roaring_bitmap<KeyType> roaring_bitmap(
-    thrust::raw_pointer_cast(buffer.data()));
+    cuda::std::span<cuda::std::byte const>{thrust::raw_pointer_cast(buffer.data()), buffer.size()});
 
   auto keys = generate_keys();
   thrust::device_vector<bool> contained(keys.size(), false);
@@ -115,6 +116,51 @@ std::vector<cuda::std::byte> make_run_container_no_offsets_bitmap()
 }
 }  // namespace
 
+TEST_CASE("roaring_bitmap rejects truncated serialized data", "[roaring_bitmap]")
+{
+  auto const bytes = std::vector<cuda::std::byte>{
+    cuda::std::byte{0x3B},
+    cuda::std::byte{0x30},
+    cuda::std::byte{0xFF},
+    cuda::std::byte{0x00}};  // Run-container cookie declaring 256 containers
+  auto const bitmap = cuda::std::span<cuda::std::byte const>{bytes.data(), bytes.size()};
+
+  REQUIRE_THROWS(cuco::experimental::roaring_bitmap<cuda::std::uint32_t>{bitmap});
+}
+
+TEST_CASE("roaring_bitmap rejects out-of-bounds container offsets", "[roaring_bitmap]")
+{
+  auto const bytes =
+    std::vector<cuda::std::byte>{cuda::std::byte{0x3A},
+                                 cuda::std::byte{0x30},
+                                 cuda::std::byte{0x00},
+                                 cuda::std::byte{0x00},  // No-run-container cookie
+                                 cuda::std::byte{0x01},
+                                 cuda::std::byte{0x00},
+                                 cuda::std::byte{0x00},
+                                 cuda::std::byte{0x00},  // One container
+                                 cuda::std::byte{0x00},
+                                 cuda::std::byte{0x00},  // Key
+                                 cuda::std::byte{0x00},
+                                 cuda::std::byte{0x00},  // Cardinality minus one
+                                 cuda::std::byte{0xFF},
+                                 cuda::std::byte{0xFF},
+                                 cuda::std::byte{0xFF},
+                                 cuda::std::byte{0xFF}};  // Container offset outside the buffer
+  auto const bitmap = cuda::std::span<cuda::std::byte const>{bytes.data(), bytes.size()};
+
+  REQUIRE_THROWS(cuco::experimental::roaring_bitmap<cuda::std::uint32_t>{bitmap});
+}
+
+TEST_CASE("64-bit roaring_bitmap rejects unbounded bucket counts", "[roaring_bitmap]")
+{
+  auto const bytes =
+    std::vector<cuda::std::byte>(sizeof(cuda::std::uint64_t), cuda::std::byte{0xFF});
+  auto const bitmap = cuda::std::span<cuda::std::byte const>{bytes.data(), bytes.size()};
+
+  REQUIRE_THROWS(cuco::experimental::roaring_bitmap<cuda::std::uint64_t>{bitmap});
+}
+
 TEST_CASE("roaring_bitmap run container without offsets", "[roaring_bitmap]")
 {
   // When run containers are present and the bitmap has fewer than 4 containers, the
@@ -125,7 +171,7 @@ TEST_CASE("roaring_bitmap run container without offsets", "[roaring_bitmap]")
   std::memcpy(thrust::raw_pointer_cast(buffer.data()), bytes.data(), bytes.size());
 
   cuco::experimental::roaring_bitmap<cuda::std::uint32_t> roaring_bitmap(
-    thrust::raw_pointer_cast(buffer.data()));
+    cuda::std::span<cuda::std::byte const>{thrust::raw_pointer_cast(buffer.data()), buffer.size()});
 
   thrust::device_vector<cuda::std::uint32_t> keys{1, 2, 3, 4};
   thrust::device_vector<bool> contained(keys.size(), false);
