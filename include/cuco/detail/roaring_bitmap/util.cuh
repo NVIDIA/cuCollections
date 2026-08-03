@@ -359,28 +359,42 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     }
 
     if (offsets_in_serialized_data) {
-      auto const containers_start = offset;
-      auto previous_end           = containers_start;
-      for (cuda::std::int32_t i = 0; i < num_containers; ++i) {
-        auto const offset_offset = static_cast<cuda::std::size_t>(container_offsets) +
-                                   static_cast<cuda::std::size_t>(i) * sizeof(cuda::std::uint32_t);
+      if (not bitmap.is_bounded()) {
+        auto const last_container = num_containers - 1;
+        auto const offset_offset =
+          static_cast<cuda::std::size_t>(container_offsets) +
+          static_cast<cuda::std::size_t>(last_container) * sizeof(cuda::std::uint32_t);
         cuda::std::uint32_t stored_offset;
         if (not load(bitmap, offset_offset, stored_offset)) { return; }
         auto const container_offset = static_cast<cuda::std::size_t>(stored_offset);
-        if (container_offset < containers_start or container_offset < previous_end) {
-          valid = false;
-          NV_IF_TARGET(
-            NV_IS_HOST,
-            CUCO_FAIL("Invalid bitmap format: container offsets are invalid");)  // TODO device
-                                                                                 // error handling
-          return;
-        }
         cuda::std::size_t size;
-        if (not get_container_size(bitmap, container_offset, i, size)) { return; }
-        if (not expect_range(bitmap, container_offset, size)) { return; }
-        previous_end = container_offset + size;
+        if (not get_container_size(bitmap, container_offset, last_container, size)) { return; }
+        size_bytes = container_offset + size;
+      } else {
+        auto const containers_start = offset;
+        auto previous_end           = containers_start;
+        for (cuda::std::int32_t i = 0; i < num_containers; ++i) {
+          auto const offset_offset =
+            static_cast<cuda::std::size_t>(container_offsets) +
+            static_cast<cuda::std::size_t>(i) * sizeof(cuda::std::uint32_t);
+          cuda::std::uint32_t stored_offset;
+          if (not load(bitmap, offset_offset, stored_offset)) { return; }
+          auto const container_offset = static_cast<cuda::std::size_t>(stored_offset);
+          if (container_offset < containers_start or container_offset < previous_end) {
+            valid = false;
+            NV_IF_TARGET(
+              NV_IS_HOST,
+              CUCO_FAIL("Invalid bitmap format: container offsets are invalid");)  // TODO device
+                                                                                   // error handling
+            return;
+          }
+          cuda::std::size_t size;
+          if (not get_container_size(bitmap, container_offset, i, size)) { return; }
+          if (not expect_range(bitmap, container_offset, size)) { return; }
+          previous_end = container_offset + size;
+        }
+        size_bytes = previous_end;
       }
-      size_bytes = previous_end;
     } else {
       for (cuda::std::int32_t i = 0; i < num_containers; ++i) {
         if (offset > cuda::std::numeric_limits<cuda::std::uint32_t>::max()) {
