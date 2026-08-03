@@ -42,30 +42,76 @@ __host__ __device__ __forceinline__ bool check_bit(cuda::std::byte const* bitmap
          (cuda::std::uint8_t(1) << (index % 8));
 }
 
+/**
+ * @brief Non-owning view of serialized bitmap data with optional bounds information
+ *
+ * Pointer-backed views preserve the unchecked behavior of the legacy API, while span-backed views
+ * validate accesses against the serialized data size.
+ */
 class serialized_bitmap_view {
  public:
+  /**
+   * @brief Constructs an unbounded view from a pointer
+   *
+   * @param data Pointer to the beginning of the serialized bitmap
+   */
   __host__ __device__ explicit serialized_bitmap_view(cuda::std::byte const* data)
     : data_{data}, size_{0}, bounded_{false}
   {
   }
 
+  /**
+   * @brief Constructs a bounded view from a span
+   *
+   * @param bitmap Serialized bitmap bytes
+   */
   __host__ __device__ explicit serialized_bitmap_view(cuda::std::span<cuda::std::byte const> bitmap)
     : data_{bitmap.data()}, size_{bitmap.size()}, bounded_{true}
   {
   }
 
+  /**
+   * @brief Returns a pointer to the serialized bitmap data
+   *
+   * @return Pointer to the beginning of the serialized bitmap
+   */
   [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept { return data_; }
 
+  /**
+   * @brief Returns the size of a bounded view
+   *
+   * @return Serialized bitmap size in bytes, or zero for an unbounded view
+   */
   [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept { return size_; }
 
+  /**
+   * @brief Indicates whether the view has bounds information
+   *
+   * @return true if the view was constructed from a span, otherwise false
+   */
   [[nodiscard]] __host__ __device__ bool is_bounded() const noexcept { return bounded_; }
 
+  /**
+   * @brief Checks whether a byte range is contained in the view
+   *
+   * Unbounded views contain every range.
+   *
+   * @param offset Start of the range in bytes
+   * @param size Size of the range in bytes
+   * @return true if the range is contained in the view, otherwise false
+   */
   [[nodiscard]] __host__ __device__ bool contains(cuda::std::size_t offset,
                                                   cuda::std::size_t size) const noexcept
   {
     return not bounded_ or (offset <= size_ and size <= size_ - offset);
   }
 
+  /**
+   * @brief Returns a view beginning at the specified byte offset
+   *
+   * @param offset Offset from the beginning of the serialized bitmap
+   * @return View of the remaining serialized bitmap data
+   */
   [[nodiscard]] __host__ __device__ serialized_bitmap_view subview(cuda::std::size_t offset) const
   {
     if (not bounded_) { return serialized_bitmap_view{data_ + offset}; }
@@ -76,6 +122,14 @@ class serialized_bitmap_view {
       cuda::std::span<cuda::std::byte const>{data_ + offset, size_ - offset}};
   }
 
+  /**
+   * @brief Loads a value if its byte range is contained in the view
+   *
+   * @tparam T Type of value to load
+   * @param offset Offset of the value in bytes
+   * @param value Reference that receives the loaded value
+   * @return true if the value was loaded, otherwise false
+   */
   template <class T>
   __host__ __device__ bool try_load(cuda::std::size_t offset, T& value) const
   {
@@ -151,6 +205,11 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
   {
   }
 
+  /**
+   * @brief Constructs metadata from an internal serialized bitmap view
+   *
+   * @param bitmap Serialized bitmap view
+   */
   __host__ __device__ explicit roaring_bitmap_metadata(serialized_bitmap_view bitmap)
   {
     parse(bitmap);
