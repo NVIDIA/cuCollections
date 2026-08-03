@@ -8,6 +8,7 @@
 #include <cuco/detail/error.hpp>
 #include <cuco/detail/roaring_bitmap/util.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
+#include <cuco/detail/utility/memcpy_async.hpp>
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/std/cstddef>
@@ -263,8 +264,8 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
               metadata_.size_bytes, allocator_, stream}},
       ref_{data_.get(), metadata_}
   {
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
-      data_.get(), bitmap.data(), metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
+      data_.get(), bitmap.data(), metadata_.size_bytes, cudaMemcpyHostToDevice, stream));
   }
 
   /**
@@ -284,8 +285,8 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
               metadata_.size_bytes, allocator_, stream}},
       ref_{data_.get(), metadata_}
   {
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
-      data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
+      data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream));
   }
 
   /**
@@ -389,14 +390,14 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
       buckets_h_.emplace_back(meta.key,
                               bucket_ref_type{data_.get() + meta.byte_offset, meta.metadata});
     }
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
-      data_.get(), bitmap.data(), metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
+      data_.get(), bitmap.data(), metadata_.size_bytes, cudaMemcpyHostToDevice, stream));
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
       buckets_.get(),
       buckets_h_.data(),
       metadata_.num_buckets * sizeof(cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>),
       cudaMemcpyHostToDevice,
-      stream.get()));
+      stream));
   }
 
   /**
@@ -431,14 +432,14 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
       buckets_h_.emplace_back(meta.key,
                               bucket_ref_type{data_.get() + meta.byte_offset, meta.metadata});
     }
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
-      data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
-    CUCO_CUDA_TRY(cudaMemcpyAsync(
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
+      data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream));
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
       buckets_.get(),
       buckets_h_.data(),
       metadata_.num_buckets * sizeof(cuda::std::pair<cuda::std::uint32_t, bucket_ref_type>),
       cudaMemcpyHostToDevice,
-      stream.get()));
+      stream));
   }
 
   /**
