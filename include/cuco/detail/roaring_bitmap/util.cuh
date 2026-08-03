@@ -42,20 +42,53 @@ __host__ __device__ __forceinline__ bool check_bit(cuda::std::byte const* bitmap
          (cuda::std::uint8_t(1) << (index % 8));
 }
 
-inline void expect_valid_range(cuda::std::span<cuda::std::byte const> bitmap,
-                               cuda::std::size_t offset,
-                               cuda::std::size_t size)
-{
-  CUCO_EXPECTS(offset <= bitmap.size() and size <= bitmap.size() - offset,
-               "Invalid bitmap format: serialized data is truncated");
-}
+class serialized_bitmap_view {
+ public:
+  __host__ __device__ explicit serialized_bitmap_view(cuda::std::byte const* data)
+    : data_{data}, size_{0}, bounded_{false}
+  {
+  }
 
-template <class T>
-T checked_load(cuda::std::span<cuda::std::byte const> bitmap, cuda::std::size_t offset)
-{
-  expect_valid_range(bitmap, offset, sizeof(T));
-  return misaligned_load<T>(bitmap.data() + offset);
-}
+  __host__ __device__ explicit serialized_bitmap_view(cuda::std::span<cuda::std::byte const> bitmap)
+    : data_{bitmap.data()}, size_{bitmap.size()}, bounded_{true}
+  {
+  }
+
+  [[nodiscard]] __host__ __device__ cuda::std::byte const* data() const noexcept { return data_; }
+
+  [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept { return size_; }
+
+  [[nodiscard]] __host__ __device__ bool is_bounded() const noexcept { return bounded_; }
+
+  [[nodiscard]] __host__ __device__ bool contains(cuda::std::size_t offset,
+                                                  cuda::std::size_t size) const noexcept
+  {
+    return not bounded_ or (offset <= size_ and size <= size_ - offset);
+  }
+
+  [[nodiscard]] __host__ __device__ serialized_bitmap_view subview(cuda::std::size_t offset) const
+  {
+    if (not bounded_) { return serialized_bitmap_view{data_ + offset}; }
+    if (offset > size_) {
+      return serialized_bitmap_view{cuda::std::span<cuda::std::byte const>{data_, 0}};
+    }
+    return serialized_bitmap_view{
+      cuda::std::span<cuda::std::byte const>{data_ + offset, size_ - offset}};
+  }
+
+  template <class T>
+  __host__ __device__ bool try_load(cuda::std::size_t offset, T& value) const
+  {
+    if (not contains(offset, sizeof(T))) { return false; }
+    value = misaligned_load<T>(data_ + offset);
+    return true;
+  }
+
+ private:
+  cuda::std::byte const* data_;
+  cuda::std::size_t size_;
+  bool bounded_;
+};
 
 template <class T>
 struct roaring_bitmap_metadata {
@@ -104,6 +137,79 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
    * @param bitmap Serialized bitmap bytes
    */
   __host__ roaring_bitmap_metadata(cuda::std::span<cuda::std::byte const> bitmap)
+    : roaring_bitmap_metadata{serialized_bitmap_view{bitmap}}
+  {
+  }
+
+  /**
+   * @brief Constructs metadata from a serialized bitmap
+   *
+   * @param bitmap Pointer to the beginning of the serialized bitmap
+   */
+  __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
+    : roaring_bitmap_metadata{serialized_bitmap_view{bitmap}}
+  {
+  }
+
+  __host__ __device__ explicit roaring_bitmap_metadata(serialized_bitmap_view bitmap)
+  {
+    parse(bitmap);
+  }
+
+ private:
+  template <class T>
+  __host__ __device__ bool load(serialized_bitmap_view bitmap, cuda::std::size_t offset, T& value)
+  {
+    if (bitmap.try_load(offset, value)) { return true; }
+    valid = false;
+    NV_IF_TARGET(
+      NV_IS_HOST,
+      CUCO_FAIL("Invalid bitmap format: serialized data is truncated");)  // TODO device error
+                                                                          // handling
+    return false;
+  }
+
+  __host__ __device__ bool expect_range(serialized_bitmap_view bitmap,
+                                        cuda::std::size_t offset,
+                                        cuda::std::size_t size)
+  {
+    if (bitmap.contains(offset, size)) { return true; }
+    valid = false;
+    NV_IF_TARGET(
+      NV_IS_HOST,
+      CUCO_FAIL("Invalid bitmap format: serialized data is truncated");)  // TODO device error
+                                                                          // handling
+    return false;
+  }
+
+  __host__ __device__ bool get_container_size(serialized_bitmap_view bitmap,
+                                              cuda::std::size_t container_offset,
+                                              cuda::std::int32_t index,
+                                              cuda::std::size_t& size)
+  {
+    bool const is_run_container =
+      has_run and check_bit(bitmap.data() + run_container_bitmap, index);
+    if (is_run_container) {
+      cuda::std::uint16_t num_runs;
+      if (not load(bitmap, container_offset, num_runs)) { return false; }
+      size = sizeof(cuda::std::uint16_t) +
+             static_cast<cuda::std::size_t>(num_runs) * 2 * sizeof(cuda::std::uint16_t);
+      return true;
+    }
+
+    auto const card_offset =
+      static_cast<cuda::std::size_t>(key_cards) +
+      static_cast<cuda::std::size_t>(index * 2 + 1) * sizeof(cuda::std::uint16_t);
+    cuda::std::uint16_t stored_card;
+    if (not load(bitmap, card_offset, stored_card)) { return false; }
+    auto const card = 1u + stored_card;
+    size            = card <= max_array_container_card
+                        ? static_cast<cuda::std::size_t>(card) * sizeof(cuda::std::uint16_t)
+                        : static_cast<cuda::std::size_t>(bitset_container_bytes);
+    return true;
+  }
+
+  __host__ __device__ void parse(serialized_bitmap_view bitmap)
   {
     constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
     constexpr cuda::std::uint32_t serial_cookie                 = 12347;
@@ -112,29 +218,42 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     constexpr cuda::std::uint32_t cookie_shift                  = 16;
 
     cuda::std::size_t offset = 0;
-    auto const cookie        = checked_load<cuda::std::uint32_t>(bitmap, offset);
+    cuda::std::uint32_t cookie;
+    if (not load(bitmap, offset, cookie)) { return; }
     offset += sizeof(cuda::std::uint32_t);
 
     if ((cookie & cookie_mask) != serial_cookie && cookie != serial_cookie_no_runcontainer) {
-      CUCO_FAIL("Invalid bitmap format: cookie type invalid or not supported");
+      valid = false;
+      NV_IF_TARGET(
+        NV_IS_HOST,
+        CUCO_FAIL(
+          "Invalid bitmap format: cookie type invalid or not supported");)  // TODO device error
+                                                                            // handling
+      return;
     }
 
     cuda::std::uint32_t container_count;
     if ((cookie & cookie_mask) == serial_cookie) {
       container_count = (cookie >> cookie_shift) + 1;
     } else {
-      container_count = checked_load<cuda::std::uint32_t>(bitmap, offset);
+      if (not load(bitmap, offset, container_count)) { return; }
       offset += sizeof(cuda::std::uint32_t);
     }
-    CUCO_EXPECTS(container_count <= max_containers,
-                 "Invalid bitmap format: num_containers out of range");
+    if (container_count > max_containers) {
+      valid = false;
+      NV_IF_TARGET(
+        NV_IS_HOST,
+        CUCO_FAIL(
+          "Invalid bitmap format: num_containers out of range");)  // TODO device error handling
+      return;
+    }
     num_containers = static_cast<cuda::std::int32_t>(container_count);
 
     has_run = (cookie & cookie_mask) == serial_cookie;
     if (has_run) {
       auto const run_container_bitmap_size =
         static_cast<cuda::std::size_t>((num_containers + 7) / 8);
-      expect_valid_range(bitmap, offset, run_container_bitmap_size);
+      if (not expect_range(bitmap, offset, run_container_bitmap_size)) { return; }
       run_container_bitmap = static_cast<cuda::std::uint32_t>(offset);
       offset += run_container_bitmap_size;
     }
@@ -142,7 +261,7 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     key_cards = static_cast<cuda::std::uint32_t>(offset);
     auto const key_cards_size =
       static_cast<cuda::std::size_t>(num_containers) * 2 * sizeof(cuda::std::uint16_t);
-    expect_valid_range(bitmap, offset, key_cards_size);
+    if (not expect_range(bitmap, offset, key_cards_size)) { return; }
     offset += key_cards_size;
 
     if ((!has_run) || (num_containers >= no_offset_threshold)) {
@@ -150,7 +269,7 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
       container_offsets          = static_cast<cuda::std::uint32_t>(offset);
       auto const container_offsets_size =
         static_cast<cuda::std::size_t>(num_containers) * sizeof(cuda::std::uint32_t);
-      expect_valid_range(bitmap, offset, container_offsets_size);
+      if (not expect_range(bitmap, offset, container_offsets_size)) { return; }
       offset += container_offsets_size;
     } else {
       offsets_in_serialized_data = false;
@@ -167,29 +286,18 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
       auto const card_offset =
         static_cast<cuda::std::size_t>(key_cards) +
         static_cast<cuda::std::size_t>(i * 2 + 1) * sizeof(cuda::std::uint16_t);
-      auto const card = 1u + checked_load<cuda::std::uint16_t>(bitmap, card_offset);
-      CUCO_EXPECTS(card <= cuda::std::numeric_limits<cuda::std::size_t>::max() - num_keys,
-                   "Invalid bitmap format: cardinality overflow");
+      cuda::std::uint16_t stored_card;
+      if (not load(bitmap, card_offset, stored_card)) { return; }
+      auto const card = 1u + stored_card;
+      if (card > cuda::std::numeric_limits<cuda::std::size_t>::max() - num_keys) {
+        valid = false;
+        NV_IF_TARGET(
+          NV_IS_HOST,
+          CUCO_FAIL("Invalid bitmap format: cardinality overflow");)  // TODO device error handling
+        return;
+      }
       num_keys += card;
     }
-
-    auto const container_size = [&](cuda::std::size_t container_offset, cuda::std::int32_t index) {
-      bool const is_run_container =
-        has_run and check_bit(bitmap.data() + run_container_bitmap, index);
-      if (is_run_container) {
-        auto const num_runs = checked_load<cuda::std::uint16_t>(bitmap, container_offset);
-        return sizeof(cuda::std::uint16_t) +
-               static_cast<cuda::std::size_t>(num_runs) * 2 * sizeof(cuda::std::uint16_t);
-      }
-
-      auto const card_offset =
-        static_cast<cuda::std::size_t>(key_cards) +
-        static_cast<cuda::std::size_t>(index * 2 + 1) * sizeof(cuda::std::uint16_t);
-      auto const card = 1u + checked_load<cuda::std::uint16_t>(bitmap, card_offset);
-      return card <= max_array_container_card
-               ? static_cast<cuda::std::size_t>(card) * sizeof(cuda::std::uint16_t)
-               : static_cast<cuda::std::size_t>(bitset_container_bytes);
-    };
 
     if (offsets_in_serialized_data) {
       auto const containers_start = offset;
@@ -197,167 +305,44 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
       for (cuda::std::int32_t i = 0; i < num_containers; ++i) {
         auto const offset_offset = static_cast<cuda::std::size_t>(container_offsets) +
                                    static_cast<cuda::std::size_t>(i) * sizeof(cuda::std::uint32_t);
-        auto const container_offset =
-          static_cast<cuda::std::size_t>(checked_load<cuda::std::uint32_t>(bitmap, offset_offset));
-        CUCO_EXPECTS(container_offset >= containers_start and container_offset >= previous_end,
-                     "Invalid bitmap format: container offsets are invalid");
-        auto const size = container_size(container_offset, i);
-        expect_valid_range(bitmap, container_offset, size);
+        cuda::std::uint32_t stored_offset;
+        if (not load(bitmap, offset_offset, stored_offset)) { return; }
+        auto const container_offset = static_cast<cuda::std::size_t>(stored_offset);
+        if (container_offset < containers_start or container_offset < previous_end) {
+          valid = false;
+          NV_IF_TARGET(
+            NV_IS_HOST,
+            CUCO_FAIL("Invalid bitmap format: container offsets are invalid");)  // TODO device
+                                                                                 // error handling
+          return;
+        }
+        cuda::std::size_t size;
+        if (not get_container_size(bitmap, container_offset, i, size)) { return; }
+        if (not expect_range(bitmap, container_offset, size)) { return; }
         previous_end = container_offset + size;
       }
       size_bytes = previous_end;
     } else {
       for (cuda::std::int32_t i = 0; i < num_containers; ++i) {
-        CUCO_EXPECTS(offset <= cuda::std::numeric_limits<cuda::std::uint32_t>::max(),
-                     "Invalid bitmap format: container offset is out of range");
+        if (offset > cuda::std::numeric_limits<cuda::std::uint32_t>::max()) {
+          valid = false;
+          NV_IF_TARGET(
+            NV_IS_HOST,
+            CUCO_FAIL(
+              "Invalid bitmap format: container offset is out of range");)  // TODO device error
+                                                                            // handling
+          return;
+        }
         computed_offsets[i] = static_cast<cuda::std::uint32_t>(offset);
-        auto const size     = container_size(offset, i);
-        expect_valid_range(bitmap, offset, size);
+        cuda::std::size_t size;
+        if (not get_container_size(bitmap, offset, i, size)) { return; }
+        if (not expect_range(bitmap, offset, size)) { return; }
         offset += size;
       }
       size_bytes = offset;
     }
 
     valid = true;
-  }
-
-  /**
-   * @brief Constructs metadata from a serialized bitmap
-   *
-   * @param bitmap Pointer to the beginning of the serialized bitmap
-   */
-  __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
-  {
-    constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
-    constexpr cuda::std::uint32_t serial_cookie                 = 12347;
-    // constexpr cuda::std::uint32_t frozen_cookie                 = 13766; // not implemented
-    constexpr cuda::std::int32_t max_containers = 1 << 16;
-    constexpr cuda::std::uint32_t cookie_mask   = 0xFFFF;
-    constexpr cuda::std::uint32_t cookie_shift  = 16;
-
-    cuda::std::byte const* buf = bitmap;
-
-    cuda::std::uint32_t cookie;
-    cuda::std::memcpy(&cookie, buf, sizeof(cuda::std::uint32_t));
-    buf += sizeof(cuda::std::uint32_t);
-    if ((cookie & cookie_mask) != serial_cookie && cookie != serial_cookie_no_runcontainer) {
-      valid = false;
-      NV_IF_TARGET(
-        NV_IS_HOST,
-        CUCO_FAIL(
-          "Invalid bitmap format: cookie type invalid or not supported");)  // TODO device error
-                                                                            // handling
-      return;
-    }
-
-    if ((cookie & cookie_mask) == serial_cookie)
-      // upper 16 bits of cookie are the number of containers - 1
-      num_containers = (cookie >> cookie_shift) + 1;
-    else {
-      // following 4 bytes are the number of containers
-      cuda::std::memcpy(&num_containers, buf, sizeof(cuda::std::uint32_t));
-      buf += sizeof(cuda::std::uint32_t);
-    }
-    if (num_containers < 0 or num_containers > max_containers) {
-      valid = false;
-      NV_IF_TARGET(
-        NV_IS_HOST,
-        CUCO_FAIL(
-          "Invalid bitmap format: num_containers out of range");)  // TODO device error handling
-      return;
-    }
-
-    has_run = (cookie & cookie_mask) == serial_cookie;
-    if (has_run) {
-      cuda::std::size_t s  = (num_containers + 7) / 8;  // ceil bytes to store run container bitmap
-      run_container_bitmap = cuda::std::distance(bitmap, buf);
-      buf += s;
-    }
-
-    key_cards = cuda::std::distance(bitmap, buf);
-    // if the current address is aligned to 2 bytes, then all containers are aligned to at least 2
-    // bytes
-    bool const aligned_16 = (reinterpret_cast<cuda::std::uintptr_t>(bitmap + key_cards) %
-                             sizeof(cuda::std::uint16_t)) == 0;
-    buf += num_containers * 2 * sizeof(cuda::std::uint16_t);
-
-    if ((!has_run) || (num_containers >= no_offset_threshold)) {
-      // Container offsets are stored in the serialized data
-      offsets_in_serialized_data = true;
-      container_offsets          = cuda::std::distance(bitmap, buf);
-      buf += num_containers * sizeof(cuda::std::uint32_t);
-    } else {
-      // Container offsets are NOT stored in the serialized data
-      // We need to compute them by walking through the containers
-      offsets_in_serialized_data = false;
-      container_offsets          = 0;
-
-      cuda::std::byte const* container_ptr = buf;
-      for (cuda::std::int32_t i = 0; i < num_containers; ++i) {
-        // Store the computed offset for this container
-        computed_offsets[i] =
-          static_cast<cuda::std::uint32_t>(cuda::std::distance(bitmap, container_ptr));
-
-        // Get cardinality for this container
-        cuda::std::byte const* card_ptr =
-          bitmap + key_cards + (i * 2 + 1) * sizeof(cuda::std::uint16_t);
-        cuda::std::uint32_t card_i = 1u + misaligned_load<cuda::std::uint16_t>(card_ptr);
-
-        // Check if this is a run container
-        bool is_run_container = check_bit(bitmap + run_container_bitmap, i);
-
-        // Compute container size and advance pointer
-        if (is_run_container) {
-          // Run container: first uint16_t is num_runs, followed by num_runs (start, length) pairs
-          cuda::std::uint16_t num_runs = misaligned_load<cuda::std::uint16_t>(container_ptr);
-          container_ptr += sizeof(cuda::std::uint16_t) + num_runs * 2 * sizeof(cuda::std::uint16_t);
-        } else if (card_i <= max_array_container_card) {
-          // Array container
-          container_ptr += card_i * sizeof(cuda::std::uint16_t);
-        } else {
-          // Bitset container (fixed size)
-          container_ptr += bitset_container_bytes;
-        }
-      }
-      // buf now points past all containers
-      buf = container_ptr;
-    }
-
-    cuda::std::uint32_t card = 0;
-    for (cuda::std::int32_t i = 0; i < num_containers; i++) {
-      cuda::std::byte const* card_ptr =
-        bitmap + key_cards + (i * 2 + 1) * sizeof(cuda::std::uint16_t);
-      if (aligned_16) {
-        card = 1u + aligned_load<cuda::std::uint16_t>(card_ptr);
-      } else {
-        card = 1u + misaligned_load<cuda::std::uint16_t>(card_ptr);
-      }
-      num_keys += card;
-    }
-
-    // find end of roaring bitmap (re-use card from last container)
-    cuda::std::byte const* end;
-    if (offsets_in_serialized_data) {
-      end =
-        bitmap + misaligned_load<cuda::std::uint32_t>(
-                   bitmap + container_offsets + (num_containers - 1) * sizeof(cuda::std::uint32_t));
-    } else {
-      end = bitmap + computed_offsets[num_containers - 1];
-    }
-
-    if (has_run and check_bit(bitmap + run_container_bitmap, num_containers - 1)) {
-      cuda::std::uint16_t const num_runs = misaligned_load<cuda::std::uint16_t>(end);
-      end += sizeof(cuda::std::uint16_t) + num_runs * 2 * sizeof(cuda::std::uint16_t);
-    } else {
-      if (card <= max_array_container_card) {
-        end += card * sizeof(cuda::std::uint16_t);
-      } else {
-        end += bitset_container_bytes;  // fixed size bitset container
-      }
-    }
-
-    size_bytes = static_cast<cuda::std::size_t>(cuda::std::distance(bitmap, end));
-    valid      = true;
   }
 };
 
@@ -415,39 +400,7 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
   __host__ roaring_bitmap_metadata(cuda::std::span<cuda::std::byte const> bitmap,
                                    std::vector<bucket_metadata>& bucket_metadata)
   {
-    cuda::std::size_t byte_offset     = 0;
-    auto const serialized_num_buckets = checked_load<cuda::std::uint64_t>(bitmap, byte_offset);
-    byte_offset += sizeof(cuda::std::uint64_t);
-
-    CUCO_EXPECTS(serialized_num_buckets <= cuda::std::numeric_limits<cuda::std::size_t>::max(),
-                 "Invalid bitmap format: num_buckets out of range");
-    num_buckets = static_cast<cuda::std::size_t>(serialized_num_buckets);
-
-    constexpr cuda::std::size_t minimum_bucket_prefix_size =
-      sizeof(cuda::std::uint32_t) + sizeof(cuda::std::uint32_t);
-    CUCO_EXPECTS(num_buckets <= (bitmap.size() - byte_offset) / minimum_bucket_prefix_size,
-                 "Invalid bitmap format: num_buckets exceeds the serialized data size");
-
-    bucket_metadata.clear();
-
-    for (cuda::std::size_t i = 0; i < num_buckets; ++i) {
-      auto const bucket_key = checked_load<cuda::std::uint32_t>(bitmap, byte_offset);
-      byte_offset += sizeof(cuda::std::uint32_t);
-
-      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap.subspan(byte_offset)};
-      CUCO_EXPECTS(bucket_meta.valid and bucket_meta.size_bytes > 0,
-                   "Invalid bitmap format: bucket metadata is invalid");
-      expect_valid_range(bitmap, byte_offset, bucket_meta.size_bytes);
-      CUCO_EXPECTS(
-        bucket_meta.num_keys <= cuda::std::numeric_limits<cuda::std::size_t>::max() - num_keys,
-        "Invalid bitmap format: cardinality overflow");
-
-      bucket_metadata.emplace_back(byte_offset, bucket_key, bucket_meta);
-      num_keys += bucket_meta.num_keys;
-      byte_offset += bucket_meta.size_bytes;
-    }
-    size_bytes = byte_offset;
-    valid      = true;
+    parse(serialized_bitmap_view{bitmap}, bucket_metadata);
   }
 
   /**
@@ -459,29 +412,7 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
   __host__ roaring_bitmap_metadata(cuda::std::byte const* bitmap,
                                    std::vector<bucket_metadata>& bucket_metadata)
   {
-    cuda::std::size_t byte_offset     = 0;
-    cuda::std::byte const* bitmap_ptr = bitmap;
-    cuda::std::memcpy(&num_buckets, bitmap_ptr, sizeof(cuda::std::uint64_t));
-    byte_offset += sizeof(cuda::std::uint64_t);  // skip num_buckets
-
-    bucket_metadata.clear();
-    bucket_metadata.reserve(num_buckets);
-
-    for (cuda::std::size_t i = 0; i < num_buckets; ++i) {
-      cuda::std::uint32_t bucket_key;
-      cuda::std::memcpy(&bucket_key, bitmap_ptr + byte_offset, sizeof(cuda::std::uint32_t));
-      byte_offset += sizeof(cuda::std::uint32_t);  // skip bucket key
-      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap_ptr + byte_offset};
-      if (!bucket_meta.valid) {
-        valid = false;
-        return;
-      }
-      bucket_metadata.emplace_back(byte_offset, bucket_key, bucket_meta);
-      num_keys += bucket_meta.num_keys;
-      byte_offset += bucket_meta.size_bytes;  // skip bucket
-    }
-    size_bytes = byte_offset;
-    valid      = true;
+    parse(serialized_bitmap_view{bitmap}, bucket_metadata);
   }
 
   /**
@@ -491,20 +422,104 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
    */
   __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
   {
-    cuda::std::size_t byte_offset     = 0;
-    cuda::std::byte const* bitmap_ptr = bitmap;
-    cuda::std::memcpy(&num_buckets, bitmap_ptr, sizeof(cuda::std::uint64_t));
-    byte_offset += sizeof(cuda::std::uint64_t);  // skip num_buckets
+    parse(serialized_bitmap_view{bitmap});
+  }
+
+ private:
+  template <class T>
+  __host__ __device__ bool load(serialized_bitmap_view bitmap, cuda::std::size_t offset, T& value)
+  {
+    if (bitmap.try_load(offset, value)) { return true; }
+    valid = false;
+    NV_IF_TARGET(
+      NV_IS_HOST,
+      CUCO_FAIL("Invalid bitmap format: serialized data is truncated");)  // TODO device error
+                                                                          // handling
+    return false;
+  }
+
+  __host__ void parse(serialized_bitmap_view bitmap, std::vector<bucket_metadata>& bucket_metadata)
+  {
+    cuda::std::size_t byte_offset = 0;
+    cuda::std::uint64_t serialized_num_buckets;
+    if (not load(bitmap, byte_offset, serialized_num_buckets)) { return; }
+    byte_offset += sizeof(cuda::std::uint64_t);
+
+    CUCO_EXPECTS(serialized_num_buckets <= cuda::std::numeric_limits<cuda::std::size_t>::max(),
+                 "Invalid bitmap format: num_buckets out of range");
+    num_buckets = static_cast<cuda::std::size_t>(serialized_num_buckets);
+
+    constexpr cuda::std::size_t minimum_bucket_prefix_size =
+      sizeof(cuda::std::uint32_t) + sizeof(cuda::std::uint32_t);
+    if (bitmap.is_bounded()) {
+      CUCO_EXPECTS(num_buckets <= (bitmap.size() - byte_offset) / minimum_bucket_prefix_size,
+                   "Invalid bitmap format: num_buckets exceeds the serialized data size");
+    }
+
+    bucket_metadata.clear();
+    if (not bitmap.is_bounded()) { bucket_metadata.reserve(num_buckets); }
 
     for (cuda::std::size_t i = 0; i < num_buckets; ++i) {
-      byte_offset += sizeof(cuda::std::uint32_t);  // skip bucket key
-      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap_ptr + byte_offset};
-      if (!bucket_meta.valid) {
+      cuda::std::uint32_t bucket_key;
+      if (not load(bitmap, byte_offset, bucket_key)) { return; }
+      byte_offset += sizeof(cuda::std::uint32_t);
+
+      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap.subview(byte_offset)};
+      CUCO_EXPECTS(bucket_meta.valid and bucket_meta.size_bytes > 0,
+                   "Invalid bitmap format: bucket metadata is invalid");
+      CUCO_EXPECTS(not bitmap.is_bounded() or bitmap.contains(byte_offset, bucket_meta.size_bytes),
+                   "Invalid bitmap format: serialized data is truncated");
+      CUCO_EXPECTS(
+        bucket_meta.num_keys <= cuda::std::numeric_limits<cuda::std::size_t>::max() - num_keys,
+        "Invalid bitmap format: cardinality overflow");
+      CUCO_EXPECTS(
+        bucket_meta.size_bytes <= cuda::std::numeric_limits<cuda::std::size_t>::max() - byte_offset,
+        "Invalid bitmap format: bitmap size overflow");
+
+      bucket_metadata.emplace_back(byte_offset, bucket_key, bucket_meta);
+      num_keys += bucket_meta.num_keys;
+      byte_offset += bucket_meta.size_bytes;
+    }
+    size_bytes = byte_offset;
+    valid      = true;
+  }
+
+  __host__ __device__ void parse(serialized_bitmap_view bitmap)
+  {
+    cuda::std::size_t byte_offset = 0;
+    cuda::std::uint64_t serialized_num_buckets;
+    if (not load(bitmap, byte_offset, serialized_num_buckets)) { return; }
+    if (serialized_num_buckets > cuda::std::numeric_limits<cuda::std::size_t>::max()) {
+      valid = false;
+      NV_IF_TARGET(NV_IS_HOST,
+                   CUCO_FAIL("Invalid bitmap format: num_buckets out of range");)  // TODO device
+                                                                                   // error handling
+      return;
+    }
+    num_buckets = static_cast<cuda::std::size_t>(serialized_num_buckets);
+    byte_offset += sizeof(cuda::std::uint64_t);
+
+    for (cuda::std::size_t i = 0; i < num_buckets; ++i) {
+      cuda::std::uint32_t bucket_key;
+      if (not load(bitmap, byte_offset, bucket_key)) { return; }
+      byte_offset += sizeof(cuda::std::uint32_t);
+
+      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap.subview(byte_offset)};
+      if (not bucket_meta.valid) {
         valid = false;
         return;
       }
+      if (bucket_meta.num_keys > cuda::std::numeric_limits<cuda::std::size_t>::max() - num_keys or
+          bucket_meta.size_bytes >
+            cuda::std::numeric_limits<cuda::std::size_t>::max() - byte_offset) {
+        valid = false;
+        NV_IF_TARGET(
+          NV_IS_HOST,
+          CUCO_FAIL("Invalid bitmap format: bitmap size overflow");)  // TODO device error handling
+        return;
+      }
       num_keys += bucket_meta.num_keys;
-      byte_offset += bucket_meta.size_bytes;  // skip bucket
+      byte_offset += bucket_meta.size_bytes;
     }
     size_bytes = byte_offset;
     valid      = true;
