@@ -48,7 +48,7 @@ int main(void)
   // default policy, except the final `PersistingL2Access` parameter is `true`.
   using policy_type              = cuco::bloom_filter_policy<key_type,
                                                              cuco::xxhash_64<key_type>,
-                                                             std::uint32_t,
+                                                             4,
                                                              8,
                                                              8,
                                                              8,

@@ -45,13 +45,10 @@ class bloom_filter_impl {
   using size_type   = typename extent_type::value_type;
   using policy_type = Policy;
   using word_type   = typename policy_type::word_type;
-  static_assert(sizeof(word_type) == 4 || sizeof(word_type) == 8,
-                "word_type must be 4 or 8 bytes wide for atomicOr");
-  // atomicOr overloads resolve on canonical 32- and 64-bit unsigned integer types.
-  // Normalize by size so any policy-provided word_type (uint32_t, uint64_t, unsigned long, ...)
-  // resolves to a matching overload via the reinterpret_cast in atomic_or().
-  using atomic_word_type =
-    cuda::std::conditional_t<sizeof(word_type) == 8, unsigned long long, unsigned int>;
+  static_assert(
+    cuda::std::is_same_v<word_type, unsigned int> ||
+      cuda::std::is_same_v<word_type, unsigned long long int>,
+    "Policy::word_type must be unsigned int or unsigned long long int for native atomicOr");
 
   static constexpr auto thread_scope    = Scope;
   static constexpr auto words_per_block = policy_type::words_per_block;
@@ -70,14 +67,6 @@ class bloom_filter_impl {
 
   static_assert(cuda::std::has_single_bit(words_per_block) and words_per_block <= 32,
                 "Number of words per block must be a power-of-two and less than or equal to 32");
-  static_assert(
-    cuda::std::is_constructible_v<cuda::atomic_ref<word_type, Scope>, word_type&> &&
-      cuda::std::is_invocable_r_v<word_type,
-                                  decltype(&cuda::atomic_ref<word_type, Scope>::fetch_or),
-                                  cuda::atomic_ref<word_type, Scope>*,
-                                  word_type,
-                                  cuda::std::memory_order>,
-    "Invalid word type");
 
   __host__ __device__ static constexpr size_t alignment() noexcept
   {
@@ -558,18 +547,16 @@ class bloom_filter_impl {
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    // Native atomicOr: cuda::atomic_ref::fetch_or produces consistently slower codegen here.
     auto const do_or = [&]() {
-      auto* const p = filter_access(reinterpret_cast<atomic_word_type*>(word_ptr));
-      auto const v  = static_cast<atomic_word_type>(pattern);
+      auto* const p = filter_access(word_ptr);
       if constexpr (thread_scope == cuda::thread_scope_thread) {
-        *p |= v;
+        *p |= pattern;
       } else if constexpr (thread_scope == cuda::thread_scope_block) {
-        atomicOr_block(p, v);
+        atomicOr_block(p, pattern);
       } else if constexpr (thread_scope == cuda::thread_scope_device) {
-        atomicOr(p, v);
+        atomicOr(p, pattern);
       } else if constexpr (thread_scope == cuda::thread_scope_system) {
-        atomicOr_system(p, v);
+        atomicOr_system(p, pattern);
       } else {
         static_assert(cuco::dependent_false<word_type>,
                       "unsupported cuda::thread_scope for native atomic_or");
