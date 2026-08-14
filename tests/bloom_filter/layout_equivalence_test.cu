@@ -7,7 +7,7 @@
 // across (ContainsH, ContainsV) layout permutations, equivalence between dynamic vs static
 // `cuco::extent`, and invariance under the ConditionalAdd / EarlyExitContains policy knobs
 // (both are optimizations that must not change results) -- all for fixed
-// (Hash, Word, WordsPerBlock, PatternBits, keys).
+// (Hash, WordBytes, WordsPerBlock, PatternBits, keys).
 
 #include <test_utils.hpp>
 
@@ -24,16 +24,37 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <type_traits>
+
+TEST_CASE("bloom_filter: word byte selection", "")
+{
+  using hash_type      = cuco::xxhash_64<int32_t>;
+  using default_policy = cuco::bloom_filter_policy<int32_t>;
+  using wide_policy    = cuco::bloom_filter_policy<int32_t, hash_type, 8>;
+  using legacy_default_policy =
+    cuco::parametric_filter_policy<hash_type, std::uint32_t, 8, 8, 8, 1, 1, 8, false, false>;
+  using legacy_wide_policy =
+    cuco::parametric_filter_policy<hash_type, std::uint64_t, 4, 4, 4, 1, 1, 4, false, false>;
+
+  STATIC_REQUIRE((std::is_same_v<typename default_policy::word_type, unsigned int>));
+  STATIC_REQUIRE((std::is_same_v<typename wide_policy::word_type, unsigned long long int>));
+  STATIC_REQUIRE((std::is_same_v<legacy_default_policy, default_policy>));
+  STATIC_REQUIRE((std::is_same_v<legacy_wide_policy, wide_policy>));
+  STATIC_REQUIRE(default_policy::word_bytes == 4);
+  STATIC_REQUIRE(wide_policy::word_bytes == 8);
+  STATIC_REQUIRE(default_policy::words_per_block == 8);
+  STATIC_REQUIRE(wide_policy::words_per_block == 4);
+}
 
 TEMPLATE_TEST_CASE_SIG(
   "bloom_filter: bitset is invariant under (AddH, AddV) layout permutations",
   "",
   ((class AltPolicy), AltPolicy),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 1, 8, 1, 8>),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 4, 1, 8>),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 1, 8>),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 2, 2, 1, 8>),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 1, 1, 8>))
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 1, 8, 1, 8>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 2, 4, 1, 8>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 4, 2, 1, 8>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 2, 2, 1, 8>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 4, 1, 1, 8>))
 {
   using Key            = int32_t;
   using default_policy = cuco::bloom_filter_policy<Key>;
@@ -64,11 +85,11 @@ TEMPLATE_TEST_CASE_SIG(
   "bloom_filter: contains results are invariant under (ContainsH, ContainsV) permutations",
   "",
   ((class AltPolicy), AltPolicy),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 8, 1>),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 2, 4>),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 4, 2>),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 2, 2>),
-  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 1, 4>))
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 8, 1, 8, 1>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 8, 1, 2, 4>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 8, 1, 4, 2>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 8, 1, 2, 2>),
+  (cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 8, 1, 1, 4>))
 {
   using Key            = int32_t;
   using default_policy = cuco::bloom_filter_policy<Key>;
@@ -143,7 +164,7 @@ TEST_CASE("bloom_filter: bitset is invariant under ConditionalAdd", "")
      Key,
      cuco::extent<std::size_t>,
      cuda::thread_scope_device,
-     cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 1, 8, true>>;
+     cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 8, 8, 8, 1, 1, 8, true>>;
 
   constexpr int32_t num_blocks = 1'000;
   constexpr int32_t num_keys   = 400;
@@ -170,16 +191,16 @@ TEST_CASE("bloom_filter: contains results are invariant under EarlyExitContains"
 {
   using Key = int32_t;
   // ContainsHorizontalLayout > 1 so the compare_patterns early-exit branch is actually used.
-  using filter_off_t = cuco::bloom_filter<
-    Key,
-    cuco::extent<std::size_t>,
-    cuda::thread_scope_device,
-    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 8, 1>>;
+  using filter_off_t =
+    cuco::bloom_filter<Key,
+                       cuco::extent<std::size_t>,
+                       cuda::thread_scope_device,
+                       cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 8, 8, 8, 1, 8, 1>>;
   using filter_on_t = cuco::bloom_filter<
     Key,
     cuco::extent<std::size_t>,
     cuda::thread_scope_device,
-    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, uint32_t, 8, 8, 8, 1, 8, 1, false, true>>;
+    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 8, 8, 8, 1, 8, 1, false, true>>;
 
   constexpr int32_t num_blocks = 1'000;
   constexpr int32_t num_keys   = 400;

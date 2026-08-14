@@ -23,8 +23,8 @@ namespace cuco {
  *
  * @tparam Key Key type to hash.
  * @tparam Hash 64-bit hash functor type. Defaults to `cuco::xxhash_64<Key>`.
- * @tparam Word Underlying word type of a filter block. Defaults to `std::uint32_t`.
- * @tparam WordsPerBlock Words per filter block. Defaults to the number of `Word`s that fit in one
+ * @tparam WordBytes Size in bytes of the underlying word type. Must be `4` or `8`. Defaults to `4`.
+ * @tparam WordsPerBlock Words per filter block. Defaults to the number of words that fit in one
  * 32-byte sector.
  * @tparam PatternBits Fingerprint bits per key (paper's k). Defaults to `WordsPerBlock`.
  * @tparam AddHorizontalLayout CG size for add (paper's Theta). Defaults to `WordsPerBlock` for
@@ -48,8 +48,8 @@ namespace cuco {
  */
 template <class Key,
           class Hash                             = cuco::xxhash_64<Key>,
-          class Word                             = std::uint32_t,
-          std::uint32_t WordsPerBlock            = 32 / sizeof(Word),
+          std::uint32_t WordBytes                = 4,
+          std::uint32_t WordsPerBlock            = 32 / WordBytes,
           std::uint32_t PatternBits              = WordsPerBlock,
           std::uint32_t AddHorizontalLayout      = WordsPerBlock,
           std::uint32_t AddVerticalLayout        = 1,
@@ -59,7 +59,7 @@ template <class Key,
           bool EarlyExitContains                 = false,
           bool PersistingL2Access                = false>
 using bloom_filter_policy = detail::bloom_filter_policy<Hash,
-                                                        Word,
+                                                        WordBytes,
                                                         WordsPerBlock,
                                                         PatternBits,
                                                         AddHorizontalLayout,
@@ -73,28 +73,22 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
 /**
  * @brief Deprecated compatibility alias for the old parametric Bloom filter policy API.
  *
- * Alias for the same policy type exposed by `bloom_filter_policy`, but with the template
- * parameters from the old `parametric_filter_policy` API.
+ * The supplied `Word` type is used only to select the internal word width through `sizeof(Word)`.
  *
  * @note This alias should not be used in new code and may be removed on short notice. Use
  * `cuco::bloom_filter_policy` directly instead.
  *
  * @tparam Hash 64-bit hash functor type.
- * @tparam Word Underlying word type of a filter block.
+ * @tparam Word Type whose size selects the underlying word width.
  * @tparam WordsPerBlock Words per filter block.
  * @tparam PatternBits Fingerprint bits per key (paper's k).
  * @tparam AddHorizontalLayout CG size for add (paper's Theta).
  * @tparam AddVerticalLayout Words per thread per add step (paper's Phi).
  * @tparam ContainsHorizontalLayout CG size for contains.
  * @tparam ContainsVerticalLayout Words per thread per contains step.
- * @tparam ConditionalAdd When `true`, `add` reads each word before the atomic OR and skips the
- * write when the required bits are already set. Trades a read for fewer atomic writes; beneficial
- * when the filter is highly contended (e.g. close to full) or the input has many duplicate keys.
- * @tparam EarlyExitContains When `true`, `contains` short-circuits a thread's evaluation on the
- * first missing fingerprint slice. Beneficial when queried keys have a low match rate and filter
- * contention is low.
- * @tparam PersistingL2Access When `true`, annotates global-memory filter accesses with an L2
- * persisting access policy. Defaults to `false` for compatibility with the old API surface.
+ * @tparam ConditionalAdd Whether to skip redundant atomic writes.
+ * @tparam EarlyExitContains Whether to short-circuit contains on the first missing slice.
+ * @tparam PersistingL2Access Whether to annotate global-memory accesses as persisting.
  */
 template <class Hash,
           class Word,
@@ -107,16 +101,17 @@ template <class Hash,
           bool ConditionalAdd,
           bool EarlyExitContains,
           bool PersistingL2Access = false>
-using parametric_filter_policy = detail::bloom_filter_policy<Hash,
-                                                             Word,
-                                                             WordsPerBlock,
-                                                             PatternBits,
-                                                             AddHorizontalLayout,
-                                                             AddVerticalLayout,
-                                                             ContainsHorizontalLayout,
-                                                             ContainsVerticalLayout,
-                                                             ConditionalAdd,
-                                                             EarlyExitContains,
-                                                             PersistingL2Access>;
+using parametric_filter_policy =
+  detail::bloom_filter_policy<Hash,
+                              static_cast<std::uint32_t>(sizeof(Word)),
+                              WordsPerBlock,
+                              PatternBits,
+                              AddHorizontalLayout,
+                              AddVerticalLayout,
+                              ContainsHorizontalLayout,
+                              ContainsVerticalLayout,
+                              ConditionalAdd,
+                              EarlyExitContains,
+                              PersistingL2Access>;
 
 }  // namespace cuco

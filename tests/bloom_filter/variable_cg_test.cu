@@ -71,10 +71,8 @@ TEMPLATE_TEST_CASE_SIG(
   "",
   ((class Key, class Policy), Key, Policy),
   (int32_t, cuco::bloom_filter_policy<int32_t>),
-  (int32_t,
-   cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 1, 1, 1, 1, 1, 1>),
-  (int32_t,
-   cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 4, 2>))
+  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 1, 1, 1, 1, 1, 1>),
+  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 4, 2, 4, 2>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
@@ -108,12 +106,8 @@ TEMPLATE_TEST_CASE_SIG(
   "bloom_filter device ref CG contains is reduced across the group",
   "",
   ((int32_t CGSize, class Key, class Policy), CGSize, Key, Policy),
-  (4,
-   int32_t,
-   cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 4, 2, 4, 2>),
-  (8,
-   int32_t,
-   cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, uint32_t, 8, 8, 8, 1, 8, 1>))
+  (4, int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 4, 2, 4, 2>),
+  (8, int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 8, 1, 8, 1>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
