@@ -208,7 +208,7 @@ TEST_CASE("Probing iterator wraps without overflowing its signed size type", "")
 {
   constexpr auto max = cuda::std::numeric_limits<cuda::std::int32_t>::max();
 
-  constexpr auto wrapped_index = [max] {
+  constexpr auto wrapped_index = [] {
     cuco::detail::probing_iterator<constexpr_extent<cuda::std::int32_t>> iterator{
       max - 2, max - 3, constexpr_extent<cuda::std::int32_t>{max}};
     ++iterator;
@@ -222,7 +222,7 @@ TEST_CASE("Probing iterator wraps without overflowing its unsigned size type", "
 {
   constexpr auto max = cuda::std::numeric_limits<cuda::std::uint32_t>::max();
 
-  constexpr auto wrapped_index = [max] {
+  constexpr auto wrapped_index = [] {
     cuco::detail::probing_iterator<constexpr_extent<cuda::std::uint32_t>> iterator{
       max - 2, max - 3, constexpr_extent<cuda::std::uint32_t>{max}};
     ++iterator;
