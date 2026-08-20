@@ -14,9 +14,48 @@
 
 #include <cuda/std/type_traits>
 
+#include <cmath>
 #include <cstdint>
 
 namespace cuco {
+namespace detail {
+
+constexpr std::uint64_t extent_div_ceil(std::uint64_t dividend, std::uint64_t divisor)
+{
+  return dividend / divisor + static_cast<std::uint64_t>(dividend % divisor != 0);
+}
+
+template <typename SizeType>
+constexpr std::uint64_t max_extent_value()
+{
+  static_assert(cuda::std::is_integral_v<SizeType>);
+  static_assert(sizeof(SizeType) <= sizeof(std::uint64_t));
+  return static_cast<std::uint64_t>(cuda::std::numeric_limits<SizeType>::max());
+}
+
+template <typename SizeType, std::size_t N>
+constexpr bool is_static_extent_representable()
+{
+  if constexpr (sizeof(SizeType) > sizeof(std::size_t) ||
+                (sizeof(SizeType) == sizeof(std::size_t) && cuda::std::is_unsigned_v<SizeType>)) {
+    return true;
+  } else {
+    return N <= static_cast<std::size_t>(cuda::std::numeric_limits<SizeType>::max());
+  }
+}
+
+template <typename SizeType>
+constexpr std::uint64_t normalize_extent(SizeType size)
+{
+  if constexpr (cuda::std::is_signed_v<SizeType>) {
+    return size > 0 ? static_cast<std::uint64_t>(size) : 1ull;
+  } else {
+    return size == 0 ? 1ull : static_cast<std::uint64_t>(size);
+  }
+}
+
+}  // namespace detail
+
 template <typename SizeType, std::size_t N>
 struct valid_extent {
   using value_type = SizeType;  ///< Extent value type
@@ -102,17 +141,26 @@ struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
 {
-  auto constexpr stride = CGSize * BucketSize;
-  auto const size       = cuco::detail::int_div_ceil(
-    cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride);
+  static_assert(CGSize > 0);
+  static_assert(BucketSize > 0);
+
+  constexpr auto stride     = static_cast<std::uint64_t>(CGSize) * BucketSize;
+  constexpr auto max_groups = detail::max_extent_value<SizeType>() / stride;
 
   if constexpr (N == dynamic_extent) {
-    return valid_extent<SizeType, dynamic_extent>{
-      static_cast<SizeType>(cuco::detail::next_prime(static_cast<std::uint64_t>(size)) * stride)};
+    auto const requested = detail::normalize_extent(static_cast<SizeType>(ext));
+    auto const groups    = detail::extent_div_ceil(requested, stride);
+    auto const prime     = cuco::detail::next_prime(groups, max_groups);
+    if (prime == 0) { CUCO_FAIL("Requested extent exceeds the representable capacity"); }
+    return valid_extent<SizeType, dynamic_extent>{static_cast<SizeType>(prime * stride)};
   } else {
-    return valid_extent<SizeType,
-                        static_cast<std::size_t>(
-                          cuco::detail::next_prime(static_cast<std::uint64_t>(size)) * stride)>{};
+    static_assert(detail::is_static_extent_representable<SizeType, N>(),
+                  "Static extent must be representable by its size type");
+    constexpr auto requested = N == 0 ? 1 : N;
+    constexpr auto groups    = detail::extent_div_ceil(requested, stride);
+    constexpr auto prime     = cuco::detail::next_prime(groups, max_groups);
+    static_assert(prime != 0, "Requested extent exceeds the representable capacity");
+    return valid_extent<SizeType, static_cast<std::size_t>(prime * stride)>{};
   }
 }
 
@@ -130,16 +178,27 @@ template <typename ProbingScheme, typename Storage, typename SizeType, std::size
   if constexpr (cuco::is_double_hashing<ProbingScheme>::value) {
     return make_valid_extent<ProbingScheme::cg_size, Storage::bucket_size, SizeType, N>(ext);
   } else {
-    auto constexpr stride = ProbingScheme::cg_size * Storage::bucket_size;
-    auto const size =
-      cuco::detail::int_div_ceil(
-        cuda::std::max(static_cast<SizeType>(ext), static_cast<SizeType>(1)), stride) +
-      static_cast<SizeType>(ext == 0);
+    static_assert(ProbingScheme::cg_size > 0);
+    static_assert(Storage::bucket_size > 0);
+
+    constexpr auto stride =
+      static_cast<std::uint64_t>(ProbingScheme::cg_size) * Storage::bucket_size;
+    constexpr auto max_groups = detail::max_extent_value<SizeType>() / stride;
 
     if constexpr (N == dynamic_extent) {
-      return valid_extent<SizeType, dynamic_extent>{size * stride};
+      auto const value = static_cast<SizeType>(ext);
+      auto groups      = detail::extent_div_ceil(detail::normalize_extent(value), stride);
+      if (value == 0) { ++groups; }
+      if (groups > max_groups) { CUCO_FAIL("Requested extent exceeds the representable capacity"); }
+      return valid_extent<SizeType, dynamic_extent>{static_cast<SizeType>(groups * stride)};
     } else {
-      return valid_extent<SizeType, size * stride>{};
+      static_assert(detail::is_static_extent_representable<SizeType, N>(),
+                    "Static extent must be representable by its size type");
+      constexpr auto requested = N == 0 ? 1 : N;
+      constexpr auto groups =
+        detail::extent_div_ceil(requested, stride) + static_cast<std::uint64_t>(N == 0);
+      static_assert(groups <= max_groups, "Requested extent exceeds the representable capacity");
+      return valid_extent<SizeType, static_cast<std::size_t>(groups * stride)>{};
     }
   }
 }
@@ -151,8 +210,16 @@ template <typename ProbingScheme, typename Storage, typename SizeType>
   CUCO_EXPECTS(desired_load_factor > 0., "Desired occupancy must be larger than zero");
   CUCO_EXPECTS(desired_load_factor <= 1., "Desired occupancy must be no larger than one");
 
-  auto const temp = cuda::std::ceil(static_cast<double>(SizeType{ext}) / desired_load_factor);
-  if (temp > static_cast<double>(cuda::std::numeric_limits<SizeType>::max())) {
+  auto const value = static_cast<SizeType>(ext);
+  if constexpr (cuda::std::is_signed_v<SizeType>) {
+    if (value <= 0) { return make_valid_extent<ProbingScheme, Storage>(ext); }
+  } else {
+    if (value == 0) { return make_valid_extent<ProbingScheme, Storage>(ext); }
+  }
+
+  auto const temp =
+    std::ceil(static_cast<long double>(value) / static_cast<long double>(desired_load_factor));
+  if (temp > static_cast<long double>(cuda::std::numeric_limits<SizeType>::max())) {
     CUCO_FAIL(
       "Invalid load factor: requested extent divided by load factor exceeds maximum representable "
       "value");

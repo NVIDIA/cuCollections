@@ -54,9 +54,10 @@ class probing_iterator {
    */
   __host__ __device__ constexpr auto operator++() noexcept
   {
-    // TODO: step_size_ can be a build time constant (e.g. linear probing)
-    //  Worth passing another extent type?
-    curr_index_ = (curr_index_ + step_size_) % upper_bound_;
+    // Probe construction guarantees curr_index_ < upper_bound_ and step_size_ <= upper_bound_,
+    // therefore advancing can wrap at most once.
+    auto const remaining = upper_bound_ - curr_index_;
+    curr_index_ = step_size_ >= remaining ? step_size_ - remaining : curr_index_ + step_size_;
     return *this;
   }
 
@@ -98,9 +99,10 @@ template <int32_t BucketSize, typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
   ProbeKey probe_key, Extent upper_bound) const noexcept
 {
-  using size_type      = typename Extent::value_type;
-  size_type const init = cuco::detail::sanitize_hash<size_type>(hash_(probe_key)) %
-                         (upper_bound / BucketSize) * BucketSize;
+  using size_type             = typename Extent::value_type;
+  size_type const num_buckets = upper_bound / BucketSize;
+  size_type const init =
+    cuco::detail::sanitize_hash<size_type>(hash_(probe_key), num_buckets) * BucketSize;
   return detail::probing_iterator<Extent>{init, static_cast<size_type>(BucketSize), upper_bound};
 }
 
@@ -113,8 +115,9 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
 {
   using size_type            = typename Extent::value_type;
   size_type constexpr stride = cg_size * BucketSize;
+  size_type const num_groups = upper_bound / stride;
   size_type const init =
-    cuco::detail::sanitize_hash<size_type>(hash_(probe_key)) % (upper_bound / stride) * stride +
+    cuco::detail::sanitize_hash<size_type>(hash_(probe_key), num_groups) * stride +
     g.thread_rank() * BucketSize;
   return detail::probing_iterator<Extent>{init, stride, upper_bound};
 }
@@ -159,14 +162,15 @@ template <int32_t BucketSize, typename ProbeKey, typename Extent>
 __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_iterator(
   ProbeKey probe_key, Extent upper_bound) const noexcept
 {
-  using size_type = typename Extent::value_type;
+  using size_type             = typename Extent::value_type;
+  size_type const num_buckets = upper_bound / BucketSize;
   return detail::probing_iterator<Extent>{
-    static_cast<size_type>(cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) %
-                           (upper_bound / BucketSize) * BucketSize),
-    static_cast<size_type>(
-      (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / BucketSize - 1) +
-       1) *
-      BucketSize),  // step size in range [1, prime - 1]
+    static_cast<size_type>(cuco::detail::sanitize_hash<size_type>(hash1_(probe_key), num_buckets) *
+                           BucketSize),
+    static_cast<size_type>((cuco::detail::sanitize_hash<size_type>(
+                              hash2_(probe_key), static_cast<size_type>(num_buckets - 1)) +
+                            1) *
+                           BucketSize),  // step size in range [1, prime - 1]
     upper_bound};
 }
 
@@ -177,16 +181,18 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_it
   ProbeKey probe_key,
   Extent upper_bound) const noexcept
 {
-  int32_t const stride = cg_size * BucketSize;
-  using size_type      = typename Extent::value_type;
+  int32_t const stride       = cg_size * BucketSize;
+  using size_type            = typename Extent::value_type;
+  size_type const num_groups = upper_bound / stride;
 
   return detail::probing_iterator<Extent>{
-    static_cast<size_type>(cuco::detail::sanitize_hash<size_type>(hash1_(probe_key)) %
-                             (upper_bound / stride) * stride +
+    static_cast<size_type>(cuco::detail::sanitize_hash<size_type>(hash1_(probe_key), num_groups) *
+                             stride +
                            g.thread_rank() * BucketSize),
-    static_cast<size_type>(
-      (cuco::detail::sanitize_hash<size_type>(hash2_(probe_key)) % (upper_bound / stride - 1) + 1) *
-      stride),
+    static_cast<size_type>((cuco::detail::sanitize_hash<size_type>(
+                              hash2_(probe_key), static_cast<size_type>(num_groups - 1)) +
+                            1) *
+                           stride),
     upper_bound};  // TODO use fast_int operator
 }
 
