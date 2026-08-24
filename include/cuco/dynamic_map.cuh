@@ -57,18 +57,12 @@ class dynamic_map {
   using hasher      = typename map_type::hasher;      ///< Hash function type
   using mapped_type = T;                              ///< Payload type
 
+  dynamic_map()                              = delete;
   dynamic_map(dynamic_map const&)            = delete;
   dynamic_map& operator=(dynamic_map const&) = delete;
-
-  dynamic_map(dynamic_map&&) = default;  ///< Move constructor
-
-  /**
-   * @brief Replaces the contents of the container with another container.
-   *
-   * @return Reference of the current map object
-   */
-  dynamic_map& operator=(dynamic_map&&) = default;
-  ~dynamic_map()                        = default;
+  dynamic_map(dynamic_map&&)                 = delete;
+  dynamic_map& operator=(dynamic_map&&)      = delete;
+  ~dynamic_map()                             = default;
 
   /**
    * @brief Constructs a dynamically-sized map.
