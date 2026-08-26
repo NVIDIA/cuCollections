@@ -121,18 +121,12 @@ class static_map {
                                         storage_ref_type,
                                         Operators...>;  ///< Non-owning container ref type
 
+  static_map()                             = delete;
   static_map(static_map const&)            = delete;
   static_map& operator=(static_map const&) = delete;
-
-  static_map(static_map&&) = default;  ///< Move constructor
-
-  /**
-   * @brief Replaces the contents of the container with another container.
-   *
-   * @return Reference of the current map object
-   */
-  static_map& operator=(static_map&&) = default;
-  ~static_map()                       = default;
+  static_map(static_map&&) noexcept        = default;  ///< Move constructor
+  static_map& operator=(static_map&&)      = delete;
+  ~static_map()                            = default;
 
   /**
    * @brief Constructs a statically-sized map with the specified initial capacity, sentinel values
