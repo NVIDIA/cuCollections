@@ -60,7 +60,7 @@ class dynamic_map {
   dynamic_map()                              = delete;
   dynamic_map(dynamic_map const&)            = delete;
   dynamic_map& operator=(dynamic_map const&) = delete;
-  dynamic_map(dynamic_map&&)                 = delete;
+  dynamic_map(dynamic_map&&) noexcept        = default;  ///< Move constructor
   dynamic_map& operator=(dynamic_map&&)      = delete;
   ~dynamic_map()                             = default;
 

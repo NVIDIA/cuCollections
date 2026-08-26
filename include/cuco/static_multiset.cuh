@@ -102,7 +102,7 @@ class static_multiset {
   static_multiset()                                  = delete;
   static_multiset(static_multiset const&)            = delete;
   static_multiset& operator=(static_multiset const&) = delete;
-  static_multiset(static_multiset&&)                 = delete;
+  static_multiset(static_multiset&&) noexcept        = default;  ///< Move constructor
   static_multiset& operator=(static_multiset&&)      = delete;
   ~static_multiset()                                 = default;
 

@@ -107,7 +107,7 @@ class static_set {
   static_set()                             = delete;
   static_set(static_set const&)            = delete;
   static_set& operator=(static_set const&) = delete;
-  static_set(static_set&&)                 = delete;
+  static_set(static_set&&) noexcept        = default;  ///< Move constructor
   static_set& operator=(static_set&&)      = delete;
   ~static_set()                            = default;
 

@@ -120,7 +120,7 @@ class static_multimap {
   static_multimap()                                  = delete;
   static_multimap(static_multimap const&)            = delete;
   static_multimap& operator=(static_multimap const&) = delete;
-  static_multimap(static_multimap&&)                 = delete;
+  static_multimap(static_multimap&&) noexcept        = default;  ///< Move constructor
   static_multimap& operator=(static_multimap&&)      = delete;
   ~static_multimap()                                 = default;
 

@@ -124,7 +124,7 @@ class static_map {
   static_map()                             = delete;
   static_map(static_map const&)            = delete;
   static_map& operator=(static_map const&) = delete;
-  static_map(static_map&&)                 = delete;
+  static_map(static_map&&) noexcept        = default;  ///< Move constructor
   static_map& operator=(static_map&&)      = delete;
   ~static_map()                            = default;
 
