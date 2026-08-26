@@ -6,9 +6,18 @@
 #pragma once
 
 #include <cuda/std/cstddef>
+#include <cuda/std/span>
 #include <cuda/stream_ref>
 
 namespace cuco::experimental {
+
+template <class T, class Allocator>
+roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::span<cuda::std::byte const> bitmap,
+                                             Allocator const& alloc,
+                                             cuda::stream_ref stream)
+  : storage_{bitmap, alloc, stream}
+{
+}
 
 template <class T, class Allocator>
 roaring_bitmap<T, Allocator>::roaring_bitmap(cuda::std::byte const* bitmap,
