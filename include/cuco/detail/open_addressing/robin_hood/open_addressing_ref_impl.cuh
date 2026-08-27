@@ -92,9 +92,10 @@ template <int32_t BucketSize, int32_t CGSize, typename Hash, typename ProbeKey, 
   auto const bound           = static_cast<size_type>(upper_bound);
   auto const hash            = scheme.hash_function();
 
-  // Home bucket base of the resident, using the same alignment as `make_iterator`.
+  // Home bucket base of the resident, using the same alignment (and, via the modulus folded into
+  // `sanitize_hash`, the same hash-to-index reduction) as `make_iterator`.
   size_type const resident_home =
-    cuco::detail::sanitize_hash<size_type>(hash(resident_key)) % (bound / stride) * stride;
+    cuco::detail::sanitize_hash<size_type>(hash(resident_key), bound / stride) * stride;
 
   // Bucket-strided base of the slot the resident currently occupies. The per-lane `thread_rank`
   // offset (which is < stride) is stripped by the floor division so that the distance is measured
