@@ -950,7 +950,8 @@ class open_addressing_ref_impl
 
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
+    size_type probe_step = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -976,6 +977,9 @@ class open_addressing_ref_impl
           }
         }
       }
+      // Robin Hood: a resident richer than us proves the key is absent -- nothing to erase.
+      if (this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step)) { return false; }
+      ++probe_step;
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
     }
@@ -998,7 +1002,8 @@ class open_addressing_ref_impl
   {
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
-    auto const init_idx = *probing_iter;
+    auto const init_idx  = *probing_iter;
+    size_type probe_step = 0;
 
     while (true) {
       auto const bucket_slots = storage_ref_[*probing_iter];
@@ -1040,6 +1045,12 @@ class open_addressing_ref_impl
       // Key doesn't exist, return false
       if (group.any(state == detail::equal_result::EMPTY)) { return false; }
 
+      // Robin Hood: a resident richer than us (in any lane's bucket) proves the key is absent --
+      // nothing to erase.
+      if (group.any(this->robin_hood_proves_absent(bucket_slots, *probing_iter, probe_step))) {
+        return false;
+      }
+      ++probe_step;
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
     }
