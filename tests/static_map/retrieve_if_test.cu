@@ -96,15 +96,18 @@ __global__ void test_retrieve_if_all_true_kernel(
                                  *atomic_counter);
 }
 
-TEMPLATE_TEST_CASE_SIG("static_map retrieve_if",
-                       "",
-                       ((typename Key, typename T), Key, T),
-                       (int32_t, int32_t),
-                       (int64_t, int64_t)
+// Robin Hood is linear-probing + single-CAS only; unsupported variants (double_hashing,
+// padded/oversized slots) are commented; 16B int64/int64 needs 128-bit atomics.
+TEMPLATE_TEST_CASE_SIG(
+  "static_map retrieve_if",
+  "",
+  ((typename Key, typename T), Key, T),
+  (int32_t, int32_t)
 #if defined(CUCO_HAS_128BIT_ATOMICS)
-                         ,
-                       (__int128_t, __int128_t)
+    ,
+  (int64_t, int64_t)
 #endif
+  //  (__int128_t, __int128_t)  // 32B slot: oversized for single-CAS Robin Hood
 )
 {
   constexpr size_type num_keys{400};

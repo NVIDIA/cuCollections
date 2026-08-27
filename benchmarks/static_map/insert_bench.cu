@@ -59,9 +59,12 @@ std::enable_if_t<(sizeof(Key) != sizeof(Value)), void> static_map_insert(
   state.skip("Key should be the same type as Value.");
 }
 
+// Robin Hood (hard-wired into static_map) requires a single-CAS slot, so the shared
+// defaults::KEY_TYPE_RANGE x VALUE_TYPE_RANGE cross product cannot be used here: the padded
+// int32/int64 and int64/int32 combos (12 bytes) are unsupported. Restricted to int32/int32 (8B).
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      defaults::VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
+                                      nvbench::type_list<nvbench::int32_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_map_insert_unique_capacity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
@@ -69,8 +72,8 @@ NVBENCH_BENCH_TYPES(static_map_insert,
   .add_float64_axis("Occupancy", {defaults::OCCUPANCY});
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      defaults::VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
+                                      nvbench::type_list<nvbench::int32_t>,
                                       nvbench::type_list<distribution::unique>))
   .set_name("static_map_insert_unique_occupancy")
   .set_type_axes_names({"Key", "Value", "Distribution"})
@@ -78,8 +81,8 @@ NVBENCH_BENCH_TYPES(static_map_insert,
   .add_float64_axis("Occupancy", defaults::OCCUPANCY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      defaults::VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
+                                      nvbench::type_list<nvbench::int32_t>,
                                       nvbench::type_list<distribution::uniform>))
   .set_name("static_map_insert_uniform_multiplicity")
   .set_type_axes_names({"Key", "Value", "Distribution"})
@@ -88,8 +91,8 @@ NVBENCH_BENCH_TYPES(static_map_insert,
   .add_int64_axis("Multiplicity", defaults::MULTIPLICITY_RANGE);
 
 NVBENCH_BENCH_TYPES(static_map_insert,
-                    NVBENCH_TYPE_AXES(defaults::KEY_TYPE_RANGE,
-                                      defaults::VALUE_TYPE_RANGE,
+                    NVBENCH_TYPE_AXES(nvbench::type_list<nvbench::int32_t>,
+                                      nvbench::type_list<nvbench::int32_t>,
                                       nvbench::type_list<distribution::gaussian>))
   .set_name("static_map_insert_gaussian_skew")
   .set_type_axes_names({"Key", "Value", "Distribution"})
