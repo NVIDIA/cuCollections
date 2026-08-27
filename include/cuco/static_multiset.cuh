@@ -99,18 +99,12 @@ class static_multiset {
                                              storage_ref_type,
                                              Operators...>;  ///< Non-owning container ref type
 
+  static_multiset()                                  = delete;
   static_multiset(static_multiset const&)            = delete;
   static_multiset& operator=(static_multiset const&) = delete;
-
-  static_multiset(static_multiset&&) = default;  ///< Move constructor
-
-  /**
-   * @brief Replaces the contents of the container with another container.
-   *
-   * @return Reference of the current multiset object
-   */
-  static_multiset& operator=(static_multiset&&) = default;
-  ~static_multiset()                            = default;
+  static_multiset(static_multiset&&) noexcept        = default;  ///< Move constructor
+  static_multiset& operator=(static_multiset&&)      = delete;
+  ~static_multiset()                                 = default;
 
   /**
    * @brief Constructs a statically-sized multiset with the specified initial capacity, sentinel

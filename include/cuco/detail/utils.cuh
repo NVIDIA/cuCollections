@@ -10,6 +10,7 @@
 #include <cuda/std/array>
 #include <cuda/std/cmath>
 #include <cuda/std/cstdint>
+#include <cuda/std/limits>
 #include <cuda/std/type_traits>
 
 namespace cuco {
@@ -26,26 +27,40 @@ __device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda:
 }
 
 template <typename SizeType, typename HashType>
-__host__ __device__ constexpr SizeType to_positive(HashType hash)
+__host__ __device__ constexpr cuda::std::make_unsigned_t<SizeType> to_positive(HashType hash)
 {
+  using unsigned_size_type = cuda::std::make_unsigned_t<SizeType>;
+  auto const value         = static_cast<unsigned_size_type>(hash);
+
   if constexpr (cuda::std::is_signed_v<SizeType>) {
-    return cuda::std::abs(static_cast<SizeType>(hash));
+    auto constexpr max =
+      static_cast<unsigned_size_type>(cuda::std::numeric_limits<SizeType>::max());
+    return value > max ? unsigned_size_type{0} - value : value;
   } else {
-    return static_cast<SizeType>(hash);
+    return value;
   }
 }
 
 /**
- * @brief Converts a given hash value into a valid (positive) size type.
+ * @brief Converts a hash value into a valid index for the given modulus.
+ *
+ * @note Hash values wider than `SizeType` are narrowed before reduction, preserving the existing
+ * low-bit mapping policy.
  *
  * @tparam SizeType The target type
  * @tparam HashType The input type
  *
- * @return Converted hash value
+ * @param hash The hash value
+ * @param modulus Exclusive upper bound for the returned index
+ *
+ * @return An index in `[0, modulus)`
  */
 template <typename SizeType, typename HashType>
-__host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
+__host__ __device__ constexpr SizeType sanitize_hash(HashType hash, SizeType modulus) noexcept
 {
+  using unsigned_size_type = cuda::std::make_unsigned_t<SizeType>;
+
+  unsigned_size_type magnitude;
   if constexpr (cuda::std::is_same_v<HashType, cuda::std::array<std::uint64_t, 2>>) {
 #if !defined(CUCO_HAS_INT128)
     static_assert(false,
@@ -54,10 +69,12 @@ __host__ __device__ constexpr SizeType sanitize_hash(HashType hash) noexcept
 #endif
     unsigned __int128 ret{};
     memcpy(&ret, &hash, sizeof(unsigned __int128));
-    return to_positive<SizeType>(static_cast<SizeType>(ret));
+    magnitude = to_positive<SizeType>(ret);
   } else {
-    return to_positive<SizeType>(hash);
+    magnitude = to_positive<SizeType>(hash);
   }
+
+  return static_cast<SizeType>(magnitude % static_cast<unsigned_size_type>(modulus));
 }
 
 }  // namespace detail

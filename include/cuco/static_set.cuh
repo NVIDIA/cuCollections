@@ -104,18 +104,12 @@ class static_set {
                                         storage_ref_type,
                                         Operators...>;  ///< Non-owning container ref type
 
+  static_set()                             = delete;
   static_set(static_set const&)            = delete;
   static_set& operator=(static_set const&) = delete;
-
-  static_set(static_set&&) = default;  ///< Move constructor
-
-  /**
-   * @brief Replaces the contents of the container with another container.
-   *
-   * @return Reference of the current set object
-   */
-  static_set& operator=(static_set&&) = default;
-  ~static_set()                       = default;
+  static_set(static_set&&) noexcept        = default;  ///< Move constructor
+  static_set& operator=(static_set&&)      = delete;
+  ~static_set()                            = default;
 
   /**
    * @brief Constructs a statically-sized set with the specified initial capacity, sentinel values
