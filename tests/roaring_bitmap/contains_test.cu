@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <cuco/detail/error.hpp>
 #include <cuco/roaring_bitmap.cuh>
 #include <cuco/utility/traits.hpp>
 
@@ -20,9 +21,12 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
+using bitmap_type = cuco::experimental::roaring_bitmap<cuda::std::uint32_t>;
+
 template <typename KeyType>
 bool check(std::string const& bitmap_file_path)
 {
@@ -124,19 +128,45 @@ TEST_CASE("roaring_bitmap run container without offsets", "[roaring_bitmap]")
   thrust::universal_host_pinned_vector<cuda::std::byte> buffer(bytes.size());
   std::memcpy(thrust::raw_pointer_cast(buffer.data()), bytes.data(), bytes.size());
 
-  cuco::experimental::roaring_bitmap<cuda::std::uint32_t> roaring_bitmap(
-    thrust::raw_pointer_cast(buffer.data()));
+  bitmap_type original{thrust::raw_pointer_cast(buffer.data())};
+  bitmap_type moved{std::move(original)};
 
   thrust::device_vector<cuda::std::uint32_t> keys{1, 2, 3, 4};
   thrust::device_vector<bool> contained(keys.size(), false);
 
-  roaring_bitmap.contains(keys.begin(), keys.end(), contained.begin());
+  moved.contains(keys.begin(), keys.end(), contained.begin());
 
   thrust::host_vector<bool> contained_h = contained;
   REQUIRE(contained_h[0]);
   REQUIRE(contained_h[1]);
   REQUIRE(contained_h[2]);
   REQUIRE_FALSE(contained_h[3]);
+
+  thrust::device_vector<cuda::std::uint32_t> empty_indices;
+  auto assigned =
+    bitmap_type::from_sorted_unique_indices(empty_indices.begin(), empty_indices.end());
+  assigned = std::move(moved);
+  assigned.contains(keys.begin(), keys.end(), contained.begin());
+
+  contained_h = contained;
+  REQUIRE(contained_h[0]);
+  REQUIRE(contained_h[1]);
+  REQUIRE(contained_h[2]);
+  REQUIRE_FALSE(contained_h[3]);
+}
+
+TEST_CASE("roaring_bitmap parses a serialized empty bitmap", "[roaring_bitmap]")
+{
+  thrust::device_vector<cuda::std::uint32_t> indices;
+  auto source = bitmap_type::from_sorted_unique_indices(indices.begin(), indices.end());
+
+  std::vector<cuda::std::byte> bytes(source.size_bytes());
+  CUCO_CUDA_TRY(cudaMemcpy(bytes.data(), source.data(), bytes.size(), cudaMemcpyDeviceToHost));
+
+  auto bitmap = bitmap_type::from_serialized(bytes.data());
+  REQUIRE(bitmap.empty());
+  REQUIRE(bitmap.size() == 0);
+  REQUIRE(bitmap.size_bytes() == bytes.size());
 }
 
 TEST_CASE("roaring_bitmap bulk contains from RoaringFormatSpec testdata", "[roaring_bitmap]")
