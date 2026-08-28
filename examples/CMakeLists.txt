@@ -41,3 +41,4 @@ ConfigureExample(HYPERLOGLOG_DEVICE_REF_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/hyp
 ConfigureExample(BLOOM_FILTER_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/host_bulk_example.cu")
 ConfigureExample(BLOOM_FILTER_PERSISTING_L2_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/persisting_l2_example.cu")
 ConfigureExample(ROARING_BITMAP_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/roaring_bitmap/host_bulk_example.cu")
+ConfigureExample(ROARING_BITMAP_BUILD_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/roaring_bitmap/build_example.cu")
