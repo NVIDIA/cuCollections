@@ -32,6 +32,12 @@ __host__ __device__ __forceinline__ T misaligned_load(cuda::std::byte const* ptr
   return value;
 }
 
+template <class T>
+__host__ __device__ __forceinline__ void misaligned_store(cuda::std::byte* ptr, T value)
+{
+  cuda::std::memcpy(ptr, &value, sizeof(T));
+}
+
 __host__ __device__ __forceinline__ bool check_bit(cuda::std::byte const* bitmap,
                                                    cuda::std::uint32_t index)
 {
@@ -53,6 +59,12 @@ struct roaring_bitmap_metadata {
  */
 template <>
 struct roaring_bitmap_metadata<cuda::std::uint32_t> {
+  /// Serialization cookie for bitmaps without run containers
+  static constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
+  /// Serialization cookie for bitmaps with run containers
+  static constexpr cuda::std::uint32_t serial_cookie = 12347;
+  /// Maximum number of containers in a 32-bit bitmap
+  static constexpr cuda::std::int32_t max_num_containers = 1 << 16;
   /// Maximum number of elements in an array container before converting to bitmap
   static constexpr cuda::std::uint32_t max_array_container_card = 4096;
   /// Threshold for omitting container offsets in serialized format
@@ -81,19 +93,54 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
   /// Whether container offsets are stored in the serialized data
   bool offsets_in_serialized_data = true;
 
+  roaring_bitmap_metadata() = default;
+
   /**
-   * @brief Constructs metadata from a serialized bitmap
+   * @brief Creates metadata for a generated bitmap without run containers
+   *
+   * @param bitmap_size_bytes Size of the serialized bitmap in bytes
+   * @param bitmap_num_keys Number of unique keys in the bitmap
+   * @param bitmap_num_containers Number of containers in the bitmap
+   * @return Metadata describing the generated bitmap
+   */
+  [[nodiscard]] static roaring_bitmap_metadata from_no_run_build(
+    cuda::std::size_t bitmap_size_bytes,
+    cuda::std::size_t bitmap_num_keys,
+    cuda::std::int32_t bitmap_num_containers) noexcept
+  {
+    roaring_bitmap_metadata metadata;
+    metadata.size_bytes = bitmap_size_bytes;
+    metadata.num_keys   = bitmap_num_keys;
+    metadata.key_cards  = 2 * sizeof(cuda::std::uint32_t);
+    metadata.container_offsets =
+      metadata.key_cards + bitmap_num_containers * 2 * sizeof(cuda::std::uint16_t);
+    metadata.num_containers             = bitmap_num_containers;
+    metadata.has_run                    = false;
+    metadata.valid                      = true;
+    metadata.offsets_in_serialized_data = true;
+    return metadata;
+  }
+
+  /**
+   * @brief Creates metadata from a serialized bitmap
    *
    * @param bitmap Pointer to the beginning of the serialized bitmap
+   * @return Metadata parsed from the serialized bitmap
    */
-  __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
+  [[nodiscard]] __host__ __device__ static roaring_bitmap_metadata from_serialized(
+    cuda::std::byte const* bitmap)
   {
-    constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
-    constexpr cuda::std::uint32_t serial_cookie                 = 12347;
+    roaring_bitmap_metadata metadata;
+    metadata.parse_serialized(bitmap);
+    return metadata;
+  }
+
+ private:
+  __host__ __device__ void parse_serialized(cuda::std::byte const* bitmap)
+  {
     // constexpr cuda::std::uint32_t frozen_cookie                 = 13766; // not implemented
-    constexpr cuda::std::int32_t max_containers = 1 << 16;
-    constexpr cuda::std::uint32_t cookie_mask   = 0xFFFF;
-    constexpr cuda::std::uint32_t cookie_shift  = 16;
+    constexpr cuda::std::uint32_t cookie_mask  = 0xFFFF;
+    constexpr cuda::std::uint32_t cookie_shift = 16;
 
     cuda::std::byte const* buf = bitmap;
 
@@ -118,7 +165,7 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
       cuda::std::memcpy(&num_containers, buf, sizeof(cuda::std::uint32_t));
       buf += sizeof(cuda::std::uint32_t);
     }
-    if (num_containers < 0 or num_containers > max_containers) {
+    if (num_containers < 0 or num_containers > max_num_containers) {
       valid = false;
       NV_IF_TARGET(
         NV_IS_HOST,
@@ -183,6 +230,13 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
       buf = container_ptr;
     }
 
+    if (num_containers == 0) {
+      // There is no last container from which to derive the end of the serialized stream.
+      size_bytes = static_cast<cuda::std::size_t>(cuda::std::distance(bitmap, buf));
+      valid      = true;
+      return;
+    }
+
     cuda::std::uint32_t card = 0;
     for (cuda::std::int32_t i = 0; i < num_containers; i++) {
       cuda::std::byte const* card_ptr =
@@ -238,6 +292,8 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
   /// Whether the metadata is valid
   bool valid = false;
 
+  roaring_bitmap_metadata() = default;
+
   /**
    * @brief Metadata for individual buckets in a 64-bit roaring bitmap
    *
@@ -267,13 +323,37 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
   };
 
   /**
-   * @brief Constructs metadata from a serialized 64-bit bitmap with bucket metadata
+   * @brief Creates metadata from a serialized 64-bit bitmap with bucket metadata
    *
    * @param bitmap Pointer to the beginning of the serialized bitmap
    * @param bucket_metadata Vector to store metadata for each bucket
+   * @return Metadata parsed from the serialized bitmap
    */
-  __host__ roaring_bitmap_metadata(cuda::std::byte const* bitmap,
-                                   std::vector<bucket_metadata>& bucket_metadata)
+  [[nodiscard]] __host__ static roaring_bitmap_metadata from_serialized(
+    cuda::std::byte const* bitmap, std::vector<bucket_metadata>& bucket_metadata)
+  {
+    roaring_bitmap_metadata metadata;
+    metadata.parse_serialized(bitmap, bucket_metadata);
+    return metadata;
+  }
+
+  /**
+   * @brief Creates metadata from a serialized 64-bit bitmap
+   *
+   * @param bitmap Pointer to the beginning of the serialized bitmap
+   * @return Metadata parsed from the serialized bitmap
+   */
+  [[nodiscard]] __host__ __device__ static roaring_bitmap_metadata from_serialized(
+    cuda::std::byte const* bitmap)
+  {
+    roaring_bitmap_metadata metadata;
+    metadata.parse_serialized(bitmap);
+    return metadata;
+  }
+
+ private:
+  __host__ void parse_serialized(cuda::std::byte const* bitmap,
+                                 std::vector<bucket_metadata>& bucket_metadata)
   {
     cuda::std::size_t byte_offset     = 0;
     cuda::std::byte const* bitmap_ptr = bitmap;
@@ -287,7 +367,8 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
       cuda::std::uint32_t bucket_key;
       cuda::std::memcpy(&bucket_key, bitmap_ptr + byte_offset, sizeof(cuda::std::uint32_t));
       byte_offset += sizeof(cuda::std::uint32_t);  // skip bucket key
-      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap_ptr + byte_offset};
+      auto const bucket_meta =
+        roaring_bitmap_metadata<cuda::std::uint32_t>::from_serialized(bitmap_ptr + byte_offset);
       if (!bucket_meta.valid) {
         valid = false;
         return;
@@ -300,12 +381,7 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
     valid      = true;
   }
 
-  /**
-   * @brief Constructs metadata from a serialized 64-bit bitmap
-   *
-   * @param bitmap Pointer to the beginning of the serialized bitmap
-   */
-  __host__ __device__ roaring_bitmap_metadata(cuda::std::byte const* bitmap)
+  __host__ __device__ void parse_serialized(cuda::std::byte const* bitmap)
   {
     cuda::std::size_t byte_offset     = 0;
     cuda::std::byte const* bitmap_ptr = bitmap;
@@ -314,7 +390,8 @@ struct roaring_bitmap_metadata<cuda::std::uint64_t> {
 
     for (cuda::std::size_t i = 0; i < num_buckets; ++i) {
       byte_offset += sizeof(cuda::std::uint32_t);  // skip bucket key
-      roaring_bitmap_metadata<cuda::std::uint32_t> bucket_meta{bitmap_ptr + byte_offset};
+      auto const bucket_meta =
+        roaring_bitmap_metadata<cuda::std::uint32_t>::from_serialized(bitmap_ptr + byte_offset);
       if (!bucket_meta.valid) {
         valid = false;
         return;

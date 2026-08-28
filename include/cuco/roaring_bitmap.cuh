@@ -41,6 +41,13 @@ class roaring_bitmap {
    * @brief Constructs a `roaring_bitmap` by copying the serialized bytes to device-accessible
    *        storage.
    *
+   * @note Construction of 32-bit bitmaps through this constructor is deprecated. Use
+   *       `from_serialized` instead. The constructor remains available without a compiler
+   *       deprecation attribute to avoid breaking existing code.
+   * @note `bitmap` must remain valid until `stream` completes the copy. The bitmap can be used
+   *       immediately by work submitted to the same stream; use an explicit dependency before
+   *       accessing it from another stream.
+   *
    * @param bitmap Pointer to the beginning of the serialized bitmap in host memory
    * @param alloc Allocator used to allocate device-accessible storage
    * @param stream CUDA stream used for device memory operations during construction
@@ -48,6 +55,26 @@ class roaring_bitmap {
   roaring_bitmap(cuda::std::byte const* bitmap,
                  Allocator const& alloc  = {},
                  cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
+   * @brief Creates a 32-bit `roaring_bitmap` by copying serialized bytes to device-accessible
+   *        storage.
+   *
+   * @note This factory currently supports only `cuda::std::uint32_t` bitmaps.
+   * @note `bitmap` must remain valid until `stream` completes the copy. The bitmap can be used
+   *       immediately by work submitted to the same stream; use an explicit dependency before
+   *       accessing it from another stream.
+   *
+   * @param bitmap Pointer to the beginning of the serialized bitmap in host memory
+   * @param alloc Allocator used to allocate device-accessible storage
+   * @param stream CUDA stream used for device memory operations during construction
+   *
+   * @return Bitmap containing a copy of the serialized input
+   */
+  [[nodiscard]] static roaring_bitmap from_serialized(cuda::std::byte const* bitmap,
+                                                      Allocator const& alloc  = {},
+                                                      cuda::stream_ref stream = cuda::stream_ref{
+                                                        cudaStream_t{nullptr}});
 
   /**
    * @brief Copy constructor
