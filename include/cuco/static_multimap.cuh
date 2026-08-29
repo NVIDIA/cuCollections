@@ -117,18 +117,12 @@ class static_multimap {
                                              storage_ref_type,
                                              Operators...>;  ///< Non-owning container ref type
 
+  static_multimap()                                  = delete;
   static_multimap(static_multimap const&)            = delete;
   static_multimap& operator=(static_multimap const&) = delete;
-
-  static_multimap(static_multimap&&) = default;  ///< Move constructor
-
-  /**
-   * @brief Replaces the contents of the container with another container.
-   *
-   * @return Reference of the current map object
-   */
-  static_multimap& operator=(static_multimap&&) = default;
-  ~static_multimap()                            = default;
+  static_multimap(static_multimap&&) noexcept        = default;  ///< Move constructor
+  static_multimap& operator=(static_multimap&&)      = delete;
+  ~static_multimap()                                 = default;
 
   /**
    * @brief Constructs a statically-sized map with the specified initial capacity, sentinel values

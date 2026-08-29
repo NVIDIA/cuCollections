@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdint>
+#include <limits>
 
 TEST_CASE("detail::is_prime", "")
 {
@@ -85,6 +86,17 @@ TEST_CASE("detail::next_prime", "")
   {
     REQUIRE(next_prime(1ull << 20) == 1048583ull);
     REQUIRE(next_prime(1ull << 32) == 4294967311ull);
+  }
+
+  SECTION("Bounded searches report when no prime is representable")
+  {
+    STATIC_REQUIRE(next_prime(100, 100) == 0);
+    STATIC_REQUIRE(next_prime(100, 101) == 101);
+
+    constexpr auto largest_prime = std::uint64_t{18446744073709551557ull};
+    REQUIRE(next_prime(largest_prime) == largest_prime);
+    REQUIRE(next_prime(largest_prime + 1) == 0);
+    REQUIRE(next_prime(std::numeric_limits<std::uint64_t>::max()) == 0);
   }
 
   SECTION("Result is always >= input and prime")

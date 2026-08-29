@@ -8,6 +8,7 @@
 #include <cuco/detail/__config>
 
 #include <cstdint>
+#include <limits>
 
 namespace cuco {
 namespace detail {
@@ -102,22 +103,39 @@ constexpr bool is_prime(std::uint64_t n)
 }
 
 /**
- * @brief Returns the smallest prime >= n.
+ * @brief Returns the smallest prime in `[n, upper_bound]`.
  *
- * For n <= 2, returns 2. Otherwise searches odd numbers starting
- * from n (or n+1 if n is even).
+ * @param n Lower bound of the search range
+ * @param upper_bound Upper bound of the search range
+ *
+ * @return The smallest prime in `[n, upper_bound]`, or zero if none exists
  */
-constexpr std::uint64_t next_prime(std::uint64_t n)
+constexpr std::uint64_t next_prime(std::uint64_t n, std::uint64_t upper_bound)
 {
+  if (upper_bound < 2ull || n > upper_bound) { return 0ull; }
   if (n <= 2ull) { return 2ull; }
 
-  n |= 1;  // make odd
+  if ((n & 1ull) == 0) { ++n; }
 
-  while (!is_prime(n)) {
+  while (n <= upper_bound) {
+    if (is_prime(n)) { return n; }
+    if (upper_bound - n < 2ull) { break; }
     n += 2ull;
   }
 
-  return n;
+  return 0ull;
+}
+
+/**
+ * @brief Returns the smallest representable prime greater than or equal to `n`.
+ *
+ * @param n Lower bound of the search range
+ *
+ * @return The smallest representable prime greater than or equal to `n`, or zero if none exists
+ */
+constexpr std::uint64_t next_prime(std::uint64_t n)
+{
+  return next_prime(n, std::numeric_limits<std::uint64_t>::max());
 }
 
 }  // namespace detail

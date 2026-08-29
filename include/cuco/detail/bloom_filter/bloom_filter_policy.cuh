@@ -39,7 +39,7 @@ namespace cuco::detail {
  * space.
  *
  * @tparam Hash 64-bit hash functor whose call operator returns `uint64_t`.
- * @tparam Word Underlying word type of a filter block. Must be an atomically updatable integral.
+ * @tparam WordBytes Size in bytes of the underlying word type. Must be `4` or `8`.
  * @tparam WordsPerBlock Words per filter block. Must be a power of two and <= 32.
  * @tparam PatternBits Number of fingerprint bits (k in the paper).
  * @tparam AddHorizontalLayout CG size used for `add` (paper's Theta). Must be a power of two and
@@ -66,7 +66,7 @@ namespace cuco::detail {
  * persisting, thrashing the cache and affecting unrelated kernels.
  */
 template <class Hash,
-          class Word,
+          uint32_t WordBytes,
           uint32_t WordsPerBlock,
           uint32_t PatternBits,
           uint32_t AddHorizontalLayout,
@@ -77,9 +77,13 @@ template <class Hash,
           bool EarlyExitContains,
           bool PersistingL2Access>
 class bloom_filter_policy {
+  static_assert(WordBytes == 4 || WordBytes == 8, "WordBytes must be 4 or 8 for native atomicOr");
+
  public:
-  using hasher           = Hash;      ///< 64-bit hash functor type
-  using word_type        = Word;      ///< Underlying filter-block word type
+  using hasher           = Hash;  ///< 64-bit hash functor type
+  using word_type        = cuda::std::conditional_t<WordBytes == 4,
+                                                    unsigned int,
+                                                    unsigned long long int>;  ///< Filter-block word type
   using hash_result_type = uint64_t;  ///< Hash function output type
 
  private:
@@ -98,6 +102,7 @@ class bloom_filter_policy {
   static constexpr uint32_t word_bits = cuda::std::numeric_limits<word_type>::digits;
 
  public:
+  static constexpr uint32_t word_bytes      = WordBytes;      ///< Size in bytes of each filter word
   static constexpr uint32_t words_per_block = WordsPerBlock;  ///< Number of words per filter block
   static constexpr uint32_t pattern_bits    = PatternBits;    ///< Fingerprint bits per key
 
