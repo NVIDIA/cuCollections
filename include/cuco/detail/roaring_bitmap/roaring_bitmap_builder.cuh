@@ -48,7 +48,8 @@ class roaring_bitmap_builder {
                 "roaring_bitmap factories require an input iterator with uint32_t value_type");
 
  public:
-  using storage_type = roaring_bitmap_storage<cuda::std::uint32_t, Allocator>;
+  using storage_type =
+    roaring_bitmap_storage<cuda::std::uint32_t, Allocator>;  ///< Generated bitmap storage type
 
   /**
    * @brief Prepares a build for the specified input range and ordering.

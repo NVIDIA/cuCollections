@@ -273,8 +273,14 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
     assert(metadata_.valid);
   }
 
-  // For small run-container bitmaps, ref_ points into metadata_.computed_offsets. Rebuilding the
-  // reference after a move keeps that pointer attached to this object's metadata.
+  /**
+   * @brief Move constructor.
+   *
+   * Rebuilds the cached reference because small run-container bitmaps store computed offsets
+   * directly in the metadata object.
+   *
+   * @param other Storage to move from
+   */
   roaring_bitmap_storage(roaring_bitmap_storage&& other) noexcept
     : allocator_{std::move(other.allocator_)},
       metadata_{std::move(other.metadata_)},
@@ -283,6 +289,15 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
   {
   }
 
+  /**
+   * @brief Move assignment operator.
+   *
+   * Rebuilds the cached reference because small run-container bitmaps store computed offsets
+   * directly in the metadata object.
+   *
+   * @param other Storage to move from
+   * @return Reference to this storage
+   */
   roaring_bitmap_storage& operator=(roaring_bitmap_storage&& other) noexcept
   {
     allocator_ = std::move(other.allocator_);

@@ -14,19 +14,33 @@
 
 namespace cuco::experimental::detail {
 
+/**
+ * @brief Device-computed scalar state shared by the Roaring construction kernels.
+ */
 struct roaring_bitmap_build_state {
-  cuda::std::int64_t num_keys;
-  cuda::std::int64_t num_containers;
-  cuda::std::uint32_t size_bytes;
-  cuda::std::uint32_t num_array_containers;
-  cuda::std::uint32_t num_bitset_containers;
+  cuda::std::int64_t num_keys;                ///< Number of sorted unique indices
+  cuda::std::int64_t num_containers;          ///< Number of high-16-bit containers
+  cuda::std::uint32_t size_bytes;             ///< Size of the serialized bitmap
+  cuda::std::uint32_t num_array_containers;   ///< Number of array containers
+  cuda::std::uint32_t num_bitset_containers;  ///< Number of bitset containers
 };
 
+/**
+ * @brief Predicate selecting the first index in each high-16-bit container.
+ *
+ * @tparam KeyIt Random access iterator over sorted unique indices
+ */
 template <class KeyIt>
 struct is_container_start {
-  KeyIt keys;
-  roaring_bitmap_build_state const* state;
+  KeyIt keys;                               ///< Sorted unique indices
+  roaring_bitmap_build_state const* state;  ///< Device build state
 
+  /**
+   * @brief Tests whether an index begins a container.
+   *
+   * @param index Index in the normalized input range
+   * @return `true` if `index` begins a container
+   */
   __device__ bool operator()(cuda::std::int64_t index) const noexcept
   {
     auto const num_keys = state->num_keys;
@@ -39,10 +53,19 @@ struct is_container_start {
 template <class KeyIt>
 is_container_start(KeyIt, roaring_bitmap_build_state const*) -> is_container_start<KeyIt>;
 
+/**
+ * @brief Computes the encoded payload size of a container.
+ */
 struct container_payload_size {
-  cuda::std::int64_t const* container_starts;
-  roaring_bitmap_build_state const* state;
+  cuda::std::int64_t const* container_starts;  ///< Starting input index of each container
+  roaring_bitmap_build_state const* state;     ///< Device build state
 
+  /**
+   * @brief Returns the encoded payload size for one container slot.
+   *
+   * @param index Container slot index
+   * @return Payload size in bytes, or zero for an unused slot
+   */
   __device__ cuda::std::uint32_t operator()(cuda::std::int64_t index) const noexcept
   {
     using metadata_type = roaring_bitmap_metadata<cuda::std::uint32_t>;
@@ -196,12 +219,11 @@ CUCO_KERNEL void write_roaring_containers(cuda::std::byte* bitmap,
 {
   using metadata_type = roaring_bitmap_metadata<cuda::std::uint32_t>;
 
-  constexpr cuda::std::uint32_t warp_size       = 32;
-  constexpr cuda::std::uint32_t warps_per_block = BlockSize / warp_size;
+  constexpr cuda::std::uint32_t warps_per_block = BlockSize / cuco::detail::warp_size();
   constexpr cuda::std::uint32_t bitset_words =
     metadata_type::bitset_container_bytes / sizeof(unsigned long long);
   constexpr cuda::std::uint32_t bitset_blocks_per_container = bitset_words / BlockSize;
-  static_assert(BlockSize % warp_size == 0);
+  static_assert(BlockSize % cuco::detail::warp_size() == 0);
   static_assert(bitset_words % BlockSize == 0);
 
   auto const payload_begin = 2 * sizeof(cuda::std::uint32_t) +
@@ -213,10 +235,10 @@ CUCO_KERNEL void write_roaring_containers(cuda::std::byte* bitmap,
   // Array containers use one warp each. Remaining blocks are divided into four 256-word pieces of
   // a bitset container.
   if (block < array_blocks) {
-    auto const warp_index = block * warps_per_block + threadIdx.x / warp_size;
+    auto const warp_index = block * warps_per_block + threadIdx.x / cuco::detail::warp_size();
     if (warp_index >= state.num_array_containers) { return; }
 
-    auto const lane            = static_cast<cuda::std::uint32_t>(threadIdx.x) % warp_size;
+    auto const lane = static_cast<cuda::std::uint32_t>(threadIdx.x) % cuco::detail::warp_size();
     auto const container_index = static_cast<cuda::std::int64_t>(array_containers[warp_index]);
     auto const begin           = container_starts[container_index];
     auto const end             = container_index + 1 < state.num_containers
@@ -225,7 +247,7 @@ CUCO_KERNEL void write_roaring_containers(cuda::std::byte* bitmap,
     auto const cardinality     = static_cast<cuda::std::uint32_t>(end - begin);
     auto* const container      = bitmap + payload_begin + payload_offsets[container_index];
 
-    for (auto index = lane; index < cardinality; index += warp_size) {
+    for (auto index = lane; index < cardinality; index += cuco::detail::warp_size()) {
       auto const value = static_cast<cuda::std::uint16_t>(keys[begin + index]);
       misaligned_store(container + index * sizeof(cuda::std::uint16_t), value);
     }
