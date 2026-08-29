@@ -11,6 +11,10 @@
 
 #include <iostream>
 
+/**
+ * @file host_bulk_from_indices_example.cu
+ * @brief Demonstrates building a roaring_bitmap from unordered indices.
+ */
 int main()
 {
   using index_type = cuda::std::uint32_t;
