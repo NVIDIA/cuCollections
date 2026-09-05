@@ -155,4 +155,5 @@ ConfigureTest(BLOOM_FILTER_TEST
 ###################################################################################################
 # - roaring_bitmap ---------------------------------------------------------------------------------
 ConfigureTest(ROARING_BITMAP_TEST
-    roaring_bitmap/contains_test.cu)
+    roaring_bitmap/contains_test.cu
+    roaring_bitmap/build_test.cu)

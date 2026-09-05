@@ -49,10 +49,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
     : metadata_{metadata},
       data_{bitmap},
       run_container_bitmap_{bitmap + metadata_.run_container_bitmap},
-      key_cards_{bitmap + metadata_.key_cards},
-      container_offsets_{metadata_.offsets_in_serialized_data
-                           ? (bitmap + metadata_.container_offsets)
-                           : reinterpret_cast<cuda::std::byte const*>(metadata_.computed_offsets)}
+      key_cards_{bitmap + metadata_.key_cards}
   {
     assert(metadata.valid);
   }
@@ -65,7 +62,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
    * @param bitmap Pointer to the serialized bitmap in a device-accessible memory location
    */
   __device__ roaring_bitmap_storage_ref(cuda::std::byte const* bitmap)
-    : roaring_bitmap_storage_ref{bitmap, metadata_type{bitmap}}
+    : roaring_bitmap_storage_ref{bitmap, metadata_type::from_serialized(bitmap)}
   {
   }
 
@@ -114,7 +111,9 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
    */
   __host__ __device__ cuda::std::byte const* container_offsets() const noexcept
   {
-    return container_offsets_;
+    return metadata_.offsets_in_serialized_data
+             ? data_ + metadata_.container_offsets
+             : reinterpret_cast<cuda::std::byte const*>(metadata_.computed_offsets);
   }
 
  private:
@@ -122,7 +121,6 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
   cuda::std::byte const* data_;
   cuda::std::byte const* run_container_bitmap_;
   cuda::std::byte const* key_cards_;
-  cuda::std::byte const* container_offsets_;
 };
 
 /**
@@ -212,6 +210,8 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
     typename std::allocator_traits<Allocator>::template rebind_alloc<cuda::std::byte>;
   /// Reference type for this storage
   using ref_type = roaring_bitmap_storage_ref<cuda::std::uint32_t>;
+  /// Metadata type for this storage
+  using metadata_type = typename ref_type::metadata_type;
 
   /**
    * @brief Copy constructor
@@ -221,27 +221,12 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
   roaring_bitmap_storage(roaring_bitmap_storage const& other) = default;
 
   /**
-   * @brief Move constructor
-   *
-   * @param other The roaring_bitmap_storage to move from
-   */
-  roaring_bitmap_storage(roaring_bitmap_storage&& other) = default;
-
-  /**
    * @brief Copy assignment operator
    *
    * @param other The roaring_bitmap_storage to copy from
    * @return Reference to this roaring_bitmap_storage
    */
   roaring_bitmap_storage& operator=(roaring_bitmap_storage const& other) = default;
-
-  /**
-   * @brief Move assignment operator
-   *
-   * @param other The roaring_bitmap_storage to move from
-   * @return Reference to this roaring_bitmap_storage
-   */
-  roaring_bitmap_storage& operator=(roaring_bitmap_storage&& other) = default;
 
   ~roaring_bitmap_storage() = default;
 
@@ -256,29 +241,75 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
                          Allocator const& alloc,
                          cuda::stream_ref stream)
     : allocator_{alloc},
-      metadata_{bitmap},
+      metadata_{metadata_type::from_serialized(bitmap)},
       data_{allocator_.allocate(metadata_.size_bytes, stream),
             cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
-              metadata_.size_bytes, allocator_, stream}},
-      ref_{data_.get(), metadata_}
+              metadata_.size_bytes, allocator_, stream}}
   {
     CUCO_CUDA_TRY(cudaMemcpyAsync(
       data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
   }
 
   /**
+   * @brief Constructs storage for generated bitmap data
+   *
+   * @param metadata Metadata describing the generated bitmap
+   * @param alloc Allocator for device memory allocation
+   * @param stream CUDA stream for memory operations
+   */
+  roaring_bitmap_storage(metadata_type const& metadata,
+                         Allocator const& alloc,
+                         cuda::stream_ref stream)
+    : allocator_{alloc},
+      metadata_{metadata},
+      data_{allocator_.allocate(metadata_.size_bytes, stream),
+            cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
+              metadata_.size_bytes, allocator_, stream}}
+  {
+    assert(metadata_.valid);
+  }
+
+  /**
+   * @brief Move constructor
+   *
+   * @param other Storage to move from
+   */
+  roaring_bitmap_storage(roaring_bitmap_storage&& other) noexcept = default;
+
+  /**
+   * @brief Move assignment operator
+   *
+   * @param other Storage to move from
+   * @return Reference to this storage
+   */
+  roaring_bitmap_storage& operator=(roaring_bitmap_storage&& other) noexcept = default;
+
+  /**
+   * @brief Returns a mutable pointer to serialized storage
+   *
+   * @return Pointer to serialized storage
+   */
+  [[nodiscard]] cuda::std::byte* data() noexcept { return data_.get(); }
+
+  /**
    * @brief Returns a reference to the stored bitmap
    *
    * @return Reference to the bitmap storage
    */
-  ref_type ref() const noexcept { return ref_; }
+  [[nodiscard]] ref_type ref() const noexcept { return ref_type{data_.get(), metadata_}; }
+
+  /**
+   * @brief Returns the allocator used to manage storage
+   *
+   * @return Allocator instance
+   */
+  [[nodiscard]] allocator_type allocator() const noexcept { return allocator_; }
 
  private:
   allocator_type allocator_;
-  typename ref_type::metadata_type metadata_;
+  metadata_type metadata_;
   std::unique_ptr<cuda::std::byte, cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>>
     data_;
-  ref_type ref_;
 };
 
 /**
@@ -351,7 +382,7 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
       buckets_h_{},
       metadata_{
         [bitmap](std::vector<typename ref_type::metadata_type::bucket_metadata>& bucket_metadata) {
-          return typename ref_type::metadata_type{bitmap, bucket_metadata};
+          return ref_type::metadata_type::from_serialized(bitmap, bucket_metadata);
         }(bucket_metadata_)},
       data_{allocator_.allocate(metadata_.size_bytes, stream),
             cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
@@ -382,7 +413,14 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
    *
    * @return Reference to the bitmap storage
    */
-  ref_type ref() const noexcept { return ref_; }
+  [[nodiscard]] ref_type ref() const noexcept { return ref_; }
+
+  /**
+   * @brief Returns the allocator used to manage storage
+   *
+   * @return Allocator instance
+   */
+  [[nodiscard]] allocator_type allocator() const noexcept { return allocator_; }
 
  private:
   allocator_type allocator_;

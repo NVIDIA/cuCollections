@@ -32,7 +32,7 @@ using index_type = cuda::std::int64_t;  ///< CUDA thread index type
 
 /// Default block size
 /// CUDA warp size
-[[nodiscard]] __device__ constexpr cuda::std::int32_t warp_size() noexcept { return 32; }
+[[nodiscard]] __host__ __device__ constexpr cuda::std::int32_t warp_size() noexcept { return 32; }
 
 /**
  * @brief Returns the global thread index in a 1D scalar grid

@@ -25,14 +25,15 @@ namespace cuco::experimental {
  *       "Standard 32-bit Roaring Bitmap" format; for 64-bit bitmaps, the "portable" format is
  * supported.
  *
- * @tparam T Key type stored in the bitmap. Must be `cuda::std::uint32_t` or `cuda::std::uint64_t`.
+ * @tparam T Index type stored in the bitmap. Must be `cuda::std::uint32_t` or
+ *           `cuda::std::uint64_t`.
  */
 template <class T>
 class roaring_bitmap_ref {
   using impl_type = detail::roaring_bitmap_impl<T>;
 
  public:
-  using value_type       = T;                                     ///< Key type stored in the bitmap
+  using value_type       = T;  ///< Index type stored in the bitmap
   using storage_ref_type = typename impl_type::storage_ref_type;  ///< Implementation storage ref
 
   /**
@@ -55,17 +56,17 @@ class roaring_bitmap_ref {
   __device__ roaring_bitmap_ref(cuda::std::byte const* bitmap);
 
   /**
-   * @brief Bulk membership query for keys in `[first, last)`.
+   * @brief Bulk membership query for indices in `[first, last)`.
    *
    * @note This function synchronizes the given stream. For asynchronous execution use
    *       `contains_async`.
    *
-   * @tparam InputIt  Device-accessible random access input iterator of keys convertible to `T`
+   * @tparam InputIt  Device-accessible random access input iterator of indices convertible to `T`
    * @tparam OutputIt Device-accessible random access output iterator to `bool`
    *
-   * @param first Beginning of the sequence of keys
-   * @param last  End of the sequence of keys
-   * @param contained Output iterator where results are written; `true` iff the corresponding key
+   * @param first Beginning of the sequence of indices
+   * @param last  End of the sequence of indices
+   * @param contained Output iterator where results are written; `true` iff the corresponding index
    *                  is present in the bitmap
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
@@ -76,14 +77,14 @@ class roaring_bitmap_ref {
                          cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
-   * @brief Asynchronously performs a bulk membership query for keys in `[first, last)`.
+   * @brief Asynchronously performs a bulk membership query for indices in `[first, last)`.
    *
-   * @tparam InputIt  Device-accessible random access input iterator of keys convertible to `T`
+   * @tparam InputIt  Device-accessible random access input iterator of indices convertible to `T`
    * @tparam OutputIt Device-accessible random access output iterator to `bool`
    *
-   * @param first Beginning of the sequence of keys
-   * @param last  End of the sequence of keys
-   * @param contained Output iterator where results are written; `true` iff the corresponding key
+   * @param first Beginning of the sequence of indices
+   * @param last  End of the sequence of indices
+   * @param contained Output iterator where results are written; `true` iff the corresponding index
    *                  is present in the bitmap
    * @param stream CUDA stream used for device memory operations and kernel launches
    */
@@ -95,23 +96,23 @@ class roaring_bitmap_ref {
                                  cudaStream_t{nullptr}}) const noexcept;
 
   /**
-   * @brief Device-side membership query for a single key.
+   * @brief Device-side membership query for a single index.
    *
-   * @param value Key to test for membership
+   * @param value Index to test for membership
    *
    * @return `true` iff `value` is contained in the bitmap
    */
   __device__ bool contains(T value) const;
 
   /**
-   * @brief Number of keys stored in the bitmap.
+   * @brief Number of indices stored in the bitmap.
    *
-   * @return Count of keys in the bitmap
+   * @return Count of indices in the bitmap
    */
   [[nodiscard]] __host__ __device__ cuda::std::size_t size() const noexcept;
 
   /**
-   * @brief Checks whether the bitmap contains no keys.
+   * @brief Checks whether the bitmap contains no indices.
    *
    * @return `true` iff `size() == 0`
    */
