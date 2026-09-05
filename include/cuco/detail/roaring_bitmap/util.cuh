@@ -59,6 +59,8 @@ struct roaring_bitmap_metadata {
  */
 template <>
 struct roaring_bitmap_metadata<cuda::std::uint32_t> {
+  using bitset_word_type = cuda::std::uint64_t;  ///< Word type used by bitset containers
+
   /// Serialization cookie for bitmaps without run containers
   static constexpr cuda::std::uint32_t serial_cookie_no_runcontainer = 12346;
   /// Serialization cookie for bitmaps with run containers
@@ -71,6 +73,61 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
   static constexpr cuda::std::int32_t no_offset_threshold = 4;
   /// Fixed size of a bitset container in bytes
   static constexpr cuda::std::uint32_t bitset_container_bytes = 8192;
+  /// Number of words in a bitset container
+  static constexpr cuda::std::uint32_t bitset_container_words =
+    bitset_container_bytes / sizeof(bitset_word_type);
+  /// Byte offset of key/cardinality descriptors in a no-run bitmap
+  static constexpr cuda::std::uint32_t no_run_key_cards_offset = 2 * sizeof(cuda::std::uint32_t);
+
+  /**
+   * @brief Returns the byte offset of container offsets in a no-run bitmap.
+   *
+   * @param bitmap_num_containers Number of containers
+   * @return Byte offset of the container offset table
+   */
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::uint32_t
+  no_run_container_offsets_offset(cuda::std::uint32_t bitmap_num_containers) noexcept
+  {
+    return no_run_key_cards_offset + bitmap_num_containers * 2 * sizeof(cuda::std::uint16_t);
+  }
+
+  /**
+   * @brief Returns the byte size of a no-run bitmap header.
+   *
+   * @param bitmap_num_containers Number of containers
+   * @return Header size in bytes
+   */
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::uint32_t no_run_header_bytes(
+    cuda::std::uint32_t bitmap_num_containers) noexcept
+  {
+    return no_run_container_offsets_offset(bitmap_num_containers) +
+           bitmap_num_containers * sizeof(cuda::std::uint32_t);
+  }
+
+  /**
+   * @brief Returns the encoded payload size for a container cardinality.
+   *
+   * @param cardinality Number of indices in the container
+   * @return Payload size in bytes
+   */
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::uint32_t container_payload_bytes(
+    cuda::std::uint32_t cardinality) noexcept
+  {
+    return cardinality <= max_array_container_card ? cardinality * sizeof(cuda::std::uint16_t)
+                                                   : bitset_container_bytes;
+  }
+
+  /**
+   * @brief Returns the high-16-bit container key for an index.
+   *
+   * @param index Bitmap index
+   * @return Container key
+   */
+  [[nodiscard]] __host__ __device__ static constexpr cuda::std::uint16_t container_key(
+    cuda::std::uint32_t index) noexcept
+  {
+    return static_cast<cuda::std::uint16_t>(index >> 16);
+  }
 
   /// Total size of the bitmap in bytes
   cuda::std::size_t size_bytes = 0;
@@ -111,9 +168,9 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
     roaring_bitmap_metadata metadata;
     metadata.size_bytes = bitmap_size_bytes;
     metadata.num_keys   = bitmap_num_keys;
-    metadata.key_cards  = 2 * sizeof(cuda::std::uint32_t);
+    metadata.key_cards  = no_run_key_cards_offset;
     metadata.container_offsets =
-      metadata.key_cards + bitmap_num_containers * 2 * sizeof(cuda::std::uint16_t);
+      no_run_container_offsets_offset(static_cast<cuda::std::uint32_t>(bitmap_num_containers));
     metadata.num_containers             = bitmap_num_containers;
     metadata.has_run                    = false;
     metadata.valid                      = true;

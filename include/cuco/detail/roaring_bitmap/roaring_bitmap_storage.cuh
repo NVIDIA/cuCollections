@@ -49,10 +49,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
     : metadata_{metadata},
       data_{bitmap},
       run_container_bitmap_{bitmap + metadata_.run_container_bitmap},
-      key_cards_{bitmap + metadata_.key_cards},
-      container_offsets_{metadata_.offsets_in_serialized_data
-                           ? (bitmap + metadata_.container_offsets)
-                           : reinterpret_cast<cuda::std::byte const*>(metadata_.computed_offsets)}
+      key_cards_{bitmap + metadata_.key_cards}
   {
     assert(metadata.valid);
   }
@@ -114,7 +111,9 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
    */
   __host__ __device__ cuda::std::byte const* container_offsets() const noexcept
   {
-    return container_offsets_;
+    return metadata_.offsets_in_serialized_data
+             ? data_ + metadata_.container_offsets
+             : reinterpret_cast<cuda::std::byte const*>(metadata_.computed_offsets);
   }
 
  private:
@@ -122,7 +121,6 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
   cuda::std::byte const* data_;
   cuda::std::byte const* run_container_bitmap_;
   cuda::std::byte const* key_cards_;
-  cuda::std::byte const* container_offsets_;
 };
 
 /**
@@ -246,8 +244,7 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
       metadata_{metadata_type::from_serialized(bitmap)},
       data_{allocator_.allocate(metadata_.size_bytes, stream),
             cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
-              metadata_.size_bytes, allocator_, stream}},
-      ref_{data_.get(), metadata_}
+              metadata_.size_bytes, allocator_, stream}}
   {
     CUCO_CUDA_TRY(cudaMemcpyAsync(
       data_.get(), bitmap, metadata_.size_bytes, cudaMemcpyHostToDevice, stream.get()));
@@ -267,73 +264,52 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
       metadata_{metadata},
       data_{allocator_.allocate(metadata_.size_bytes, stream),
             cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
-              metadata_.size_bytes, allocator_, stream}},
-      ref_{data_.get(), metadata_}
+              metadata_.size_bytes, allocator_, stream}}
   {
     assert(metadata_.valid);
   }
 
   /**
-   * @brief Move constructor.
-   *
-   * Rebuilds the cached reference because small run-container bitmaps store computed offsets
-   * directly in the metadata object.
+   * @brief Move constructor
    *
    * @param other Storage to move from
    */
-  roaring_bitmap_storage(roaring_bitmap_storage&& other) noexcept
-    : allocator_{std::move(other.allocator_)},
-      metadata_{std::move(other.metadata_)},
-      data_{std::move(other.data_)},
-      ref_{data_.get(), metadata_}
-  {
-  }
+  roaring_bitmap_storage(roaring_bitmap_storage&& other) noexcept = default;
 
   /**
-   * @brief Move assignment operator.
-   *
-   * Rebuilds the cached reference because small run-container bitmaps store computed offsets
-   * directly in the metadata object.
+   * @brief Move assignment operator
    *
    * @param other Storage to move from
    * @return Reference to this storage
    */
-  roaring_bitmap_storage& operator=(roaring_bitmap_storage&& other) noexcept
-  {
-    allocator_ = std::move(other.allocator_);
-    metadata_  = std::move(other.metadata_);
-    data_      = std::move(other.data_);
-    ref_       = ref_type{data_.get(), metadata_};
-    return *this;
-  }
+  roaring_bitmap_storage& operator=(roaring_bitmap_storage&& other) noexcept = default;
 
   /**
    * @brief Returns a mutable pointer to serialized storage
    *
    * @return Pointer to serialized storage
    */
-  cuda::std::byte* data() noexcept { return data_.get(); }
+  [[nodiscard]] cuda::std::byte* data() noexcept { return data_.get(); }
 
   /**
    * @brief Returns a reference to the stored bitmap
    *
    * @return Reference to the bitmap storage
    */
-  ref_type ref() const noexcept { return ref_; }
+  [[nodiscard]] ref_type ref() const noexcept { return ref_type{data_.get(), metadata_}; }
 
   /**
    * @brief Returns the allocator used to manage storage
    *
    * @return Allocator instance
    */
-  allocator_type allocator() const noexcept { return allocator_; }
+  [[nodiscard]] allocator_type allocator() const noexcept { return allocator_; }
 
  private:
   allocator_type allocator_;
   metadata_type metadata_;
   std::unique_ptr<cuda::std::byte, cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>>
     data_;
-  ref_type ref_;
 };
 
 /**
@@ -437,14 +413,14 @@ class roaring_bitmap_storage<cuda::std::uint64_t, Allocator> {
    *
    * @return Reference to the bitmap storage
    */
-  ref_type ref() const noexcept { return ref_; }
+  [[nodiscard]] ref_type ref() const noexcept { return ref_; }
 
   /**
    * @brief Returns the allocator used to manage storage
    *
    * @return Allocator instance
    */
-  allocator_type allocator() const noexcept { return allocator_; }
+  [[nodiscard]] allocator_type allocator() const noexcept { return allocator_; }
 
  private:
   allocator_type allocator_;

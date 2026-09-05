@@ -27,9 +27,7 @@ template <class T, class Allocator>
 roaring_bitmap<T, Allocator> roaring_bitmap<T, Allocator>::from_serialized(
   cuda::std::byte const* bitmap, Allocator const& alloc, cuda::stream_ref stream)
 {
-  static_assert(cuda::std::is_same_v<T, cuda::std::uint32_t>,
-                "roaring_bitmap::from_serialized currently supports only uint32_t");
-  return roaring_bitmap{bitmap, alloc, stream};
+  return roaring_bitmap{storage_type{bitmap, alloc, stream}};
 }
 
 template <class T, class Allocator>

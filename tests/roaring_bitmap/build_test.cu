@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "test_utils.cuh"
+
 #include <cuco/detail/error.hpp>
 #include <cuco/roaring_bitmap.cuh>
 
@@ -10,9 +12,12 @@
 #include <cuda/iterator>
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
+#include <cuda/std/limits>
 #include <cuda/stream_ref>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
+#include <thrust/sequence.h>
+#include <thrust/tabulate.h>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -129,16 +134,7 @@ TEST_CASE("roaring_bitmap matches RoaringFormatSpec no-run serialization", "[roa
     "CUCO_ROARING_DATA_DIR is not defined. Configure with -DCUCO_DOWNLOAD_ROARING_TESTDATA=ON to "
     "run this test.");
 #else
-  std::vector<index_type> host_indices;
-  for (index_type index = 0; index < 100000; index += 1000) {
-    host_indices.push_back(index);
-  }
-  for (index_type index = 100000; index < 200000; ++index) {
-    host_indices.push_back(3 * index);
-  }
-  for (index_type index = 700000; index < 800000; ++index) {
-    host_indices.push_back(index);
-  }
+  auto const host_indices = cuco::test::make_roaring_bitmap_without_runs_indices();
 
   thrust::device_vector<index_type> indices{host_indices};
   auto bitmap = bitmap_type::from_sorted_unique_indices(indices.begin(), indices.end());
@@ -157,18 +153,68 @@ TEST_CASE("roaring_bitmap matches RoaringFormatSpec no-run serialization", "[roa
 #endif
 }
 
-TEST_CASE("roaring_bitmap treats reversed input ranges as empty", "[roaring_bitmap]")
+TEST_CASE("roaring_bitmap rejects reversed input ranges", "[roaring_bitmap]")
 {
   thrust::device_vector<index_type> indices{1, 2, 3};
 
-  auto bitmap        = bitmap_type::from_indices(indices.end(), indices.begin());
-  auto sorted_bitmap = bitmap_type::from_sorted_indices(indices.end(), indices.begin());
-  auto sorted_unique_bitmap =
-    bitmap_type::from_sorted_unique_indices(indices.end(), indices.begin());
+  REQUIRE_THROWS_AS(bitmap_type::from_indices(indices.end(), indices.begin()), cuco::logic_error);
+  REQUIRE_THROWS_AS(bitmap_type::from_sorted_indices(indices.end(), indices.begin()),
+                    cuco::logic_error);
+  REQUIRE_THROWS_AS(bitmap_type::from_sorted_unique_indices(indices.end(), indices.begin()),
+                    cuco::logic_error);
+}
 
-  REQUIRE(bitmap.empty());
-  REQUIRE(copy_serialized(bitmap) == copy_serialized(sorted_bitmap));
-  REQUIRE(copy_serialized(bitmap) == copy_serialized(sorted_unique_bitmap));
+TEST_CASE("roaring_bitmap builds format boundary indices", "[roaring_bitmap]")
+{
+  auto constexpr max_index = cuda::std::numeric_limits<index_type>::max();
+  thrust::device_vector<index_type> indices{0, max_index};
+
+  auto bitmap = bitmap_type::from_sorted_unique_indices(indices.begin(), indices.end());
+
+  REQUIRE(bitmap.size() == 2);
+  require_contains(bitmap, {0, 1, max_index - 1, max_index}, {true, false, false, true});
+}
+
+TEST_CASE("roaring_bitmap removes duplicates across a container boundary", "[roaring_bitmap]")
+{
+  thrust::device_vector<index_type> indices{
+    0x0000FFFE, 0x0000FFFF, 0x0000FFFF, 0x00010000, 0x00010000, 0x00010001};
+
+  auto bitmap = bitmap_type::from_sorted_indices(indices.begin(), indices.end());
+
+  REQUIRE(bitmap.size() == 4);
+  require_contains(bitmap,
+                   {0x0000FFFD, 0x0000FFFE, 0x0000FFFF, 0x00010000, 0x00010001, 0x00010002},
+                   {false, true, true, true, true, false});
+}
+
+TEST_CASE("roaring_bitmap builds a full container", "[roaring_bitmap]")
+{
+  constexpr cuda::std::uint32_t num_indices = 1 << 16;
+  thrust::device_vector<index_type> indices(num_indices);
+  thrust::sequence(indices.begin(), indices.end(), index_type{0x12340000});
+
+  auto bitmap = bitmap_type::from_sorted_unique_indices(indices.begin(), indices.end());
+
+  REQUIRE(bitmap.size() == num_indices);
+  require_contains(
+    bitmap, {0x1233FFFF, 0x12340000, 0x1234FFFF, 0x12350000}, {false, true, true, false});
+}
+
+TEST_CASE("roaring_bitmap builds the maximum number of containers", "[roaring_bitmap]")
+{
+  constexpr cuda::std::uint32_t num_containers = 1 << 16;
+  thrust::device_vector<index_type> indices(num_containers);
+  thrust::tabulate(indices.begin(), indices.end(), [] __device__(index_type container) {
+    return (container << 16) | index_type{7};
+  });
+
+  auto bitmap = bitmap_type::from_sorted_unique_indices(indices.begin(), indices.end());
+
+  REQUIRE(bitmap.size() == num_containers);
+  require_contains(bitmap,
+                   {7, 8, 0x7FFF0007, 0x80000007, 0xFFFF0007, 0xFFFF0008},
+                   {true, false, true, true, true, false});
 }
 
 TEST_CASE("roaring_bitmap builds multiple array containers per block", "[roaring_bitmap]")
@@ -267,6 +313,21 @@ TEST_CASE("roaring_bitmap selects array and bitset containers at the format thre
 
     REQUIRE(bitmap.size() == 4097);
     require_contains(bitmap, {0, 4096, 4097}, {true, true, false});
+  }
+
+  SECTION("sorted bitset container with duplicates")
+  {
+    std::vector<index_type> host_indices;
+    host_indices.reserve(4099);
+    for (index_type i = 0; i < 4097; ++i) {
+      host_indices.push_back(i);
+      if (i == 2048 || i == 4096) { host_indices.push_back(i); }
+    }
+    thrust::device_vector<index_type> indices(host_indices);
+    auto bitmap = bitmap_type::from_sorted_indices(indices.begin(), indices.end());
+
+    REQUIRE(bitmap.size() == 4097);
+    require_contains(bitmap, {0, 2048, 4096, 4097}, {true, true, true, false});
   }
 }
 

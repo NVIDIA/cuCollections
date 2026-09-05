@@ -10,6 +10,7 @@
 #include <cuco/detail/roaring_bitmap/roaring_bitmap_storage.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/detail/utility/cuda.hpp>
+#include <cuco/detail/utility/math.cuh>
 #include <cuco/detail/utility/memcpy_async.hpp>
 #include <cuco/detail/utils.hpp>
 
@@ -30,6 +31,9 @@
 
 namespace cuco::experimental::detail {
 
+/**
+ * @brief Ordering and uniqueness guarantees for Roaring bitmap builder input.
+ */
 enum class roaring_bitmap_builder_input_order { unsorted, sorted, sorted_unique };
 
 /**
@@ -65,17 +69,15 @@ class roaring_bitmap_builder {
                                   roaring_bitmap_builder_input_order input_order,
                                   Allocator const& alloc,
                                   cuda::stream_ref stream)
-    : first_{first},
-      num_indices_{std::max<cuda::std::int64_t>(0, cuco::detail::distance(first, last))},
-      num_container_slots_{static_cast<cuda::std::size_t>(
-        std::min(num_indices_,
-                 static_cast<cuda::std::int64_t>(
-                   roaring_bitmap_metadata<cuda::std::uint32_t>::max_num_containers)))},
-      input_order_{input_order},
-      alloc_{alloc},
-      stream_{stream},
-      workspace_bytes_{compute_workspace_bytes()}
+    : first_{first}, input_order_{input_order}, alloc_{alloc}, stream_{stream}
   {
+    using metadata_type = roaring_bitmap_metadata<cuda::std::uint32_t>;
+
+    num_indices_ = cuco::detail::distance(first, last);
+    CUCO_EXPECTS(num_indices_ >= 0, "Invalid input range");
+    num_container_slots_ = std::min(
+      num_indices_, static_cast<cuco::detail::index_type>(metadata_type::max_num_containers));
+    workspace_bytes_ = compute_workspace_bytes();
   }
 
   /**
@@ -124,19 +126,22 @@ class roaring_bitmap_builder {
     // is null; its size-query path returns before launching work or dereferencing them.
     auto* const index_buffer_a   = static_cast<cuda::std::uint32_t*>(nullptr);
     auto* const index_buffer_b   = static_cast<cuda::std::uint32_t*>(nullptr);
-    auto* const container_starts = static_cast<cuda::std::int64_t*>(nullptr);
+    auto* const container_starts = static_cast<cuco::detail::index_type*>(nullptr);
     auto* const payload_offsets  = static_cast<cuda::std::uint32_t*>(nullptr);
-    auto* const num_selected     = static_cast<cuda::std::int64_t*>(nullptr);
+    auto* const num_selected     = static_cast<cuco::detail::index_type*>(nullptr);
     auto* const state            = static_cast<roaring_bitmap_build_state*>(nullptr);
-    auto const counting_begin    = cuda::counting_iterator<cuda::std::int64_t>{0};
+    auto const counting_begin    = cuda::counting_iterator<cuco::detail::index_type>{0};
+    auto const payload_sizes     = cuda::make_transform_iterator(
+      counting_begin, container_payload_size{container_starts, state});
 
     // After the last CUB operation, the same allocation becomes the array/bitset container queue.
-    cuda::std::size_t result         = num_container_slots_ * sizeof(cuda::std::uint32_t);
+    cuda::std::size_t result =
+      static_cast<cuda::std::size_t>(num_container_slots_) * sizeof(cuda::std::uint32_t);
     cuda::std::size_t required_bytes = 0;
 
     CUCO_CUDA_TRY(cub::DeviceScan::ExclusiveSum(nullptr,
                                                 required_bytes,
-                                                payload_offsets,
+                                                payload_sizes,
                                                 payload_offsets,
                                                 num_container_slots_,
                                                 stream_.get()));
@@ -210,9 +215,10 @@ class roaring_bitmap_builder {
       allocate_temporary_buffer<cuda::std::uint32_t>(static_cast<cuda::std::size_t>(num_indices_));
     auto indices_b =
       allocate_temporary_buffer<cuda::std::uint32_t>(static_cast<cuda::std::size_t>(num_indices_));
-    auto container_starts = allocate_temporary_buffer<cuda::std::int64_t>(num_container_slots_);
-    auto state            = allocate_temporary_buffer<roaring_bitmap_build_state>(1);
-    auto workspace        = allocate_temporary_buffer<cuda::std::byte>(workspace_bytes_);
+    auto container_starts = allocate_temporary_buffer<cuco::detail::index_type>(
+      static_cast<cuda::std::size_t>(num_container_slots_));
+    auto state     = allocate_temporary_buffer<roaring_bitmap_build_state>(1);
+    auto workspace = allocate_temporary_buffer<cuda::std::byte>(workspace_bytes_);
 
     auto const sorted = sort_indices(first_, indices_a.get(), indices_b.get(), workspace.get());
     // Deduplication writes into the inactive radix-sort buffer. Once it completes, the sorted input
@@ -229,10 +235,12 @@ class roaring_bitmap_builder {
   {
     auto unique_indices =
       allocate_temporary_buffer<cuda::std::uint32_t>(static_cast<cuda::std::size_t>(num_indices_));
-    auto container_starts = allocate_temporary_buffer<cuda::std::int64_t>(num_container_slots_);
-    auto payload_offsets  = allocate_temporary_buffer<cuda::std::uint32_t>(num_container_slots_);
-    auto state            = allocate_temporary_buffer<roaring_bitmap_build_state>(1);
-    auto workspace        = allocate_temporary_buffer<cuda::std::byte>(workspace_bytes_);
+    auto container_starts = allocate_temporary_buffer<cuco::detail::index_type>(
+      static_cast<cuda::std::size_t>(num_container_slots_));
+    auto payload_offsets = allocate_temporary_buffer<cuda::std::uint32_t>(
+      static_cast<cuda::std::size_t>(num_container_slots_));
+    auto state     = allocate_temporary_buffer<roaring_bitmap_build_state>(1);
+    auto workspace = allocate_temporary_buffer<cuda::std::byte>(workspace_bytes_);
 
     deduplicate_indices(first_, unique_indices.get(), state.get(), workspace.get());
     return serialize_sorted_unique_indices(unique_indices.get(),
@@ -244,16 +252,15 @@ class roaring_bitmap_builder {
 
   [[nodiscard]] storage_type build_sorted_unique()
   {
-    auto container_starts = allocate_temporary_buffer<cuda::std::int64_t>(num_container_slots_);
-    auto payload_offsets  = allocate_temporary_buffer<cuda::std::uint32_t>(num_container_slots_);
-    auto state            = allocate_temporary_buffer<roaring_bitmap_build_state>(1);
-    auto workspace        = allocate_temporary_buffer<cuda::std::byte>(workspace_bytes_);
+    auto container_starts = allocate_temporary_buffer<cuco::detail::index_type>(
+      static_cast<cuda::std::size_t>(num_container_slots_));
+    auto payload_offsets = allocate_temporary_buffer<cuda::std::uint32_t>(
+      static_cast<cuda::std::size_t>(num_container_slots_));
+    auto state     = allocate_temporary_buffer<roaring_bitmap_build_state>(1);
+    auto workspace = allocate_temporary_buffer<cuda::std::byte>(workspace_bytes_);
 
-    CUCO_CUDA_TRY(cudaMemcpyAsync(&state->num_keys,
-                                  &num_indices_,
-                                  sizeof(num_indices_),
-                                  cudaMemcpyHostToDevice,
-                                  stream_.get()));
+    CUCO_CUDA_TRY(cuco::detail::memcpy_async(
+      &state->num_indices, &num_indices_, sizeof(num_indices_), cudaMemcpyHostToDevice, stream_));
     return serialize_sorted_unique_indices(
       first_, container_starts.get(), payload_offsets.get(), state.get(), workspace.get());
   }
@@ -290,17 +297,18 @@ class roaring_bitmap_builder {
                                             workspace_bytes,
                                             first,
                                             unique_indices,
-                                            &state->num_keys,
+                                            &state->num_indices,
                                             num_indices_,
                                             stream_.get()));
   }
 
   template <class SourceIt>
-  [[nodiscard]] storage_type serialize_sorted_unique_indices(SourceIt first,
-                                                             cuda::std::int64_t* container_starts,
-                                                             cuda::std::uint32_t* payload_offsets,
-                                                             roaring_bitmap_build_state* state,
-                                                             cuda::std::byte* workspace) const
+  [[nodiscard]] storage_type serialize_sorted_unique_indices(
+    SourceIt first,
+    cuco::detail::index_type* container_starts,
+    cuda::std::uint32_t* payload_offsets,
+    roaring_bitmap_build_state* state,
+    cuda::std::byte* workspace) const
   {
     analyze_containers(first, container_starts, payload_offsets, state, workspace);
     auto const host_state         = read_build_state(state);
@@ -311,12 +319,12 @@ class roaring_bitmap_builder {
 
   template <class SourceIt>
   void analyze_containers(SourceIt first,
-                          cuda::std::int64_t* container_starts,
+                          cuco::detail::index_type* container_starts,
                           cuda::std::uint32_t* payload_offsets,
                           roaring_bitmap_build_state* state,
                           cuda::std::byte* workspace) const
   {
-    auto const counting_begin = cuda::counting_iterator<cuda::std::int64_t>{0};
+    auto const counting_begin = cuda::counting_iterator<cuco::detail::index_type>{0};
     auto workspace_bytes      = workspace_bytes_;
     CUCO_CUDA_TRY(cub::DeviceSelect::If(workspace,
                                         workspace_bytes,
@@ -327,15 +335,12 @@ class roaring_bitmap_builder {
                                         is_container_start{first, state},
                                         stream_.get()));
 
-    compute_container_payload_sizes<<<cuco::detail::grid_size(num_container_slots_),
-                                      cuco::detail::default_block_size(),
-                                      0,
-                                      stream_.get()>>>(
-      payload_offsets, num_container_slots_, container_starts, state);
+    auto const payload_sizes = cuda::make_transform_iterator(
+      counting_begin, container_payload_size{container_starts, state});
     workspace_bytes = workspace_bytes_;
     CUCO_CUDA_TRY(cub::DeviceScan::ExclusiveSum(workspace,
                                                 workspace_bytes,
-                                                payload_offsets,
+                                                payload_sizes,
                                                 payload_offsets,
                                                 num_container_slots_,
                                                 stream_.get()));
@@ -351,10 +356,7 @@ class roaring_bitmap_builder {
                                 cuco::detail::default_block_size(),
                                 0,
                                 stream_.get()>>>(
-      container_indexes, num_container_slots_, container_starts, state);
-
-    compute_roaring_bitmap_build_size<<<1, 1, 0, stream_.get()>>>(
-      state, container_starts, payload_offsets);
+      container_indexes, num_container_slots_, container_starts, payload_offsets, state);
     CUCO_CUDA_TRY(cudaPeekAtLastError());
   }
 
@@ -377,7 +379,7 @@ class roaring_bitmap_builder {
     CUCO_EXPECTS(host_state.num_containers >= 0 &&
                    host_state.num_containers <= metadata_type::max_num_containers,
                  "Invalid generated container count");
-    CUCO_EXPECTS(host_state.num_keys >= 0, "Invalid generated index count");
+    CUCO_EXPECTS(host_state.num_indices >= 0, "Invalid generated index count");
     CUCO_EXPECTS(host_state.num_array_containers + host_state.num_bitset_containers ==
                    static_cast<cuda::std::uint64_t>(host_state.num_containers),
                  "Invalid generated container indexes");
@@ -387,7 +389,7 @@ class roaring_bitmap_builder {
   template <class SourceIt>
   [[nodiscard]] storage_type write_serialized_bitmap(SourceIt first,
                                                      roaring_bitmap_build_state const& host_state,
-                                                     cuda::std::int64_t* container_starts,
+                                                     cuco::detail::index_type* container_starts,
                                                      cuda::std::uint32_t* payload_offsets,
                                                      cuda::std::uint32_t* container_indexes) const
   {
@@ -395,7 +397,7 @@ class roaring_bitmap_builder {
 
     auto storage = storage_type{
       metadata_type::from_no_run_build(host_state.size_bytes,
-                                       static_cast<cuda::std::size_t>(host_state.num_keys),
+                                       static_cast<cuda::std::size_t>(host_state.num_indices),
                                        static_cast<cuda::std::int32_t>(host_state.num_containers)),
       alloc_,
       stream_};
@@ -409,11 +411,11 @@ class roaring_bitmap_builder {
 
     if (host_state.num_containers > 0) {
       constexpr cuda::std::uint32_t block_size      = 256;
-      constexpr cuda::std::uint32_t warps_per_block = block_size / 32;
+      constexpr cuda::std::uint32_t warps_per_block = block_size / cuco::detail::warp_size();
       constexpr cuda::std::uint32_t bitset_blocks_per_container =
-        metadata_type::bitset_container_bytes / sizeof(cuda::std::uint64_t) / block_size;
+        metadata_type::bitset_container_words / block_size;
       auto const array_blocks =
-        (host_state.num_array_containers + warps_per_block - 1) / warps_per_block;
+        cuco::detail::int_div_ceil(host_state.num_array_containers, warps_per_block);
       auto const bitset_blocks = host_state.num_bitset_containers * bitset_blocks_per_container;
       // Array indexes grow from the front of the queue and bitset indexes from the back. Their
       // internal order is irrelevant because each entry names its destination container.
@@ -435,16 +437,17 @@ class roaring_bitmap_builder {
 
   [[nodiscard]] static constexpr roaring_bitmap_build_state empty_build_state() noexcept
   {
-    return {0, 0, 2 * sizeof(cuda::std::uint32_t), 0, 0};
+    using metadata_type = roaring_bitmap_metadata<cuda::std::uint32_t>;
+    return {0, 0, metadata_type::no_run_header_bytes(0), 0, 0};
   }
 
   InputIt first_;
-  cuda::std::int64_t num_indices_;
-  cuda::std::size_t num_container_slots_;
+  cuco::detail::index_type num_indices_{};
+  cuco::detail::index_type num_container_slots_{};
   roaring_bitmap_builder_input_order input_order_;
   Allocator alloc_;
   cuda::stream_ref stream_;
-  cuda::std::size_t workspace_bytes_;
+  cuda::std::size_t workspace_bytes_{};
 };
 
 }  // namespace cuco::experimental::detail
