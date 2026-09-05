@@ -121,7 +121,7 @@ struct container_payload_size {
  * @param payload_offsets Exclusive payload offsets for every container
  * @param state Device build state
  */
-inline CUCO_KERNEL void collect_container_indexes(cuda::std::uint32_t* container_indexes,
+static CUCO_KERNEL void collect_container_indexes(cuda::std::uint32_t* container_indexes,
                                                   cuco::detail::index_type num_container_slots,
                                                   cuco::detail::index_type const* container_starts,
                                                   cuda::std::uint32_t const* payload_offsets,
