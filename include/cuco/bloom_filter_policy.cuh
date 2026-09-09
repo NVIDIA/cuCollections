@@ -13,16 +13,6 @@
 
 namespace cuco {
 
-namespace detail {
-
-template <std::uint32_t WordBytes, std::uint32_t WordsPerBlock>
-inline constexpr std::uint32_t bloom_filter_default_contains_horizontal_layout =
-  WordsPerBlock * WordBytes <= utility::sector_size_bytes
-    ? 1
-    : static_cast<std::uint32_t>(WordsPerBlock * WordBytes / utility::sector_size_bytes);
-
-}  // namespace detail
-
 /**
  * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
  *
@@ -59,15 +49,16 @@ inline constexpr std::uint32_t bloom_filter_default_contains_horizontal_layout =
  * region, otherwise persisting lines can thrash the cache and slow other work.
  */
 template <class Key,
-          class Hash              = cuco::xxhash_64<Key>,
-          std::uint32_t WordBytes = 4,
-          std::uint32_t WordsPerBlock =
-            static_cast<std::uint32_t>(utility::sector_size_bytes / WordBytes),
+          class Hash                        = cuco::xxhash_64<Key>,
+          std::uint32_t WordBytes           = 4,
+          std::uint32_t WordsPerBlock       = utility::sector_size_bytes / WordBytes,
           std::uint32_t PatternBits         = WordsPerBlock,
           std::uint32_t AddHorizontalLayout = WordsPerBlock,
           std::uint32_t AddVerticalLayout   = 1,
           std::uint32_t ContainsHorizontalLayout =
-            detail::bloom_filter_default_contains_horizontal_layout<WordBytes, WordsPerBlock>,
+            WordsPerBlock * WordBytes <= utility::sector_size_bytes
+              ? 1
+              : WordsPerBlock * WordBytes / utility::sector_size_bytes,
           std::uint32_t ContainsVerticalLayout = WordsPerBlock / ContainsHorizontalLayout,
           bool ConditionalAdd                  = false,
           bool EarlyExitContains               = false,
