@@ -7,10 +7,21 @@
 
 #include <cuco/detail/bloom_filter/bloom_filter_policy.cuh>
 #include <cuco/hash_functions.cuh>
+#include <cuco/utility/cuda.cuh>
 
 #include <cstdint>
 
 namespace cuco {
+
+namespace detail {
+
+template <std::uint32_t WordBytes, std::uint32_t WordsPerBlock>
+inline constexpr std::uint32_t bloom_filter_default_contains_horizontal_layout =
+  WordsPerBlock * WordBytes <= utility::sector_size_bytes
+    ? 1
+    : static_cast<std::uint32_t>(WordsPerBlock * WordBytes / utility::sector_size_bytes);
+
+}  // namespace detail
 
 /**
  * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
@@ -31,10 +42,11 @@ namespace cuco {
  * fully horizontal add.
  * @tparam AddVerticalLayout Words per thread per add step (paper's Phi). Defaults to `1` for fully
  * horizontal add.
- * @tparam ContainsHorizontalLayout CG size for contains. Defaults to `1` for fully vertical
- * contains.
- * @tparam ContainsVerticalLayout Words per thread per contains step. Defaults to `WordsPerBlock`
- * for fully vertical contains.
+ * @tparam ContainsHorizontalLayout CG size for contains. Defaults to the paper's optimized layout:
+ * one thread per 32-byte sector, or `1` when the block fits in one sector.
+ * @tparam ContainsVerticalLayout Words per thread per contains step. Defaults to
+ * `WordsPerBlock / ContainsHorizontalLayout`, which assigns at most one 32-byte sector to each
+ * thread when using the default horizontal layout.
  * @tparam ConditionalAdd When `true`, `add` reads each word before the atomic OR and skips the
  * write when the required bits are already set. Trades a read for fewer atomic writes; beneficial
  * when the filter is highly contended (e.g. close to full) or the input has many duplicate keys.
@@ -47,17 +59,19 @@ namespace cuco {
  * region, otherwise persisting lines can thrash the cache and slow other work.
  */
 template <class Key,
-          class Hash                             = cuco::xxhash_64<Key>,
-          std::uint32_t WordBytes                = 4,
-          std::uint32_t WordsPerBlock            = 32 / WordBytes,
-          std::uint32_t PatternBits              = WordsPerBlock,
-          std::uint32_t AddHorizontalLayout      = WordsPerBlock,
-          std::uint32_t AddVerticalLayout        = 1,
-          std::uint32_t ContainsHorizontalLayout = 1,
-          std::uint32_t ContainsVerticalLayout   = WordsPerBlock,
-          bool ConditionalAdd                    = false,
-          bool EarlyExitContains                 = false,
-          bool PersistingL2Access                = false>
+          class Hash              = cuco::xxhash_64<Key>,
+          std::uint32_t WordBytes = 4,
+          std::uint32_t WordsPerBlock =
+            static_cast<std::uint32_t>(utility::sector_size_bytes / WordBytes),
+          std::uint32_t PatternBits         = WordsPerBlock,
+          std::uint32_t AddHorizontalLayout = WordsPerBlock,
+          std::uint32_t AddVerticalLayout   = 1,
+          std::uint32_t ContainsHorizontalLayout =
+            detail::bloom_filter_default_contains_horizontal_layout<WordBytes, WordsPerBlock>,
+          std::uint32_t ContainsVerticalLayout = WordsPerBlock / ContainsHorizontalLayout,
+          bool ConditionalAdd                  = false,
+          bool EarlyExitContains               = false,
+          bool PersistingL2Access              = false>
 using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         WordBytes,
                                                         WordsPerBlock,

@@ -12,6 +12,7 @@
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/detail/utility/math.cuh>
 #include <cuco/detail/utils.hpp>
+#include <cuco/utility/cuda.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
@@ -70,9 +71,9 @@ class bloom_filter_impl {
 
   __host__ __device__ static constexpr size_t alignment() noexcept
   {
-    // Maximum alignment is 32 bytes which is equivalent to one sector
+    // Maximum alignment is one sector.
     return cuda::std::min(
-      static_cast<size_t>(32),
+      static_cast<size_t>(cuco::utility::sector_size_bytes),
       static_cast<size_t>(cuda::std::max(add_vertical_layout, contains_vertical_layout) *
                           sizeof(word_type)));
   }
