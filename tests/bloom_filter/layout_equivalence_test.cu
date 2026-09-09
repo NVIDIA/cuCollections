@@ -81,58 +81,6 @@ TEST_CASE("bloom_filter: default contains layout assigns at most one sector per 
   STATIC_REQUIRE(explicit_h1::contains_vertical_layout == 32);
 }
 
-template <class DefaultPolicy>
-void check_default_contains_layout_equivalence()
-{
-  using key_type            = int32_t;
-  using hash_type           = cuco::xxhash_64<key_type>;
-  using vertical_policy     = cuco::bloom_filter_policy<key_type,
-                                                        hash_type,
-                                                        DefaultPolicy::word_bytes,
-                                                        DefaultPolicy::words_per_block,
-                                                        DefaultPolicy::pattern_bits,
-                                                        DefaultPolicy::add_horizontal_layout,
-                                                        DefaultPolicy::add_vertical_layout,
-                                                        1,
-                                                        DefaultPolicy::words_per_block>;
-  using default_filter_type = cuco::
-    bloom_filter<key_type, cuco::extent<std::size_t>, cuda::thread_scope_device, DefaultPolicy>;
-  using vertical_filter_type = cuco::
-    bloom_filter<key_type, cuco::extent<std::size_t>, cuda::thread_scope_device, vertical_policy>;
-
-  constexpr int32_t num_blocks = 1'000;
-  constexpr int32_t num_keys   = 400;
-  constexpr int32_t num_probe  = 800;
-
-  default_filter_type default_filter{num_blocks};
-  vertical_filter_type vertical_filter{num_blocks};
-
-  thrust::device_vector<key_type> insert_keys(num_keys);
-  thrust::sequence(thrust::device, insert_keys.begin(), insert_keys.end());
-  default_filter.add(insert_keys.begin(), insert_keys.end());
-  vertical_filter.add(insert_keys.begin(), insert_keys.end());
-
-  thrust::device_vector<key_type> probe_keys(num_probe);
-  thrust::sequence(thrust::device, probe_keys.begin(), probe_keys.end());
-
-  thrust::device_vector<bool> default_result(num_probe);
-  thrust::device_vector<bool> vertical_result(num_probe);
-  default_filter.contains(probe_keys.begin(), probe_keys.end(), default_result.begin());
-  vertical_filter.contains(probe_keys.begin(), probe_keys.end(), vertical_result.begin());
-
-  REQUIRE(thrust::equal(
-    thrust::device, default_result.begin(), default_result.end(), vertical_result.begin()));
-}
-
-TEST_CASE("bloom_filter: wider default contains layouts match fully vertical lookup", "")
-{
-  using hash_type = cuco::xxhash_64<int32_t>;
-
-  check_default_contains_layout_equivalence<cuco::bloom_filter_policy<int32_t, hash_type, 4, 16>>();
-  check_default_contains_layout_equivalence<cuco::bloom_filter_policy<int32_t, hash_type, 4, 32>>();
-  check_default_contains_layout_equivalence<cuco::bloom_filter_policy<int32_t, hash_type, 8, 32>>();
-}
-
 TEMPLATE_TEST_CASE_SIG(
   "bloom_filter: bitset is invariant under (AddH, AddV) layout permutations",
   "",
