@@ -56,9 +56,8 @@ template <class Key,
           std::uint32_t AddHorizontalLayout = WordsPerBlock,
           std::uint32_t AddVerticalLayout   = 1,
           std::uint32_t ContainsHorizontalLayout =
-            WordsPerBlock * WordBytes <= utility::sector_size_bytes
-              ? 1
-              : WordsPerBlock * WordBytes / utility::sector_size_bytes,
+            (WordsPerBlock * WordBytes + utility::sector_size_bytes - 1) /
+            utility::sector_size_bytes,
           std::uint32_t ContainsVerticalLayout = WordsPerBlock / ContainsHorizontalLayout,
           bool ConditionalAdd                  = false,
           bool EarlyExitContains               = false,

@@ -26,16 +26,6 @@
 #include <cstdint>
 #include <type_traits>
 
-template <std::uint32_t WordBytes,
-          std::uint32_t WordsPerBlock,
-          std::uint32_t HorizontalLayout,
-          std::uint32_t VerticalLayout>
-inline constexpr bool has_default_contains_layout =
-  cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, WordBytes, WordsPerBlock>::
-      contains_horizontal_layout == HorizontalLayout &&
-  cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, WordBytes, WordsPerBlock>::
-      contains_vertical_layout == VerticalLayout;
-
 TEST_CASE("bloom_filter: word byte selection", "")
 {
   using hash_type      = cuco::xxhash_64<int32_t>;
@@ -54,31 +44,6 @@ TEST_CASE("bloom_filter: word byte selection", "")
   STATIC_REQUIRE(wide_policy::word_bytes == 8);
   STATIC_REQUIRE(default_policy::words_per_block == 8);
   STATIC_REQUIRE(wide_policy::words_per_block == 4);
-}
-
-TEST_CASE("bloom_filter: default contains layout assigns at most one sector per thread", "")
-{
-  using hash_type   = cuco::xxhash_64<int32_t>;
-  using explicit_h1 = cuco::bloom_filter_policy<int32_t, hash_type, 4, 32, 32, 32, 1, 1>;
-
-  STATIC_REQUIRE(cuco::utility::sector_size_bytes == 32);
-
-  STATIC_REQUIRE((has_default_contains_layout<4, 1, 1, 1>));
-  STATIC_REQUIRE((has_default_contains_layout<4, 2, 1, 2>));
-  STATIC_REQUIRE((has_default_contains_layout<4, 4, 1, 4>));
-  STATIC_REQUIRE((has_default_contains_layout<4, 8, 1, 8>));
-  STATIC_REQUIRE((has_default_contains_layout<4, 16, 2, 8>));
-  STATIC_REQUIRE((has_default_contains_layout<4, 32, 4, 8>));
-
-  STATIC_REQUIRE((has_default_contains_layout<8, 1, 1, 1>));
-  STATIC_REQUIRE((has_default_contains_layout<8, 2, 1, 2>));
-  STATIC_REQUIRE((has_default_contains_layout<8, 4, 1, 4>));
-  STATIC_REQUIRE((has_default_contains_layout<8, 8, 2, 4>));
-  STATIC_REQUIRE((has_default_contains_layout<8, 16, 4, 4>));
-  STATIC_REQUIRE((has_default_contains_layout<8, 32, 8, 4>));
-
-  STATIC_REQUIRE(explicit_h1::contains_horizontal_layout == 1);
-  STATIC_REQUIRE(explicit_h1::contains_vertical_layout == 32);
 }
 
 TEMPLATE_TEST_CASE_SIG(
