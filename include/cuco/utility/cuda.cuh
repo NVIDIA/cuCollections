@@ -5,13 +5,13 @@
 
 #pragma once
 
-#include <cuda/std/cstddef>
+#include <cuda/std/cstdint>
 
 namespace cuco::utility {
 
 /**
  * @brief Size in bytes of a global-memory sector.
  */
-inline constexpr cuda::std::size_t sector_size_bytes = 32;
+inline constexpr cuda::std::uint32_t sector_size_bytes = 32;
 
 }  // namespace cuco::utility

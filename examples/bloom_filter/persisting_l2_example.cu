@@ -44,19 +44,20 @@ int main(void)
 
   int constexpr num_keys = 10'000;
 
-  // Create a Bloom filter policy with persisting L2 access enabled. This is the same shape as the
-  // default policy, except the final `PersistingL2Access` parameter is `true`.
+  // Create a Bloom filter policy with persisting L2 access enabled. Derive its shape from the
+  // default policy so its layout remains consistent with the defaults.
+  using default_policy_type      = cuco::bloom_filter_policy<key_type>;
   using policy_type              = cuco::bloom_filter_policy<key_type,
-                                                             cuco::xxhash_64<key_type>,
-                                                             4,
-                                                             8,
-                                                             8,
-                                                             8,
-                                                             1,
-                                                             1,
-                                                             8,
-                                                             false,
-                                                             false,
+                                                             default_policy_type::hasher,
+                                                             default_policy_type::word_bytes,
+                                                             default_policy_type::words_per_block,
+                                                             default_policy_type::pattern_bits,
+                                                             default_policy_type::add_horizontal_layout,
+                                                             default_policy_type::add_vertical_layout,
+                                                             default_policy_type::contains_horizontal_layout,
+                                                             default_policy_type::contains_vertical_layout,
+                                                             default_policy_type::conditional_add,
+                                                             default_policy_type::early_exit_contains,
                                                              true>;  ///< Persisting L2 access enabled.
   auto constexpr bytes_per_block = sizeof(policy_type::word_type) * policy_type::words_per_block;
 
