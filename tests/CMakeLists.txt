@@ -84,7 +84,8 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/stream_test.cu
     static_map/rehash_test.cu
     static_map/retrieve_test.cu
-    static_map/retrieve_if_test.cu)
+    static_map/retrieve_if_test.cu
+    static_map/robin_hood_test.cu)
 
 ###################################################################################################
 # - dynamic_map tests -----------------------------------------------------------------------------
