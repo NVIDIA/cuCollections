@@ -17,6 +17,7 @@
 #include <cuda/atomic>
 #include <cuda/std/array>
 #include <cuda/std/cstddef>
+#include <cuda/std/type_traits>
 #include <cuda/stream_ref>
 
 #include <cstddef>
@@ -26,9 +27,9 @@
 namespace cuco {
 
 /**
- * @brief A strong type wrapper for specifying an exact Bloom filter size in bytes.
+ * @brief A strong type wrapper for specifying a Bloom filter storage budget in bytes.
  */
-CUCO_DEFINE_STRONG_TYPE(bloom_filter_size_bytes, std::size_t)
+CUCO_DEFINE_STRONG_TYPE(bloom_filter_bytes, std::size_t)
 
 /**
  * @brief A GPU-accelerated Bloom filter.
@@ -123,37 +124,29 @@ class bloom_filter {
                                  cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
-   * @brief Constructs a Bloom filter with exactly the requested storage size in bytes.
+   * @brief Constructs a Bloom filter within a storage budget in bytes.
    *
-   * @note Validates the size before allocating device storage.
+   * The allocated size is rounded down to a whole number of filter blocks and capped at
+   * `max_size()`.
    *
-   * @throws cuco::logic_error If the size is zero, not a multiple of the block size,
-   * exceeds `max_size()`, or does not match a static extent
+   * @note This overload requires a dynamic extent.
    *
-   * @param size_bytes Exact storage size in bytes
+   * @throws cuco::logic_error If the budget cannot accommodate one filter block
+   *
+   * @param size_bytes Storage budget in bytes
    * @param scope The scope in which operations will be performed
    * @param policy Fingerprint generation policy
    * @param alloc Allocator used for allocating device-accessible storage
    * @param stream CUDA stream used to initialize the filter
    */
-  __host__ explicit bloom_filter(bloom_filter_size_bytes size_bytes,
+  template <class E = Extent,
+            class   = cuda::std::enable_if_t<
+                cuda::std::is_same_v<E, cuco::extent<typename Extent::value_type>>>>
+  __host__ explicit bloom_filter(bloom_filter_bytes size_bytes,
                                  cuda_thread_scope<Scope> scope = {},
                                  Policy const& policy           = {},
                                  Allocator const& alloc         = {},
                                  cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
-
-  /**
-   * @brief Returns the largest supported block-aligned byte count not exceeding a budget.
-   *
-   * Rounds down to a multiple of `words_per_block * sizeof(word_type)` and caps the result
-   * at `max_size()`. This utility does not enforce a particular static extent.
-   *
-   * @throws cuco::logic_error If the budget cannot accommodate one filter block
-   *
-   * @param size_bytes Storage budget in bytes
-   * @return Positive, block-aligned storage size in bytes
-   */
-  [[nodiscard]] __host__ static constexpr std::size_t aligned_size(std::size_t size_bytes);
 
   /**
    * @brief Returns the maximum storage size in bytes supported by the policy and size type.
@@ -492,10 +485,6 @@ class bloom_filter {
   [[nodiscard]] __host__ constexpr ref_type<> ref() const noexcept;
 
  private:
-  template <typename SizeType, std::size_t N>
-  __host__ static constexpr extent_type make_block_extent(bloom_filter_size_bytes size_bytes,
-                                                          cuco::extent<SizeType, N>);
-
   allocator_type allocator_;  ///< Allocator used to allocate device-accessible storage
   std::unique_ptr<typename ref_type<>::filter_block_type,
                   detail::custom_deleter<std::size_t, allocator_type>>
