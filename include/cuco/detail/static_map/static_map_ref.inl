@@ -445,6 +445,13 @@ class operator_impl<
     return ref_.impl_.insert(value);
   }
 
+  /**
+   * @brief Inserts an element.
+   *
+   * @param value The element to insert
+   *
+   * @return True if the given element is successfully inserted
+   */
   __device__ bool insert(value_type value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
@@ -1132,6 +1139,14 @@ class operator_impl<
     return ref_.impl_.insert_and_find(value);
   }
 
+  /**
+   * @brief Inserts the given element into the map.
+   *
+   * @param value The element to insert
+   *
+   * @return a pair consisting of an iterator to the element and a bool indicating whether the
+   * insertion is successful or not.
+   */
   __device__ cuda::std::pair<iterator, bool> insert_and_find(value_type value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
