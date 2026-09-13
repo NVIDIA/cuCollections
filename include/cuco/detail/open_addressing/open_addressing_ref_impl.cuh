@@ -491,6 +491,16 @@ class open_addressing_ref_impl
     }
   }
 
+  __device__ bool insert(value_type value) noexcept
+  {
+    return insert<value_type>(value);
+  }
+
+  __device__ cuda::std::pair<iterator, bool> insert_and_find(value_type value) noexcept
+  {
+    return insert_and_find<value_type>(value);
+  }
+
   /**
    * @brief Inserts the given element into the container.
    *

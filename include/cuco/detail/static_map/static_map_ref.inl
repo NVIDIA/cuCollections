@@ -445,6 +445,12 @@ class operator_impl<
     return ref_.impl_.insert(value);
   }
 
+  __device__ bool insert(value_type value) noexcept
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert(value);
+  }
+
   /**
    * @brief Inserts an element.
    *
@@ -1121,6 +1127,13 @@ class operator_impl<
    */
   template <typename Value>
   __device__ cuda::std::pair<iterator, bool> insert_and_find(Value value) noexcept
+  {
+    ref_type& ref_ = static_cast<ref_type&>(*this);
+    return ref_.impl_.insert_and_find(value);
+  }
+
+  __device__ cuda::std::pair<iterator, bool>
+  insert_and_find(value_type value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(value);
