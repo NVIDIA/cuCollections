@@ -492,9 +492,8 @@ class operator_impl<
    * @return True if the given element is successfully inserted
    */
   template <typename ParentCG>
-  __device__ bool insert(
-    cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
-    value_type value) noexcept
+  __device__ bool insert(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
+                         value_type value) noexcept
   {
     auto& ref_ = static_cast<ref_type&>(*this);
     if (ref_.erased_key_sentinel() != ref_.empty_key_sentinel()) {
@@ -503,7 +502,6 @@ class operator_impl<
       return ref_.impl_.insert<false>(group, value);
     }
   }
-
 };
 
 template <typename Key,
@@ -1203,7 +1201,7 @@ class operator_impl<
 
   /**
    * @brief Inserts the given element into the map.
-   * 
+   *
    * @tparam ParentCG Type of parent Cooperative Group
    *
    * @param group The Cooperative Group used to perform group insert_and_find
@@ -1214,8 +1212,7 @@ class operator_impl<
    */
   template <typename ParentCG>
   __device__ cuda::std::pair<iterator, bool> insert_and_find(
-    cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
-    value_type value) noexcept
+    cooperative_groups::thread_block_tile<cg_size, ParentCG> group, value_type value) noexcept
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
     return ref_.impl_.insert_and_find(group, value);

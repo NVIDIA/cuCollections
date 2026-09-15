@@ -24,9 +24,7 @@ __global__ void insert_test_kernel(MapRef map_ref, bool* inserted)
 
     auto const success = map_ref.insert(tile, {42, 123});
 
-    if (tile.thread_rank() == 0) {
-      *inserted = success;
-    }
+    if (tile.thread_rank() == 0) { *inserted = success; }
   }
 }
 
@@ -61,8 +59,7 @@ TEMPLATE_TEST_CASE_SIG("static_map insert and insert_and_find brace-initializer 
   using key_type   = int32_t;
   using value_type = int32_t;
 
-  using probing_scheme =
-    cuco::linear_probing<CGSize, cuco::default_hash_function<key_type>>;
+  using probing_scheme = cuco::linear_probing<CGSize, cuco::default_hash_function<key_type>>;
 
   using map_type = cuco::static_map<key_type,
                                     value_type,
@@ -80,43 +77,31 @@ TEMPLATE_TEST_CASE_SIG("static_map insert and insert_and_find brace-initializer 
 
   SECTION("insert accepts a brace-initialized value_type")
   {
-    insert_test_kernel<CGSize><<<1, CGSize>>>(
-      insert_ref, inserted.data().get());
+    insert_test_kernel<CGSize><<<1, CGSize>>>(insert_ref, inserted.data().get());
 
-    REQUIRE(cuco::test::all_of(
-      inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
 
     // The same key should not be inserted twice.
-    insert_test_kernel<CGSize><<<1, CGSize>>>(
-      insert_ref, inserted.data().get());
+    insert_test_kernel<CGSize><<<1, CGSize>>>(insert_ref, inserted.data().get());
 
-    REQUIRE(cuco::test::none_of(
-      inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
   }
 
   SECTION("insert_and_find accepts a brace-initialized value_type")
   {
     auto insert_and_find_ref = map.ref(cuco::op::insert_and_find);
 
-    insert_and_find_test_kernel<CGSize><<<1, CGSize>>>(
-      insert_and_find_ref,
-      inserted.data().get(),
-      value_correct.data().get());
+    insert_and_find_test_kernel<CGSize>
+      <<<1, CGSize>>>(insert_and_find_ref, inserted.data().get(), value_correct.data().get());
 
-    REQUIRE(cuco::test::all_of(
-      inserted.begin(), inserted.end(), cuda::std::identity{}));
-    REQUIRE(cuco::test::all_of(
-      value_correct.begin(), value_correct.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::all_of(value_correct.begin(), value_correct.end(), cuda::std::identity{}));
 
     // The second insertion should find the existing element.
-    insert_and_find_test_kernel<CGSize><<<1, CGSize>>>(
-      insert_and_find_ref,
-      inserted.data().get(),
-      value_correct.data().get());
+    insert_and_find_test_kernel<CGSize>
+      <<<1, CGSize>>>(insert_and_find_ref, inserted.data().get(), value_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(
-      inserted.begin(), inserted.end(), cuda::std::identity{}));
-    REQUIRE(cuco::test::all_of(
-      value_correct.begin(), value_correct.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::all_of(value_correct.begin(), value_correct.end(), cuda::std::identity{}));
   }
 }
