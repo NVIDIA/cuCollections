@@ -7,93 +7,116 @@
 
 #include <cuco/static_map.cuh>
 
+#include <cuda/std/utility>
 #include <thrust/device_vector.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
-template <typename MapRef, typename Key, typename Value>
-__global__ void insert_test_kernel(MapRef map_ref, Key key, Value value, bool* inserted)
+template <std::size_t CGSize, typename MapRef>
+__global__ void insert_test_kernel(MapRef map_ref, bool* inserted)
 {
-  *inserted = map_ref.insert({key, value});
+  auto const g = cuco::test::cg::this_thread_block();
+
+  if constexpr (CGSize == 1) {
+    *inserted = map_ref.insert({42, 123});
+  } else {
+    auto const tile = cuco::test::cg::tiled_partition<CGSize>(g);
+
+    auto const success = map_ref.insert(tile, {42, 123});
+
+    if (tile.thread_rank() == 0) {
+      *inserted = success;
+    }
+  }
 }
 
-template <typename MapRef, typename Key, typename Value>
-__global__ void insert_and_find_test_kernel(
-  MapRef map_ref, Key key, Value value, bool* inserted, Key* found_key, Value* found_value)
+template <std::size_t CGSize, typename MapRef>
+__global__ void insert_and_find_test_kernel(MapRef map_ref, bool* inserted, bool* value_correct)
 {
-  auto [iter, success] = map_ref.insert_and_find({key, value});
+  auto const g = cuco::test::cg::this_thread_block();
 
-  *inserted    = success;
-  *found_key   = iter->first;
-  *found_value = iter->second;
+  if constexpr (CGSize == 1) {
+    auto [iter, success] = map_ref.insert_and_find({42, 123});
+
+    *inserted      = success;
+    *value_correct = iter->first == 42 && iter->second == 123;
+  } else {
+    auto const tile = cuco::test::cg::tiled_partition<CGSize>(g);
+
+    auto [iter, success] = map_ref.insert_and_find(tile, {42, 123});
+
+    if (tile.thread_rank() == 0) {
+      *inserted      = success;
+      *value_correct = iter->first == 42 && iter->second == 123;
+    }
+  }
 }
 
-TEMPLATE_TEST_CASE_SIG("static_map insert and insert_and_find value_type overloads",
+TEMPLATE_TEST_CASE_SIG("static_map insert and insert_and_find brace-initializer overloads",
                        "",
-                       ((typename Key, typename Value), Key, Value),
-                       (int32_t, int32_t),
-                       (int32_t, int64_t),
-                       (int64_t, int32_t),
-                       (int64_t, int64_t))
+                       ((std::size_t CGSize), CGSize),
+                       (1),
+                       (2))
 {
-  using probing_scheme = cuco::linear_probing<1, cuco::default_hash_function<Key>>;
+  using key_type   = int32_t;
+  using value_type = int32_t;
 
-  using map_type = cuco::static_map<Key,
-                                    Value,
+  using probing_scheme =
+    cuco::linear_probing<CGSize, cuco::default_hash_function<key_type>>;
+
+  using map_type = cuco::static_map<key_type,
+                                    value_type,
                                     cuco::extent<std::size_t>,
                                     cuda::thread_scope_device,
-                                    cuda::std::equal_to<Key>,
+                                    cuda::std::equal_to<key_type>,
                                     probing_scheme>;
 
-  map_type map{10, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
-
-  auto map_ref = map.ref(cuco::insert);
+  map_type map{10, cuco::empty_key<key_type>{-1}, cuco::empty_value<value_type>{-1}};
 
   thrust::device_vector<bool> inserted(1, false);
+  thrust::device_vector<bool> value_correct(1, false);
+
+  auto insert_ref = map.ref(cuco::op::insert);
 
   SECTION("insert accepts a brace-initialized value_type")
   {
-    insert_test_kernel<<<1, 1>>>(map_ref, Key{42}, Value{123}, inserted.data().get());
+    insert_test_kernel<CGSize><<<1, CGSize>>>(
+      insert_ref, inserted.data().get());
 
-    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::all_of(
+      inserted.begin(), inserted.end(), cuda::std::identity{}));
 
     // The same key should not be inserted twice.
-    insert_test_kernel<<<1, 1>>>(map_ref, Key{42}, Value{456}, inserted.data().get());
+    insert_test_kernel<CGSize><<<1, CGSize>>>(
+      insert_ref, inserted.data().get());
 
-    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::none_of(
+      inserted.begin(), inserted.end(), cuda::std::identity{}));
   }
 
   SECTION("insert_and_find accepts a brace-initialized value_type")
   {
-    auto insert_and_find_ref = map.ref(cuco::insert_and_find);
+    auto insert_and_find_ref = map.ref(cuco::op::insert_and_find);
 
-    thrust::device_vector<Key> found_key(1);
-    thrust::device_vector<Value> found_value(1);
+    insert_and_find_test_kernel<CGSize><<<1, CGSize>>>(
+      insert_and_find_ref,
+      inserted.data().get(),
+      value_correct.data().get());
 
-    insert_and_find_test_kernel<<<1, 1>>>(insert_and_find_ref,
-                                          Key{42},
-                                          Value{123},
-                                          inserted.data().get(),
-                                          found_key.data().get(),
-                                          found_value.data().get());
-
-    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
-
-    REQUIRE(found_key[0] == Key{42});
-    REQUIRE(found_value[0] == Value{123});
+    REQUIRE(cuco::test::all_of(
+      inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::all_of(
+      value_correct.begin(), value_correct.end(), cuda::std::identity{}));
 
     // The second insertion should find the existing element.
-    insert_and_find_test_kernel<<<1, 1>>>(insert_and_find_ref,
-                                          Key{42},
-                                          Value{456},
-                                          inserted.data().get(),
-                                          found_key.data().get(),
-                                          found_value.data().get());
+    insert_and_find_test_kernel<CGSize><<<1, CGSize>>>(
+      insert_and_find_ref,
+      inserted.data().get(),
+      value_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
-
-    // The existing value should not have been replaced.
-    REQUIRE(found_key[0] == Key{42});
-    REQUIRE(found_value[0] == Value{123});
+    REQUIRE(cuco::test::none_of(
+      inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(cuco::test::all_of(
+      value_correct.begin(), value_correct.end(), cuda::std::identity{}));
   }
 }

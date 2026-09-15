@@ -409,15 +409,6 @@ class open_addressing_ref_impl
   /**
    * @brief Inserts an element.
    *
-   * @param value The element to insert.
-   *
-   * @return True if the given element is successfully inserted
-   */
-  __device__ bool insert(value_type value) noexcept { return insert<value_type>(value); }
-
-  /**
-   * @brief Inserts an element.
-   *
    * @tparam Value Input type which is convertible to 'value_type'
    * @tparam ParentCG Type of parent Cooperative Group
    *
@@ -562,19 +553,6 @@ class open_addressing_ref_impl
       ++probing_iter;
       if (*probing_iter == init_idx) { return {this->end(), false}; }
     };
-  }
-
-  /**
-   * @brief Inserts the given element into the container.
-   *
-   * @param value The element to insert.
-   *
-   * @return A pair consisting of an iterator to the element and a bool indicating whether the
-   * insertion is successful or not.
-   */
-  __device__ cuda::std::pair<iterator, bool> insert_and_find(value_type value) noexcept
-  {
-    return insert_and_find<value_type>(value);
   }
 
   /**
