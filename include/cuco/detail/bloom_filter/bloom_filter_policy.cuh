@@ -34,8 +34,8 @@ namespace cuco::detail {
  * `add` and `contains` take independent vectorization layouts (horizontal = cooperative-group size,
  * vertical = contiguous words per thread per step) because they favor opposite access patterns:
  * `add` spreads a block's words across cooperating threads so atomic writes proceed in parallel
- * (default: fully horizontal), while `contains` lets one thread read the whole block with wide,
- * coalesced loads (default: fully vertical). `PatternBits` trades false-positive rate against
+ * (default: fully horizontal), while `contains` defaults to the paper's optimized layout of at
+ * most one 32-byte sector per cooperating thread. `PatternBits` trades false-positive rate against
  * space.
  *
  * @tparam Hash 64-bit hash functor whose call operator returns `uint64_t`.
