@@ -259,6 +259,8 @@ class roaring_bitmap_builder {
     auto state     = allocate_temporary_buffer<roaring_bitmap_build_state>(1);
     auto workspace = allocate_temporary_buffer<cuda::std::byte>(workspace_bytes_);
 
+    // read_build_state synchronizes before build() returns, so this pageable source remains valid
+    // until the copy completes.
     CUCO_CUDA_TRY(cuco::detail::memcpy_async(
       &state->num_indices, &num_indices_, sizeof(num_indices_), cudaMemcpyHostToDevice, stream_));
     return serialize_sorted_unique_indices(

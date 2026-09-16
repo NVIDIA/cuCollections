@@ -72,17 +72,21 @@ void roaring_bitmap_from_indices(nvbench::state& state, nvbench::type_list<Dist>
   roaring_bitmap_build<build_mode::indices>(state, types);
 }
 
+void roaring_bitmap_from_indices_unique(nvbench::state& state)
+{
+  roaring_bitmap_build<build_mode::indices>(state, nvbench::type_list<distribution::unique>{});
+}
+
 template <class Dist>
 void roaring_bitmap_from_sorted_indices(nvbench::state& state, nvbench::type_list<Dist> types)
 {
   roaring_bitmap_build<build_mode::sorted_indices>(state, types);
 }
 
-template <class Dist>
-void roaring_bitmap_from_sorted_unique_indices(nvbench::state& state,
-                                               nvbench::type_list<Dist> types)
+void roaring_bitmap_from_sorted_unique_indices(nvbench::state& state)
 {
-  roaring_bitmap_build<build_mode::sorted_unique_indices>(state, types);
+  roaring_bitmap_build<build_mode::sorted_unique_indices>(
+    state, nvbench::type_list<distribution::unique>{});
 }
 
 template <build_mode Mode>
@@ -130,12 +134,9 @@ void roaring_bitmap_from_sorted_unique_indices_container_cardinality(nvbench::st
   roaring_bitmap_build_container_cardinality<build_mode::sorted_unique_indices>(state);
 }
 
-NVBENCH_BENCH_TYPES(roaring_bitmap_from_indices,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<distribution::unique>))
+NVBENCH_BENCH(roaring_bitmap_from_indices_unique)
   .set_name("roaring_bitmap_from_indices_unique")
-  .set_type_axes_names({"Distribution"})
-  .add_int64_power_of_two_axis("NumInputs", {20, 24, 28})
-  .add_int64_axis("Multiplicity", {1});
+  .add_int64_power_of_two_axis("NumInputs", {20, 24, 28});
 
 NVBENCH_BENCH(roaring_bitmap_from_indices_container_cardinality)
   .set_name("roaring_bitmap_from_indices_container_cardinality")
@@ -163,9 +164,6 @@ NVBENCH_BENCH_TYPES(roaring_bitmap_from_sorted_indices,
   .add_int64_power_of_two_axis("NumInputs", {20, 24, 28})
   .add_int64_axis("Multiplicity", {2, 8, 32});
 
-NVBENCH_BENCH_TYPES(roaring_bitmap_from_sorted_unique_indices,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<distribution::unique>))
+NVBENCH_BENCH(roaring_bitmap_from_sorted_unique_indices)
   .set_name("roaring_bitmap_from_sorted_unique_indices")
-  .set_type_axes_names({"Distribution"})
-  .add_int64_power_of_two_axis("NumInputs", {20, 24, 28})
-  .add_int64_axis("Multiplicity", {1});
+  .add_int64_power_of_two_axis("NumInputs", {20, 24, 28});
