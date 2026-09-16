@@ -110,12 +110,17 @@ struct valid_extent {
 };
 
 template <typename SizeType>
-struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType> {
-  using value_type =
-    typename cuco::utility::fast_int<SizeType>::fast_int::value_type;  ///< Extent value type
+struct valid_extent<SizeType, dynamic_extent> {
+  using value_type = SizeType;  ///< Extent value type
+
+  __host__ __device__ constexpr value_type value() const noexcept { return value_; }
+  __host__ __device__ explicit constexpr operator value_type() const noexcept { return value(); }
 
  private:
-  using cuco::utility::fast_int<SizeType>::fast_int;
+  __host__ __device__ explicit constexpr valid_extent() noexcept : value_{} {}
+  __host__ __device__ explicit constexpr valid_extent(SizeType value) noexcept : value_{value} {}
+
+  SizeType value_;
 
   // Friend declarations for all make_valid_extent overloads
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
@@ -135,6 +140,28 @@ struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType
             typename SizeType_,
             std::size_t N_>
   friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
+
+  // Operator overloads
+  template <typename Rhs>
+  friend __host__ __device__ constexpr value_type operator-(valid_extent const& lhs,
+                                                            Rhs rhs) noexcept
+  {
+    return lhs.value() - rhs;
+  }
+
+  template <typename Rhs>
+  friend __host__ __device__ constexpr value_type operator/(valid_extent const& lhs,
+                                                            Rhs rhs) noexcept
+  {
+    return lhs.value() / rhs;
+  }
+
+  template <typename Lhs>
+  friend __host__ __device__ constexpr value_type operator%(Lhs lhs,
+                                                            valid_extent const& rhs) noexcept
+  {
+    return lhs % rhs.value();
+  }
 };
 
 // Primary implementation for fixed CGSize and BucketSize
