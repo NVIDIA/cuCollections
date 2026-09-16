@@ -8,6 +8,7 @@
 
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
+#include <cuda/std/span>
 #include <cuda/std/type_traits>
 #include <thrust/device_vector.h>
 #include <thrust/logical.h>
@@ -95,7 +96,7 @@ bool check(std::string const& bitmap_file_path)
 
   // Create roaring bitmap from the file
   cuco::experimental::roaring_bitmap<KeyType> roaring_bitmap(
-    thrust::raw_pointer_cast(buffer.data()));
+    cuda::std::span<cuda::std::byte const>{thrust::raw_pointer_cast(buffer.data()), buffer.size()});
 
   // Generate query keys (all should be contained in the bitmap)
   auto keys = generate_keys();

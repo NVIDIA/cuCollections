@@ -13,6 +13,7 @@
 
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
+#include <cuda/std/span>
 #include <thrust/device_vector.h>
 #include <thrust/universal_vector.h>
 
@@ -40,7 +41,8 @@ void roaring_bitmap_contains(nvbench::state& state, nvbench::type_list<T>)
   file.read(reinterpret_cast<char*>(thrust::raw_pointer_cast(buffer.data())), file_size);
   file.close();
 
-  cuco::experimental::roaring_bitmap<T> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
+  cuco::experimental::roaring_bitmap<T> roaring_bitmap(
+    cuda::std::span<cuda::std::byte const>{thrust::raw_pointer_cast(buffer.data()), buffer.size()});
 
   thrust::device_vector<T> items(num_items);
 
