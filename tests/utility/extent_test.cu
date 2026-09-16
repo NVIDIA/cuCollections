@@ -64,7 +64,6 @@ TEMPLATE_TEST_CASE_SIG(
     REQUIRE((SizeType{5000} % res) == SizeType{5000} % gold_reference);
   }
 
-
   SECTION("Invalid desired load factor throws exception")
   {
     using probing_scheme_type = cuco::linear_probing<cg_size, cuco::default_hash_function<int>>;
