@@ -98,7 +98,7 @@ class roaring_bitmap_impl<cuda::std::uint32_t> {
   template <bool Aligned>
   __device__ bool dispatch_contains(cuda::std::uint32_t value) const
   {
-    cuda::std::uint16_t const upper = value >> 16;
+    cuda::std::uint16_t const upper = storage_ref_type::metadata_type::container_key(value);
     cuda::std::uint16_t const lower = value & 0xFFFF;
     cuda::std::uint16_t key;
 

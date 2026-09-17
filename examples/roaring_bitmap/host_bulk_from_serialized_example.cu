@@ -20,7 +20,7 @@
 #include <vector>
 
 /**
- * @file host_bulk_example.cu
+ * @file host_bulk_from_serialized_example.cu
  * @brief Demonstrates usage of the roaring_bitmap "bulk" lookup host APIs.
  *
  * In this example we load two 32-bit bitmaps and one 64-bit bitmap (portable format) from the
@@ -94,7 +94,7 @@ bool check(std::string const& bitmap_file_path)
   file.close();
 
   // Create roaring bitmap from the file
-  cuco::experimental::roaring_bitmap<KeyType> roaring_bitmap(
+  auto roaring_bitmap = cuco::experimental::roaring_bitmap<KeyType>::from_serialized(
     thrust::raw_pointer_cast(buffer.data()));
 
   // Generate query keys (all should be contained in the bitmap)
