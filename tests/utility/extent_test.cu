@@ -59,9 +59,9 @@ TEMPLATE_TEST_CASE_SIG(
     auto constexpr size = cuco::extent<SizeType, num>{};
     auto constexpr res  = cuco::make_valid_extent<probing_t, storage_t>(size);
 
-    REQUIRE((res - SizeType{10}) == gold_reference - 10);
-    REQUIRE((res / SizeType{2}) == gold_reference / 2);
-    REQUIRE((SizeType{5000} % res) == SizeType{5000} % gold_reference);
+    STATIC_REQUIRE((res - SizeType{10}) == gold_reference - 10);
+    STATIC_REQUIRE((res / SizeType{2}) == gold_reference / 2);
+    STATIC_REQUIRE((SizeType{5000} % res) == SizeType{5000} % gold_reference);
   }
 
   SECTION("Dynamic valid extent supports arithmetic operators")
