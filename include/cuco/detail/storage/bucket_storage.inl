@@ -66,6 +66,15 @@ bucket_storage_ref<T, BucketSize, Extent>::operator[](size_type index) const noe
 }
 
 template <typename T, int BucketSize, typename Extent>
+__device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_type
+bucket_storage_ref<T, BucketSize, Extent>::load_bucket(size_type index) const noexcept
+{
+  assert(index % bucket_size == 0);
+  assert(index <= capacity() && bucket_size <= capacity() - index);
+  return *reinterpret_cast<bucket_type*>(__builtin_assume_aligned(this->data() + index, alignment));
+}
+
+template <typename T, int BucketSize, typename Extent>
 __host__ __device__ constexpr typename bucket_storage_ref<T, BucketSize, Extent>::size_type
 bucket_storage_ref<T, BucketSize, Extent>::num_buckets() const noexcept
 {

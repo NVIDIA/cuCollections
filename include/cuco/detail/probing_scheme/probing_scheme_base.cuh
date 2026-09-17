@@ -15,6 +15,9 @@ namespace detail {
  *
  * This class should not be used directly.
  *
+ * @note Derived probing schemes must produce bucket-aligned slot indices. For a bucket size
+ * `B`, every index must be a multiple of `B` and the complete bucket must fit within the storage.
+ *
  * @tparam CGSize Size of CUDA Cooperative Groups
  */
 template <int32_t CGSize>
