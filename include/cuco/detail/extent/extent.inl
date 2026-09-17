@@ -10,7 +10,6 @@
 #include <cuco/detail/utility/math.cuh>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
-#include <cuco/utility/fast_int.cuh>
 
 #include <cuda/std/type_traits>
 
@@ -85,28 +84,6 @@ struct valid_extent {
             typename SizeType_,
             std::size_t N_>
   friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  // Operator overloads
-  template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator-(valid_extent const& lhs,
-                                                            Rhs rhs) noexcept
-  {
-    return lhs.value() - rhs;
-  }
-
-  template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator/(valid_extent const& lhs,
-                                                            Rhs rhs) noexcept
-  {
-    return lhs.value() / rhs;
-  }
-
-  template <typename Lhs>
-  friend __host__ __device__ constexpr value_type operator%(Lhs lhs,
-                                                            valid_extent const& rhs) noexcept
-  {
-    return lhs % rhs.value();
-  }
 };
 
 template <typename SizeType>
@@ -140,29 +117,29 @@ struct valid_extent<SizeType, dynamic_extent> {
             typename SizeType_,
             std::size_t N_>
   friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  // Operator overloads
-  template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator-(valid_extent const& lhs,
-                                                            Rhs rhs) noexcept
-  {
-    return lhs.value() - rhs;
-  }
-
-  template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator/(valid_extent const& lhs,
-                                                            Rhs rhs) noexcept
-  {
-    return lhs.value() / rhs;
-  }
-
-  template <typename Lhs>
-  friend __host__ __device__ constexpr value_type operator%(Lhs lhs,
-                                                            valid_extent const& rhs) noexcept
-  {
-    return lhs % rhs.value();
-  }
 };
+
+// Operator overloads
+template <typename SizeType, std::size_t N, typename Rhs>
+__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator-(
+  valid_extent<SizeType, N> const& lhs, Rhs rhs) noexcept
+{
+  return lhs.value() - rhs;
+}
+
+template <typename SizeType, std::size_t N, typename Rhs>
+__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator/(
+  valid_extent<SizeType, N> const& lhs, Rhs rhs) noexcept
+{
+  return lhs.value() / rhs;
+}
+
+template <typename Lhs, typename SizeType, std::size_t N>
+__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator%(
+  Lhs lhs, valid_extent<SizeType, N> const& rhs) noexcept
+{
+  return lhs % rhs.value();
+}
 
 // Primary implementation for fixed CGSize and BucketSize
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
