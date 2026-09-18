@@ -84,8 +84,7 @@ void test_outer(Container& container, std::size_t num_keys)
                                                                     probed_keys.begin(),
                                                                     matched_keys.begin());
 
-    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
-            query_size);
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == query_size);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
             query_size);
 
@@ -108,8 +107,7 @@ void test_outer(Container& container, std::size_t num_keys)
                                                                     probed_keys.begin(),
                                                                     matched_keys.begin());
 
-    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
-            query_size);
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == query_size);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
             query_size);
 
@@ -119,11 +117,10 @@ void test_outer(Container& container, std::size_t num_keys)
     REQUIRE(cuco::test::equal(
       probed_keys.begin(), probed_keys.end(), keys_begin, cuda::std::equal_to<key_type>{}));
 
-    REQUIRE(cuco::test::equal(
-      matched_keys.begin(),
-      matched_keys.begin() + num_keys,
-      keys_begin,
-      cuda::std::equal_to<key_type>{}));
+    REQUIRE(cuco::test::equal(matched_keys.begin(),
+                              matched_keys.begin() + num_keys,
+                              keys_begin,
+                              cuda::std::equal_to<key_type>{}));
 
     REQUIRE(cuco::test::all_of(
       matched_keys.begin() + num_keys,
@@ -153,17 +150,14 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
   {
     thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
 
-    auto const pred = [] __device__(key_type key) {
-      return key % 2 == 0;
-    };
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil.begin(),
-      pred,
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
     auto const num_results =
       static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
@@ -177,8 +171,7 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    for (std::size_t i = 0; i < expected_size; ++i)
-    {
+    for (std::size_t i = 0; i < expected_size; ++i) {
       auto const expected = static_cast<key_type>(i * 2 + 1);
 
       REQUIRE(probed_keys[i] == expected);
@@ -190,17 +183,14 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
   {
     thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
 
-    auto const pred = [] __device__(key_type key) {
-      return key % 2 == 0;
-    };
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil.begin(),
-      pred,
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
     auto const num_results =
       static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
@@ -212,8 +202,7 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    for (std::size_t i = 0; i < num_results; ++i)
-    {
+    for (std::size_t i = 0; i < num_results; ++i) {
       auto const expected = static_cast<key_type>(i * 2);
 
       REQUIRE(probed_keys[i] == expected);
@@ -225,17 +214,14 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
   {
     thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
 
-    auto const pred = [] __device__(key_type) {
-      return false;
-    };
+    auto const pred = [] __device__(key_type) { return false; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil.begin(),
-      pred,
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
     REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == 0);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 0);
@@ -245,17 +231,14 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
   {
     thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
 
-    auto const pred = [] __device__(key_type) {
-      return true;
-    };
+    auto const pred = [] __device__(key_type) { return true; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil.begin(),
-      pred,
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
     REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == num_keys);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == num_keys);
@@ -290,19 +273,16 @@ void test_retrieve_if_with_probe(Container& container, std::size_t num_keys)
 
   SECTION("retrieve_if should accept explicit equality and hash functions.")
   {
-    auto const pred = [] __device__(key_type key) {
-      return key % 2 == 0;
-    };
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil.begin(),
-      pred,
-      container.key_eq(),
-      container.hash_function(),
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 container.key_eq(),
+                                                                 container.hash_function(),
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
     auto const num_results =
       static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
@@ -314,8 +294,7 @@ void test_retrieve_if_with_probe(Container& container, std::size_t num_keys)
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    for (std::size_t i = 0; i < num_results; ++i)
-    {
+    for (std::size_t i = 0; i < num_results; ++i) {
       auto const expected = static_cast<key_type>(i * 2);
 
       REQUIRE(probed_keys[i] == expected);
@@ -325,19 +304,16 @@ void test_retrieve_if_with_probe(Container& container, std::size_t num_keys)
 
   SECTION("retrieve_if with explicit equality and hash should return nothing for false predicate.")
   {
-    auto const pred = [] __device__(key_type) {
-      return false;
-    };
+    auto const pred = [] __device__(key_type) { return false; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil.begin(),
-      pred,
-      container.key_eq(),
-      container.hash_function(),
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 container.key_eq(),
+                                                                 container.hash_function(),
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
     REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == 0);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 0);
@@ -374,17 +350,14 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
 
   SECTION("retrieve_if should filter duplicate matches using the stencil predicate.")
   {
-    auto const pred = [] __device__(key_type value) {
-      return value % 2 == 0;
-    };
+    auto const pred = [] __device__(key_type value) { return value % 2 == 0; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_actual_keys,
-      stencil.begin(),
-      pred,
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_actual_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
     auto const num_results =
       static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
@@ -392,17 +365,15 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
     auto const expected_results = (num_actual_keys / 2) * multiplicity;
 
     REQUIRE(num_results == expected_results);
-    REQUIRE(static_cast<std::size_t>(
-              std::distance(matched_keys.begin(), matched_end)) == expected_results);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            expected_results);
 
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    for (std::size_t i = 0; i < expected_results; ++i)
-    {
-      auto const input_index = i / multiplicity;
-      auto const expected_key =
-        static_cast<key_type>((input_index * 2) / multiplicity);
+    for (std::size_t i = 0; i < expected_results; ++i) {
+      auto const input_index  = i / multiplicity;
+      auto const expected_key = static_cast<key_type>((input_index * 2) / multiplicity);
 
       REQUIRE(probed_keys[i] == expected_key);
       REQUIRE(matched_keys[i] == expected_key);
@@ -413,50 +384,44 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
   {
     auto const pred = [] __device__(key_type) { return false; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_actual_keys,
-      stencil.begin(),
-      pred,
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_actual_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
-    REQUIRE(static_cast<std::size_t>(
-              std::distance(probed_keys.begin(), probed_end)) == 0);
-    REQUIRE(static_cast<std::size_t>(
-              std::distance(matched_keys.begin(), matched_end)) == 0);
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == 0);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 0);
   }
 
   SECTION("retrieve_if should return all matches when the predicate is always true.")
   {
     auto const pred = [] __device__(key_type) { return true; };
 
-    auto const [probed_end, matched_end] = container.retrieve_if(
-      keys_begin,
-      keys_begin + num_actual_keys,
-      stencil.begin(),
-      pred,
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_actual_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
 
     auto const expected_results = num_actual_keys * multiplicity;
 
-    REQUIRE(static_cast<std::size_t>(
-              std::distance(probed_keys.begin(), probed_end)) == expected_results);
-    REQUIRE(static_cast<std::size_t>(
-              std::distance(matched_keys.begin(), matched_end)) == expected_results);
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
+            expected_results);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            expected_results);
 
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    for (std::size_t key = 0; key < num_unique_keys; ++key)
-    {
+    for (std::size_t key = 0; key < num_unique_keys; ++key) {
       auto const expected_key = static_cast<key_type>(key);
 
       auto const expected_count = multiplicity * multiplicity;
 
-      for (std::size_t j = 0; j < expected_count; ++j)
-      {
+      for (std::size_t j = 0; j < expected_count; ++j) {
         auto const output_index = key * expected_count + j;
 
         REQUIRE(probed_keys[output_index] == expected_key);
@@ -490,22 +455,18 @@ void test_retrieve_outer_if(Container& container, std::size_t num_keys)
   {
     thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
 
-    auto const pred = [] __device__(key_type) {
-      return true;
-    };
+    auto const pred = [] __device__(key_type) { return true; };
 
-    auto const [probed_end, matched_end] = container.retrieve_outer_if(
-      probes.begin(),
-      probes.end(),
-      stencil.begin(),
-      pred,
-      container.key_eq(),
-      container.hash_function(),
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_outer_if(probes.begin(),
+                                                                       probes.end(),
+                                                                       stencil.begin(),
+                                                                       pred,
+                                                                       container.key_eq(),
+                                                                       container.hash_function(),
+                                                                       probed_keys.begin(),
+                                                                       matched_keys.begin());
 
-    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
-            query_size);
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == query_size);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
             query_size);
 
@@ -515,11 +476,10 @@ void test_retrieve_outer_if(Container& container, std::size_t num_keys)
     REQUIRE(cuco::test::equal(
       probed_keys.begin(), probed_keys.end(), probes.begin(), cuda::std::equal_to<key_type>{}));
 
-    REQUIRE(cuco::test::equal(
-      matched_keys.begin(),
-      matched_keys.begin() + num_keys,
-      keys_begin,
-      cuda::std::equal_to<key_type>{}));
+    REQUIRE(cuco::test::equal(matched_keys.begin(),
+                              matched_keys.begin() + num_keys,
+                              keys_begin,
+                              cuda::std::equal_to<key_type>{}));
 
     REQUIRE(cuco::test::all_of(
       matched_keys.begin() + num_keys,
@@ -533,19 +493,16 @@ void test_retrieve_outer_if(Container& container, std::size_t num_keys)
   {
     thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
 
-    auto const pred = [] __device__(key_type key) {
-      return key % 2 == 0;
-    };
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
 
-    auto const [probed_end, matched_end] = container.retrieve_outer_if(
-      probes.begin(),
-      probes.end(),
-      stencil.begin(),
-      pred,
-      container.key_eq(),
-      container.hash_function(),
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_outer_if(probes.begin(),
+                                                                       probes.end(),
+                                                                       stencil.begin(),
+                                                                       pred,
+                                                                       container.key_eq(),
+                                                                       container.hash_function(),
+                                                                       probed_keys.begin(),
+                                                                       matched_keys.begin());
 
     auto const expected_size = query_size / 2;
 
@@ -557,18 +514,14 @@ void test_retrieve_outer_if(Container& container, std::size_t num_keys)
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    for (std::size_t i = 0; i < expected_size; ++i)
-    {
+    for (std::size_t i = 0; i < expected_size; ++i) {
       auto const expected_probe = static_cast<key_type>(i * 2 + 1);
 
       REQUIRE(probed_keys[i] == expected_probe);
 
-      if (expected_probe < static_cast<key_type>(num_keys))
-      {
+      if (expected_probe < static_cast<key_type>(num_keys)) {
         REQUIRE(matched_keys[i] == expected_probe);
-      }
-      else
-      {
+      } else {
         REQUIRE(matched_keys[i] == static_cast<key_type>(empty_key_sentinel));
       }
     }
@@ -578,19 +531,16 @@ void test_retrieve_outer_if(Container& container, std::size_t num_keys)
   {
     thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
 
-    auto const pred = [] __device__(key_type) {
-      return false;
-    };
+    auto const pred = [] __device__(key_type) { return false; };
 
-    auto const [probed_end, matched_end] = container.retrieve_outer_if(
-      probes.begin(),
-      probes.end(),
-      stencil.begin(),
-      pred,
-      container.key_eq(),
-      container.hash_function(),
-      probed_keys.begin(),
-      matched_keys.begin());
+    auto const [probed_end, matched_end] = container.retrieve_outer_if(probes.begin(),
+                                                                       probes.end(),
+                                                                       stencil.begin(),
+                                                                       pred,
+                                                                       container.key_eq(),
+                                                                       container.hash_function(),
+                                                                       probed_keys.begin(),
+                                                                       matched_keys.begin());
 
     REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == 0);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 0);
@@ -629,29 +579,24 @@ void test_retrieve_outer_if_multiplicity(Container& container, std::size_t num_k
 
   thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
 
-  auto const pred = [] __device__(key_type key) {
-    return key % 2 == 0;
-  };
+  auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
 
-  auto const [probed_end, matched_end] = container.retrieve_outer_if(
-    probes.begin(),
-    probes.end(),
-    stencil.begin(),
-    pred,
-    container.key_eq(),
-    container.hash_function(),
-    probed_keys.begin(),
-    matched_keys.begin());
+  auto const [probed_end, matched_end] = container.retrieve_outer_if(probes.begin(),
+                                                                     probes.end(),
+                                                                     stencil.begin(),
+                                                                     pred,
+                                                                     container.key_eq(),
+                                                                     container.hash_function(),
+                                                                     probed_keys.begin(),
+                                                                     matched_keys.begin());
 
-  auto const num_matching_probes = query_size / 2;
+  auto const num_matching_probes      = query_size / 2;
   auto const num_matching_unique_keys = num_unique_keys / 2;
-  auto const num_missing_probes = num_matching_probes - num_matching_unique_keys;
+  auto const num_missing_probes       = num_matching_probes - num_matching_unique_keys;
 
-  auto const expected_results =
-    num_matching_unique_keys * multiplicity + num_missing_probes;
+  auto const expected_results = num_matching_unique_keys * multiplicity + num_missing_probes;
 
-  auto const num_results =
-    static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
+  auto const num_results = static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
 
   REQUIRE(num_results == expected_results);
   REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
@@ -662,24 +607,18 @@ void test_retrieve_outer_if_multiplicity(Container& container, std::size_t num_k
 
   std::size_t output_index = 0;
 
-  for (std::size_t probe = 1; probe < query_size; probe += 2)
-  {
+  for (std::size_t probe = 1; probe < query_size; probe += 2) {
     auto const expected_probe = static_cast<key_type>(probe);
 
-    if (probe < num_unique_keys)
-    {
-      for (std::size_t j = 0; j < multiplicity; ++j)
-      {
+    if (probe < num_unique_keys) {
+      for (std::size_t j = 0; j < multiplicity; ++j) {
         REQUIRE(probed_keys[output_index] == expected_probe);
         REQUIRE(matched_keys[output_index] == expected_probe);
         ++output_index;
       }
-    }
-    else
-    {
+    } else {
       REQUIRE(probed_keys[output_index] == expected_probe);
-      REQUIRE(matched_keys[output_index] ==
-              static_cast<key_type>(empty_key_sentinel));
+      REQUIRE(matched_keys[output_index] == static_cast<key_type>(empty_key_sentinel));
       ++output_index;
     }
   }
