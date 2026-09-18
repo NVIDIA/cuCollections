@@ -654,6 +654,26 @@ class static_multiset {
                   ProbeHash const& probe_hash,
                   cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type count_if(InputIt first,
+                     InputIt last,
+                     StencilIt stencil,
+                     Predicate const& pred,
+                     cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
+
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename ProbeKeyEqual,
+            typename ProbeHash>
+  size_type count_if(InputIt first,
+                     InputIt last,
+                     StencilIt stencil,
+                     Predicate const& pred,
+                     ProbeKeyEqual const& probe_key_equal,
+                     ProbeHash const& probe_hash,
+                     cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
+
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
    *
@@ -679,6 +699,26 @@ class static_multiset {
                         ProbeKeyEqual const& probe_key_equal,
                         ProbeHash const& probe_hash,
                         cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
+
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type count_outer_if(InputIt first,
+                           InputIt last,
+                           StencilIt stencil,
+                           Predicate const& pred,
+                           cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
+
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename ProbeKeyEqual,
+            typename ProbeHash>
+  size_type count_outer_if(InputIt first,
+                           InputIt last,
+                           StencilIt stencil,
+                           Predicate const& pred,
+                           ProbeKeyEqual const& probe_key_equal,
+                           ProbeHash const& probe_hash,
+                           cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Counts the number of occurrences of each query key in the multiset
@@ -872,6 +912,56 @@ class static_multiset {
                                                          OutputMatchIt output_match,
                                                          cuda::stream_ref stream = cuda::stream_ref{
                                                            cudaStream_t{nullptr}}) const;
+
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_if(InputProbeIt first,
+                                                      InputProbeIt last,
+                                                      StencilIt stencil,
+                                                      Predicate const& pred,
+                                                      OutputProbeIt output_probe,
+                                                      OutputMatchIt output_match,
+                                                      cuda::stream_ref stream = cuda::stream_ref{
+                                                        cudaStream_t{nullptr}}) const;
+
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class ProbeEqual,
+            class ProbeHash,
+            class OutputProbeIt,
+            class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_if(InputProbeIt first,
+                                                      InputProbeIt last,
+                                                      StencilIt stencil,
+                                                      Predicate const& pred,
+                                                      ProbeEqual const& probe_equal,
+                                                      ProbeHash const& probe_hash,
+                                                      OutputProbeIt output_probe,
+                                                      OutputMatchIt output_match,
+                                                      cuda::stream_ref stream = cuda::stream_ref{
+                                                        cudaStream_t{nullptr}}) const;
+
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class ProbeEqual,
+            class ProbeHash,
+            class OutputProbeIt,
+            class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer_if(
+    InputProbeIt first,
+    InputProbeIt last,
+    StencilIt stencil,
+    Predicate const& pred,
+    ProbeEqual const& probe_equal,
+    ProbeHash const& probe_hash,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Retrieves all keys contained in the multiset

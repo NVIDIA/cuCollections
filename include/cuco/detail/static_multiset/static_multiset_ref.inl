@@ -707,6 +707,33 @@ class operator_impl<
                                                output_match,
                                                atomic_counter);
   }
+
+  template <int BlockSize,
+            class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_outer_if(cooperative_groups::thread_block const& block,
+                                    InputProbeIt input_probe_begin,
+                                    InputProbeIt input_probe_end,
+                                    StencilIt stencil,
+                                    Predicate pred,
+                                    OutputProbeIt output_probe,
+                                    OutputMatchIt output_match,
+                                    AtomicCounter& atomic_counter) const
+  {
+    auto const& ref_ = static_cast<ref_type const&>(*this);
+    ref_.impl_.template retrieve_outer_if<BlockSize>(block,
+                                                     input_probe_begin,
+                                                     input_probe_end,
+                                                     stencil,
+                                                     pred,
+                                                     output_probe,
+                                                     output_match,
+                                                     atomic_counter);
+  }
 };
 
 template <typename Key,

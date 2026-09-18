@@ -1175,6 +1175,29 @@ class open_addressing_ref_impl
       block, input_probe_begin, n, stencil, pred, output_probe, output_match, atomic_counter);
   }
 
+  template <int BlockSize,
+            class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_outer_if(cooperative_groups::thread_block const& block,
+                                    InputProbeIt input_probe_begin,
+                                    InputProbeIt input_probe_end,
+                                    StencilIt stencil,
+                                    Predicate pred,
+                                    OutputProbeIt output_probe,
+                                    OutputMatchIt output_match,
+                                    AtomicCounter& atomic_counter) const
+  {
+    auto constexpr is_outer = true;
+    auto const n            = cuco::detail::distance(input_probe_begin, input_probe_end);
+
+    this->retrieve_impl<is_outer, BlockSize>(
+      block, input_probe_begin, n, stencil, pred, output_probe, output_match, atomic_counter);
+  }
+
   /**
    * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
    * input_probe_end)`.

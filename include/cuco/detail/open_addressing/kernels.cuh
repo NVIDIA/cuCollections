@@ -565,6 +565,78 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
+template <bool IsOuter,
+          int CGSize,
+          int BlockSize,
+          typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename AtomicT,
+          typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void count_if(InputIt first,
+                                                       cuco::detail::index_type n,
+                                                       StencilIt stencil,
+                                                       Predicate pred,
+                                                       AtomicT* count,
+                                                       Ref ref)
+{
+  using size_type = typename Ref::size_type;
+
+  size_type constexpr outer_min_count = 1;
+
+  using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+
+  size_type thread_count = 0;
+
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  while (idx < n) {
+    if constexpr (CGSize == 1) {
+      if (pred(*(stencil + idx))) {
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+
+        if constexpr (IsOuter) {
+          thread_count += max(ref.count(key), outer_min_count);
+        } else {
+          thread_count += ref.count(key);
+        }
+      } else if constexpr (IsOuter) {
+        thread_count += outer_min_count;
+      }
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
+
+      // bool const selected = pred(*(stencil + idx));
+
+      if (pred(*(stencil + idx))) {
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+
+        if constexpr (IsOuter) {
+          auto temp_count = ref.count(tile, key);
+
+          if (tile.all(temp_count == 0) && tile.thread_rank() == 0) { ++temp_count; }
+
+          thread_count += temp_count;
+        } else {
+          thread_count += ref.count(tile, key);
+        }
+      } else if constexpr (IsOuter) {
+        if (tile.thread_rank() == 0) { thread_count += outer_min_count; }
+      }
+    }
+
+    idx += loop_stride;
+  }
+
+  auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
+
+  if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
+}
+
 /**
  * @brief Counts the occurrences of each key in `[first, last)` contained in the container
  * and stores the counts in the output array.
@@ -695,6 +767,58 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
                                        output_probe,
                                        output_match,
                                        *atomic_counter);
+    }
+  }
+}
+
+template <bool IsOuter,
+          int BlockSize,
+          int TileStride,
+          class InputProbeIt,
+          class StencilIt,
+          class Predicate,
+          class OutputProbeIt,
+          class OutputMatchIt,
+          class AtomicCounter,
+          class Ref>
+CUCO_KERNEL void retrieve_if(InputProbeIt input_probe,
+                             cuco::detail::index_type n,
+                             StencilIt stencil,
+                             Predicate pred,
+                             OutputProbeIt output_probe,
+                             OutputMatchIt output_match,
+                             AtomicCounter* atomic_counter,
+                             Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  auto const block               = cg::this_thread_block();
+  auto constexpr tiles_in_block  = BlockSize / Ref::cg_size;
+  auto constexpr tiles_per_block = TileStride * tiles_in_block;
+
+  auto const block_begin_offset = block.group_index().x * tiles_per_block;
+  auto const block_end_offset =
+    min(n, static_cast<cuco::detail::index_type>(block_begin_offset + tiles_per_block));
+
+  if (block_begin_offset < block_end_offset) {
+    if constexpr (IsOuter) {
+      ref.template retrieve_outer_if<BlockSize>(block,
+                                                input_probe + block_begin_offset,
+                                                input_probe + block_end_offset,
+                                                stencil + block_begin_offset,
+                                                pred,
+                                                output_probe,
+                                                output_match,
+                                                *atomic_counter);
+    } else {
+      ref.template retrieve_if<BlockSize>(block,
+                                          input_probe + block_begin_offset,
+                                          input_probe + block_end_offset,
+                                          stencil + block_begin_offset,
+                                          pred,
+                                          output_probe,
+                                          output_match,
+                                          *atomic_counter);
     }
   }
 }

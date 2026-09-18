@@ -686,6 +686,46 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
       first, last, output_probe, output_match, container_ref, stream);
   }
 
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_if(InputProbeIt first,
+                                                      InputProbeIt last,
+                                                      StencilIt stencil,
+                                                      Predicate const& pred,
+                                                      OutputProbeIt output_probe,
+                                                      OutputMatchIt output_match,
+                                                      Ref container_ref,
+                                                      cuda::stream_ref stream) const
+  {
+    auto constexpr is_outer = false;
+    return this->retrieve_if_impl<is_outer>(
+      first, last, stencil, pred, output_probe, output_match, container_ref, stream);
+  }
+
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer_if(InputProbeIt first,
+                                                            InputProbeIt last,
+                                                            StencilIt stencil,
+                                                            Predicate const& pred,
+                                                            OutputProbeIt output_probe,
+                                                            OutputMatchIt output_match,
+                                                            Ref container_ref,
+                                                            cuda::stream_ref stream) const
+  {
+    auto constexpr is_outer = true;
+    return this->retrieve_if_impl<is_outer>(
+      first, last, stencil, pred, output_probe, output_match, container_ref, stream);
+  }
+
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the container
    *
@@ -706,6 +746,18 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   {
     auto constexpr is_outer = false;
     return this->count<is_outer>(first, last, container_ref, stream);
+  }
+
+  template <typename InputIt, typename StencilIt, typename Predicate, typename Ref>
+  [[nodiscard]] size_type count_if(InputIt first,
+                                   InputIt last,
+                                   StencilIt stencil,
+                                   Predicate pred,
+                                   Ref container_ref,
+                                   cuda::stream_ref stream) const
+  {
+    auto constexpr is_outer = false;
+    return this->count_if<is_outer>(first, last, stencil, pred, container_ref, stream);
   }
 
   /**
@@ -730,6 +782,44 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   {
     auto constexpr is_outer = true;
     return this->count<is_outer>(first, last, container_ref, stream);
+  }
+
+  template <typename InputIt, typename StencilIt, typename Predicate, typename Ref>
+  [[nodiscard]] size_type count_outer_if(InputIt first,
+                                         InputIt last,
+                                         StencilIt stencil,
+                                         Predicate pred,
+                                         Ref container_ref,
+                                         cuda::stream_ref stream) const
+  {
+    auto constexpr is_outer = true;
+
+    return this->count_if<is_outer>(first, last, stencil, pred, container_ref, stream);
+  }
+
+  template <bool IsOuter, typename InputIt, typename StencilIt, typename Predicate, typename Ref>
+  [[nodiscard]] size_type count_if(InputIt first,
+                                   InputIt last,
+                                   StencilIt stencil,
+                                   Predicate pred,
+                                   Ref container_ref,
+                                   cuda::stream_ref stream) const
+  {
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return 0; }
+
+    auto counter =
+      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator(), stream};
+
+    counter.reset(stream);
+
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::open_addressing_ns::count_if<IsOuter, cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num_keys, stencil, pred, counter.data(), container_ref);
+
+    return counter.load_to_host(stream);
   }
 
   /**
@@ -1264,39 +1354,6 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
         first, num_keys, output_begin, container_ref);
   }
 
-  /**
-   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
-   *
-   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
-   * slot contents to `output_match`, respectively. The output order is unspecified.
-   *
-   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()/count_outer()` to determine the size of the output range.
-   *
-   * If `IsOuter == true` and a key `k` has no matches in the container, then `{key,
-   * empty_slot_sentinel}` will be added to the output sequence.
-   *
-   * This function synchronizes the given CUDA stream.
-   *
-   * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
-   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
-   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
-   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the input sequence of keys
-   * @param last End of the input sequence of keys
-   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
-   * `output_match`
-   * @param output_match Beginning of the sequence of matching elements
-   * @param container_ref Non-owning device reference to the container
-   * @param stream CUDA stream this operation is executed in
-   *
-   * @return Iterator pair indicating the the end of the output sequences
-   */
   template <bool IsOuter, class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
   std::pair<OutputProbeIt, OutputMatchIt> retrieve_impl(InputProbeIt first,
                                                         InputProbeIt last,
@@ -1320,6 +1377,42 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
     detail::open_addressing_ns::retrieve<IsOuter, block_size, grid_stride>
       <<<grid_size, block_size, 0, stream.get()>>>(
         first, n, output_probe, output_match, counter.data(), container_ref);
+
+    auto const num_retrieved = counter.load_to_host(stream.get());
+
+    return {output_probe + num_retrieved, output_match + num_retrieved};
+  }
+
+  template <bool IsOuter,
+            class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_if_impl(InputProbeIt first,
+                                                           InputProbeIt last,
+                                                           StencilIt stencil,
+                                                           Predicate const& pred,
+                                                           OutputProbeIt output_probe,
+                                                           OutputMatchIt output_match,
+                                                           Ref container_ref,
+                                                           cuda::stream_ref stream) const
+  {
+    auto const n = detail::distance(first, last);
+    if (n == 0) { return {output_probe, output_match}; }
+
+    using counter_type = detail::counter_storage<size_type, thread_scope, allocator_type>;
+    auto counter       = counter_type{this->allocator(), stream};
+    counter.reset(stream.get());
+
+    auto constexpr block_size  = cuco::detail::default_block_size();
+    auto constexpr grid_stride = 4;
+    auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
+
+    detail::open_addressing_ns::retrieve_if<IsOuter, block_size, grid_stride>
+      <<<grid_size, block_size, 0, stream.get()>>>(
+        first, n, stencil, pred, output_probe, output_match, counter.data(), container_ref);
 
     auto const num_retrieved = counter.load_to_host(stream.get());
 
