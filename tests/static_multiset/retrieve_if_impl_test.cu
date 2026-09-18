@@ -151,8 +151,6 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
 
   SECTION("retrieve_if should predicate on the stencil, not the probe.")
   {
-    // Make the stencil intentionally different from the probe sequence.
-    // Probes are 0..N-1, while stencil values are 1..N.
     thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
 
     auto const pred = [] __device__(key_type key) {
@@ -179,7 +177,6 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    // Even stencil values correspond to odd probe values.
     for (std::size_t i = 0; i < expected_size; ++i)
     {
       auto const expected = static_cast<key_type>(i * 2 + 1);
@@ -370,8 +367,6 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
 
   thrust::device_vector<key_type> stencil(num_actual_keys);
 
-  // A probe can match `multiplicity` container slots, so the output capacity
-  // must account for duplicate matches.
   thrust::device_vector<key_type> probed_keys(num_actual_keys * multiplicity);
   thrust::device_vector<key_type> matched_keys(num_actual_keys * multiplicity);
 
@@ -394,8 +389,6 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
     auto const num_results =
       static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
 
-    // There are num_actual_keys / 2 selected input probes. Each selected
-    // probe has multiplicity matching slots in the multiset.
     auto const expected_results = (num_actual_keys / 2) * multiplicity;
 
     REQUIRE(num_results == expected_results);
@@ -446,8 +439,6 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
       probed_keys.begin(),
       matched_keys.begin());
 
-    // There are num_actual_keys input probes and every probe has
-    // `multiplicity` matching slots.
     auto const expected_results = num_actual_keys * multiplicity;
 
     REQUIRE(static_cast<std::size_t>(
@@ -458,9 +449,6 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    // Each unique key occurs `multiplicity` times in the input and
-    // `multiplicity` times in the container, producing multiplicity^2
-    // output pairs for each unique key.
     for (std::size_t key = 0; key < num_unique_keys; ++key)
     {
       auto const expected_key = static_cast<key_type>(key);
@@ -543,9 +531,6 @@ void test_retrieve_outer_if(Container& container, std::size_t num_keys)
 
   SECTION("retrieve_outer_if should predicate on the stencil, not the probe.")
   {
-    // probes = 0..N-1
-    // stencil = 1..N
-    // Even stencil values select odd probes.
     thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
 
     auto const pred = [] __device__(key_type key) {
@@ -642,7 +627,6 @@ void test_retrieve_outer_if_multiplicity(Container& container, std::size_t num_k
 
   thrust::sequence(probes.begin(), probes.end(), key_type{0});
 
-  // Select odd probes by using stencil values 1..N.
   thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
 
   auto const pred = [] __device__(key_type key) {
@@ -663,8 +647,6 @@ void test_retrieve_outer_if_multiplicity(Container& container, std::size_t num_k
   auto const num_matching_unique_keys = num_unique_keys / 2;
   auto const num_missing_probes = num_matching_probes - num_matching_unique_keys;
 
-  // Each selected probe that exists in the multiset has `multiplicity`
-  // matches. Each selected probe that does not exist produces one sentinel.
   auto const expected_results =
     num_matching_unique_keys * multiplicity + num_missing_probes;
 
