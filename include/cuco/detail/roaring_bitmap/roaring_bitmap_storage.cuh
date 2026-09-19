@@ -12,7 +12,7 @@
 
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <memory>
 #include <nv/target>
