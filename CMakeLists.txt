@@ -6,7 +6,8 @@
 #=============================================================================
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
-set(rapids-cmake-branch "main")
+set(rapids-cmake-version 26.10)
+set(rapids-cmake-branch "release/${rapids-cmake-version}")
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
     file(DOWNLOAD
       https://raw.githubusercontent.com/rapidsai/rapids-cmake/${rapids-cmake-branch}/RAPIDS.cmake
