@@ -56,48 +56,22 @@ constexpr std::uint64_t normalize_extent(SizeType size)
 }  // namespace detail
 
 template <typename SizeType, std::size_t N>
-struct valid_extent {
-  using value_type = SizeType;  ///< Extent value type
+struct valid_extent : public extent<SizeType, N> {
+  using base_type = extent<SizeType, N>;
 
-  __host__ __device__ constexpr value_type value() const noexcept { return N; }
-  __host__ __device__ explicit constexpr operator value_type() const noexcept { return value(); }
+ public:
+  using value_type = typename base_type::value_type;
 
- private:
-  __host__ __device__ explicit constexpr valid_extent() noexcept {}
-  __host__ __device__ explicit constexpr valid_extent(SizeType) noexcept {}
-
-  // Friend declarations for all make_valid_extent overloads
-  template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
-  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  template <typename ProbingScheme, typename Storage, typename SizeType_, std::size_t N_>
-  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  template <template <typename> class ProbingScheme,
-            typename Storage,
-            typename SizeType_,
-            std::size_t N_>
-  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  template <template <typename, typename> class ProbingScheme,
-            typename Storage,
-            typename SizeType_,
-            std::size_t N_>
-  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-};
-
-template <typename SizeType>
-struct valid_extent<SizeType, dynamic_extent> {
-  using value_type = SizeType;  ///< Extent value type
-
-  __host__ __device__ constexpr value_type value() const noexcept { return value_; }
-  __host__ __device__ explicit constexpr operator value_type() const noexcept { return value(); }
+  __host__ __device__ constexpr value_type value() const noexcept
+  {
+    return base_type::operator value_type();
+  }
 
  private:
-  __host__ __device__ explicit constexpr valid_extent() noexcept : value_{} {}
-  __host__ __device__ explicit constexpr valid_extent(SizeType value) noexcept : value_{value} {}
-
-  SizeType value_;
+  __host__ __device__ explicit constexpr valid_extent(value_type value = {}) noexcept
+    : base_type{value}
+  {
+  }
 
   // Friend declarations for all make_valid_extent overloads
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
