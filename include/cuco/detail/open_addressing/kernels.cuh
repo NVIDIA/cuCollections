@@ -632,8 +632,6 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_if(InputIt first,
         cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
           cooperative_groups::this_thread_block());
 
-      // bool const selected = pred(*(stencil + idx));
-
       if (pred(*(stencil + idx))) {
         typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
 
