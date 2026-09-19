@@ -54,6 +54,26 @@ TEMPLATE_TEST_CASE_SIG(
     REQUIRE(gold_reference == res.value());
   }
 
+  SECTION("Static valid extent supports arithmetic operators")
+  {
+    auto constexpr size = cuco::extent<SizeType, num>{};
+    auto constexpr res  = cuco::make_valid_extent<probing_t, storage_t>(size);
+
+    STATIC_REQUIRE((res - SizeType{10}) == gold_reference - 10);
+    STATIC_REQUIRE((res / SizeType{2}) == gold_reference / 2);
+    STATIC_REQUIRE((SizeType{5000} % res) == SizeType{5000} % gold_reference);
+  }
+
+  SECTION("Dynamic valid extent supports arithmetic operators")
+  {
+    auto const size = cuco::extent<SizeType>{num};
+    auto const res  = cuco::make_valid_extent<probing_t, storage_t>(size);
+
+    REQUIRE((res - SizeType{10}) == gold_reference - 10);
+    REQUIRE((res / SizeType{2}) == gold_reference / 2);
+    REQUIRE((SizeType{5000} % res) == SizeType{5000} % gold_reference);
+  }
+
   SECTION("Invalid desired load factor throws exception")
   {
     using probing_scheme_type = cuco::linear_probing<cg_size, cuco::default_hash_function<int>>;

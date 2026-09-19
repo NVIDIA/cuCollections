@@ -10,7 +10,6 @@
 #include <cuco/detail/utility/math.cuh>
 #include <cuco/probing_scheme.cuh>
 #include <cuco/storage.cuh>
-#include <cuco/utility/fast_int.cuh>
 
 #include <cuda/std/type_traits>
 
@@ -57,65 +56,22 @@ constexpr std::uint64_t normalize_extent(SizeType size)
 }  // namespace detail
 
 template <typename SizeType, std::size_t N>
-struct valid_extent {
-  using value_type = SizeType;  ///< Extent value type
+class valid_extent : public extent<SizeType, N> {
+  using base_type = extent<SizeType, N>;
 
-  __host__ __device__ constexpr value_type value() const noexcept { return N; }
-  __host__ __device__ explicit constexpr operator value_type() const noexcept { return value(); }
+ public:
+  using value_type = typename base_type::value_type;
+
+  __host__ __device__ constexpr value_type value() const noexcept
+  {
+    return base_type::operator value_type();
+  }
 
  private:
-  __host__ __device__ explicit constexpr valid_extent() noexcept {}
-  __host__ __device__ explicit constexpr valid_extent(SizeType) noexcept {}
-
-  // Friend declarations for all make_valid_extent overloads
-  template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
-  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  template <typename ProbingScheme, typename Storage, typename SizeType_, std::size_t N_>
-  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  template <template <typename> class ProbingScheme,
-            typename Storage,
-            typename SizeType_,
-            std::size_t N_>
-  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  template <template <typename, typename> class ProbingScheme,
-            typename Storage,
-            typename SizeType_,
-            std::size_t N_>
-  friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
-
-  // Operator overloads
-  template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator-(valid_extent const& lhs,
-                                                            Rhs rhs) noexcept
+  __host__ __device__ explicit constexpr valid_extent(value_type value = {}) noexcept
+    : base_type{value}
   {
-    return lhs.value() - rhs;
   }
-
-  template <typename Rhs>
-  friend __host__ __device__ constexpr value_type operator/(valid_extent const& lhs,
-                                                            Rhs rhs) noexcept
-  {
-    return lhs.value() / rhs;
-  }
-
-  template <typename Lhs>
-  friend __host__ __device__ constexpr value_type operator%(Lhs lhs,
-                                                            valid_extent const& rhs) noexcept
-  {
-    return lhs % rhs.value();
-  }
-};
-
-template <typename SizeType>
-struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType> {
-  using value_type =
-    typename cuco::utility::fast_int<SizeType>::fast_int::value_type;  ///< Extent value type
-
- private:
-  using cuco::utility::fast_int<SizeType>::fast_int;
 
   // Friend declarations for all make_valid_extent overloads
   template <int32_t CGSize_, int32_t BucketSize_, typename SizeType_, std::size_t N_>
@@ -136,6 +92,28 @@ struct valid_extent<SizeType, dynamic_extent> : cuco::utility::fast_int<SizeType
             std::size_t N_>
   friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 };
+
+// Operator overloads
+template <typename SizeType, std::size_t N, typename Rhs>
+__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator-(
+  valid_extent<SizeType, N> const& lhs, Rhs rhs) noexcept
+{
+  return lhs.value() - rhs;
+}
+
+template <typename SizeType, std::size_t N, typename Rhs>
+__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator/(
+  valid_extent<SizeType, N> const& lhs, Rhs rhs) noexcept
+{
+  return lhs.value() / rhs;
+}
+
+template <typename Lhs, typename SizeType, std::size_t N>
+__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator%(
+  Lhs lhs, valid_extent<SizeType, N> const& rhs) noexcept
+{
+  return lhs % rhs.value();
+}
 
 // Primary implementation for fixed CGSize and BucketSize
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>

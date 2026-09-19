@@ -193,7 +193,7 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_it
                               hash2_(probe_key), static_cast<size_type>(num_groups - 1)) +
                             1) *
                            stride),
-    upper_bound};  // TODO use fast_int operator
+    upper_bound};
 }
 
 template <int32_t CGSize, typename Hash1, typename Hash2>
