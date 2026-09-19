@@ -9,7 +9,7 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/atomic>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 namespace cuco {
 

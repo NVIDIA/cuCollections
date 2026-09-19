@@ -18,7 +18,7 @@
 
 #include <cuda/atomic>
 #include <cuda/std/functional>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <cstddef>
 #include <memory>
