@@ -1425,7 +1425,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
    * @tparam Ref Type of non-owning device container ref allowing access to storage
    *
    * @param first Beginning of the sequence of keys to count
@@ -1566,6 +1566,49 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
     return {output_probe + num_retrieved, output_match + num_retrieved};
   }
 
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`
+   * if `pred` of the corresponding stencil returns true..
+   *
+   * If key `k = *(input_probe + i)` has one or more matches in the container  and `pred` of
+   * its corresponding stencil is true, copies `k` to `output_probe` and associated slot
+   * contents to `output_match`, respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count()/count_outer()` to determine the size of the output range.
+   *
+   * If `IsOuter == true` and a key `k` has no matches in the container, or `pred` of the
+   * corresponding stencil is false, then `{key, empty_slot_sentinel}` will be added to the
+   * output sequence.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
+   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam Ref Type of non-owning device container ref allowing access to storage
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param container_ref Non-owning device reference to the container
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
   template <bool IsOuter,
             class InputProbeIt,
             class StencilIt,

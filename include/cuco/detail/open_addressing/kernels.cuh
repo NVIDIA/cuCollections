@@ -724,9 +724,9 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
  * @brief Retrieves the equivalent container elements of all keys in the range `[input_probe,
  * input_probe + n)`.
  *
- * If key `k = *(input_probe + i)` has one or more matches in the container  and `pred` of
- * its corresponding stencil is true, copies `k` to `output_probe` and associated slot
- * contents to `output_match`, respectively. The output order is unspecified.
+ * If key `k = *(input_probe + i)` has one or more matches in the container, copies `k` to
+ * `output_probe` and associated slot contents to `output_match`, respectively. The output order is
+ * unspecified.
  *
  * @tparam IsOuter Flag indicating whether it's an outer count or not
  * @tparam BlockSize The size of the thread block
@@ -797,9 +797,9 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
  * @brief Retrieves the equivalent container elements of all keys in the range `[input_probe,
  * input_probe + n)` if `pred` of the corresponding stencil returns true.
  *
- * If key `k = *(input_probe + i)` has one or more matches in the container, copies `k` to
- * `output_probe` and associated slot contents to `output_match`, respectively. The output order is
- * unspecified.
+ * If key `k = *(input_probe + i)` has one or more matches in the container  and `pred` of
+ * its corresponding stencil is true, copies `k` to `output_probe` and associated slot
+ * contents to `output_match`, respectively. The output order is unspecified.
  *
  * @tparam IsOuter Flag indicating whether it's an outer count or not
  * @tparam BlockSize The size of the thread block
