@@ -56,7 +56,7 @@ constexpr std::uint64_t normalize_extent(SizeType size)
 }  // namespace detail
 
 template <typename SizeType, std::size_t N>
-struct valid_extent : public extent<SizeType, N> {
+class valid_extent : public extent<SizeType, N> {
   using base_type = extent<SizeType, N>;
 
  public:
