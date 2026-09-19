@@ -708,6 +708,45 @@ class operator_impl<
                                                atomic_counter);
   }
 
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
+   * input_probe_end)` if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred` of its corresponding stencil
+   * is true, copies `k` to `output_probe` and associated slot contents to `output_match`,
+   * respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count_outer()` to determine the size of the output range.
+   *
+   * If a key `k` has no matches in the container, or `pred` of its corresponding stencil is
+   * false, then `{key, empty_slot_sentinel}` will be added to the output sequence.
+   *
+   * @tparam BlockSize Size of the thread block this operation is executed in
+   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+   * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `key_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam AtomicCounter Atomic counter type that follows the same semantics as
+   * `cuda::atomic(_ref)`
+   *
+   * @param block Thread block this operation is executed in
+   * @param input_probe_begin Beginning of the input sequence of keys
+   * @param input_probe_end End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param atomic_counter Counter that is used to determine the next free position in the output
+   * sequences
+   */
   template <int BlockSize,
             class InputProbeIt,
             class StencilIt,

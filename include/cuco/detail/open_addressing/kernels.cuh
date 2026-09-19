@@ -565,6 +565,28 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
+/**
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+ * if `pred` of the corresponding stencil returns true.
+ *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+ * @tparam AtomicT Atomic counter type
+ * @tparam Ref Type of non-owning device container ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ * @param count Number of matches
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
 template <bool IsOuter,
           int CGSize,
           int BlockSize,
@@ -702,9 +724,9 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
  * @brief Retrieves the equivalent container elements of all keys in the range `[input_probe,
  * input_probe + n)`.
  *
- * If key `k = *(input_probe + i)` has one or more matches in the container, copies `k` to
- * `output_probe` and associated slot contents to `output_match`, respectively. The output order is
- * unspecified.
+ * If key `k = *(input_probe + i)` has one or more matches in the container  and `pred` of
+ * its corresponding stencil is true, copies `k` to `output_probe` and associated slot
+ * contents to `output_match`, respectively. The output order is unspecified.
  *
  * @tparam IsOuter Flag indicating whether it's an outer count or not
  * @tparam BlockSize The size of the thread block
@@ -771,6 +793,41 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
   }
 }
 
+/**
+ * @brief Retrieves the equivalent container elements of all keys in the range `[input_probe,
+ * input_probe + n)` if `pred` of the corresponding stencil returns true.
+ *
+ * If key `k = *(input_probe + i)` has one or more matches in the container, copies `k` to
+ * `output_probe` and associated slot contents to `output_match`, respectively. The output order is
+ * unspecified.
+ *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
+ * @tparam BlockSize The size of the thread block
+ * @tparam TileStride Number of tile batches assigned to each thread block
+ * @tparam InputProbeIt Device accessible input iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+ * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+ * convertible to the `InputProbeIt`'s `value_type`
+ * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+ * convertible to the container's `value_type`
+ * @tparam AtomicCounter Integral atomic type that follows the same semantics as
+ * `cuda::(std::)atomic(_ref)`
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param input_probe Beginning of the sequence of input keys
+ * @param n Number of the keys to query
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+ * `output_match`
+ * @param output_match Beginning of the sequence of matching elements
+ * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+ * number of output elements
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
 template <bool IsOuter,
           int BlockSize,
           int TileStride,
