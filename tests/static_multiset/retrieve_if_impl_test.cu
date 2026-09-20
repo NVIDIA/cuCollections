@@ -75,7 +75,7 @@ void test_outer(Container& container, std::size_t num_keys)
   thrust::device_vector<key_type> probed_keys(query_size);
   thrust::device_vector<key_type> matched_keys(query_size);
 
-  SECTION("Non-inserted keys should output sentinels.")
+  SECTION("Non-inserted keys should return the empty-key sentinel.")
   {
     auto const [probed_end, matched_end] = container.retrieve_outer(keys_begin,
                                                                     keys_begin + query_size,
@@ -88,9 +88,12 @@ void test_outer(Container& container, std::size_t num_keys)
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
             query_size);
 
+    REQUIRE(cuco::test::equal(
+      probed_keys.begin(), probed_end, keys_begin, cuda::std::equal_to<key_type>{}));
+
     REQUIRE(cuco::test::all_of(
       matched_keys.begin(),
-      matched_keys.end(),
+      matched_end,
       cuda::proclaim_return_type<bool>([empty_key_sentinel] __device__(auto const& k) {
         return static_cast<bool>(k == static_cast<key_type>(empty_key_sentinel));
       })));
@@ -98,7 +101,7 @@ void test_outer(Container& container, std::size_t num_keys)
 
   container.insert(keys_begin, keys_begin + num_keys);
 
-  SECTION("All inserted keys should be contained.")
+  SECTION("All inserted keys should be contained and missing keys should return the sentinel.")
   {
     auto const [probed_end, matched_end] = container.retrieve_outer(keys_begin,
                                                                     keys_begin + query_size,
@@ -346,7 +349,7 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
   thrust::device_vector<key_type> probed_keys(num_actual_keys * multiplicity);
   thrust::device_vector<key_type> matched_keys(num_actual_keys * multiplicity);
 
-  thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
+  thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
 
   SECTION("retrieve_if should filter duplicate matches using the stencil predicate.")
   {
@@ -371,12 +374,14 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    for (std::size_t i = 0; i < expected_results; ++i) {
-      auto const input_index  = i / multiplicity;
-      auto const expected_key = static_cast<key_type>((input_index * 2) / multiplicity);
+    for (std::size_t key = 0; key < num_unique_keys; ++key) {
+      auto const expected_key  = static_cast<key_type>(key);
+      auto const output_offset = key * multiplicity;
 
-      REQUIRE(probed_keys[i] == expected_key);
-      REQUIRE(matched_keys[i] == expected_key);
+      for (std::size_t j = 0; j < multiplicity; ++j) {
+        REQUIRE(probed_keys[output_offset + j] == expected_key);
+        REQUIRE(matched_keys[output_offset + j] == expected_key);
+      }
     }
   }
 
@@ -417,8 +422,7 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
     for (std::size_t key = 0; key < num_unique_keys; ++key) {
-      auto const expected_key = static_cast<key_type>(key);
-
+      auto const expected_key   = static_cast<key_type>(key);
       auto const expected_count = multiplicity * multiplicity;
 
       for (std::size_t j = 0; j < expected_count; ++j) {
@@ -504,30 +508,34 @@ void test_retrieve_outer_if(Container& container, std::size_t num_keys)
                                                                        probed_keys.begin(),
                                                                        matched_keys.begin());
 
-    auto const expected_size = query_size / 2;
-
-    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
-            expected_size);
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == query_size);
     REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
-            expected_size);
+            query_size);
 
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    for (std::size_t i = 0; i < expected_size; ++i) {
-      auto const expected_probe = static_cast<key_type>(i * 2 + 1);
+    for (std::size_t i = 0; i < query_size; ++i) {
+      auto const expected_probe = static_cast<key_type>(i);
 
       REQUIRE(probed_keys[i] == expected_probe);
 
-      if (expected_probe < static_cast<key_type>(num_keys)) {
-        REQUIRE(matched_keys[i] == expected_probe);
-      } else {
+      if (i % 2 == 0) {
+        // stencil[i] = i + 1 is odd -> predicate false
         REQUIRE(matched_keys[i] == static_cast<key_type>(empty_key_sentinel));
+      } else {
+        // stencil[i] = i + 1 is even -> predicate true
+        if (i < num_keys) {
+          REQUIRE(matched_keys[i] == expected_probe);
+        } else {
+          REQUIRE(matched_keys[i] == static_cast<key_type>(empty_key_sentinel));
+        }
       }
     }
   }
 
-  SECTION("retrieve_outer_if should return nothing for an always-false predicate.")
+  SECTION(
+    "retrieve_outer_if should return every probe with the sentinel for an always-false predicate.")
   {
     thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
 
@@ -542,8 +550,22 @@ void test_retrieve_outer_if(Container& container, std::size_t num_keys)
                                                                        probed_keys.begin(),
                                                                        matched_keys.begin());
 
-    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == 0);
-    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 0);
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == query_size);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            query_size);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>{});
+
+    REQUIRE(cuco::test::equal(
+      probed_keys.begin(), probed_end, probes.begin(), cuda::std::equal_to<key_type>{}));
+
+    REQUIRE(cuco::test::all_of(
+      matched_keys.begin(),
+      matched_end,
+      cuda::proclaim_return_type<bool>([empty_key_sentinel] __device__(auto const& k) {
+        return k == static_cast<key_type>(empty_key_sentinel);
+      })));
   }
 }
 
@@ -572,11 +594,11 @@ void test_retrieve_outer_if_multiplicity(Container& container, std::size_t num_k
 
   thrust::device_vector<key_type> probes(query_size);
   thrust::device_vector<key_type> stencil(query_size);
+
   thrust::device_vector<key_type> probed_keys(query_size * multiplicity);
   thrust::device_vector<key_type> matched_keys(query_size * multiplicity);
 
   thrust::sequence(probes.begin(), probes.end(), key_type{0});
-
   thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
 
   auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
@@ -590,11 +612,16 @@ void test_retrieve_outer_if_multiplicity(Container& container, std::size_t num_k
                                                                      probed_keys.begin(),
                                                                      matched_keys.begin());
 
-  auto const num_matching_probes      = query_size / 2;
-  auto const num_matching_unique_keys = num_unique_keys / 2;
-  auto const num_missing_probes       = num_matching_probes - num_matching_unique_keys;
+  auto const num_predicate_false_probes = query_size / 2;
+  auto const num_predicate_true_probes  = query_size / 2;
 
-  auto const expected_results = num_matching_unique_keys * multiplicity + num_missing_probes;
+  auto const num_matching_unique_keys = (num_unique_keys > 1) ? (num_unique_keys / 2) : 0;
+
+  auto const num_missing_selected_probes = num_predicate_true_probes - num_matching_unique_keys;
+
+  auto const expected_results = num_predicate_false_probes +
+                                num_matching_unique_keys * multiplicity +
+                                num_missing_selected_probes;
 
   auto const num_results = static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
 
@@ -607,19 +634,27 @@ void test_retrieve_outer_if_multiplicity(Container& container, std::size_t num_k
 
   std::size_t output_index = 0;
 
-  for (std::size_t probe = 1; probe < query_size; probe += 2) {
+  for (std::size_t probe = 0; probe < query_size; ++probe) {
     auto const expected_probe = static_cast<key_type>(probe);
 
-    if (probe < num_unique_keys) {
-      for (std::size_t j = 0; j < multiplicity; ++j) {
-        REQUIRE(probed_keys[output_index] == expected_probe);
-        REQUIRE(matched_keys[output_index] == expected_probe);
-        ++output_index;
-      }
-    } else {
+    if (probe % 2 == 0) {
+      // Predicate is false for even stencil values.
       REQUIRE(probed_keys[output_index] == expected_probe);
       REQUIRE(matched_keys[output_index] == static_cast<key_type>(empty_key_sentinel));
       ++output_index;
+    } else {
+      // Predicate is true for odd probe positions.
+      if (probe < num_unique_keys) {
+        for (std::size_t j = 0; j < multiplicity; ++j) {
+          REQUIRE(probed_keys[output_index] == expected_probe);
+          REQUIRE(matched_keys[output_index] == expected_probe);
+          ++output_index;
+        }
+      } else {
+        REQUIRE(probed_keys[output_index] == expected_probe);
+        REQUIRE(matched_keys[output_index] == static_cast<key_type>(empty_key_sentinel));
+        ++output_index;
+      }
     }
   }
 

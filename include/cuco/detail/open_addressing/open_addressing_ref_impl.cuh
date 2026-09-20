@@ -1446,8 +1446,31 @@ class open_addressing_ref_impl
           // onto the next probing bucket
           ++probing_iter;
           if (*probing_iter == init_idx) { running = false; }
-        }  // while running
-      }  // if active_flag
+        }
+      } else if constexpr (IsOuter) {
+        // Predicate rejected this key. It is already known to be a miss,
+        // so do not probe the hash table. Emit the outer sentinel directly.
+        if (idx < n and probing_tile.thread_rank() == 0) {
+          auto ref = cuda::atomic_ref<cuda::std::int32_t, cuda::thread_scope_block>{
+            counters[flushing_tile_id]};
+          auto const output_idx      = ref.fetch_add(1, cuda::memory_order_relaxed);
+          probe_type const probe_key = *(input_probe + idx);
+          // printf("sentinel = %lld\n",
+          // static_cast<long long>(this->empty_slot_sentinel()));
+
+          buffers[flushing_tile_id][output_idx] = {probe_key, this->empty_slot_sentinel()};
+        }
+        active_flushing_tile.sync();
+        // if the buffer has not enough empty slots for the next iteration
+        if (counters[flushing_tile_id] > (buffer_size - max_matches_per_step)) {
+          flush_buffers(active_flushing_tile);
+          active_flushing_tile.sync();
+
+          // reset buffer counter
+          if (active_flushing_tile.thread_rank() == 0) { counters[flushing_tile_id] = 0; }
+          active_flushing_tile.sync();
+        }
+      }
 
       // onto the next key
       idx += stride;
