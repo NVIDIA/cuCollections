@@ -8,7 +8,7 @@
 #include <cuco/detail/roaring_bitmap/roaring_bitmap_impl.cuh>
 
 #include <cuda/std/cstddef>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 namespace cuco::experimental {
 

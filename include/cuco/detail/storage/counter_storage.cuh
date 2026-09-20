@@ -10,7 +10,7 @@
 #include <cuco/extent.cuh>
 
 #include <cuda/atomic>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <memory>
 

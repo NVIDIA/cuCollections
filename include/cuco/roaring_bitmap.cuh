@@ -10,7 +10,7 @@
 #include <cuco/utility/allocator.hpp>
 
 #include <cuda/std/cstddef>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 namespace cuco::experimental {
 
