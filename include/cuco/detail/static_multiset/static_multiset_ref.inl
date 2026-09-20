@@ -654,7 +654,7 @@ class operator_impl<
    * The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()` to determine the size of the output range.
+   * Use `count_if()` to determine the size of the output range.
    *
    * @tparam BlockSize Size of the thread block this operation is executed in
    * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
@@ -717,7 +717,7 @@ class operator_impl<
    * respectively. The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count_outer()` to determine the size of the output range.
+   * Use `count_outer_if()` to determine the size of the output range.
    *
    * If a key `k` has no matches in the container, or `pred` of its corresponding stencil is
    * false, then `{key, empty_slot_sentinel}` will be added to the output sequence.

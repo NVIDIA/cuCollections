@@ -1020,7 +1020,7 @@ class static_multiset {
    * respectively. The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()` to determine the size of the output range.
+   * Use `count_if()` to determine the size of the output range.
    *
    * This function synchronizes the given CUDA stream.
    *
@@ -1069,7 +1069,7 @@ class static_multiset {
    * respectively. The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()` to determine the size of the output range.
+   * Use `count_if()` to determine the size of the output range.
    *
    * This function synchronizes the given CUDA stream.
    *
@@ -1126,7 +1126,7 @@ class static_multiset {
    * respectively. The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count_outer()` to determine the size of the output range.
+   * Use `count_outer_if()` to determine the size of the output range.
    *
    * If a key `k` has no matches in the container, or `pred` of its corresponding stencil is
    * false, then `{key, empty_slot_sentinel}` will be added to the output sequence.

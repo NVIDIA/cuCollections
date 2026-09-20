@@ -258,6 +258,54 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
 }
 
 template <class Container>
+void test_retrieve_if_stencil(Container& container, std::size_t num_keys)
+{
+  using key_type = typename Container::key_type;
+
+  container.clear();
+
+  auto const keys_begin = cuda::counting_iterator<key_type>{0};
+
+  container.insert(keys_begin, keys_begin + num_keys);
+
+  thrust::device_vector<key_type> probes{2, 1, 4, 3};
+  thrust::device_vector<key_type> stencil{1, 2, 3, 4};
+  thrust::device_vector<key_type> probed_keys(4);
+  thrust::device_vector<key_type> matched_keys(4);
+
+  SECTION("retrieve_if should predicate on the stencil, not the probe.")
+  {
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(probes.begin(),
+                                                                 probes.end(),
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    auto const num_results =
+      static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
+
+    // stencil: [1, 2, 3, 4]
+    // probe:   [2, 1, 4, 3]
+    //
+    // Only stencil values 2 and 4 satisfy the predicate, corresponding
+    // to probes 1 and 3.
+    REQUIRE(num_results == 2);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 2);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
+
+    REQUIRE(probed_keys[0] == key_type{1});
+    REQUIRE(probed_keys[1] == key_type{3});
+    REQUIRE(matched_keys[0] == key_type{1});
+    REQUIRE(matched_keys[1] == key_type{3});
+  }
+}
+
+template <class Container>
 void test_retrieve_if_with_probe(Container& container, std::size_t num_keys)
 {
   using key_type = typename Container::key_type;
@@ -701,6 +749,7 @@ TEMPLATE_TEST_CASE_SIG(
 
   test_retrieve_if(set, num_keys);
   test_retrieve_if_with_probe(set, num_keys);
+  test_retrieve_if_stencil(set, num_keys);
   test_retrieve_if_multiplicity(set, num_keys);
 
   test_retrieve_outer_if(set, num_keys);
