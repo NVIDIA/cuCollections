@@ -1446,8 +1446,9 @@ class open_addressing_ref_impl
           // onto the next probing bucket
           ++probing_iter;
           if (*probing_iter == init_idx) { running = false; }
-        }
-      } else if constexpr (IsOuter) {
+        }  // while running
+      }  // if active_flag
+      else if constexpr (IsOuter) {
         // Predicate rejected this key. It is already known to be a miss,
         // so do not probe the hash table. Emit the outer sentinel directly.
         if (idx < n and probing_tile.thread_rank() == 0) {
@@ -1455,8 +1456,6 @@ class open_addressing_ref_impl
             counters[flushing_tile_id]};
           auto const output_idx      = ref.fetch_add(1, cuda::memory_order_relaxed);
           probe_type const probe_key = *(input_probe + idx);
-          // printf("sentinel = %lld\n",
-          // static_cast<long long>(this->empty_slot_sentinel()));
 
           buffers[flushing_tile_id][output_idx] = {probe_key, this->empty_slot_sentinel()};
         }
