@@ -637,53 +637,25 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
                                                    Ref container_ref,
                                                    cuda::stream_ref stream) const
   {
-    auto constexpr is_outer = false;
-    return this->retrieve_impl<is_outer>(
-      first, last, output_probe, output_match, container_ref, stream);
-  }
+    auto const n = detail::distance(first, last);
+    if (n == 0) { return {output_probe, output_match}; }
 
-  /**
-   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
-   *
-   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
-   * slot contents to `output_match`, respectively. The output order is unspecified.
-   *
-   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count_outer()` to determine the size of the output range.
-   *
-   * If a key `k` has no matches in the container, then `{key, empty_slot_sentinel}` will be added
-   * to the output sequence.
-   *
-   * This function synchronizes the given CUDA stream.
-   *
-   * @tparam InputProbeIt Device accessible input iterator
-   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the `InputProbeIt`'s `value_type`
-   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the input sequence of keys
-   * @param last End of the input sequence of keys
-   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
-   * `output_match`
-   * @param output_match Beginning of the sequence of matching elements
-   * @param container_ref Non-owning device reference to the container
-   * @param stream CUDA stream this operation is executed in
-   *
-   * @return Iterator pair indicating the the end of the output sequences
-   */
-  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
-  std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer(InputProbeIt first,
-                                                         InputProbeIt last,
-                                                         OutputProbeIt output_probe,
-                                                         OutputMatchIt output_match,
-                                                         Ref container_ref,
-                                                         cuda::stream_ref stream) const
-  {
-    auto constexpr is_outer = true;
-    return this->retrieve_impl<is_outer>(
-      first, last, output_probe, output_match, container_ref, stream);
+    using counter_type = detail::counter_storage<size_type, thread_scope, allocator_type>;
+    auto counter       = counter_type{this->allocator(), stream};
+    counter.reset(stream.get());
+
+    auto constexpr block_size = cuco::detail::default_block_size();
+
+    auto constexpr grid_stride = 4;
+    auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
+
+    detail::open_addressing_ns::retrieve<block_size, grid_stride>
+      <<<grid_size, block_size, 0, stream.get()>>>(
+        first, n, output_probe, output_match, counter.data(), container_ref);
+
+    auto const num_retrieved = counter.load_to_host(stream.get());
+
+    return {output_probe + num_retrieved, output_match + num_retrieved};
   }
 
   /**
@@ -704,32 +676,21 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
                                 Ref container_ref,
                                 cuda::stream_ref stream) const
   {
-    auto constexpr is_outer = false;
-    return this->count<is_outer>(first, last, container_ref, stream);
-  }
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return 0; }
 
-  /**
-   * @brief Counts the occurrences of keys in `[first, last)` contained in the container
-   *
-   * @note If a given key has no matches, its occurrence is 1.
-   *
-   * @tparam Input Device accessible input iterator
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the sequence of keys to count
-   * @param last End of the sequence of keys to count
-   * @param stream CUDA stream used for count
-   *
-   * @return The sum of total occurrences of all keys in `[first, last)`
-   */
-  template <typename InputIt, typename Ref>
-  [[nodiscard]] size_type count_outer(InputIt first,
-                                      InputIt last,
-                                      Ref container_ref,
-                                      cuda::stream_ref stream) const noexcept
-  {
-    auto constexpr is_outer = true;
-    return this->count<is_outer>(first, last, container_ref, stream);
+    auto counter =
+      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator(), stream};
+    counter.reset(stream);
+
+    auto constexpr block_size  = cuco::detail::default_block_size();
+    auto constexpr grid_stride = 4;
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size, grid_stride, block_size);
+
+    detail::open_addressing_ns::count<cg_size, block_size>
+      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, counter.data(), container_ref);
+
+    return counter.load_to_host(stream);
   }
 
   /**
@@ -759,41 +720,14 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
                   Ref container_ref,
                   cuda::stream_ref stream) const noexcept
   {
-    auto constexpr is_outer = false;
-    this->count_each<is_outer>(first, last, output_begin, container_ref, stream);
-  }
+    auto const num_keys = cuco::detail::distance(first, last);
+    if (num_keys == 0) { return; }
 
-  /**
-   * @brief Counts the number of occurrences of each query key in the container with outer semantics
-   *
-   * For each key in the input range `[first, last)`, this function computes the number of matching
-   * elements in the container and writes the result to the corresponding position in the output
-   * range starting at `output_begin`.
-   *
-   * If a query key has no matches in the container, the result for that key will be 1 instead of 0.
-   *
-   * @note The input and output ranges must be device-accessible and of the same length.
-   * @note The behavior is undefined if the input and output ranges overlap.
-   *
-   * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the sequence of keys to count
-   * @param last End of the sequence of keys to count
-   * @param output_begin Beginning of the output range where per-key counts will be stored
-   * @param container_ref Non-owning device container ref used to access the slot storage
-   * @param stream CUDA stream used for this operation
-   */
-  template <typename InputIt, typename OutputIt, typename Ref>
-  void count_each_outer(InputIt first,
-                        InputIt last,
-                        OutputIt output_begin,
-                        Ref container_ref,
-                        cuda::stream_ref stream) const noexcept
-  {
-    auto constexpr is_outer = true;
-    this->count_each<is_outer>(first, last, output_begin, container_ref, stream);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+
+    detail::open_addressing_ns::count_each<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num_keys, output_begin, container_ref);
   }
 
   /**
@@ -1185,147 +1119,6 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   [[nodiscard]] constexpr storage_ref_type storage_ref() const noexcept { return storage_.ref(); }
 
  private:
-  /**
-   * @brief Counts the occurrences of keys in `[first, last)` contained in the container
-   *
-   * @note If `IsOuter` is `true`, the occurrence of a non-match key is 1. Else, it's 0.
-   *
-   * @tparam IsOuter Flag indicating whether it's an outer count or not
-   * @tparam Input Device accessible input iterator
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the sequence of keys to count
-   * @param last End of the sequence of keys to count
-   * @param stream CUDA stream used for count
-   *
-   * @return The sum of total occurrences of all keys in `[first, last)`
-   */
-  template <bool IsOuter, typename InputIt, typename Ref>
-  [[nodiscard]] size_type count(InputIt first,
-                                InputIt last,
-                                Ref container_ref,
-                                cuda::stream_ref stream) const noexcept
-  {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return 0; }
-
-    auto counter =
-      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator(), stream};
-    counter.reset(stream);
-
-    auto constexpr block_size  = cuco::detail::default_block_size();
-    auto constexpr grid_stride = 4;
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size, grid_stride, block_size);
-
-    detail::open_addressing_ns::count<IsOuter, cg_size, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, counter.data(), container_ref);
-
-    return counter.load_to_host(stream);
-  }
-
-  /**
-   * @brief Counts the number of occurrences of each query key in the container
-   *
-   * For each key in the input range `[first, last)`, this function computes the number of matching
-   * elements in the container and writes the result to the corresponding position in the output
-   * range starting at `output_begin`.
-   *
-   * If `IsOuter` is `true` and a query key has no matches in the container, the result for that key
-   * will be 1 instead of 0. Otherwise, the actual number of matches is returned.
-   *
-   * @note The input and output ranges must be device-accessible and of the same length.
-   * @note The behavior is undefined if the input and output ranges overlap.
-   *
-   * @tparam IsOuter Flag indicating whether to use outer semantics (non-matches count as 1)
-   * @tparam InputIt Device accessible input iterator
-   * @tparam OutputIt Device accessible output iterator
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the sequence of keys to count
-   * @param last End of the sequence of keys to count
-   * @param output_begin Beginning of the output range where per-key counts will be stored
-   * @param container_ref Non-owning device container ref used to access the slot storage
-   * @param stream CUDA stream used for this operation
-   */
-  template <bool IsOuter, typename InputIt, typename OutputIt, typename Ref>
-  void count_each(InputIt first,
-                  InputIt last,
-                  OutputIt output_begin,
-                  Ref container_ref,
-                  cuda::stream_ref stream) const noexcept
-  {
-    auto const num_keys = cuco::detail::distance(first, last);
-    if (num_keys == 0) { return; }
-
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
-
-    detail::open_addressing_ns::count_each<IsOuter, cg_size, cuco::detail::default_block_size()>
-      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
-        first, num_keys, output_begin, container_ref);
-  }
-
-  /**
-   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
-   *
-   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
-   * slot contents to `output_match`, respectively. The output order is unspecified.
-   *
-   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()/count_outer()` to determine the size of the output range.
-   *
-   * If `IsOuter == true` and a key `k` has no matches in the container, then `{key,
-   * empty_slot_sentinel}` will be added to the output sequence.
-   *
-   * This function synchronizes the given CUDA stream.
-   *
-   * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
-   * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
-   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `key_type`
-   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the input sequence of keys
-   * @param last End of the input sequence of keys
-   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
-   * `output_match`
-   * @param output_match Beginning of the sequence of matching elements
-   * @param container_ref Non-owning device reference to the container
-   * @param stream CUDA stream this operation is executed in
-   *
-   * @return Iterator pair indicating the the end of the output sequences
-   */
-  template <bool IsOuter, class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
-  std::pair<OutputProbeIt, OutputMatchIt> retrieve_impl(InputProbeIt first,
-                                                        InputProbeIt last,
-                                                        OutputProbeIt output_probe,
-                                                        OutputMatchIt output_match,
-                                                        Ref container_ref,
-                                                        cuda::stream_ref stream) const
-  {
-    auto const n = detail::distance(first, last);
-    if (n == 0) { return {output_probe, output_match}; }
-
-    using counter_type = detail::counter_storage<size_type, thread_scope, allocator_type>;
-    auto counter       = counter_type{this->allocator(), stream};
-    counter.reset(stream.get());
-
-    auto constexpr block_size = cuco::detail::default_block_size();
-
-    auto constexpr grid_stride = 4;
-    auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
-
-    detail::open_addressing_ns::retrieve<IsOuter, block_size, grid_stride>
-      <<<grid_size, block_size, 0, stream.get()>>>(
-        first, n, output_probe, output_match, counter.data(), container_ref);
-
-    auto const num_retrieved = counter.load_to_host(stream.get());
-
-    return {output_probe + num_retrieved, output_match + num_retrieved};
-  }
-
   /**
    * @brief Extracts the key from a given slot.
    *
