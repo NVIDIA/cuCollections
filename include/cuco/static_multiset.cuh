@@ -655,32 +655,6 @@ class static_multiset {
                   cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
-   * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
-   *
-   * @note This function synchronizes the given stream.
-   * @note If a given key has no matches, its occurrence is 1.
-   *
-   * @tparam Input Device accessible input iterator
-   * @tparam ProbeKeyEqual Binary callable
-   * @tparam ProbeHash Unary hash callable
-   *
-   * @param first Beginning of the sequence of keys to count
-   * @param last End of the sequence of keys to count
-   * @param probe_key_equal Binary callable to compare two keys for equality
-   * @param probe_hash Unary callable to hash a given key
-   * @param stream CUDA stream used for count
-   *
-   * @return The sum of total occurrences of all keys in `[first, last)` where keys have no matches
-   * are considered to have a single occurrence.
-   */
-  template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
-  size_type count_outer(InputIt first,
-                        InputIt last,
-                        ProbeKeyEqual const& probe_key_equal,
-                        ProbeHash const& probe_hash,
-                        cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
-
-  /**
    * @brief Counts the number of occurrences of each query key in the multiset
    *
    * For each key in the input range `[first, last)`, this function computes the number of matching
@@ -710,43 +684,6 @@ class static_multiset {
                   ProbeHash const& probe_hash,
                   OutputIt output_begin,
                   cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
-
-  /**
-   * @brief Counts the number of occurrences of each query key in the multiset with outer semantics.
-   *
-   * For each key in the input range `[first, last)`, this function computes the number of matching
-   * elements in the multiset and writes the result to the corresponding position in the output
-   * range starting at `output_begin`.
-   *
-   * If a query key has no matches in the multiset, the result for that key will be 1 instead of 0.
-   * Otherwise, the actual number of matches is returned.
-   *
-   * This provides "outer join"-like semantics, ensuring that every query key contributes at least 1
-   * count.
-   *
-   * @note The input and output ranges must be device-accessible and of the same length.
-   * @note The behavior is undefined if the input and output ranges overlap.
-   *
-   * @tparam InputIt       Device-accessible input iterator type for query keys
-   * @tparam ProbeKeyEqual Binary callable that compares two keys for equality
-   * @tparam ProbeHash     Unary callable that computes the hash of a key
-   * @tparam OutputIt      Device-accessible output iterator type for storing per-key counts
-   *
-   * @param first          Iterator to the beginning of the sequence of query keys
-   * @param last           Iterator to the end of the sequence of query keys
-   * @param probe_key_equal Predicate to compare a query key with a multiset key for equality
-   * @param probe_hash     Hash function to compute the hash value of a query key
-   * @param output_begin   Iterator to the beginning of the output range where per-key counts will
-   * be stored
-   * @param stream         CUDA stream on which to execute the counting operation
-   */
-  template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash, typename OutputIt>
-  void count_each_outer(InputIt first,
-                        InputIt last,
-                        ProbeKeyEqual const& probe_key_equal,
-                        ProbeHash const& probe_hash,
-                        OutputIt output_begin,
-                        cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
@@ -825,53 +762,6 @@ class static_multiset {
                                                    OutputMatchIt output_match,
                                                    cuda::stream_ref stream = cuda::stream_ref{
                                                      cudaStream_t{nullptr}}) const;
-
-  /**
-   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
-   *
-   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
-   * slot contents to `output_match`, respectively. The output order is unspecified.
-   *
-   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count_outer()` to determine the size of the output range.
-   *
-   * If a key `k` has no matches in the container, then `{key, empty_slot_sentinel}` will be added
-   * to the output sequence.
-   *
-   * This function synchronizes the given CUDA stream.
-   *
-   * @tparam InputProbeIt Device accessible input iterator
-   * @tparam ProbeEqual Binary callable equal type
-   * @tparam ProbeHash Unary callable hasher type that can be constructed from
-   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the `InputProbeIt`'s `value_type`
-   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   *
-   * @param first Beginning of the input sequence of keys
-   * @param last End of the input sequence of keys
-   * @param probe_equal The binary function to compare set keys and probe keys for equality
-   * @param probe_hash The unary function to hash probe keys
-   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
-   * `output_match`
-   * @param output_match Beginning of the sequence of matching elements
-   * @param stream CUDA stream this operation is executed in
-   *
-   * @return Iterator pair indicating the the end of the output sequences
-   */
-  template <class InputProbeIt,
-            class ProbeEqual,
-            class ProbeHash,
-            class OutputProbeIt,
-            class OutputMatchIt>
-  std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer(InputProbeIt first,
-                                                         InputProbeIt last,
-                                                         ProbeEqual const& probe_equal,
-                                                         ProbeHash const& probe_hash,
-                                                         OutputProbeIt output_probe,
-                                                         OutputMatchIt output_match,
-                                                         cuda::stream_ref stream = cuda::stream_ref{
-                                                           cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Retrieves all keys contained in the multiset

@@ -1047,75 +1047,17 @@ class open_addressing_ref_impl
                            OutputMatchIt output_match,
                            AtomicCounter& atomic_counter) const
   {
-    auto constexpr is_outer        = false;
     auto const n                   = cuco::detail::distance(input_probe_begin, input_probe_end);
     auto const always_true_stencil = cuda::constant_iterator<bool>(true);
     auto const identity_predicate  = cuda::std::identity{};
-    this->retrieve_impl<is_outer, BlockSize>(block,
-                                             input_probe_begin,
-                                             n,
-                                             always_true_stencil,
-                                             identity_predicate,
-                                             output_probe,
-                                             output_match,
-                                             atomic_counter);
-  }
-
-  /**
-   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
-   * input_probe_end)`.
-   *
-   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
-   * slot contents to `output_match`, respectively. The output order is unspecified.
-   *
-   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()` to determine the size of the output range.
-   *
-   * If a key `k` has no matches in the container, then `{key, empty_slot_sentinel}` will be added
-   * to the output sequence.
-   *
-   * @tparam BlockSize Size of the thread block this operation is executed in
-   * @tparam InputProbeIt Device accessible input iterator
-   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the `InputProbeIt`'s `value_type`
-   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam AtomicCounter Integral atomic counter type that follows the same semantics as
-   * `cuda::(std::)atomic(_ref)`
-   *
-   * @param block Thread block this operation is executed in
-   * @param input_probe_begin Beginning of the input sequence of keys
-   * @param input_probe_end End of the input sequence of keys
-   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
-   * `output_match`
-   * @param output_match Beginning of the sequence of matching elements
-   * @param atomic_counter Atomic object of integral type that is used to count the
-   * number of output elements
-   */
-  template <int BlockSize,
-            class InputProbeIt,
-            class OutputProbeIt,
-            class OutputMatchIt,
-            class AtomicCounter>
-  __device__ void retrieve_outer(cooperative_groups::thread_block const& block,
-                                 InputProbeIt input_probe_begin,
-                                 InputProbeIt input_probe_end,
-                                 OutputProbeIt output_probe,
-                                 OutputMatchIt output_match,
-                                 AtomicCounter& atomic_counter) const
-  {
-    auto constexpr is_outer        = true;
-    auto const n                   = cuco::detail::distance(input_probe_begin, input_probe_end);
-    auto const always_true_stencil = cuda::constant_iterator<bool>(true);
-    auto const identity_predicate  = cuda::std::identity{};
-    this->retrieve_impl<is_outer, BlockSize>(block,
-                                             input_probe_begin,
-                                             n,
-                                             always_true_stencil,
-                                             identity_predicate,
-                                             output_probe,
-                                             output_match,
-                                             atomic_counter);
+    this->retrieve_impl<BlockSize>(block,
+                                   input_probe_begin,
+                                   n,
+                                   always_true_stencil,
+                                   identity_predicate,
+                                   output_probe,
+                                   output_match,
+                                   atomic_counter);
   }
 
   /**
@@ -1169,9 +1111,8 @@ class open_addressing_ref_impl
                               OutputMatchIt output_match,
                               AtomicCounter& atomic_counter) const
   {
-    auto constexpr is_outer = false;
-    auto const n            = cuco::detail::distance(input_probe_begin, input_probe_end);
-    this->retrieve_impl<is_outer, BlockSize>(
+    auto const n = cuco::detail::distance(input_probe_begin, input_probe_end);
+    this->retrieve_impl<BlockSize>(
       block, input_probe_begin, n, stencil, pred, output_probe, output_match, atomic_counter);
   }
 
@@ -1185,10 +1126,6 @@ class open_addressing_ref_impl
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
    * Use `count()` to determine the size of the output range.
    *
-   * If `IsOuter == true` and a key `k` has no matches in the container, then `{key,
-   * empty_slot_sentinel}` will be added to the output sequence.
-   *
-   * @tparam IsOuter Flag indicating if an inner or outer retrieve operation should be performed
    * @tparam BlockSize Size of the thread block this operation is executed in
    * @tparam InputProbeIt Device accessible input iterator
    * @tparam StencilIt Device accessible random access iterator whose value_type is
@@ -1213,8 +1150,7 @@ class open_addressing_ref_impl
    * @param atomic_counter Atomic object of integral type that is used to count the
    * number of output elements
    */
-  template <bool IsOuter,
-            int BlockSize,
+  template <int BlockSize,
             class InputProbeIt,
             class StencilIt,
             class Predicate,
@@ -1289,8 +1225,7 @@ class open_addressing_ref_impl
           probing_tile, probe_key, storage_ref_.extent());
         auto const init_idx = *probing_iter;
 
-        bool running                      = true;
-        [[maybe_unused]] bool found_match = false;
+        bool running = true;
 
         bool equals[bucket_size];
         cuda::std::uint32_t exists[bucket_size];
@@ -1330,8 +1265,6 @@ class open_addressing_ref_impl
             // Fill the buffer if any matching keys are found
             auto const lane_id = probing_tile.thread_rank();
             if (thrust::any_of(thrust::seq, exists, exists + bucket_size, cuda::std::identity{})) {
-              if constexpr (IsOuter) { found_match = true; }
-
               cuda::std::int32_t num_matches[bucket_size];
 
               cuda::static_for<bucket_size>(
@@ -1357,17 +1290,6 @@ class open_addressing_ref_impl
                 }
                 matches_offset += num_matches[i()];
               });
-            }
-            // Special handling for outer cases where no match is found
-            if constexpr (IsOuter) {
-              if (!running) {
-                if (!found_match and lane_id == 0) {
-                  auto ref = cuda::atomic_ref<cuda::std::int32_t, cuda::thread_scope_block>{
-                    counters[flushing_tile_id]};
-                  auto const output_idx = ref.fetch_add(1, cuda::memory_order_relaxed);
-                  buffers[flushing_tile_id][output_idx] = {probe_key, this->empty_slot_sentinel()};
-                }
-              }
             }
           }  // if running
 

@@ -509,7 +509,6 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
 /**
  * @brief Counts the occurrences of keys in `[first, last)` contained in the container
  *
- * @tparam IsOuter Flag indicating whether it's an outer count or not
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator
@@ -521,15 +520,13 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
  * @param count Number of matches
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <bool IsOuter, int CGSize, int BlockSize, typename InputIt, typename AtomicT, typename Ref>
+template <int CGSize, int BlockSize, typename InputIt, typename AtomicT, typename Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
                                                     cuco::detail::index_type n,
                                                     AtomicT* count,
                                                     Ref ref)
 {
   using size_type = typename Ref::size_type;
-
-  size_type constexpr outer_min_count = 1;
 
   using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
@@ -541,22 +538,12 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
   while (idx < n) {
     typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
     if constexpr (CGSize == 1) {
-      if constexpr (IsOuter) {
-        thread_count += max(ref.count(key), outer_min_count);
-      } else {
-        thread_count += ref.count(key);
-      }
+      thread_count += ref.count(key);
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
           cooperative_groups::this_thread_block());
-      if constexpr (IsOuter) {
-        auto temp_count = ref.count(tile, key);
-        if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
-        thread_count += temp_count;
-      } else {
-        thread_count += ref.count(tile, key);
-      }
+      thread_count += ref.count(tile, key);
     }
     idx += loop_stride;
   }
@@ -569,7 +556,6 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
  * @brief Counts the occurrences of each key in `[first, last)` contained in the container
  * and stores the counts in the output array.
  *
- * @tparam IsOuter Flag indicating whether it's an outer count or not
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator
@@ -581,12 +567,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
  * @param output_begin Beginning of the sequence of counts for each key
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <bool IsOuter,
-          int CGSize,
-          int BlockSize,
-          typename InputIt,
-          typename OutputIt,
-          typename Ref>
+template <int CGSize, int BlockSize, typename InputIt, typename OutputIt, typename Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
                                                          cuco::detail::index_type n,
                                                          OutputIt output_begin,
@@ -595,32 +576,19 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
-  using size_type                     = typename Ref::size_type;
-  size_type constexpr outer_min_count = 1;
+  using size_type = typename Ref::size_type;
 
   while (idx < n) {
     typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
     if constexpr (CGSize == 1) {
-      if constexpr (IsOuter) {
-        *(output_begin + idx) = max(ref.count(key), size_type{outer_min_count});
-      } else {
-        *(output_begin + idx) = ref.count(key);
-      }
+      *(output_begin + idx) = ref.count(key);
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
           cooperative_groups::this_thread_block());
-      if constexpr (IsOuter) {
-        auto temp_count = ref.count(tile, key);
-        if (tile.all(temp_count == 0) and tile.thread_rank() == 0) { ++temp_count; }
-        auto const count =
-          cooperative_groups::reduce(tile, temp_count, cooperative_groups::plus<size_type>());
-        if (tile.thread_rank() == 0) { *(output_begin + idx) = count; }
-      } else {
-        auto const count = cooperative_groups::reduce(
-          tile, ref.count(tile, key), cooperative_groups::plus<size_type>());
-        if (tile.thread_rank() == 0) { *(output_begin + idx) = count; }
-      }
+      auto const count = cooperative_groups::reduce(
+        tile, ref.count(tile, key), cooperative_groups::plus<size_type>());
+      if (tile.thread_rank() == 0) { *(output_begin + idx) = count; }
     }
     idx += loop_stride;
   }
@@ -634,7 +602,6 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
  * `output_probe` and associated slot contents to `output_match`, respectively. The output order is
  * unspecified.
  *
- * @tparam IsOuter Flag indicating whether it's an outer count or not
  * @tparam BlockSize The size of the thread block
  * @tparam TileStride Number of tile batches assigned to each thread block
  * @tparam InputProbeIt Device accessible input iterator
@@ -655,8 +622,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
  * number of output elements
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <bool IsOuter,
-          int BlockSize,
+template <int BlockSize,
           int TileStride,
           class InputProbeIt,
           class OutputProbeIt,
@@ -681,21 +647,12 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
     min(n, static_cast<cuco::detail::index_type>(block_begin_offset + tiles_per_block));
 
   if (block_begin_offset < block_end_offset) {
-    if constexpr (IsOuter) {
-      ref.template retrieve_outer<BlockSize>(block,
-                                             input_probe + block_begin_offset,
-                                             input_probe + block_end_offset,
-                                             output_probe,
-                                             output_match,
-                                             *atomic_counter);
-    } else {
-      ref.template retrieve<BlockSize>(block,
-                                       input_probe + block_begin_offset,
-                                       input_probe + block_end_offset,
-                                       output_probe,
-                                       output_match,
-                                       *atomic_counter);
-    }
+    ref.template retrieve<BlockSize>(block,
+                                     input_probe + block_begin_offset,
+                                     input_probe + block_end_offset,
+                                     output_probe,
+                                     output_match,
+                                     *atomic_counter);
   }
 }
 
