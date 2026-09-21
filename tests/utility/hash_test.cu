@@ -140,7 +140,13 @@ TEST_CASE("utility cuco::xxhash_64 test", "")
 
   SECTION("Check if device-generated hash values match the reference implementation.")
   {
-    thrust::device_vector<bool> result(10);
+#ifdef CUCO_HAS_INT128
+    constexpr std::size_t num_results = 13;
+#else
+    constexpr std::size_t num_results = 12;
+#endif
+
+    thrust::device_vector<bool> result(num_results);
 
     check_hash_result_kernel_64<<<1, 1>>>(result.begin());
 
