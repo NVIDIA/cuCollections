@@ -1177,6 +1177,67 @@ class open_addressing_ref_impl
 
   /**
    * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
+   * input_probe_end)` if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred( *(stencil + i) )` returns true,
+   * copies `k` to `output_probe` and associated slot contents to `output_match`,
+   * respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count_outer_if()` to determine the size of the output range.
+   *
+   * If a key `k` has no matches in the container, or `pred` of the corresponding stencil is
+   * false, then `{key, empty_slot_sentinel}` will be added to the output sequence.
+   *
+   * @tparam BlockSize Size of the thread block this operation is executed in
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+   * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   * @tparam AtomicCounter Integral atomic counter type that follows the same semantics as
+   * `cuda::(std::)atomic(_ref)`
+   *
+   * @param block Thread block this operation is executed in
+   * @param input_probe_begin Beginning of the input sequence of keys
+   * @param input_probe_end End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param atomic_counter Atomic object of integral type that is used to count the
+   * number of output elements
+   */
+  template <int BlockSize,
+            class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class AtomicCounter>
+  __device__ void retrieve_outer_if(cooperative_groups::thread_block const& block,
+                                    InputProbeIt input_probe_begin,
+                                    InputProbeIt input_probe_end,
+                                    StencilIt stencil,
+                                    Predicate pred,
+                                    OutputProbeIt output_probe,
+                                    OutputMatchIt output_match,
+                                    AtomicCounter& atomic_counter) const
+  {
+    auto constexpr is_outer = true;
+    auto const n            = cuco::detail::distance(input_probe_begin, input_probe_end);
+
+    this->retrieve_impl<is_outer, BlockSize>(
+      block, input_probe_begin, n, stencil, pred, output_probe, output_match, atomic_counter);
+  }
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[input_probe_begin,
    * input_probe_end)`.
    *
    * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
@@ -1387,6 +1448,28 @@ class open_addressing_ref_impl
           if (*probing_iter == init_idx) { running = false; }
         }  // while running
       }  // if active_flag
+      else if constexpr (IsOuter) {
+        // Predicate rejected this key. It is already known to be a miss,
+        // so do not probe the hash table. Emit the outer sentinel directly.
+        if (idx < n and probing_tile.thread_rank() == 0) {
+          auto ref = cuda::atomic_ref<cuda::std::int32_t, cuda::thread_scope_block>{
+            counters[flushing_tile_id]};
+          auto const output_idx      = ref.fetch_add(1, cuda::memory_order_relaxed);
+          probe_type const probe_key = *(input_probe + idx);
+
+          buffers[flushing_tile_id][output_idx] = {probe_key, this->empty_slot_sentinel()};
+        }
+        active_flushing_tile.sync();
+        // if the buffer has not enough empty slots for the next iteration
+        if (counters[flushing_tile_id] > (buffer_size - max_matches_per_step)) {
+          flush_buffers(active_flushing_tile);
+          active_flushing_tile.sync();
+
+          // reset buffer counter
+          if (active_flushing_tile.thread_rank() == 0) { counters[flushing_tile_id] = 0; }
+          active_flushing_tile.sync();
+        }
+      }
 
       // onto the next key
       idx += stride;

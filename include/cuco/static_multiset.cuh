@@ -656,6 +656,72 @@ class static_multiset {
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
+   * if `pred` of the corresponding stencil returns true.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type count_if(InputIt first,
+                     InputIt last,
+                     StencilIt stencil,
+                     Predicate const& pred,
+                     cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
+   * if `pred` of the corresponding stencil returns true.
+   *
+   * @note This function synchronizes the given stream.
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam ProbeKeyEqual Binary callable
+   * @tparam ProbeHash Unary hash callable
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param probe_key_equal Binary callable to compare two keys for equality
+   * @param probe_hash Unary callable to hash a given key
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)`
+   */
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename ProbeKeyEqual,
+            typename ProbeHash>
+  size_type count_if(InputIt first,
+                     InputIt last,
+                     StencilIt stencil,
+                     Predicate const& pred,
+                     ProbeKeyEqual const& probe_key_equal,
+                     ProbeHash const& probe_hash,
+                     cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
    *
    * @note This function synchronizes the given stream.
    * @note If a given key has no matches, its occurrence is 1.
@@ -679,6 +745,78 @@ class static_multiset {
                         ProbeKeyEqual const& probe_key_equal,
                         ProbeHash const& probe_hash,
                         cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
+   * if `pred` of the corresponding stencil returns true.
+   *
+   * @note This function synchronizes the given stream.
+   * @note If a given key has no matches or `pred` of its corresponding stencil is false,
+   * its occurrence is 1.
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)` where keys have no matches
+   * are considered to have a single occurrence.
+   */
+  template <typename InputIt, typename StencilIt, typename Predicate>
+  size_type count_outer_if(InputIt first,
+                           InputIt last,
+                           StencilIt stencil,
+                           Predicate const& pred,
+                           cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
+
+  /**
+   * @brief Counts the occurrences of keys in `[first, last)` contained in the multiset
+   * if `pred` of the corresponding stencil returns true.
+   *
+   * @note This function synchronizes the given stream.
+   * @note If a given key has no matches or `pred` of its corresponding stencil is false,
+   * its occurrence is 1.
+   *
+   * @tparam Input Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam ProbeKeyEqual Binary callable
+   * @tparam ProbeHash Unary hash callable
+   *
+   * @param first Beginning of the sequence of keys to count
+   * @param last End of the sequence of keys to count
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param probe_key_equal Binary callable to compare two keys for equality
+   * @param probe_hash Unary callable to hash a given key
+   * @param stream CUDA stream used for count
+   *
+   * @return The sum of total occurrences of all keys in `[first, last)` where keys have no matches
+   * are considered to have a single occurrence.
+   */
+  template <typename InputIt,
+            typename StencilIt,
+            typename Predicate,
+            typename ProbeKeyEqual,
+            typename ProbeHash>
+  size_type count_outer_if(InputIt first,
+                           InputIt last,
+                           StencilIt stencil,
+                           Predicate const& pred,
+                           ProbeKeyEqual const& probe_key_equal,
+                           ProbeHash const& probe_hash,
+                           cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Counts the number of occurrences of each query key in the multiset
@@ -872,6 +1010,172 @@ class static_multiset {
                                                          OutputMatchIt output_match,
                                                          cuda::stream_ref stream = cuda::stream_ref{
                                                            cudaStream_t{nullptr}}) const;
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`
+   * if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred` of its corresponding stencil
+   * is true, copies `k` to `output_probe` and associated slot contents to `output_match`,
+   * respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count_if()` to determine the size of the output range.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_if(InputProbeIt first,
+                                                      InputProbeIt last,
+                                                      StencilIt stencil,
+                                                      Predicate const& pred,
+                                                      OutputProbeIt output_probe,
+                                                      OutputMatchIt output_match,
+                                                      cuda::stream_ref stream = cuda::stream_ref{
+                                                        cudaStream_t{nullptr}}) const;
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`
+   * if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred` of its corresponding stencil
+   * is true, copies `k` to `output_probe` and associated slot contents to `output_match`,
+   * respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count_if()` to determine the size of the output range.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type that can be constructed from
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class ProbeEqual,
+            class ProbeHash,
+            class OutputProbeIt,
+            class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_if(InputProbeIt first,
+                                                      InputProbeIt last,
+                                                      StencilIt stencil,
+                                                      Predicate const& pred,
+                                                      ProbeEqual const& probe_equal,
+                                                      ProbeHash const& probe_hash,
+                                                      OutputProbeIt output_probe,
+                                                      OutputMatchIt output_match,
+                                                      cuda::stream_ref stream = cuda::stream_ref{
+                                                        cudaStream_t{nullptr}}) const;
+
+  /**
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
+   * if `pred` of the corresponding stencil returns true.
+   *
+   * If key `k = *(first + i)` exists in the container and `pred` of its corresponding stencil
+   * is true, copies `k` to `output_probe` and associated slot contents to `output_match`,
+   * respectively. The output order is unspecified.
+   *
+   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
+   * Use `count_outer_if()` to determine the size of the output range.
+   *
+   * If a key `k` has no matches in the container, or `pred` of its corresponding stencil is
+   * false, then `{key, empty_slot_sentinel}` will be added to the output sequence.
+   *
+   * This function synchronizes the given CUDA stream.
+   *
+   * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * @tparam ProbeEqual Binary callable equal type
+   * @tparam ProbeHash Unary callable hasher type that can be constructed from
+   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+   * convertible to the `InputProbeIt`'s `value_type`
+   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+   * convertible to the container's `value_type`
+   *
+   * @param first Beginning of the input sequence of keys
+   * @param last End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param probe_equal The binary function to compare set keys and probe keys for equality
+   * @param probe_hash The unary function to hash probe keys
+   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+   * `output_match`
+   * @param output_match Beginning of the sequence of matching elements
+   * @param stream CUDA stream this operation is executed in
+   *
+   * @return Iterator pair indicating the the end of the output sequences
+   */
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class ProbeEqual,
+            class ProbeHash,
+            class OutputProbeIt,
+            class OutputMatchIt>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_outer_if(
+    InputProbeIt first,
+    InputProbeIt last,
+    StencilIt stencil,
+    Predicate const& pred,
+    ProbeEqual const& probe_equal,
+    ProbeHash const& probe_hash,
+    OutputProbeIt output_probe,
+    OutputMatchIt output_match,
+    cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}}) const;
 
   /**
    * @brief Retrieves all keys contained in the multiset

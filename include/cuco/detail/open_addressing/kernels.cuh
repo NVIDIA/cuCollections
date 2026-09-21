@@ -566,6 +566,98 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
 }
 
 /**
+ * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+ * if `pred` of the corresponding stencil returns true.
+ *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
+ * @tparam CGSize Number of threads in each CG
+ * @tparam BlockSize Number of threads in each block
+ * @tparam InputIt Device accessible input iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+ * @tparam AtomicT Atomic counter type
+ * @tparam Ref Type of non-owning device container ref allowing access to storage
+ *
+ * @param first Beginning of the sequence of input elements
+ * @param n Number of input elements
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ * @param count Number of matches
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <bool IsOuter,
+          int CGSize,
+          int BlockSize,
+          typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename AtomicT,
+          typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void count_if(InputIt first,
+                                                       cuco::detail::index_type n,
+                                                       StencilIt stencil,
+                                                       Predicate pred,
+                                                       AtomicT* count,
+                                                       Ref ref)
+{
+  using size_type = typename Ref::size_type;
+
+  size_type constexpr outer_min_count = 1;
+
+  using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
+  __shared__ typename BlockReduce::TempStorage temp_storage;
+
+  size_type thread_count = 0;
+
+  auto const loop_stride = cuco::detail::grid_stride() / CGSize;
+  auto idx               = cuco::detail::global_thread_id() / CGSize;
+
+  while (idx < n) {
+    if constexpr (CGSize == 1) {
+      if (pred(*(stencil + idx))) {
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+
+        if constexpr (IsOuter) {
+          thread_count += max(ref.count(key), outer_min_count);
+        } else {
+          thread_count += ref.count(key);
+        }
+      } else if constexpr (IsOuter) {
+        thread_count += outer_min_count;
+      }
+    } else {
+      auto const tile =
+        cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
+          cooperative_groups::this_thread_block());
+
+      if (pred(*(stencil + idx))) {
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+
+        if constexpr (IsOuter) {
+          auto temp_count = ref.count(tile, key);
+
+          if (tile.all(temp_count == 0) && tile.thread_rank() == 0) { ++temp_count; }
+
+          thread_count += temp_count;
+        } else {
+          thread_count += ref.count(tile, key);
+        }
+      } else if constexpr (IsOuter) {
+        if (tile.thread_rank() == 0) { thread_count += outer_min_count; }
+      }
+    }
+
+    idx += loop_stride;
+  }
+
+  auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
+
+  if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
+}
+
+/**
  * @brief Counts the occurrences of each key in `[first, last)` contained in the container
  * and stores the counts in the output array.
  *
@@ -695,6 +787,93 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
                                        output_probe,
                                        output_match,
                                        *atomic_counter);
+    }
+  }
+}
+
+/**
+ * @brief Retrieves the equivalent container elements of all keys in the range `[input_probe,
+ * input_probe + n)` if `pred` of the corresponding stencil returns true.
+ *
+ * If key `k = *(input_probe + i)` has one or more matches in the container  and `pred` of
+ * its corresponding stencil is true, copies `k` to `output_probe` and associated slot
+ * contents to `output_match`, respectively. The output order is unspecified.
+ *
+ * @tparam IsOuter Flag indicating whether it's an outer count or not
+ * @tparam BlockSize The size of the thread block
+ * @tparam TileStride Number of tile batches assigned to each thread block
+ * @tparam InputProbeIt Device accessible input iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+ * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
+ * convertible to the `InputProbeIt`'s `value_type`
+ * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
+ * convertible to the container's `value_type`
+ * @tparam AtomicCounter Integral atomic type that follows the same semantics as
+ * `cuda::(std::)atomic(_ref)`
+ * @tparam Ref Type of non-owning device ref allowing access to storage
+ *
+ * @param input_probe Beginning of the sequence of input keys
+ * @param n Number of the keys to query
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
+ * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
+ * `output_match`
+ * @param output_match Beginning of the sequence of matching elements
+ * @param atomic_counter Pointer to an atomic object of integral type that is used to count the
+ * number of output elements
+ * @param ref Non-owning container device ref used to access the slot storage
+ */
+template <bool IsOuter,
+          int BlockSize,
+          int TileStride,
+          class InputProbeIt,
+          class StencilIt,
+          class Predicate,
+          class OutputProbeIt,
+          class OutputMatchIt,
+          class AtomicCounter,
+          class Ref>
+CUCO_KERNEL void retrieve_if(InputProbeIt input_probe,
+                             cuco::detail::index_type n,
+                             StencilIt stencil,
+                             Predicate pred,
+                             OutputProbeIt output_probe,
+                             OutputMatchIt output_match,
+                             AtomicCounter* atomic_counter,
+                             Ref ref)
+{
+  namespace cg = cooperative_groups;
+
+  auto const block               = cg::this_thread_block();
+  auto constexpr tiles_in_block  = BlockSize / Ref::cg_size;
+  auto constexpr tiles_per_block = TileStride * tiles_in_block;
+
+  auto const block_begin_offset = block.group_index().x * tiles_per_block;
+  auto const block_end_offset =
+    min(n, static_cast<cuco::detail::index_type>(block_begin_offset + tiles_per_block));
+
+  if (block_begin_offset < block_end_offset) {
+    if constexpr (IsOuter) {
+      ref.template retrieve_outer_if<BlockSize>(block,
+                                                input_probe + block_begin_offset,
+                                                input_probe + block_end_offset,
+                                                stencil + block_begin_offset,
+                                                pred,
+                                                output_probe,
+                                                output_match,
+                                                *atomic_counter);
+    } else {
+      ref.template retrieve_if<BlockSize>(block,
+                                          input_probe + block_begin_offset,
+                                          input_probe + block_end_offset,
+                                          stencil + block_begin_offset,
+                                          pred,
+                                          output_probe,
+                                          output_match,
+                                          *atomic_counter);
     }
   }
 }
