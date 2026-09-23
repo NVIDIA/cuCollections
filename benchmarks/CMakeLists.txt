@@ -95,6 +95,8 @@ ConfigureBench(BLOOM_FILTER_CSBF_BENCH
   bloom_filter/csbf_add_bench.cu
   bloom_filter/csbf_contains_bench.cu)
 
+add_subdirectory(bloom_filter/thirdparty)
+
 ###################################################################################################
 # - roaring_bitmap benchmarks ---------------------------------------------------------------------
 ConfigureBench(ROARING_BITMAP_BENCH
