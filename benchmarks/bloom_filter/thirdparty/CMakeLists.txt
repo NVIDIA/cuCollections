@@ -8,8 +8,9 @@
 # Preload WarpCore's dependencies so its nested CPM calls cannot resolve mutable branches.
 CPMAddPackage(
   NAME helpers
-  GIT_REPOSITORY https://gitlab.rlp.net/pararch/hpc_helpers.git
-  GIT_TAG 232b928cd69bc29ad3d9c65d661bd1073cf4b779
+  URL
+    https://gitlab.rlp.net/pararch/hpc_helpers/-/archive/232b928cd69bc29ad3d9c65d661bd1073cf4b779/hpc_helpers-232b928cd69bc29ad3d9c65d661bd1073cf4b779.tar.gz
+  URL_HASH SHA256=8e73826d3d823348bf51985e49574c7a811439524b12d9b550fcdf08c2746500
   OPTIONS
     "HELPERS_BUILD_EXAMPLES OFF"
     "HELPERS_BUILD_TESTS OFF")

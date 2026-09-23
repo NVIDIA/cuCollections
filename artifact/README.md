@@ -60,6 +60,7 @@ Environment variables:
 - `FILTER_SIZES`: comma-separated filter sizes in MiB.
 - `CUDA_ARCHITECTURES`: CMake CUDA architecture value.
 - `JOBS`: parallel build jobs.
+- `DEVICE`: NVBench logical device ID; defaults to `0`.
 - `SOURCE_COMMIT`: source revision fallback when Git metadata is unavailable.
 
 Additional arguments are forwarded to every NVBench executable.

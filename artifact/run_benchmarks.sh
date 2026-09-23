@@ -12,6 +12,7 @@ num_inputs="${NUM_INPUTS:-1000000000}"
 filter_sizes="${FILTER_SIZES:-32,1024}"
 cuda_architectures="${CUDA_ARCHITECTURES:-native}"
 jobs="${JOBS:-$(nproc)}"
+device="${DEVICE:-0}"
 source_commit="${SOURCE_COMMIT:-}"
 nvbench_args=("$@")
 
@@ -60,6 +61,7 @@ run_benchmark()
 }
 
 common_axes=(
+  --devices "${device}"
   --axis "NumInputs=${num_inputs}"
   --axis "FilterSizeMB=[${filter_sizes}]"
 )
@@ -91,6 +93,7 @@ python3 - \
   "${filter_sizes}" \
   "${cuda_architectures}" \
   "${nvbench_args[*]}" \
+  "${device}" \
   "${source_commit}" <<'PY'
 import json
 import platform
@@ -112,11 +115,12 @@ def command(*args):
 
 metadata = {
     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-    "git_commit": command("git", "rev-parse", "HEAD") or sys.argv[7] or "unknown",
+    "git_commit": command("git", "rev-parse", "HEAD") or sys.argv[8] or "unknown",
     "num_inputs": int(sys.argv[3]),
     "filter_sizes_mb": [int(value) for value in sys.argv[4].split(",")],
     "cuda_architectures": sys.argv[5],
     "nvbench_arguments": sys.argv[6],
+    "device": int(sys.argv[7]),
     "platform": platform.platform(),
     "cuda_compiler": command("nvcc", "--version"),
     "host_compiler": command("c++", "--version"),

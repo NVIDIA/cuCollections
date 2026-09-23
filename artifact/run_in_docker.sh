@@ -47,6 +47,7 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 container_workspace="/workspace/cuCollections"
 source_commit="$(git -C "${root_dir}" rev-parse HEAD 2>/dev/null || true)"
 image="rapidsai/devcontainers:26.10-cpp-gcc14-cuda13.3-ubuntu24.04@sha256:cc412951e7384e28a1eae61f887b5b935a2a28fe1b28852241bbe898454b1a1f"
+device="${DEVICE:-0}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required." >&2
@@ -78,6 +79,7 @@ docker run --rm \
   --env "OUTPUT_DIR=${container_workspace}/build/ia3-artifact-results/${output_name}" \
   --env "NUM_INPUTS=${num_inputs}" \
   --env "FILTER_SIZES=${filter_sizes}" \
+  --env "DEVICE=${device}" \
   --env "SOURCE_COMMIT=${source_commit}" \
   "${mount_args[@]}" \
   "${image}" \

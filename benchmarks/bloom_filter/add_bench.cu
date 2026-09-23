@@ -81,6 +81,7 @@ void bloom_filter_add(nvbench::state& state,
     if (num_sub_filters > policy_type::max_filter_blocks) {
       // skip invalid configurations
       state.skip("num_sub_filters exceeds max_filter_blocks");
+      return;
     }
 
     state.add_element_count(num_keys);

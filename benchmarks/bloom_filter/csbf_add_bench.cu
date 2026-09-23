@@ -80,6 +80,7 @@ void bloom_filter_add_csbf(nvbench::state& state,
 
     if (num_blocks > policy_type::max_filter_blocks) {
       state.skip("num_blocks exceeds max_filter_blocks");
+      return;
     }
 
     state.add_element_count(num_keys);
