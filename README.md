@@ -1,3 +1,21 @@
+# SC'26 IA^3 Artifact Evaluation
+
+This branch reproduces the GPU experiments underlying the paper's primary
+performance and portability claims.
+
+```bash
+# Reduced functional evaluation
+artifact/run_in_docker.sh smoke
+
+# Paper-scale benchmark matrix
+artifact/run_in_docker.sh full
+```
+
+See [the artifact instructions](artifact/README.md) for environment
+requirements, outputs, and configuration options.
+
+---
+
 # cuCollections
 
 `cuCollections` (`cuco`) is an open-source, header-only library of GPU-accelerated, concurrent data structures.

@@ -99,34 +99,17 @@ void bloom_filter_add(nvbench::state& state,
   }
 }
 
-// Default benchmark: single layout matching default `cuco::bloom_filter_policy`.
-NVBENCH_BENCH_TYPES(bloom_filter_add,
-                    NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-                                      nvbench::enum_type_list<4>,    ///< WordBytes
-                                      nvbench::enum_type_list<256>,  ///< BlockBits
-                                      nvbench::enum_type_list<8>,    ///< PatternBits
-                                      nvbench::enum_type_list<8>,    ///< HorizontalLayout
-                                      nvbench::enum_type_list<1>     ///< VerticalLayout
-                                      ))
-  .set_name("bloom_filter_add_unique_size")
+NVBENCH_BENCH_TYPES(
+  bloom_filter_add,
+  NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
+                    nvbench::enum_type_list<8>,                        ///< WordBytes
+                    nvbench::enum_type_list<64, 128, 256, 512, 1024>,  ///< BlockBits
+                    nvbench::enum_type_list<16>,                       ///< PatternBits
+                    nvbench::enum_type_list<1, 2, 4, 8, 16>,           ///< HorizontalLayout
+                    nvbench::enum_type_list<1, 2, 4, 8, 16>            ///< VerticalLayout
+                    ))
+  .set_name("bloom_filter_add_unique_size_u64")
   .set_type_axes_names(
     {"Key", "WordBytes", "BlockBits", "PatternBits", "HorizontalLayout", "VerticalLayout"})
   .add_int64_axis("NumInputs", {defaults::BF_N})
-  .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
-
-// Exhaustive sweep across block sizes and vectorization layouts. Uncomment for performance
-// tuning / paper-style characterization; not run by default because the matrix is large.
-// NVBENCH_BENCH_TYPES(
-//   bloom_filter_add,
-//   NVBENCH_TYPE_AXES(nvbench::type_list<defaults::BF_KEY>,
-//                     nvbench::enum_type_list<8, 4>,                    ///< WordBytes
-//                     nvbench::enum_type_list<64, 128, 256, 512, 1024>, ///< BlockBits
-//                     nvbench::enum_type_list<8, 16>,                   ///< PatternBits
-//                     nvbench::enum_type_list<1, 2, 4, 8, 16>,          ///< HorizontalLayout
-//                     nvbench::enum_type_list<1, 2, 4, 8, 16>           ///< VerticalLayout
-//                     ))
-//   .set_name("bloom_filter_add_full_sweep_u64")
-//   .set_type_axes_names(
-//     {"Key", "WordBytes", "BlockBits", "PatternBits", "HorizontalLayout", "VerticalLayout"})
-//   .add_int64_axis("NumInputs", {defaults::BF_N})
-//   .add_int64_axis("FilterSizeMB", defaults::BF_SIZE_MB_RANGE_CACHE);
+  .add_int64_axis("FilterSizeMB", {32, 1024});
