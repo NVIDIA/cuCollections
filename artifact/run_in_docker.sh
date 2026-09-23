@@ -49,7 +49,8 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 container_workspace="/workspace/cuCollections"
 source_commit="$(git -C "${root_dir}" rev-parse HEAD 2>/dev/null || true)"
 image="rapidsai/devcontainers:26.10-cpp-gcc14-cuda13.3-ubuntu24.04@sha256:cc412951e7384e28a1eae61f887b5b935a2a28fe1b28852241bbe898454b1a1f"
-device="${DEVICE:-0}"
+host_device="${GPU_DEVICE:-${CUDA_VISIBLE_DEVICES:-0}}"
+host_device="${host_device%%,*}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required." >&2
@@ -69,7 +70,7 @@ fi
 nvbench_args=("${default_nvbench_args[@]}" "$@")
 
 docker run --rm \
-  --gpus all \
+  --gpus "device=${host_device}" \
   --user "$(id -u):$(id -g)" \
   --workdir "${container_workspace}" \
   --env HOME=/tmp \
@@ -81,7 +82,7 @@ docker run --rm \
   --env "OUTPUT_DIR=${container_workspace}/build/ia3-artifact-results/${output_name}" \
   --env "NUM_INPUTS=${num_inputs}" \
   --env "FILTER_SIZES=${filter_sizes}" \
-  --env "DEVICE=${device}" \
+  --env DEVICE=0 \
   --env GUPS_LOGN=27 \
   --env "GUPS_REPEATS=${gups_repeats}" \
   --env "SOURCE_COMMIT=${source_commit}" \
