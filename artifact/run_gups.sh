@@ -13,20 +13,23 @@ logn="${GUPS_LOGN:-27}"
 repeats="${GUPS_REPEATS:-5}"
 accesses_per_element="${GUPS_ACCESSES_PER_ELEMENT:-32}"
 jobs="${JOBS:-$(nproc)}"
+build_only="${GUPS_BUILD_ONLY:-0}"
 
 gups_commit="3350d216083a902ccbf5b31665e3b82096a75b55"
 gups_archive_sha256="9372d0c1a6302da7f0aea13bd83cf93ee5c3d6d19eb9c1a1930c9442d790258f"
 gups_archive="${build_dir}/nvidia-code-samples-${gups_commit}.tar.gz"
 
-compute_capability="$(
-  nvidia-smi \
-    --id="${device}" \
-    --query-gpu=compute_cap \
-    --format=csv,noheader |
-    head -n 1 |
-    tr -d '.'
-)"
-gpu_arch="${GUPS_GPU_ARCH:-${compute_capability}}"
+gpu_arch="${GUPS_GPU_ARCH:-}"
+if [[ -z "${gpu_arch}" ]]; then
+  gpu_arch="$(
+    nvidia-smi \
+      --id="${device}" \
+      --query-gpu=compute_cap \
+      --format=csv,noheader |
+      head -n 1 |
+      tr -d '.'
+  )"
+fi
 gups_root="${build_dir}/nvidia-gups-sm${gpu_arch}"
 gups_source="${gups_root}/code-samples-${gups_commit}/posts/gups"
 
@@ -46,6 +49,10 @@ if [[ ! -d "${gups_source}" ]]; then
 fi
 
 make --directory "${gups_source}" GPU_ARCH="${gpu_arch}" --jobs="${jobs}"
+
+if [[ "${build_only}" == "1" ]]; then
+  exit 0
+fi
 
 run_test()
 {

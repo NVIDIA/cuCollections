@@ -13,15 +13,18 @@ filter_sizes="${FILTER_SIZES:-32,1024}"
 cuda_architectures="${CUDA_ARCHITECTURES:-native}"
 jobs="${JOBS:-$(nproc)}"
 device="${DEVICE:-0}"
+build_only="${ARTIFACT_BUILD_ONLY:-0}"
 source_commit="${SOURCE_COMMIT:-}"
 nvbench_args=("$@")
 
 cmake -S "${root_dir}" -B "${build_dir}" \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_CUDA_ARCHITECTURES="${cuda_architectures}" \
+  -DGPU_ARCHS="${cuda_architectures}" \
   -DBUILD_TESTS=OFF \
   -DBUILD_BENCHMARKS=ON \
-  -DBUILD_EXAMPLES=OFF
+  -DBUILD_EXAMPLES=OFF \
+  -DCUCO_DOWNLOAD_ROARING_TESTDATA=OFF
 
 cmake --build "${build_dir}" \
   --target \
@@ -30,6 +33,12 @@ cmake --build "${build_dir}" \
     WARPCORE_BLOOM_FILTER_BENCH \
     BLOOM_FILTER_CBF_BENCH \
   -j "${jobs}"
+
+if [[ "${build_only}" == "1" ]]; then
+  GUPS_BUILD_ONLY=1 "${root_dir}/artifact/run_gups.sh"
+  echo "Artifact dependencies and benchmark binaries are ready in ${build_dir}"
+  exit 0
+fi
 
 mkdir -p "${output_dir}"
 rm -f \

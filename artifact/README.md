@@ -7,11 +7,15 @@ performance and portability claims.
 
 The recommended environment uses the
 `rapidsai/devcontainers:26.10-cpp-gcc14-cuda13.3-ubuntu24.04` Docker image.
-The launcher requires:
+Artifact preparation requires:
 
 - Docker
+- Network access
+
+Benchmark execution additionally requires:
+
 - NVIDIA Container Toolkit
-- An NVIDIA GPU
+- A supported NVIDIA GPU
 
 Run the functional evaluation:
 
@@ -28,6 +32,29 @@ artifact/run_in_docker.sh full
 Both modes build the required targets, execute the benchmarks, and generate
 the normalized result tables. Outputs are written to
 `build/ia3-artifact-results/<mode>`.
+
+### Compute Nodes Without Network Access
+
+Preparation does not require a GPU or the NVIDIA Container Toolkit. On a
+networked login or build node, provide the CUDA architecture of the GPU that
+will execute the benchmarks:
+
+```bash
+# B200: 100, H200: 90, RTX PRO 6000: 120
+artifact/run_in_docker.sh prepare 100
+```
+
+This downloads and builds all dependencies and the GUPS benchmark under
+`build/ia3-artifact-docker`. The checkout can then be used from an air-gapped
+compute node:
+
+```bash
+CUDA_ARCHITECTURES=100 artifact/run_in_docker.sh full
+```
+
+The Docker image must also be available on the compute node. If login and
+compute nodes use separate Docker image stores, transfer the pinned image with
+`docker save` and `docker load`, or use the site's container-image mirror.
 
 ## Existing CUDA Environment
 

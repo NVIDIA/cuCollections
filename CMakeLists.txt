@@ -7,9 +7,10 @@
 cmake_minimum_required(VERSION 3.23.1 FATAL_ERROR)
 
 set(rapids-cmake-branch "main")
+set(rapids-cmake-sha "179cca353608299e8feb99fa15f15d0d5782ddb1")
 if(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
     file(DOWNLOAD
-      https://raw.githubusercontent.com/rapidsai/rapids-cmake/${rapids-cmake-branch}/RAPIDS.cmake
+      https://raw.githubusercontent.com/rapidsai/rapids-cmake/${rapids-cmake-sha}/RAPIDS.cmake
          ${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
 endif()
 include(${CMAKE_CURRENT_BINARY_DIR}/CUCO_RAPIDS.cmake)
