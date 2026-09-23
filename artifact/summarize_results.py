@@ -39,6 +39,15 @@ BEST_KEYS = [
     "all_positive_lookup",
 ]
 
+SOL_FIELDS = [
+    "operation",
+    "filter_size_mb",
+    "block_bits",
+    "throughput_gelem_s",
+    "bound_gups",
+    "efficiency_percent",
+]
+
 
 def parse_scalar(value):
     if value is None:
@@ -147,6 +156,47 @@ def write_csv(path, rows):
         writer.writerows(rows)
 
 
+def write_sol_efficiency(results_dir, best_rows):
+    gups_path = results_dir / "gups.csv"
+    if not gups_path.exists():
+        return
+
+    with gups_path.open(newline="") as input_file:
+        gups = next(csv.DictReader(input_file))
+
+    table_size_mb = int(gups["table_bytes"]) // (1024 * 1024)
+    bounds = {
+        "construction": float(gups["write_gups"]),
+        "lookup": float(gups["read_gups"]),
+    }
+    rows = []
+    for result in best_rows:
+        if result["implementation"] != "GPU SBF":
+            continue
+        if result["filter_size_mb"] != table_size_mb:
+            continue
+        if result["block_bits"] is None or result["block_bits"] > 256:
+            continue
+
+        bound = bounds[result["operation"]]
+        throughput = result["throughput_gelem_s"]
+        rows.append(
+            {
+                "operation": result["operation"],
+                "filter_size_mb": result["filter_size_mb"],
+                "block_bits": result["block_bits"],
+                "throughput_gelem_s": throughput,
+                "bound_gups": bound,
+                "efficiency_percent": 100 * throughput / bound,
+            }
+        )
+
+    with (results_dir / "sol_efficiency.csv").open("w", newline="") as output:
+        writer = csv.DictWriter(output, fieldnames=SOL_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def sort_key(row, fields):
     key = []
     for field in fields:
@@ -188,6 +238,7 @@ def main():
 
     best_rows = sorted(best.values(), key=lambda row: sort_key(row, BEST_KEYS))
     write_csv(args.results_dir / "best_results.csv", best_rows)
+    write_sol_efficiency(args.results_dir, best_rows)
 
 
 if __name__ == "__main__":

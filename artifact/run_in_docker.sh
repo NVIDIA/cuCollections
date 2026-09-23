@@ -29,12 +29,14 @@ case "${mode}" in
     num_inputs=1000000
     filter_sizes=32
     output_name=smoke
+    gups_repeats=1
     default_nvbench_args=(--profile)
     ;;
   full)
     num_inputs=1000000000
     filter_sizes=32,1024
     output_name=full
+    gups_repeats=5
     default_nvbench_args=()
     ;;
   *)
@@ -80,6 +82,8 @@ docker run --rm \
   --env "NUM_INPUTS=${num_inputs}" \
   --env "FILTER_SIZES=${filter_sizes}" \
   --env "DEVICE=${device}" \
+  --env GUPS_LOGN=27 \
+  --env "GUPS_REPEATS=${gups_repeats}" \
   --env "SOURCE_COMMIT=${source_commit}" \
   "${mount_args[@]}" \
   "${image}" \

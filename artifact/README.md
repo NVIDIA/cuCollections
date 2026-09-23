@@ -41,9 +41,12 @@ The default run uses \(10^9\) inputs and 32 MiB and 1 GiB filters. Results are
 written under `build/ia3-artifact-results` as:
 
 - Raw NVBench JSON and CSV files for each implementation.
+- `gups.csv` with machine-local random-read and random-write throughput bounds.
 - `normalized_results.csv` with a common schema.
 - `best_results.csv` with the highest-throughput layout for each filter
   configuration.
+- `sol_efficiency.csv` comparing 1 GiB SBF throughput with the local GUPS
+  bounds for blocks up to 256 bits.
 - `metadata.json` describing the source revision and execution environment.
 
 For a short functional run:
@@ -61,6 +64,10 @@ Environment variables:
 - `CUDA_ARCHITECTURES`: CMake CUDA architecture value.
 - `JOBS`: parallel build jobs.
 - `DEVICE`: NVBench logical device ID; defaults to `0`.
+- `GUPS_LOGN`: base-2 table-size exponent; defaults to `27` (1 GiB).
+- `GUPS_REPEATS`: GUPS kernel repetitions; defaults to `5`.
+- `GUPS_ACCESSES_PER_ELEMENT`: random accesses per thread; defaults to `32`.
+- `GUPS_GPU_ARCH`: CUDA architecture for the GUPS binary; detected by default.
 - `SOURCE_COMMIT`: source revision fallback when Git metadata is unavailable.
 
 Additional arguments are forwarded to every NVBench executable.

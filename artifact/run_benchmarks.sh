@@ -41,9 +41,13 @@ rm -f \
   "${output_dir}/warpcore.csv" \
   "${output_dir}/cbf.json" \
   "${output_dir}/cbf.csv" \
+  "${output_dir}/gups.csv" \
+  "${output_dir}/gups_read.txt" \
+  "${output_dir}/gups_write.txt" \
   "${output_dir}/metadata.json" \
   "${output_dir}/normalized_results.csv" \
-  "${output_dir}/best_results.csv"
+  "${output_dir}/best_results.csv" \
+  "${output_dir}/sol_efficiency.csv"
 
 run_benchmark()
 {
@@ -85,6 +89,8 @@ run_benchmark \
   "cbf" \
   "BLOOM_FILTER_CBF_BENCH" \
   "${common_axes[@]}"
+
+"${root_dir}/artifact/run_gups.sh"
 
 python3 - \
   "${root_dir}" \
