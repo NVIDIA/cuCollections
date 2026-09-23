@@ -35,3 +35,8 @@ ConfigureBench(
   warpcore_add_bench.cu
   warpcore_contains_bench.cu)
 target_link_libraries(WARPCORE_BLOOM_FILTER_BENCH PRIVATE warpcore)
+
+ConfigureBench(
+  BLOOM_FILTER_CBF_BENCH
+  cbf_add_bench.cu
+  cbf_contains_bench.cu)
