@@ -87,9 +87,13 @@ ConfigureBench(HYPERLOGLOG_BENCH
 
 ###################################################################################################
 # - bloom_filter benchmarks -----------------------------------------------------------------------
-ConfigureBench(BLOOM_FILTER_BENCH
+ConfigureBench(BLOOM_FILTER_SBF_BENCH
   bloom_filter/add_bench.cu
   bloom_filter/contains_bench.cu)
+
+ConfigureBench(BLOOM_FILTER_CSBF_BENCH
+  bloom_filter/csbf_add_bench.cu
+  bloom_filter/csbf_contains_bench.cu)
 
 ###################################################################################################
 # - roaring_bitmap benchmarks ---------------------------------------------------------------------

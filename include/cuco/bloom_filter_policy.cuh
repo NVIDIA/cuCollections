@@ -16,8 +16,8 @@ namespace cuco {
 /**
  * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
  *
- * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
- * GPU Architectures" (arXiv:2512.15595).
+ * Implements the Sectorized Bloom Filter (SBF) and Cache-Sectorized Bloom Filter (CSBF) variants
+ * from "Optimizing Bloom Filters for Modern GPU Architectures" (arXiv:2512.15595).
  *
  * Requires a 64-bit hash function: the result is split into upper 32 bits (block selection via
  * multiply-shift) and lower 32 bits (pattern generation).
@@ -47,6 +47,9 @@ namespace cuco {
  * persisting access policy. Reserve/reset persisting L2
  * separately (e.g. `cudaDeviceSetLimit`). Enable only when the working set fits the reserved
  * region, otherwise persisting lines can thrash the cache and slow other work.
+ * @tparam GroupsPerBlock Cache-sectorization groups (paper's z). Defaults to `WordsPerBlock`,
+ * selecting the standard SBF layout. Values smaller than `WordsPerBlock` select CSBF. The artifact
+ * CSBF path requires `ConditionalAdd`, `EarlyExitContains`, and `PersistingL2Access` to be `false`.
  */
 template <class Key,
           class Hash                        = cuco::xxhash_64<Key>,
@@ -61,7 +64,8 @@ template <class Key,
           std::uint32_t ContainsVerticalLayout = WordsPerBlock / ContainsHorizontalLayout,
           bool ConditionalAdd                  = false,
           bool EarlyExitContains               = false,
-          bool PersistingL2Access              = false>
+          bool PersistingL2Access              = false,
+          std::uint32_t GroupsPerBlock         = WordsPerBlock>
 using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         WordBytes,
                                                         WordsPerBlock,
@@ -72,7 +76,8 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         ContainsVerticalLayout,
                                                         ConditionalAdd,
                                                         EarlyExitContains,
-                                                        PersistingL2Access>;
+                                                        PersistingL2Access,
+                                                        GroupsPerBlock>;
 
 /**
  * @brief Deprecated compatibility alias for the old parametric Bloom filter policy API.
@@ -93,6 +98,9 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
  * @tparam ConditionalAdd Whether to skip redundant atomic writes.
  * @tparam EarlyExitContains Whether to short-circuit contains on the first missing slice.
  * @tparam PersistingL2Access Whether to annotate global-memory accesses as persisting.
+ * @tparam GroupsPerBlock Cache-sectorization groups (paper's z). Defaults to `WordsPerBlock`,
+ * selecting the standard SBF layout. The artifact CSBF path requires `ConditionalAdd`,
+ * `EarlyExitContains`, and `PersistingL2Access` to be `false`.
  */
 template <class Hash,
           class Word,
@@ -104,7 +112,8 @@ template <class Hash,
           std::uint32_t ContainsVerticalLayout,
           bool ConditionalAdd,
           bool EarlyExitContains,
-          bool PersistingL2Access = false>
+          bool PersistingL2Access      = false,
+          std::uint32_t GroupsPerBlock = WordsPerBlock>
 using parametric_filter_policy =
   detail::bloom_filter_policy<Hash,
                               static_cast<std::uint32_t>(sizeof(Word)),
@@ -116,6 +125,7 @@ using parametric_filter_policy =
                               ContainsVerticalLayout,
                               ConditionalAdd,
                               EarlyExitContains,
-                              PersistingL2Access>;
+                              PersistingL2Access,
+                              GroupsPerBlock>;
 
 }  // namespace cuco

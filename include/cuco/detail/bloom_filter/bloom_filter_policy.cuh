@@ -21,8 +21,8 @@ namespace cuco::detail {
 /**
  * @brief Sectorized Bloom filter policy with multiplicative-hashing fingerprint generation.
  *
- * Implements the Sectorized Bloom Filter (SBF) variant from "Optimizing Bloom Filters for Modern
- * GPU Architectures" (arXiv:2512.15595).
+ * Implements the Sectorized Bloom Filter (SBF) and Cache-Sectorized Bloom Filter (CSBF) variants
+ * from "Optimizing Bloom Filters for Modern GPU Architectures" (arXiv:2512.15595).
  *
  * Each key selects exactly one fixed-size block of `WordsPerBlock` words: the upper 32 bits of the
  * 64-bit hash pick the block via multiply-shift, and the lower 32 bits drive compile-time
@@ -64,6 +64,9 @@ namespace cuco::detail {
  * the Bloom-filter phase. Use this only when the filter fits the reserved L2 region or the key
  * stream has sufficient locality: filters far larger than L2 can continually mark random lines as
  * persisting, thrashing the cache and affecting unrelated kernels.
+ * @tparam GroupsPerBlock Cache-sectorization groups (paper's z). Defaults to `WordsPerBlock`,
+ * selecting the standard SBF layout. Values smaller than `WordsPerBlock` select CSBF. The artifact
+ * CSBF path requires `ConditionalAdd`, `EarlyExitContains`, and `PersistingL2Access` to be `false`.
  */
 template <class Hash,
           uint32_t WordBytes,
@@ -75,7 +78,8 @@ template <class Hash,
           uint32_t ContainsVerticalLayout,
           bool ConditionalAdd,
           bool EarlyExitContains,
-          bool PersistingL2Access>
+          bool PersistingL2Access,
+          uint32_t GroupsPerBlock>
 class bloom_filter_policy {
   static_assert(WordBytes == 4 || WordBytes == 8, "WordBytes must be 4 or 8 for native atomicOr");
 
@@ -122,6 +126,23 @@ class bloom_filter_policy {
   static constexpr bool persisting_l2_access =
     PersistingL2Access;  ///< apply persisting L2 cache-policy hints to filter accesses
 
+  static constexpr uint32_t groups_per_block = GroupsPerBlock;  ///< CSBF groups per block
+  static constexpr bool is_cache_sectorized =
+    groups_per_block != words_per_block;  ///< whether CSBF addressing is enabled
+  static constexpr uint32_t words_per_group =
+    words_per_block / (groups_per_block == 0 ? 1 : groups_per_block);  ///< words per CSBF group
+  static constexpr uint32_t max_bits_per_group =
+    cuco::detail::int_div_ceil(pattern_bits,
+                               groups_per_block == 0 ? 1 : groups_per_block);  ///< bits per group
+  static constexpr uint32_t add_groups_per_vertical_layout =
+    add_vertical_layout / (words_per_group == 0 ? 1 : words_per_group);
+  static constexpr uint32_t contains_groups_per_vertical_layout =
+    contains_vertical_layout / (words_per_group == 0 ? 1 : words_per_group);
+  static constexpr uint32_t group_index_salt = 0x5bd1e995U;
+  static constexpr uint32_t group_index_width =
+    cuda::std::bit_width((words_per_group == 0 ? 1 : words_per_group) - 1);
+  static constexpr uint32_t group_index_mask = (words_per_group == 0 ? 1 : words_per_group) - 1;
+
   static constexpr size_t max_filter_blocks =
     cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks
   /// Lower bound on `pattern_bits`: at least one bit per word so every word contributes.
@@ -164,6 +185,23 @@ class bloom_filter_policy {
     static_assert(
       words_per_block % (contains_horizontal_layout * contains_vertical_layout) == 0,
       "contains_horizontal_layout * contains_vertical_layout must evenly divide words_per_block");
+    static_assert(groups_per_block > 0 && groups_per_block <= words_per_block &&
+                    words_per_block % groups_per_block == 0,
+                  "groups_per_block must be positive and evenly divide words_per_block");
+    static_assert(!is_cache_sectorized || pattern_bits % groups_per_block == 0,
+                  "CSBF requires pattern_bits to be evenly distributed across groups_per_block");
+    static_assert(!is_cache_sectorized || add_vertical_layout % words_per_group == 0,
+                  "CSBF add_vertical_layout must be a multiple of words_per_group");
+    static_assert(!is_cache_sectorized || contains_vertical_layout % words_per_group == 0,
+                  "CSBF contains_vertical_layout must be a multiple of words_per_group");
+    static_assert(!is_cache_sectorized || groups_per_block * group_index_width <= 32,
+                  "CSBF group selection must fit within the 32-bit lower hash");
+    static_assert(!is_cache_sectorized || !conditional_add,
+                  "CSBF artifact mode does not support conditional add");
+    static_assert(!is_cache_sectorized || !early_exit_contains,
+                  "CSBF artifact mode does not support early-exit contains");
+    static_assert(!is_cache_sectorized || !persisting_l2_access,
+                  "CSBF artifact mode does not support persisting L2 access");
   }
 
   /**
@@ -216,7 +254,7 @@ class bloom_filter_policy {
    *
    * @param lower_hash_value Lower 32 bits of the key's hash.
    *
-   * @return Array of `VerticalLayout` words.
+   * @return Array of `VerticalLayout` words for SBF or one word per covered group for CSBF.
    */
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
@@ -234,7 +272,8 @@ class bloom_filter_policy {
    * @param lower_hash_value Lower 32 bits of the key's hash.
    * @param thread_index Caller's rank within the cooperative group.
    *
-   * @return Array of `VerticalLayout` words owned by the calling thread.
+   * @return Array of `VerticalLayout` words for SBF or one word per covered group for CSBF, owned
+   * by the calling thread.
    */
   template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value, uint32_t thread_index) const
@@ -262,7 +301,11 @@ class bloom_filter_policy {
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto pattern_impl(uint32_t hash) const
   {
-    using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
+    constexpr uint32_t groups_per_vertical_layout = VerticalLayout / words_per_group;
+    using pattern_array_t =
+      cuda::std::conditional_t<is_cache_sectorized,
+                               cuda::std::array<word_type, groups_per_vertical_layout>,
+                               cuda::std::array<word_type, VerticalLayout>>;
 
     // Sanity check
     constexpr uint32_t num_iterations = words_per_block / VerticalLayout;
@@ -270,9 +313,14 @@ class bloom_filter_policy {
                   "the loop index cannot exceed the number of loop iterations");
 
     pattern_array_t pattern_array{0};
-    constexpr uint32_t salt_start_index = max_bits_per_word * VerticalLayout * LoopIndex;
+    constexpr uint32_t salt_start_index =
+      is_cache_sectorized ? max_bits_per_group * groups_per_vertical_layout * LoopIndex
+                          : max_bits_per_word * VerticalLayout * LoopIndex;
     constexpr uint32_t salt_end_index =
-      cuda::std::min(salt_start_index + max_bits_per_word * VerticalLayout, pattern_bits);
+      is_cache_sectorized
+        ? cuda::std::min(salt_start_index + max_bits_per_group * groups_per_vertical_layout,
+                         pattern_bits)
+        : cuda::std::min(salt_start_index + max_bits_per_word * VerticalLayout, pattern_bits);
     constexpr uint32_t pattern_array_start_index = 0;
     set_bits<salt_start_index, salt_end_index, pattern_array_start_index>(hash, pattern_array);
     return pattern_array;
@@ -282,7 +330,11 @@ class bloom_filter_policy {
   template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto pattern_impl(uint32_t hash, uint32_t thread_index) const
   {
-    using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
+    constexpr uint32_t groups_per_vertical_layout = VerticalLayout / words_per_group;
+    using pattern_array_t =
+      cuda::std::conditional_t<is_cache_sectorized,
+                               cuda::std::array<word_type, groups_per_vertical_layout>,
+                               cuda::std::array<word_type, VerticalLayout>>;
 
     // Sanity check
     constexpr uint32_t num_iterations = words_per_block / (HorizontalLayout * VerticalLayout);
@@ -295,8 +347,10 @@ class bloom_filter_policy {
     constexpr uint32_t upper_bound = lower_bound + HorizontalLayout;
 
     // A virtual thread flips max_bits_per_virtual_thread bits in the pattern array, excepting
-    // potentially some of the last virtual threads (if pattern_bits % words_per_block != 0).
-    constexpr uint32_t max_bits_per_virtual_thread = max_bits_per_word * VerticalLayout;
+    // potentially some of the last virtual threads in SBF mode.
+    constexpr uint32_t max_bits_per_virtual_thread =
+      is_cache_sectorized ? max_bits_per_group * groups_per_vertical_layout
+                          : max_bits_per_word * VerticalLayout;
 
     pattern_array_t pattern_array{0};
     if constexpr (num_iterations == 1) {
@@ -361,8 +415,10 @@ class bloom_filter_policy {
 
       // Recurse.
       constexpr uint32_t next_salt_index = SaltIndex + 1;
+      constexpr uint32_t bits_per_pattern_element =
+        is_cache_sectorized ? max_bits_per_group : max_bits_per_word;
       constexpr uint32_t next_pattern_array_index =
-        PatternArrayIndex + (next_salt_index % max_bits_per_word == 0 ? 1 : 0);
+        PatternArrayIndex + (next_salt_index % bits_per_pattern_element == 0 ? 1 : 0);
       set_bits<next_salt_index, SaltEndIndex, next_pattern_array_index>(hash, pattern_array);
     }
   }

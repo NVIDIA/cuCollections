@@ -14,6 +14,7 @@
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
 #include <exception>
@@ -74,6 +75,30 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
   // TODO test FPR but how?
 }
 
+template <std::uint32_t GroupsPerBlock>
+void test_csbf_unique_sequence()
+{
+  constexpr std::uint32_t words_per_block = 16;
+  auto filter                             = cuco::bloom_filter<int32_t,
+                                                               cuco::extent<std::size_t>,
+                                                               cuda::thread_scope_device,
+                                                               cuco::bloom_filter_policy<int32_t,
+                                                                                         cuco::xxhash_64<int32_t>,
+                                                                                         8,
+                                                                                         words_per_block,
+                                                                                         16,
+                                                                                         GroupsPerBlock,
+                                                                                         words_per_block / GroupsPerBlock,
+                                                                                         GroupsPerBlock,
+                                                                                         words_per_block / GroupsPerBlock,
+                                                                                         false,
+                                                                                         false,
+                                                                                         false,
+                                                                                         GroupsPerBlock>>{1000};
+
+  test_unique_sequence(filter, 400);
+}
+
 TEMPLATE_TEST_CASE_SIG(
   "bloom_filter policy tests",
   "",
@@ -91,4 +116,11 @@ TEMPLATE_TEST_CASE_SIG(
   auto filter = filter_type{1000};
 
   test_unique_sequence(filter, num_keys);
+}
+
+TEST_CASE("bloom_filter CSBF policy tests", "")
+{
+  SECTION("z = 2") { test_csbf_unique_sequence<2>(); }
+  SECTION("z = 4") { test_csbf_unique_sequence<4>(); }
+  SECTION("z = 8") { test_csbf_unique_sequence<8>(); }
 }

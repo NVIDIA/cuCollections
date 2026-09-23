@@ -61,6 +61,7 @@ class bloom_filter_impl {
   static constexpr bool conditional_add            = policy_type::conditional_add;
   static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
   static constexpr bool persisting_l2_access       = policy_type::persisting_l2_access;
+  static constexpr bool is_cache_sectorized        = policy_type::is_cache_sectorized;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -182,11 +183,21 @@ class bloom_filter_impl {
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
     if constexpr (add_horizontal_layout == 1) {
-      add_pattern<ConditionalAdd, 0>(block_index, lower_hash);
+      if constexpr (is_cache_sectorized) {
+        auto const group_hash = lower_hash * policy_type::group_index_salt;
+        add_pattern_cs<ConditionalAdd, 0>(block_index, lower_hash, group_hash);
+      } else {
+        add_pattern<ConditionalAdd, 0>(block_index, lower_hash);
+      }
     } else {
+      auto const group_hash = lower_hash * policy_type::group_index_salt;
 #pragma unroll
       for (uint32_t thread_index = 0; thread_index < add_horizontal_layout; ++thread_index) {
-        add_patterns<ConditionalAdd, 0>(block_index, lower_hash, thread_index);
+        if constexpr (is_cache_sectorized) {
+          add_patterns_cs<ConditionalAdd, 0>(block_index, lower_hash, group_hash, thread_index);
+        } else {
+          add_patterns<ConditionalAdd, 0>(block_index, lower_hash, thread_index);
+        }
       }
     }
   }
@@ -202,7 +213,13 @@ class bloom_filter_impl {
       auto const lower_hash  = sh.second;
       auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
-      add_patterns<ConditionalAdd, 0>(block_index, lower_hash, group.thread_rank());
+      if constexpr (is_cache_sectorized) {
+        auto const group_hash = lower_hash * policy_type::group_index_salt;
+        add_patterns_cs<ConditionalAdd, 0>(
+          block_index, lower_hash, group_hash, group.thread_rank());
+      } else {
+        add_patterns<ConditionalAdd, 0>(block_index, lower_hash, group.thread_rank());
+      }
     }
   }
 
@@ -213,11 +230,19 @@ class bloom_filter_impl {
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    auto const group_hash               = lower_hash * policy_type::group_index_salt;
 
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      add_patterns<ConditionalAdd, 0>(
-        group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      if constexpr (is_cache_sectorized) {
+        add_patterns_cs<ConditionalAdd, 0>(group.shfl(block_index, i),
+                                           group.shfl(lower_hash, i),
+                                           group.shfl(group_hash, i),
+                                           group.thread_rank());
+      } else {
+        add_patterns<ConditionalAdd, 0>(
+          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      }
     }
   }
 
@@ -228,20 +253,29 @@ class bloom_filter_impl {
 
     uint32_t upper_hash   = 0;
     uint32_t lower_hash   = 0;
+    uint32_t group_hash   = 0;
     size_type block_index = 0;
     if (is_valid) {
       auto const& key = *(first + idx);
       auto const sh   = policy_.split_hash(key);
       upper_hash      = sh.first;
       lower_hash      = sh.second;
+      group_hash      = lower_hash * policy_type::group_index_salt;
       block_index     = policy_.block_index(upper_hash, num_blocks_);
     }
 
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
       if (group.shfl(is_valid, i)) {
-        add_patterns<ConditionalAdd, 0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+        if constexpr (is_cache_sectorized) {
+          add_patterns_cs<ConditionalAdd, 0>(group.shfl(block_index, i),
+                                             group.shfl(lower_hash, i),
+                                             group.shfl(group_hash, i),
+                                             group.thread_rank());
+        } else {
+          add_patterns<ConditionalAdd, 0>(
+            group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+        }
       }
     }
   }
@@ -295,12 +329,23 @@ class bloom_filter_impl {
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
     if constexpr (contains_horizontal_layout == 1) {
-      return compare_pattern<0>(block_index, lower_hash);
+      if constexpr (is_cache_sectorized) {
+        auto const group_hash = lower_hash * policy_type::group_index_salt;
+        return compare_pattern_cs<0>(block_index, lower_hash, group_hash);
+      } else {
+        return compare_pattern<0>(block_index, lower_hash);
+      }
     } else {
-      bool result = true;
+      bool result           = true;
+      auto const group_hash = lower_hash * policy_type::group_index_salt;
 #pragma unroll
       for (uint32_t thread_index = 0; thread_index < contains_horizontal_layout; ++thread_index) {
-        result = result && compare_patterns<0>(block_index, lower_hash, thread_index);
+        if constexpr (is_cache_sectorized) {
+          result =
+            result && compare_patterns_cs<0>(block_index, lower_hash, group_hash, thread_index);
+        } else {
+          result = result && compare_patterns<0>(block_index, lower_hash, thread_index);
+        }
       }
       return result;
     }
@@ -317,7 +362,13 @@ class bloom_filter_impl {
       auto const lower_hash  = sh.second;
       auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
-      return group.all(compare_patterns<0>(block_index, lower_hash, group.thread_rank()));
+      if constexpr (is_cache_sectorized) {
+        auto const group_hash = lower_hash * policy_type::group_index_salt;
+        return group.all(
+          compare_patterns_cs<0>(block_index, lower_hash, group_hash, group.thread_rank()));
+      } else {
+        return group.all(compare_patterns<0>(block_index, lower_hash, group.thread_rank()));
+      }
     }
   }
 
@@ -328,13 +379,22 @@ class bloom_filter_impl {
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    auto const group_hash               = lower_hash * policy_type::group_index_salt;
     bool result_out                     = false;
 
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      auto const result = group.all(compare_patterns<0>(
-        group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
-      if (i == group.thread_rank()) { result_out = result; }
+      if constexpr (is_cache_sectorized) {
+        auto const result = group.all(compare_patterns_cs<0>(group.shfl(block_index, i),
+                                                             group.shfl(lower_hash, i),
+                                                             group.shfl(group_hash, i),
+                                                             group.thread_rank()));
+        if (i == group.thread_rank()) { result_out = result; }
+      } else {
+        auto const result = group.all(compare_patterns<0>(
+          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+        if (i == group.thread_rank()) { result_out = result; }
+      }
     }
     return result_out;
   }
@@ -346,12 +406,14 @@ class bloom_filter_impl {
 
     uint32_t upper_hash   = 0;
     uint32_t lower_hash   = 0;
+    uint32_t group_hash   = 0;
     size_type block_index = 0;
     if (is_valid) {
       auto const& key = *(first + idx);
       auto const sh   = policy_.split_hash(key);
       upper_hash      = sh.first;
       lower_hash      = sh.second;
+      group_hash      = lower_hash * policy_type::group_index_salt;
       block_index     = policy_.block_index(upper_hash, num_blocks_);
     }
 
@@ -359,9 +421,17 @@ class bloom_filter_impl {
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
       if (group.shfl(is_valid, i)) {
-        auto const result = group.all(compare_patterns<0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
-        if (i == group.thread_rank()) { result_out = result; }
+        if constexpr (is_cache_sectorized) {
+          auto const result = group.all(compare_patterns_cs<0>(group.shfl(block_index, i),
+                                                               group.shfl(lower_hash, i),
+                                                               group.shfl(group_hash, i),
+                                                               group.thread_rank()));
+          if (i == group.thread_rank()) { result_out = result; }
+        } else {
+          auto const result = group.all(compare_patterns<0>(
+            group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+          if (i == group.thread_rank()) { result_out = result; }
+        }
       }
     }
     return result_out;
@@ -545,6 +615,69 @@ class bloom_filter_impl {
     }
   }
 
+  template <bool ConditionalAdd, uint32_t LoopIndex>
+  __device__ constexpr void add_pattern_cs(uint32_t block_index,
+                                           uint32_t lower_hash,
+                                           uint32_t group_hash)
+  {
+    static_assert(add_horizontal_layout == 1,
+                  "add_pattern_cs() requires add_horizontal_layout == 1");
+
+    if constexpr (LoopIndex < add_loop_count) {
+      auto constexpr groups_per_layout = policy_type::add_groups_per_vertical_layout;
+      auto constexpr words_per_group   = policy_type::words_per_group;
+      auto constexpr index_width       = policy_type::group_index_width;
+      auto constexpr index_mask        = policy_type::group_index_mask;
+
+      auto const pattern =
+        policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
+      auto* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+                        LoopIndex * add_vertical_layout;
+
+      for (uint32_t i = 0; i < groups_per_layout; ++i) {
+        auto const group_index =
+          (group_hash >> ((i + LoopIndex * groups_per_layout) * index_width)) & index_mask;
+        atomic_or<ConditionalAdd>(word_base + i * words_per_group + group_index, pattern[i]);
+      }
+
+      add_pattern_cs<ConditionalAdd, LoopIndex + 1>(block_index, lower_hash, group_hash);
+    }
+  }
+
+  template <bool ConditionalAdd, uint32_t LoopIndex>
+  __device__ constexpr void add_patterns_cs(uint32_t block_index,
+                                            uint32_t lower_hash,
+                                            uint32_t group_hash,
+                                            uint32_t thread_index)
+  {
+    static_assert(add_horizontal_layout > 1,
+                  "add_patterns_cs() requires add_horizontal_layout > 1");
+
+    if constexpr (LoopIndex < add_loop_count) {
+      auto constexpr groups_per_layout = policy_type::add_groups_per_vertical_layout;
+      auto constexpr words_per_group   = policy_type::words_per_group;
+      auto constexpr index_width       = policy_type::group_index_width;
+      auto constexpr index_mask        = policy_type::group_index_mask;
+
+      auto const pattern =
+        policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
+          lower_hash, thread_index);
+      auto* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+                        LoopIndex * add_vertical_layout * add_horizontal_layout +
+                        thread_index * add_vertical_layout;
+
+      for (uint32_t i = 0; i < groups_per_layout; ++i) {
+        auto const group_number = i + LoopIndex * groups_per_layout * add_horizontal_layout +
+                                  thread_index * groups_per_layout;
+        auto const group_index = (group_hash >> (group_number * index_width)) & index_mask;
+        atomic_or<ConditionalAdd>(word_base + i * words_per_group + group_index, pattern[i]);
+      }
+
+      add_patterns_cs<ConditionalAdd, LoopIndex + 1>(
+        block_index, lower_hash, group_hash, thread_index);
+    }
+  }
+
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
@@ -636,6 +769,79 @@ class bloom_filter_impl {
       } else {
         return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index) && match;
       }
+    } else {
+      return true;
+    }
+  }
+
+  template <uint32_t LoopIndex>
+  __device__ constexpr bool compare_pattern_cs(uint32_t block_index,
+                                               uint32_t lower_hash,
+                                               uint32_t group_hash) const
+  {
+    static_assert(contains_horizontal_layout == 1,
+                  "compare_pattern_cs() requires contains_horizontal_layout == 1");
+
+    if constexpr (LoopIndex < contains_loop_count) {
+      auto constexpr groups_per_layout = policy_type::contains_groups_per_vertical_layout;
+      auto constexpr words_per_group   = policy_type::words_per_group;
+      auto constexpr index_width       = policy_type::group_index_width;
+      auto constexpr index_mask        = policy_type::group_index_mask;
+
+      auto const expected_pattern =
+        policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
+      auto const* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+                              LoopIndex * contains_vertical_layout;
+
+      bool match = true;
+      for (uint32_t i = 0; i < groups_per_layout; ++i) {
+        auto const group_index =
+          (group_hash >> ((i + LoopIndex * groups_per_layout) * index_width)) & index_mask;
+        auto const* word = filter_access(word_base + i * words_per_group + group_index);
+        match &= (*word & expected_pattern[i]) == expected_pattern[i];
+      }
+
+      return compare_pattern_cs<LoopIndex + 1>(block_index, lower_hash, group_hash) && match;
+    } else {
+      return true;
+    }
+  }
+
+  template <uint32_t LoopIndex>
+  __device__ constexpr bool compare_patterns_cs(uint32_t block_index,
+                                                uint32_t lower_hash,
+                                                uint32_t group_hash,
+                                                uint32_t thread_index) const
+  {
+    static_assert(contains_horizontal_layout > 1,
+                  "compare_patterns_cs() requires contains_horizontal_layout > 1");
+
+    if constexpr (LoopIndex < contains_loop_count) {
+      auto constexpr groups_per_layout = policy_type::contains_groups_per_vertical_layout;
+      auto constexpr words_per_group   = policy_type::words_per_group;
+      auto constexpr index_width       = policy_type::group_index_width;
+      auto constexpr index_mask        = policy_type::group_index_mask;
+
+      auto const expected_pattern =
+        policy_
+          .template array_pattern<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
+            lower_hash, thread_index);
+      auto const* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+                              LoopIndex * contains_vertical_layout * contains_horizontal_layout +
+                              thread_index * contains_vertical_layout;
+
+      bool match = true;
+      for (uint32_t i = 0; i < groups_per_layout; ++i) {
+        auto const group_number = i + LoopIndex * groups_per_layout * contains_horizontal_layout +
+                                  thread_index * groups_per_layout;
+        auto const group_index = (group_hash >> (group_number * index_width)) & index_mask;
+        auto const* word       = filter_access(word_base + i * words_per_group + group_index);
+        match &= (*word & expected_pattern[i]) == expected_pattern[i];
+      }
+
+      return compare_patterns_cs<LoopIndex + 1>(
+               block_index, lower_hash, group_hash, thread_index) &&
+             match;
     } else {
       return true;
     }

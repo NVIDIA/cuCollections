@@ -21,6 +21,7 @@
 #include <cooperative_groups.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <cstdint>
 
@@ -66,13 +67,8 @@ __global__ void cooperative_clear_kernel(Ref ref)
   ref.clear(tile);
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "bloom_filter device ref scalar add and contains",
-  "",
-  ((class Key, class Policy), Key, Policy),
-  (int32_t, cuco::bloom_filter_policy<int32_t>),
-  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 1, 1, 1, 1, 1, 1>),
-  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 4, 2, 4, 2>))
+template <class Key, class Policy>
+void test_device_ref_scalar_add_and_contains()
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
@@ -102,12 +98,8 @@ TEMPLATE_TEST_CASE_SIG(
   REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "bloom_filter device ref CG contains is reduced across the group",
-  "",
-  ((int32_t CGSize, class Key, class Policy), CGSize, Key, Policy),
-  (4, int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 4, 2, 4, 2>),
-  (8, int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 8, 1, 8, 1>))
+template <int CGSize, class Key, class Policy>
+void test_device_ref_cg_contains_consistency()
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
@@ -142,6 +134,84 @@ TEMPLATE_TEST_CASE_SIG(
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   REQUIRE(static_cast<int>(mismatches[0]) == 0);
+}
+
+template <std::uint32_t GroupsPerBlock>
+void test_csbf_device_ref_scalar_add_and_contains()
+{
+  constexpr std::uint32_t words_per_block = 16;
+  test_device_ref_scalar_add_and_contains<
+    int32_t,
+    cuco::bloom_filter_policy<int32_t,
+                              cuco::xxhash_64<int32_t>,
+                              8,
+                              words_per_block,
+                              16,
+                              GroupsPerBlock,
+                              words_per_block / GroupsPerBlock,
+                              GroupsPerBlock,
+                              words_per_block / GroupsPerBlock,
+                              false,
+                              false,
+                              false,
+                              GroupsPerBlock>>();
+}
+
+template <std::uint32_t GroupsPerBlock>
+void test_csbf_device_ref_cg_contains_consistency()
+{
+  constexpr std::uint32_t words_per_block = 16;
+  test_device_ref_cg_contains_consistency<
+    GroupsPerBlock,
+    int32_t,
+    cuco::bloom_filter_policy<int32_t,
+                              cuco::xxhash_64<int32_t>,
+                              8,
+                              words_per_block,
+                              16,
+                              GroupsPerBlock,
+                              words_per_block / GroupsPerBlock,
+                              GroupsPerBlock,
+                              words_per_block / GroupsPerBlock,
+                              false,
+                              false,
+                              false,
+                              GroupsPerBlock>>();
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter device ref scalar add and contains",
+  "",
+  ((class Key, class Policy), Key, Policy),
+  (int32_t, cuco::bloom_filter_policy<int32_t>),
+  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 1, 1, 1, 1, 1, 1>),
+  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 4, 2, 4, 2>))
+{
+  test_device_ref_scalar_add_and_contains<Key, Policy>();
+}
+
+TEST_CASE("bloom_filter CSBF device ref scalar add and contains", "")
+{
+  SECTION("z = 2") { test_csbf_device_ref_scalar_add_and_contains<2>(); }
+  SECTION("z = 4") { test_csbf_device_ref_scalar_add_and_contains<4>(); }
+  SECTION("z = 8") { test_csbf_device_ref_scalar_add_and_contains<8>(); }
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter device ref CG contains is reduced across the group",
+  "",
+  ((int32_t CGSize, class Key, class Policy), CGSize, Key, Policy),
+  (4, int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 4, 2, 4, 2>),
+  (8, int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 8, 1, 8, 1>))
+{
+  test_device_ref_cg_contains_consistency<CGSize, Key, Policy>();
+}
+
+TEST_CASE("bloom_filter CSBF device ref CG contains is reduced across the group", "")
+{
+  SECTION("z = 2") { test_csbf_device_ref_cg_contains_consistency<2>(); }
+  SECTION("z = 4") { test_csbf_device_ref_cg_contains_consistency<4>(); }
+  SECTION("z = 8") { test_csbf_device_ref_cg_contains_consistency<8>(); }
 }
 
 TEMPLATE_TEST_CASE_SIG("bloom_filter device ref cooperative clear",

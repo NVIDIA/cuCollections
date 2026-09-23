@@ -26,6 +26,7 @@
 #include <cooperative_groups.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -85,15 +86,8 @@ __global__ void cg_range_contains_kernel(Ref ref, Key const* first, Key const* l
   ref.contains(tile, first, last, out);
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "bloom_filter: host bulk add equals device ref add",
-  "",
-  ((class Key, class Policy), Key, Policy),
-  (int32_t, cuco::bloom_filter_policy<int32_t>),
-  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 1, 1, 1, 1, 1, 1>),
-  (uint64_t, cuco::bloom_filter_policy<uint64_t, cuco::xxhash_64<uint64_t>, 4, 8, 12, 8, 1, 4, 2>),
-  (float, cuco::bloom_filter_policy<float, cuco::xxhash_64<float>, 8, 4, 4, 2, 2, 1, 2>),
-  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 2, 2, 1, 8>))
+template <class Key, class Policy>
+void test_bulk_add_equals_device_ref()
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, Policy>;
@@ -164,15 +158,8 @@ TEMPLATE_TEST_CASE_SIG(
   }
 }
 
-TEMPLATE_TEST_CASE_SIG(
-  "bloom_filter: host bulk contains equals device ref contains",
-  "",
-  ((class Key, class Policy), Key, Policy),
-  (int32_t, cuco::bloom_filter_policy<int32_t>),
-  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 1, 1, 1, 1, 1, 1>),
-  (uint64_t, cuco::bloom_filter_policy<uint64_t, cuco::xxhash_64<uint64_t>, 4, 8, 12, 8, 1, 4, 2>),
-  (float, cuco::bloom_filter_policy<float, cuco::xxhash_64<float>, 8, 4, 4, 2, 2, 1, 2>),
-  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 2, 2, 1, 8>))
+template <class Key, class Policy>
+void test_bulk_contains_equals_device_ref()
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, Policy>;
@@ -236,4 +223,84 @@ TEMPLATE_TEST_CASE_SIG(
     REQUIRE(cuco::test::equal(
       bulk_result.begin(), bulk_result.end(), ref_result.begin(), cuda::std::equal_to<bool>{}));
   }
+}
+
+template <std::uint32_t GroupsPerBlock>
+void test_csbf_bulk_add_equals_device_ref()
+{
+  constexpr std::uint32_t words_per_block = 16;
+  test_bulk_add_equals_device_ref<int32_t,
+                                  cuco::bloom_filter_policy<int32_t,
+                                                            cuco::xxhash_64<int32_t>,
+                                                            8,
+                                                            words_per_block,
+                                                            16,
+                                                            GroupsPerBlock,
+                                                            words_per_block / GroupsPerBlock,
+                                                            GroupsPerBlock,
+                                                            words_per_block / GroupsPerBlock,
+                                                            false,
+                                                            false,
+                                                            false,
+                                                            GroupsPerBlock>>();
+}
+
+template <std::uint32_t GroupsPerBlock>
+void test_csbf_bulk_contains_equals_device_ref()
+{
+  constexpr std::uint32_t words_per_block = 16;
+  test_bulk_contains_equals_device_ref<int32_t,
+                                       cuco::bloom_filter_policy<int32_t,
+                                                                 cuco::xxhash_64<int32_t>,
+                                                                 8,
+                                                                 words_per_block,
+                                                                 16,
+                                                                 GroupsPerBlock,
+                                                                 words_per_block / GroupsPerBlock,
+                                                                 GroupsPerBlock,
+                                                                 words_per_block / GroupsPerBlock,
+                                                                 false,
+                                                                 false,
+                                                                 false,
+                                                                 GroupsPerBlock>>();
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter: host bulk add equals device ref add",
+  "",
+  ((class Key, class Policy), Key, Policy),
+  (int32_t, cuco::bloom_filter_policy<int32_t>),
+  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 1, 1, 1, 1, 1, 1>),
+  (uint64_t, cuco::bloom_filter_policy<uint64_t, cuco::xxhash_64<uint64_t>, 4, 8, 12, 8, 1, 4, 2>),
+  (float, cuco::bloom_filter_policy<float, cuco::xxhash_64<float>, 8, 4, 4, 2, 2, 1, 2>),
+  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 2, 2, 1, 8>))
+{
+  test_bulk_add_equals_device_ref<Key, Policy>();
+}
+
+TEST_CASE("bloom_filter: CSBF host bulk add equals device ref add", "")
+{
+  SECTION("z = 2") { test_csbf_bulk_add_equals_device_ref<2>(); }
+  SECTION("z = 4") { test_csbf_bulk_add_equals_device_ref<4>(); }
+  SECTION("z = 8") { test_csbf_bulk_add_equals_device_ref<8>(); }
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter: host bulk contains equals device ref contains",
+  "",
+  ((class Key, class Policy), Key, Policy),
+  (int32_t, cuco::bloom_filter_policy<int32_t>),
+  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 1, 1, 1, 1, 1, 1>),
+  (uint64_t, cuco::bloom_filter_policy<uint64_t, cuco::xxhash_64<uint64_t>, 4, 8, 12, 8, 1, 4, 2>),
+  (float, cuco::bloom_filter_policy<float, cuco::xxhash_64<float>, 8, 4, 4, 2, 2, 1, 2>),
+  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 8, 8, 2, 2, 1, 8>))
+{
+  test_bulk_contains_equals_device_ref<Key, Policy>();
+}
+
+TEST_CASE("bloom_filter: CSBF host bulk contains equals device ref contains", "")
+{
+  SECTION("z = 2") { test_csbf_bulk_contains_equals_device_ref<2>(); }
+  SECTION("z = 4") { test_csbf_bulk_contains_equals_device_ref<4>(); }
+  SECTION("z = 8") { test_csbf_bulk_contains_equals_device_ref<8>(); }
 }

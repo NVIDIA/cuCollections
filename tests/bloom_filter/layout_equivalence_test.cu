@@ -26,6 +26,189 @@
 #include <cstdint>
 #include <type_traits>
 
+template <std::uint32_t GroupsPerBlock>
+void test_csbf_policy_metadata()
+{
+  constexpr std::uint32_t words_per_block = 16;
+  STATIC_REQUIRE(cuco::bloom_filter_policy<int32_t,
+                                           cuco::xxhash_64<int32_t>,
+                                           8,
+                                           words_per_block,
+                                           16,
+                                           GroupsPerBlock,
+                                           words_per_block / GroupsPerBlock,
+                                           GroupsPerBlock,
+                                           words_per_block / GroupsPerBlock,
+                                           false,
+                                           false,
+                                           false,
+                                           GroupsPerBlock>::groups_per_block == GroupsPerBlock);
+  STATIC_REQUIRE(cuco::bloom_filter_policy<int32_t,
+                                           cuco::xxhash_64<int32_t>,
+                                           8,
+                                           words_per_block,
+                                           16,
+                                           GroupsPerBlock,
+                                           words_per_block / GroupsPerBlock,
+                                           GroupsPerBlock,
+                                           words_per_block / GroupsPerBlock,
+                                           false,
+                                           false,
+                                           false,
+                                           GroupsPerBlock>::words_per_group ==
+                 words_per_block / GroupsPerBlock);
+  STATIC_REQUIRE(cuco::bloom_filter_policy<int32_t,
+                                           cuco::xxhash_64<int32_t>,
+                                           8,
+                                           words_per_block,
+                                           16,
+                                           GroupsPerBlock,
+                                           words_per_block / GroupsPerBlock,
+                                           GroupsPerBlock,
+                                           words_per_block / GroupsPerBlock,
+                                           false,
+                                           false,
+                                           false,
+                                           GroupsPerBlock>::is_cache_sectorized);
+  STATIC_REQUIRE((std::is_same_v<cuco::parametric_filter_policy<cuco::xxhash_64<int32_t>,
+                                                                std::uint64_t,
+                                                                words_per_block,
+                                                                16,
+                                                                GroupsPerBlock,
+                                                                words_per_block / GroupsPerBlock,
+                                                                GroupsPerBlock,
+                                                                words_per_block / GroupsPerBlock,
+                                                                false,
+                                                                false,
+                                                                false,
+                                                                GroupsPerBlock>,
+                                 cuco::bloom_filter_policy<int32_t,
+                                                           cuco::xxhash_64<int32_t>,
+                                                           8,
+                                                           words_per_block,
+                                                           16,
+                                                           GroupsPerBlock,
+                                                           words_per_block / GroupsPerBlock,
+                                                           GroupsPerBlock,
+                                                           words_per_block / GroupsPerBlock,
+                                                           false,
+                                                           false,
+                                                           false,
+                                                           GroupsPerBlock>>));
+}
+
+template <std::uint32_t GroupsPerBlock, std::uint32_t AlternateHorizontalLayout>
+void test_csbf_add_layout_equivalence()
+{
+  constexpr std::uint32_t words_per_block = 16;
+  constexpr int32_t num_blocks            = 1'000;
+  constexpr int32_t num_keys              = 400;
+
+  auto expected = cuco::bloom_filter<int32_t,
+                                     cuco::extent<std::size_t>,
+                                     cuda::thread_scope_device,
+                                     cuco::bloom_filter_policy<int32_t,
+                                                               cuco::xxhash_64<int32_t>,
+                                                               8,
+                                                               words_per_block,
+                                                               16,
+                                                               1,
+                                                               words_per_block,
+                                                               1,
+                                                               words_per_block,
+                                                               false,
+                                                               false,
+                                                               false,
+                                                               GroupsPerBlock>>{num_blocks};
+  auto actual =
+    cuco::bloom_filter<int32_t,
+                       cuco::extent<std::size_t>,
+                       cuda::thread_scope_device,
+                       cuco::bloom_filter_policy<int32_t,
+                                                 cuco::xxhash_64<int32_t>,
+                                                 8,
+                                                 words_per_block,
+                                                 16,
+                                                 AlternateHorizontalLayout,
+                                                 words_per_block / AlternateHorizontalLayout,
+                                                 1,
+                                                 words_per_block,
+                                                 false,
+                                                 false,
+                                                 false,
+                                                 GroupsPerBlock>>{num_blocks};
+
+  thrust::device_vector<int32_t> keys(num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+
+  expected.add(keys.begin(), keys.end());
+  actual.add(keys.begin(), keys.end());
+
+  auto const total_words =
+    static_cast<std::size_t>(expected.block_extent()) * decltype(expected)::words_per_block;
+  REQUIRE(
+    thrust::equal(thrust::device, expected.data(), expected.data() + total_words, actual.data()));
+}
+
+template <std::uint32_t GroupsPerBlock, std::uint32_t AlternateHorizontalLayout>
+void test_csbf_contains_layout_equivalence()
+{
+  constexpr std::uint32_t words_per_block = 16;
+  constexpr int32_t num_blocks            = 1'000;
+  constexpr int32_t num_keys              = 400;
+  constexpr int32_t num_probe             = 800;
+
+  auto expected = cuco::bloom_filter<int32_t,
+                                     cuco::extent<std::size_t>,
+                                     cuda::thread_scope_device,
+                                     cuco::bloom_filter_policy<int32_t,
+                                                               cuco::xxhash_64<int32_t>,
+                                                               8,
+                                                               words_per_block,
+                                                               16,
+                                                               GroupsPerBlock,
+                                                               words_per_block / GroupsPerBlock,
+                                                               1,
+                                                               words_per_block,
+                                                               false,
+                                                               false,
+                                                               false,
+                                                               GroupsPerBlock>>{num_blocks};
+  auto actual =
+    cuco::bloom_filter<int32_t,
+                       cuco::extent<std::size_t>,
+                       cuda::thread_scope_device,
+                       cuco::bloom_filter_policy<int32_t,
+                                                 cuco::xxhash_64<int32_t>,
+                                                 8,
+                                                 words_per_block,
+                                                 16,
+                                                 GroupsPerBlock,
+                                                 words_per_block / GroupsPerBlock,
+                                                 AlternateHorizontalLayout,
+                                                 words_per_block / AlternateHorizontalLayout,
+                                                 false,
+                                                 false,
+                                                 false,
+                                                 GroupsPerBlock>>{num_blocks};
+
+  thrust::device_vector<int32_t> insert_keys(num_keys);
+  thrust::sequence(thrust::device, insert_keys.begin(), insert_keys.end());
+  expected.add(insert_keys.begin(), insert_keys.end());
+  actual.add(insert_keys.begin(), insert_keys.end());
+
+  thrust::device_vector<int32_t> probe_keys(num_probe);
+  thrust::sequence(thrust::device, probe_keys.begin(), probe_keys.end());
+  thrust::device_vector<bool> expected_result(num_probe);
+  thrust::device_vector<bool> actual_result(num_probe);
+
+  expected.contains(probe_keys.begin(), probe_keys.end(), expected_result.begin());
+  actual.contains(probe_keys.begin(), probe_keys.end(), actual_result.begin());
+
+  REQUIRE(thrust::equal(
+    thrust::device, expected_result.begin(), expected_result.end(), actual_result.begin()));
+}
+
 TEST_CASE("bloom_filter: word byte selection", "")
 {
   using hash_type      = cuco::xxhash_64<int32_t>;
@@ -35,7 +218,6 @@ TEST_CASE("bloom_filter: word byte selection", "")
     cuco::parametric_filter_policy<hash_type, std::uint32_t, 8, 8, 8, 1, 1, 8, false, false>;
   using legacy_wide_policy =
     cuco::parametric_filter_policy<hash_type, std::uint64_t, 4, 4, 4, 1, 1, 4, false, false>;
-
   STATIC_REQUIRE((std::is_same_v<typename default_policy::word_type, unsigned int>));
   STATIC_REQUIRE((std::is_same_v<typename wide_policy::word_type, unsigned long long int>));
   STATIC_REQUIRE((std::is_same_v<legacy_default_policy, default_policy>));
@@ -44,6 +226,11 @@ TEST_CASE("bloom_filter: word byte selection", "")
   STATIC_REQUIRE(wide_policy::word_bytes == 8);
   STATIC_REQUIRE(default_policy::words_per_block == 8);
   STATIC_REQUIRE(wide_policy::words_per_block == 4);
+  STATIC_REQUIRE(default_policy::groups_per_block == default_policy::words_per_block);
+  STATIC_REQUIRE_FALSE(default_policy::is_cache_sectorized);
+  test_csbf_policy_metadata<2>();
+  test_csbf_policy_metadata<4>();
+  test_csbf_policy_metadata<8>();
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -79,6 +266,16 @@ TEMPLATE_TEST_CASE_SIG(
     static_cast<std::size_t>(filter_default.block_extent()) * filter_default_t::words_per_block;
   REQUIRE(thrust::equal(
     thrust::device, filter_default.data(), filter_default.data() + total_words, filter_alt.data()));
+}
+
+TEST_CASE("bloom_filter: CSBF bitset is invariant under add layout permutations", "")
+{
+  SECTION("z = 2, Theta = 2") { test_csbf_add_layout_equivalence<2, 2>(); }
+  SECTION("z = 4, Theta = 2") { test_csbf_add_layout_equivalence<4, 2>(); }
+  SECTION("z = 4, Theta = 4") { test_csbf_add_layout_equivalence<4, 4>(); }
+  SECTION("z = 8, Theta = 2") { test_csbf_add_layout_equivalence<8, 2>(); }
+  SECTION("z = 8, Theta = 4") { test_csbf_add_layout_equivalence<8, 4>(); }
+  SECTION("z = 8, Theta = 8") { test_csbf_add_layout_equivalence<8, 8>(); }
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -120,6 +317,16 @@ TEMPLATE_TEST_CASE_SIG(
 
   REQUIRE(thrust::equal(
     thrust::device, result_default.begin(), result_default.end(), result_alt.begin()));
+}
+
+TEST_CASE("bloom_filter: CSBF contains results are invariant under layout permutations", "")
+{
+  SECTION("z = 2, Theta = 2") { test_csbf_contains_layout_equivalence<2, 2>(); }
+  SECTION("z = 4, Theta = 2") { test_csbf_contains_layout_equivalence<4, 2>(); }
+  SECTION("z = 4, Theta = 4") { test_csbf_contains_layout_equivalence<4, 4>(); }
+  SECTION("z = 8, Theta = 2") { test_csbf_contains_layout_equivalence<8, 2>(); }
+  SECTION("z = 8, Theta = 4") { test_csbf_contains_layout_equivalence<8, 4>(); }
+  SECTION("z = 8, Theta = 8") { test_csbf_contains_layout_equivalence<8, 8>(); }
 }
 
 TEST_CASE("bloom_filter: bitset is invariant under dynamic vs static cuco::extent", "")

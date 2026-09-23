@@ -41,15 +41,15 @@ namespace cuco {
  * Group, and cooperative bulk variants over iterator ranges `[first, last)` for use inside user
  * kernels.
  *
- * The implementation follows the Sectorized Bloom Filter (SBF) design from "Optimizing Bloom
- * Filters for Modern GPU Architectures" (arXiv:2512.15595,
- * https://arxiv.org/abs/2512.15595). The bit array is partitioned into fixed-size blocks, each
- * consisting of several machine-word segments. One block is selected per key by hashing; the key's
- * fingerprint bits are distributed evenly across the words of that block, confining all probes to
- * a single block. Fingerprint positions are generated via branchless multiplicative hashing.
- * Block size, the number of fingerprint bits, and separate horizontal/vertical vectorization
- * layouts for bulk `add` and `contains` are configured by the `Policy` type (see
- * `cuco/bloom_filter_policy.cuh`).
+ * The implementation follows the Sectorized Bloom Filter (SBF) and Cache-Sectorized Bloom Filter
+ * (CSBF) designs from "Optimizing Bloom Filters for Modern GPU Architectures"
+ * (arXiv:2512.15595, https://arxiv.org/abs/2512.15595). The bit array is partitioned into
+ * fixed-size blocks consisting of several machine-word segments. One block is selected per key by
+ * hashing; the key's fingerprint bits are distributed across the block according to the selected
+ * policy, confining all probes to a single block. Fingerprint positions are generated via
+ * branchless multiplicative hashing. Block size, the number of fingerprint bits,
+ * cache-sectorization groups, and separate horizontal/vertical vectorization layouts for bulk
+ * `add` and `contains` are configured by the `Policy` type (see `cuco/bloom_filter_policy.cuh`).
  *
  * @tparam Key Key type
  * @tparam Extent Size type that is used to determine the number of blocks in the filter
