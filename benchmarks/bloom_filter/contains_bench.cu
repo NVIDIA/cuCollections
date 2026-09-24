@@ -89,7 +89,7 @@ void bloom_filter_contains(nvbench::state& state,
 
     thrust::counting_iterator<Key> key_it(0);
 
-    // insert FPR-optimal number of keys
+    // Populate at a fixed budget of 2 * PatternBits bits per key.
     auto const num_build_keys = (filter_size_mb * 1024 * 1024 * 8) / (2 * PatternBits);
     filter.add(key_it, key_it + num_build_keys);
 

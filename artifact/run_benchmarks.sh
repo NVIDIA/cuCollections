@@ -29,7 +29,7 @@ if [[ "${_IA3_ARTIFACT_LOGGING_ACTIVE:-0}" != "1" ]]; then
   mkdir -p "${output_dir}"
   rm -f "${output_dir}/run.log"
   set +e
-  _IA3_ARTIFACT_LOGGING_ACTIVE=1 "${BASH_SOURCE[0]}" "$@" 2>&1 |
+  _IA3_ARTIFACT_LOGGING_ACTIVE=1 bash "${BASH_SOURCE[0]}" "$@" 2>&1 |
     tee "${output_dir}/run.log"
   pipeline_status=("${PIPESTATUS[@]}")
   if [[ "${pipeline_status[0]}" -ne 0 ]]; then
