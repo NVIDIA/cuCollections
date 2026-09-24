@@ -12,7 +12,7 @@
 #include <cuda/atomic>
 #include <cuda/std/__algorithm/min.h>
 #include <cuda/std/limits>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <cstddef>
 

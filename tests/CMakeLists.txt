@@ -14,7 +14,7 @@ include(CTest)
 CPMAddPackage(
   NAME Catch2
   GITHUB_REPOSITORY catchorg/Catch2
-  VERSION 3.3.0
+  VERSION 3.10.0
 )
 
 # Header for catch_discover_tests
@@ -79,6 +79,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/insert_and_find_test.cu
     static_map/insert_or_assign_test.cu
     static_map/insert_or_apply_test.cu
+    static_map/insert_overload_test.cu
     static_map/key_sentinel_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
@@ -155,4 +156,5 @@ ConfigureTest(BLOOM_FILTER_TEST
 ###################################################################################################
 # - roaring_bitmap ---------------------------------------------------------------------------------
 ConfigureTest(ROARING_BITMAP_TEST
-    roaring_bitmap/contains_test.cu)
+    roaring_bitmap/contains_test.cu
+    roaring_bitmap/build_test.cu)
