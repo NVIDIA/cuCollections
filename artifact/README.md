@@ -99,7 +99,8 @@ Environment variables:
 
 Additional arguments are forwarded to every NVBench executable.
 
-On shared systems, the Docker launcher exposes only one GPU. It uses the first
-device listed in `CUDA_VISIBLE_DEVICES`, or host GPU `0` when that variable is
-unset. Set `GPU_DEVICE` to an explicit host GPU index or UUID when required.
-Inside the container, the selected GPU is logical device `0`.
+On shared systems, the Docker launcher exposes only one GPU. By default, it
+uses the UUID of the first GPU visible through `nvidia-smi`; this avoids
+interpreting a Slurm-local `CUDA_VISIBLE_DEVICES` ordinal as a host GPU index.
+Set `GPU_DEVICE` to an explicit host GPU index or UUID when required. Inside
+the container, the selected GPU is logical device `0`.

@@ -19,6 +19,32 @@ Modes:
 EOF
 }
 
+select_host_device()
+{
+  if [[ -n "${GPU_DEVICE:-}" ]]; then
+    printf '%s\n' "${GPU_DEVICE}"
+    return
+  fi
+
+  if ! command -v nvidia-smi >/dev/null 2>&1; then
+    echo "nvidia-smi is required to select a GPU. Set GPU_DEVICE explicitly." >&2
+    return 1
+  fi
+
+  local gpu_uuid
+  gpu_uuid="$(
+    nvidia-smi --query-gpu=uuid --format=csv,noheader |
+      sed -n '1p' |
+      tr -d '\r'
+  )"
+  if [[ -z "${gpu_uuid}" ]]; then
+    echo "No GPU is visible. Set GPU_DEVICE explicitly if one is available." >&2
+    return 1
+  fi
+
+  printf '%s\n' "${gpu_uuid}"
+}
+
 if [[ $# -lt 1 ]]; then
   usage
   exit 1
@@ -26,8 +52,6 @@ fi
 
 mode="$1"
 shift
-host_device="${GPU_DEVICE:-${CUDA_VISIBLE_DEVICES:-0}}"
-host_device="${host_device%%,*}"
 
 case "${mode}" in
   prepare)
@@ -51,6 +75,7 @@ case "${mode}" in
     filter_sizes=32
     output_name=smoke
     build_only=0
+    host_device="$(select_host_device)"
     docker_gpu_args=(--gpus "device=${host_device}")
     gups_gpu_arch="${GUPS_GPU_ARCH:-}"
     gups_repeats=1
@@ -62,6 +87,7 @@ case "${mode}" in
     filter_sizes=32,1024
     output_name=full
     build_only=0
+    host_device="$(select_host_device)"
     docker_gpu_args=(--gpus "device=${host_device}")
     gups_gpu_arch="${GUPS_GPU_ARCH:-}"
     gups_repeats=5
@@ -81,6 +107,10 @@ image="rapidsai/devcontainers:26.10-cpp-gcc14-cuda13.3-ubuntu24.04@sha256:cc4129
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required." >&2
   exit 1
+fi
+
+if [[ "${build_only}" == "0" ]]; then
+  echo "Exposing host GPU ${host_device} as container device 0"
 fi
 
 mount_args=(-v "${root_dir}:${container_workspace}")
