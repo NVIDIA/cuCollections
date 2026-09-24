@@ -42,10 +42,10 @@ fi
 
 mkdir -p "${output_dir}"
 rm -f \
-  "${output_dir}/gpu_sbf.json" \
-  "${output_dir}/gpu_sbf.csv" \
-  "${output_dir}/gpu_csbf.json" \
-  "${output_dir}/gpu_csbf.csv" \
+  "${output_dir}/sbf.json" \
+  "${output_dir}/sbf.csv" \
+  "${output_dir}/csbf.json" \
+  "${output_dir}/csbf.csv" \
   "${output_dir}/warpcore.json" \
   "${output_dir}/warpcore.csv" \
   "${output_dir}/cbf.json" \
@@ -80,12 +80,12 @@ common_axes=(
 )
 
 run_benchmark \
-  "gpu_sbf" \
+  "sbf" \
   "BLOOM_FILTER_SBF_BENCH" \
   "${common_axes[@]}"
 
 run_benchmark \
-  "gpu_csbf" \
+  "csbf" \
   "BLOOM_FILTER_CSBF_BENCH" \
   "${common_axes[@]}"
 
