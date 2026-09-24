@@ -67,6 +67,8 @@ EXPECTED_IMPLEMENTATION_OPERATIONS = {
     for operation in ("construction", "lookup")
 }
 
+RESULT_FILES = ("sbf.json", "csbf.json", "warpcore.json", "cbf.json")
+
 
 def parse_scalar(value):
     if value is None:
@@ -541,7 +543,10 @@ def main():
     args = parser.parse_args()
 
     rows = []
-    for source in sorted(args.results_dir.glob("*.json")):
+    for filename in RESULT_FILES:
+        source = args.results_dir / filename
+        if not source.exists():
+            raise FileNotFoundError(f"Missing benchmark result file: {source}")
         document = json.loads(source.read_text())
         if "benchmarks" not in document:
             continue

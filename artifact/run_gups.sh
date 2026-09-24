@@ -9,6 +9,7 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 build_dir="${BUILD_DIR:-${root_dir}/build/ia3-artifact}"
 output_dir="${OUTPUT_DIR:-${root_dir}/build/ia3-artifact-results}"
 device="${DEVICE:-0}"
+smi_device="${NVIDIA_SMI_DEVICE:-${device}}"
 logn="${GUPS_LOGN:-27}"
 repeats="${GUPS_REPEATS:-5}"
 accesses_per_element="${GUPS_ACCESSES_PER_ELEMENT:-32}"
@@ -23,7 +24,7 @@ gpu_arch="${GUPS_GPU_ARCH:-}"
 if [[ -z "${gpu_arch}" ]]; then
   gpu_arch="$(
     nvidia-smi \
-      --id="${device}" \
+      --id="${smi_device}" \
       --query-gpu=compute_cap \
       --format=csv,noheader |
       head -n 1 |

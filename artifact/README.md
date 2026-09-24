@@ -65,9 +65,9 @@ horizontal parameter \(\Theta\) and vertical parameter \(\Phi\). CSBF
 benchmarks additionally sweep the valid group counts \(z\).
 
 Construction timing includes every insertion and excludes filter clearing.
-False-positive rates are measured outside the timed lookup region after
-inserting \(m/(2k)\) distinct keys and querying a disjoint sequence of \(N\)
-keys.
+False-positive rates are measured outside the timed lookup region at a fixed
+space budget of \(c=m/n=2k=32\) bits per key. Each filter is populated with
+\(n=m/(2k)\) distinct keys before querying a disjoint sequence of \(N\) keys.
 
 NVBench determines the measurement repetitions and reports both mean GPU time
 and relative noise. The `--profile` option used by the smoke evaluation reduces
@@ -306,6 +306,8 @@ The workflow accepts the following environment variables:
 - `GUPS_GPU_ARCH`: CUDA architecture for the GUPS binary; detected by default.
 - `GPU_TELEMETRY_INTERVAL`: seconds between telemetry samples; defaults to `5`,
   or set to `0` to disable continuous sampling.
+- `NVIDIA_SMI_DEVICE`: physical GPU index or UUID used for diagnostics during
+  direct runs. Set this when `CUDA_VISIBLE_DEVICES` remaps CUDA device ordinals.
 - `SOURCE_COMMIT`: source revision fallback when Git metadata is unavailable.
 
 Additional arguments are forwarded to every NVBench executable.
@@ -321,8 +323,8 @@ the container, the selected GPU is logical device `0`.
 - **Docker permission denied:** Ensure the current user can access the Docker
   daemon, or follow the existing-CUDA-environment instructions instead.
 - **No GPU is visible:** Verify that `nvidia-smi` works in the allocation and
-  that NVIDIA Container Toolkit is configured. Set `GPU_DEVICE` to the
-  allocated GPU UUID when automatic selection is unsuitable.
+  that NVIDIA Container Toolkit is configured. Set `GPU_DEVICE` for Docker GPU
+  selection or `NVIDIA_SMI_DEVICE` for diagnostics during a direct run.
 - **`no kernel image` or unsupported architecture:** Re-run preparation with
   the compute capability of the target GPU and use the same value for
   `CUDA_ARCHITECTURES` during execution.

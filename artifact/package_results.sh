@@ -36,6 +36,7 @@ required_files=(
   normalized_results.csv
   best_results.csv
   comparisons.csv
+  sol_efficiency.csv
   summary.md
   gups.csv
   gups_read.txt

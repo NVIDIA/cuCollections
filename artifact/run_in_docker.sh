@@ -145,6 +145,7 @@ docker run --rm \
   --env "GUPS_REPEATS=${gups_repeats:-1}" \
   --env "GUPS_GPU_ARCH=${gups_gpu_arch}" \
   --env "GPU_TELEMETRY_INTERVAL=${telemetry_interval}" \
+  --env NVIDIA_SMI_DEVICE=0 \
   --env "ARTIFACT_BUILD_ONLY=${build_only}" \
   --env "SOURCE_COMMIT=${source_commit}" \
   "${mount_args[@]}" \
