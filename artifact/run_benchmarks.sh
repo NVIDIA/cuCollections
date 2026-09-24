@@ -14,30 +14,15 @@ cuda_architectures="${CUDA_ARCHITECTURES:-native}"
 jobs="${JOBS:-$(nproc)}"
 device="${DEVICE:-0}"
 build_only="${ARTIFACT_BUILD_ONLY:-0}"
+telemetry_interval="${GPU_TELEMETRY_INTERVAL:-5}"
 source_commit="${SOURCE_COMMIT:-}"
 nvbench_args=("$@")
 
-cmake -S "${root_dir}" -B "${build_dir}" \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_CUDA_ARCHITECTURES="${cuda_architectures}" \
-  -DGPU_ARCHS="${cuda_architectures}" \
-  -DBUILD_TESTS=OFF \
-  -DBUILD_BENCHMARKS=ON \
-  -DBUILD_EXAMPLES=OFF \
-  -DCUCO_DOWNLOAD_ROARING_TESTDATA=OFF
-
-cmake --build "${build_dir}" \
-  --target \
-    BLOOM_FILTER_SBF_BENCH \
-    BLOOM_FILTER_CSBF_BENCH \
-    WARPCORE_BLOOM_FILTER_BENCH \
-    BLOOM_FILTER_CBF_BENCH \
-  -j "${jobs}"
-
-if [[ "${build_only}" == "1" ]]; then
-  GUPS_BUILD_ONLY=1 "${root_dir}/artifact/run_gups.sh"
-  echo "Artifact dependencies and benchmark binaries are ready in ${build_dir}"
-  exit 0
+if [[ "${build_only}" != "1" && "${telemetry_interval}" != "0" ]]; then
+  if [[ ! "${telemetry_interval}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "GPU_TELEMETRY_INTERVAL must be zero or a positive integer." >&2
+    exit 1
+  fi
 fi
 
 mkdir -p "${output_dir}"
@@ -53,10 +38,71 @@ rm -f \
   "${output_dir}/gups.csv" \
   "${output_dir}/gups_read.txt" \
   "${output_dir}/gups_write.txt" \
+  "${output_dir}/bloom_filter_tests.log" \
+  "${output_dir}/gpu_state_before.csv" \
+  "${output_dir}/gpu_state_after.csv" \
+  "${output_dir}/gpu_telemetry.csv" \
   "${output_dir}/metadata.json" \
   "${output_dir}/normalized_results.csv" \
   "${output_dir}/best_results.csv" \
-  "${output_dir}/sol_efficiency.csv"
+  "${output_dir}/sol_efficiency.csv" \
+  "${output_dir}/comparisons.csv" \
+  "${output_dir}/summary.md" \
+  "${output_dir}/run.log"
+
+exec > >(tee "${output_dir}/run.log") 2>&1
+
+cmake -S "${root_dir}" -B "${build_dir}" \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_CUDA_ARCHITECTURES="${cuda_architectures}" \
+  -DGPU_ARCHS="${cuda_architectures}" \
+  -DBUILD_TESTS=ON \
+  -DBUILD_BENCHMARKS=ON \
+  -DBUILD_EXAMPLES=OFF \
+  -DCUCO_DOWNLOAD_ROARING_TESTDATA=OFF
+
+cmake --build "${build_dir}" \
+  --target \
+    BLOOM_FILTER_SBF_BENCH \
+    BLOOM_FILTER_CSBF_BENCH \
+    WARPCORE_BLOOM_FILTER_BENCH \
+    BLOOM_FILTER_CBF_BENCH \
+    BLOOM_FILTER_TEST \
+  -j "${jobs}"
+
+if [[ "${build_only}" == "1" ]]; then
+  GUPS_BUILD_ONLY=1 "${root_dir}/artifact/run_gups.sh"
+  echo "Artifact dependencies and benchmark binaries are ready in ${build_dir}"
+  exit 0
+fi
+
+echo "Running Bloom filter correctness tests"
+"${build_dir}/tests/BLOOM_FILTER_TEST" --reporter compact --rng-seed 12345 2>&1 |
+  tee "${output_dir}/bloom_filter_tests.log"
+
+telemetry_pid=""
+gpu_snapshot_fields="timestamp,index,uuid,name,pci.bus_id,driver_version,pstate,temperature.gpu,power.draw,power.limit,clocks.current.graphics,clocks.current.memory,clocks.max.graphics,clocks.max.memory,memory.total,memory.used"
+gpu_telemetry_fields="timestamp,index,uuid,pstate,temperature.gpu,power.draw,power.limit,clocks.current.graphics,clocks.current.memory,memory.used"
+stop_gpu_telemetry()
+{
+  if [[ -n "${telemetry_pid}" ]]; then
+    kill "${telemetry_pid}" 2>/dev/null || true
+    wait "${telemetry_pid}" 2>/dev/null || true
+    telemetry_pid=""
+  fi
+}
+trap stop_gpu_telemetry EXIT
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi --id="${device}" --query-gpu="${gpu_snapshot_fields}" \
+    --format=csv >"${output_dir}/gpu_state_before.csv" || true
+
+  if [[ "${telemetry_interval}" != "0" ]]; then
+    nvidia-smi --id="${device}" --query-gpu="${gpu_telemetry_fields}" \
+      --format=csv --loop="${telemetry_interval}" >"${output_dir}/gpu_telemetry.csv" 2>&1 &
+    telemetry_pid="$!"
+  fi
+fi
 
 run_benchmark()
 {
@@ -101,6 +147,13 @@ run_benchmark \
 
 "${root_dir}/artifact/run_gups.sh"
 
+stop_gpu_telemetry
+trap - EXIT
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi --id="${device}" --query-gpu="${gpu_snapshot_fields}" \
+    --format=csv >"${output_dir}/gpu_state_after.csv" || true
+fi
+
 python3 - \
   "${root_dir}" \
   "${output_dir}" \
@@ -111,6 +164,7 @@ python3 - \
   "${device}" \
   "${source_commit}" <<'PY'
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -128,22 +182,31 @@ def command(*args):
         return None
 
 
+git_commit = command("git", "rev-parse", "HEAD")
+git_status = command("git", "status", "--porcelain")
+
 metadata = {
     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-    "git_commit": command("git", "rev-parse", "HEAD") or sys.argv[8] or "unknown",
+    "git_commit": git_commit or sys.argv[8] or "unknown",
+    "git_dirty": None if git_status is None else bool(git_status),
+    "hostname": platform.node(),
     "num_inputs": int(sys.argv[3]),
     "filter_sizes_mb": [int(value) for value in sys.argv[4].split(",")],
     "cuda_architectures": sys.argv[5],
     "nvbench_arguments": sys.argv[6],
     "device": int(sys.argv[7]),
+    "correctness_tests": "passed",
     "platform": platform.platform(),
     "cuda_compiler": command("nvcc", "--version"),
     "host_compiler": command("c++", "--version"),
     "gpu": command(
         "nvidia-smi",
+        "--id",
+        sys.argv[7],
         "--query-gpu=name,driver_version,memory.total",
         "--format=csv,noheader",
     ),
+    "gpu_telemetry_interval_seconds": int(os.environ.get("GPU_TELEMETRY_INTERVAL", "5")),
 }
 
 (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")

@@ -103,6 +103,7 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 container_workspace="/workspace/cuCollections"
 source_commit="$(git -C "${root_dir}" rev-parse HEAD 2>/dev/null || true)"
 image="rapidsai/devcontainers:26.10-cpp-gcc14-cuda13.3-ubuntu24.04@sha256:cc412951e7384e28a1eae61f887b5b935a2a28fe1b28852241bbe898454b1a1f"
+telemetry_interval="${GPU_TELEMETRY_INTERVAL:-5}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required." >&2
@@ -143,6 +144,7 @@ docker run --rm \
   --env GUPS_LOGN=27 \
   --env "GUPS_REPEATS=${gups_repeats:-1}" \
   --env "GUPS_GPU_ARCH=${gups_gpu_arch}" \
+  --env "GPU_TELEMETRY_INTERVAL=${telemetry_interval}" \
   --env "ARTIFACT_BUILD_ONLY=${build_only}" \
   --env "SOURCE_COMMIT=${source_commit}" \
   "${mount_args[@]}" \

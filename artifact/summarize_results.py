@@ -48,6 +48,25 @@ SOL_FIELDS = [
     "efficiency_percent",
 ]
 
+COMPARISON_FIELDS = [
+    "comparison",
+    "operation",
+    "filter_size_mb",
+    "block_bits",
+    "groups_per_block",
+    "candidate_throughput_gelem_s",
+    "baseline_throughput_gelem_s",
+    "speedup",
+    "candidate_false_positive_rate",
+    "baseline_false_positive_rate",
+]
+
+EXPECTED_IMPLEMENTATION_OPERATIONS = {
+    (implementation, operation)
+    for implementation in ("GPU SBF", "GPU CSBF", "WC BBF", "GPU CBF")
+    for operation in ("construction", "lookup")
+}
+
 
 def parse_scalar(value):
     if value is None:
@@ -149,9 +168,46 @@ def normalized_row(source, benchmark, state):
     }
 
 
-def write_csv(path, rows):
+def validate_rows(rows):
+    unknown = [row["benchmark"] for row in rows if row["implementation"] == "unknown"]
+    if unknown:
+        raise ValueError(f"Unrecognized benchmark names: {', '.join(sorted(set(unknown)))}")
+
+    valid_rows = [
+        row for row in rows if not row["skipped"] and row["throughput_gelem_s"] is not None
+    ]
+    observed = {(row["implementation"], row["operation"]) for row in valid_rows}
+    missing = EXPECTED_IMPLEMENTATION_OPERATIONS - observed
+    if missing:
+        formatted = ", ".join(
+            f"{implementation} {operation}" for implementation, operation in sorted(missing)
+        )
+        raise ValueError(f"Missing valid benchmark results for: {formatted}")
+
+    missing_fpr = []
+    for implementation in sorted({row["implementation"] for row in valid_rows}):
+        if not any(
+            row["implementation"] == implementation
+            and row["operation"] == "lookup"
+            and row["false_positive_rate"] is not None
+            for row in valid_rows
+        ):
+            missing_fpr.append(implementation)
+    if missing_fpr:
+        raise ValueError(
+            "Missing false-positive-rate measurements for: " + ", ".join(missing_fpr)
+        )
+
+    return {
+        "total_rows": len(rows),
+        "valid_rows": len(valid_rows),
+        "skipped_rows": len(rows) - len(valid_rows),
+    }
+
+
+def write_csv(path, rows, fieldnames=FIELDS):
     with path.open("w", newline="") as output:
-        writer = csv.DictWriter(output, fieldnames=FIELDS)
+        writer = csv.DictWriter(output, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -159,7 +215,8 @@ def write_csv(path, rows):
 def write_sol_efficiency(results_dir, best_rows):
     gups_path = results_dir / "gups.csv"
     if not gups_path.exists():
-        return
+        write_csv(results_dir / "sol_efficiency.csv", [], SOL_FIELDS)
+        return []
 
     with gups_path.open(newline="") as input_file:
         gups = next(csv.DictReader(input_file))
@@ -191,10 +248,278 @@ def write_sol_efficiency(results_dir, best_rows):
             }
         )
 
-    with (results_dir / "sol_efficiency.csv").open("w", newline="") as output:
-        writer = csv.DictWriter(output, fieldnames=SOL_FIELDS)
-        writer.writeheader()
-        writer.writerows(rows)
+    write_csv(results_dir / "sol_efficiency.csv", rows, SOL_FIELDS)
+    return rows
+
+
+def build_comparisons(best_rows):
+    def configuration_key(row):
+        return (
+            row["implementation"],
+            row["filter_size_mb"],
+            row["block_bits"],
+            row["pattern_bits"],
+            row["groups_per_block"],
+        )
+
+    lookup_fpr = {
+        configuration_key(row): row["false_positive_rate"]
+        for row in best_rows
+        if row["operation"] == "lookup"
+    }
+
+    def false_positive_rate(row):
+        return lookup_fpr.get(configuration_key(row))
+
+    sbf = {
+        (row["operation"], row["filter_size_mb"], row["block_bits"]): row
+        for row in best_rows
+        if row["implementation"] == "GPU SBF"
+    }
+    warpcore = {
+        (row["operation"], row["filter_size_mb"], row["block_bits"]): row
+        for row in best_rows
+        if row["implementation"] == "WC BBF"
+    }
+    cbf = {
+        (row["operation"], row["filter_size_mb"]): row
+        for row in best_rows
+        if row["implementation"] == "GPU CBF"
+    }
+
+    csbf = {}
+    for row in best_rows:
+        if row["implementation"] != "GPU CSBF":
+            continue
+        key = (row["operation"], row["filter_size_mb"], row["block_bits"])
+        if key not in csbf or row["throughput_gelem_s"] > csbf[key]["throughput_gelem_s"]:
+            csbf[key] = row
+
+    comparisons = []
+
+    def append_comparison(name, candidate, baseline):
+        comparisons.append(
+            {
+                "comparison": name,
+                "operation": candidate["operation"],
+                "filter_size_mb": candidate["filter_size_mb"],
+                "block_bits": candidate["block_bits"],
+                "groups_per_block": (
+                    candidate["groups_per_block"]
+                    if candidate["implementation"] == "GPU CSBF"
+                    else None
+                ),
+                "candidate_throughput_gelem_s": candidate["throughput_gelem_s"],
+                "baseline_throughput_gelem_s": baseline["throughput_gelem_s"],
+                "speedup": candidate["throughput_gelem_s"] / baseline["throughput_gelem_s"],
+                "candidate_false_positive_rate": false_positive_rate(candidate),
+                "baseline_false_positive_rate": false_positive_rate(baseline),
+            }
+        )
+
+    for key in sorted(set(sbf) & set(warpcore)):
+        append_comparison("SBF / WC BBF", sbf[key], warpcore[key])
+
+    for key, baseline in sorted(cbf.items()):
+        operation, filter_size_mb = key
+        candidate = sbf.get((operation, filter_size_mb, 256))
+        if candidate is not None:
+            append_comparison("SBF(B=256) / GPU CBF", candidate, baseline)
+
+    for key in sorted(set(sbf) & set(csbf)):
+        append_comparison("CSBF / SBF", csbf[key], sbf[key])
+
+    return sorted(
+        comparisons,
+        key=lambda row: sort_key(
+            row, ["comparison", "filter_size_mb", "operation", "block_bits"]
+        ),
+    )
+
+
+def markdown_value(value, digits=2):
+    if value is None or value == "":
+        return "-"
+    if isinstance(value, float):
+        if value != 0 and abs(value) < 0.001:
+            return f"{value:.3e}"
+        return f"{value:.{digits}f}"
+    return str(value).replace("|", "\\|").replace("\n", "<br>")
+
+
+def append_markdown_table(lines, headers, rows):
+    lines.append("| " + " | ".join(headers) + " |")
+    lines.append("| " + " | ".join("---" for _ in headers) + " |")
+    for row in rows:
+        lines.append("| " + " | ".join(markdown_value(value) for value in row) + " |")
+    lines.append("")
+
+
+def write_summary(results_dir, best_rows, comparisons, sol_rows, validation):
+    lines = [
+        "# Artifact Result Summary",
+        "",
+        "This report summarizes the measurements from this run. It intentionally does not",
+        "apply universal pass/fail thresholds because absolute throughput depends on the GPU,",
+        "clock configuration, driver, and system load.",
+        "",
+    ]
+
+    lines.extend(
+        [
+            "## Validation",
+            "",
+            "- Structural result checks: `passed`",
+            f"- Parsed benchmark states: {validation['total_rows']}",
+            f"- Valid benchmark states: {validation['valid_rows']}",
+            f"- Intentionally skipped parameter combinations: {validation['skipped_rows']}",
+            "",
+        ]
+    )
+
+    metadata_path = results_dir / "metadata.json"
+    if metadata_path.exists():
+        metadata = json.loads(metadata_path.read_text())
+        git_dirty = metadata.get("git_dirty")
+        if git_dirty is True:
+            working_tree = "yes"
+        elif git_dirty is False:
+            working_tree = "no"
+        else:
+            working_tree = "unknown"
+        lines.extend(
+            [
+                "## Environment",
+                "",
+                f"- Source commit: `{metadata.get('git_commit', 'unknown')}`",
+                f"- Modified working tree: `{working_tree}`",
+                f"- Host: `{metadata.get('hostname', 'unknown')}`",
+                f"- GPU: {markdown_value(metadata.get('gpu', 'unknown'))}",
+                f"- CUDA architecture: `{metadata.get('cuda_architectures', 'unknown')}`",
+                f"- Input keys: {metadata.get('num_inputs', 'unknown')}",
+                f"- Bloom-filter correctness tests: `{metadata.get('correctness_tests', 'unknown')}`",
+                "",
+            ]
+        )
+
+    gups_path = results_dir / "gups.csv"
+    if gups_path.exists():
+        with gups_path.open(newline="") as input_file:
+            gups = next(csv.DictReader(input_file))
+        lines.extend(["## Random-Access Bounds", ""])
+        append_markdown_table(
+            lines,
+            ["Table size (MiB)", "Read (GUPS)", "Write (GUPS)"],
+            [
+                [
+                    int(gups["table_bytes"]) // (1024 * 1024),
+                    float(gups["read_gups"]),
+                    float(gups["write_gups"]),
+                ]
+            ],
+        )
+
+    sbf_rows = [row for row in best_rows if row["implementation"] == "GPU SBF"]
+    lines.extend(["## Best SBF Layouts", ""])
+    append_markdown_table(
+        lines,
+        ["Operation", "Filter (MiB)", "Block (bits)", "Theta", "Phi", "GElem/s", "FPR"],
+        [
+            [
+                row["operation"],
+                row["filter_size_mb"],
+                row["block_bits"],
+                row["horizontal_layout"],
+                row["vertical_layout"],
+                row["throughput_gelem_s"],
+                row["false_positive_rate"],
+            ]
+            for row in sbf_rows
+        ],
+    )
+
+    lines.extend(
+        [
+            "## Relative Throughput",
+            "",
+            "Ratios are computed from this run. WC BBF comparisons use the same block size;",
+            "GPU CBF comparisons use the SBF with a 256-bit block; CSBF comparisons use",
+            "the fastest CSBF group/layout for the same block size. Construction rows show",
+            "the FPR measured by the corresponding lookup configuration.",
+            "",
+        ]
+    )
+    append_markdown_table(
+        lines,
+        [
+            "Comparison",
+            "Operation",
+            "Filter (MiB)",
+            "Block (bits)",
+            "CSBF groups",
+            "Candidate (GElem/s)",
+            "Baseline (GElem/s)",
+            "Ratio",
+            "Candidate FPR",
+            "Baseline FPR",
+        ],
+        [
+            [
+                row["comparison"],
+                row["operation"],
+                row["filter_size_mb"],
+                row["block_bits"],
+                row["groups_per_block"] if row["comparison"] == "CSBF / SBF" else None,
+                row["candidate_throughput_gelem_s"],
+                row["baseline_throughput_gelem_s"],
+                f"{row['speedup']:.2f}x",
+                row["candidate_false_positive_rate"],
+                row["baseline_false_positive_rate"],
+            ]
+            for row in comparisons
+        ],
+    )
+
+    lines.extend(["## SBF Speed-of-Light Efficiency", ""])
+    if sol_rows:
+        append_markdown_table(
+            lines,
+            ["Operation", "Filter (MiB)", "Block (bits)", "GElem/s", "Bound", "Efficiency"],
+            [
+                [
+                    row["operation"],
+                    row["filter_size_mb"],
+                    row["block_bits"],
+                    row["throughput_gelem_s"],
+                    row["bound_gups"],
+                    f"{row['efficiency_percent']:.1f}%",
+                ]
+                for row in sol_rows
+            ],
+        )
+    else:
+        lines.extend(
+            [
+                "No SBF result matched the GUPS table size. This is expected for the smoke",
+                "configuration; run the paper-scale evaluation to produce this comparison.",
+                "",
+            ]
+        )
+
+    supporting_files = [
+        ("bloom_filter_tests.log", "Bloom-filter correctness tests"),
+        ("gpu_state_before.csv", "GPU state before execution"),
+        ("gpu_state_after.csv", "GPU state after execution"),
+        ("gpu_telemetry.csv", "Periodic clock, power, temperature, and memory samples"),
+        ("run.log", "Complete build, test, and benchmark log"),
+    ]
+    lines.extend(["## Supporting Files", ""])
+    for filename, description in supporting_files:
+        if (results_dir / filename).exists():
+            lines.append(f"- {description}: `{filename}`")
+    lines.append("")
+
+    (results_dir / "summary.md").write_text("\n".join(lines))
 
 
 def sort_key(row, fields):
@@ -225,6 +550,7 @@ def main():
             for state in benchmark.get("states", []):
                 rows.append(normalized_row(source, name, state))
 
+    validation = validate_rows(rows)
     rows.sort(key=lambda row: sort_key(row, BEST_KEYS + ["horizontal_layout", "vertical_layout"]))
     write_csv(args.results_dir / "normalized_results.csv", rows)
 
@@ -238,7 +564,11 @@ def main():
 
     best_rows = sorted(best.values(), key=lambda row: sort_key(row, BEST_KEYS))
     write_csv(args.results_dir / "best_results.csv", best_rows)
-    write_sol_efficiency(args.results_dir, best_rows)
+    sol_rows = write_sol_efficiency(args.results_dir, best_rows)
+
+    comparisons = build_comparisons(best_rows)
+    write_csv(args.results_dir / "comparisons.csv", comparisons, COMPARISON_FIELDS)
+    write_summary(args.results_dir, best_rows, comparisons, sol_rows, validation)
 
 
 if __name__ == "__main__":
