@@ -8,6 +8,7 @@
 #include <cuco/bloom_filter_policy.cuh>
 #include <cuco/bloom_filter_ref.cuh>
 #include <cuco/detail/storage/storage_base.cuh>
+#include <cuco/detail/utility/strong_type.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/utility/allocator.hpp>
@@ -16,6 +17,7 @@
 #include <cuda/atomic>
 #include <cuda/std/array>
 #include <cuda/std/cstddef>
+#include <cuda/std/type_traits>
 #include <cuda/stream>
 
 #include <cstddef>
@@ -23,6 +25,11 @@
 #include <memory>
 
 namespace cuco {
+
+/**
+ * @brief A strong type wrapper for specifying a Bloom filter storage budget in bytes.
+ */
+CUCO_DEFINE_STRONG_TYPE(bloom_filter_bytes, std::size_t)
 
 /**
  * @brief A GPU-accelerated Bloom filter.
@@ -115,6 +122,40 @@ class bloom_filter {
                                  Policy const& policy           = {},
                                  Allocator const& alloc         = {},
                                  cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
+   * @brief Constructs a Bloom filter within a storage budget in bytes.
+   *
+   * The allocated size is rounded down to a whole number of filter blocks and capped at
+   * `max_size()`.
+   *
+   * @note This overload requires a dynamic extent.
+   *
+   * @throws cuco::logic_error If the budget cannot accommodate one filter block
+   *
+   * @param size_bytes Storage budget in bytes
+   * @param scope The scope in which operations will be performed
+   * @param policy Fingerprint generation policy
+   * @param alloc Allocator used for allocating device-accessible storage
+   * @param stream CUDA stream used to initialize the filter
+   */
+  template <class E = Extent,
+            class   = cuda::std::enable_if_t<
+                cuda::std::is_same_v<E, cuco::extent<typename Extent::value_type>>>>
+  __host__ explicit bloom_filter(bloom_filter_bytes size_bytes,
+                                 cuda_thread_scope<Scope> scope = {},
+                                 Policy const& policy           = {},
+                                 Allocator const& alloc         = {},
+                                 cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
+
+  /**
+   * @brief Returns the maximum storage size in bytes supported by the policy and size type.
+   *
+   * @note This limit does not account for available device memory or a particular static extent.
+   *
+   * @return Maximum storage size in bytes
+   */
+  [[nodiscard]] __host__ static constexpr std::size_t max_size() noexcept;
 
   /**
    * @brief Erases all information from the filter.
