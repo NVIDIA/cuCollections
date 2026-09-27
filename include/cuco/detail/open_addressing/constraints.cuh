@@ -64,7 +64,8 @@ struct open_addressing_compatible {
     }(),
     "Payload type must have unique object representations or have been explicitly "
     "declared as safe for bitwise comparison via specialization of "
-    "cuco::is_bitwise_comparable_v<T>.");
+    "cuco::is_bitwise_comparable_v<T> or have opted-out by disabling "
+    "CUDA_REQUIRE_BITWISE_COMPARABLE_PAYLOADS.");
 
   static_assert(cuda::std::is_base_of_v<cuco::detail::probing_scheme_base<ProbingScheme::cg_size>,
                                         ProbingScheme>,

@@ -66,7 +66,8 @@ struct bucket_probing_results {
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::is_bitwise_comparable_v<Key> == false`
  * @throw If the given payload type doesn't have unique object representations, i.e.,
- * `cuco::is_bitwise_comparable_v<T> == false`
+ * `cuco::is_bitwise_comparable_v<T> == false` unless `CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS ==
+ * 0`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
  * @tparam Key Type used for keys. Requires `sizeof(Key) <= cuco::open_addressing_max_key_size` and
@@ -77,7 +78,7 @@ struct bucket_probing_results {
  * @tparam StorageRef Storage ref type. Its `value_type` must fit in
  * `cuco::open_addressing_max_slot_size`;
  * payloads, if present, must be 4 or 8 bytes (or 16 with sm_90+) and satisfy
- * `cuco::is_bitwise_comparable_v<T>`
+ * `cuco::is_bitwise_comparable_v<T>` or `CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS == 0`
  * @tparam AllowsDuplicates Flag indicating whether duplicate keys are allowed or not
  */
 template <typename Key,
