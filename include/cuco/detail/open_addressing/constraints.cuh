@@ -56,7 +56,8 @@ struct open_addressing_compatible {
   static_assert(
     [] {
       if constexpr (has_payload) {
-        return cuco::is_bitwise_comparable_v<typename Value::second_type>;
+        return cuco::is_bitwise_comparable_v<typename Value::second_type> or
+               !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS;
       } else {
         return true;
       }

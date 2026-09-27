@@ -920,7 +920,9 @@ class operator_impl<
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
-    auto constexpr wait_for_payload = (not UseDirectApply) and ((sizeof(value_type) > 8) or !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS);
+    auto constexpr wait_for_payload =
+      (not UseDirectApply) and
+      ((sizeof(value_type) > 8) or !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS);
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];
@@ -998,7 +1000,9 @@ class operator_impl<
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
-    auto constexpr wait_for_payload = (not UseDirectApply) and ((sizeof(value_type) > 8) or !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS);
+    auto constexpr wait_for_payload =
+      (not UseDirectApply) and
+      ((sizeof(value_type) > 8) or !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS);
 
     while (true) {
       auto const bucket_slots = storage_ref[*probing_iter];

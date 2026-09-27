@@ -1831,7 +1831,8 @@ class open_addressing_ref_impl
       return packed_cas(address, expected, desired);
     }
 #if (__CUDA_ARCH__ >= 900)
-    else if constexpr (cuco::detail::is_packable<value_type>() && CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
+    else if constexpr (cuco::detail::is_packable<value_type>() &&
+                       CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
       return packed_cas(address, expected, desired);
     }
 #endif
@@ -1874,7 +1875,8 @@ class open_addressing_ref_impl
       return packed_cas(address, expected, desired);
     }
 #if (__CUDA_ARCH__ >= 900)
-    else if constexpr (cuco::detail::is_packable<value_type>() && CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
+    else if constexpr (cuco::detail::is_packable<value_type>() &&
+                       CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
       return packed_cas(address, expected, desired);
     }
 #endif
@@ -1926,9 +1928,11 @@ class open_addressing_ref_impl
   template <typename SlotPtr>
   __device__ void maybe_wait_for_payload(SlotPtr slot_ptr) noexcept
   {
-    if constexpr (has_payload and (sizeof(value_type) > 8 or !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS)) {
+    if constexpr (has_payload and
+                  (sizeof(value_type) > 8 or !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS)) {
 #if (__CUDA_ARCH__ >= 900)
-      if constexpr (not cuco::detail::is_packable<value_type>() or !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
+      if constexpr (not cuco::detail::is_packable<value_type>() or
+                    !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
         this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
       }
 #else

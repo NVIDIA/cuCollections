@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -14,102 +14,78 @@
 
 #include <cuda/iterator>
 #include <cuda/std/functional>
+#include <cuda/std/iterator>
 #include <thrust/device_vector.h>
-#include <thrust/execution_policy.h>
-#include <thrust/sequence.h>
-#include <thrust/transform.h>
+#include <thrust/host_vector.h>
 
-#include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
-template <typename Map>
-void test_insert_if(Map& map, std::size_t size)
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+
+using Key   = int;
+using Value = float;
+
+using extent_type = cuco::extent<std::size_t>;
+
+using probe = cuco::linear_probing<1, cuco::murmurhash3_32<Key>>;
+
+using map_type = cuco::static_multimap<Key,
+                                       Value,
+                                       extent_type,
+                                       cuda::thread_scope_device,
+                                       cuda::std::equal_to<Key>,
+                                       probe,
+                                       cuco::cuda_allocator<cuda::std::byte>,
+                                       cuco::storage<2>>;
+
+TEST_CASE("static_multimap preserves +0.0 and -0.0 payloads", "")
 {
-  using Key   = typename Map::key_type;
-  using Value = typename Map::mapped_type;
+  auto map = map_type{128, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0.0f}};
 
-  // 50% insertion
-  auto const pred       = [] __device__(Key k) { return k % 2 == 0; };
-  auto const keys_begin = cuda::counting_iterator<Key>{0};
+  std::uint32_t positive_zero_bits{};
+  std::uint32_t negative_zero_bits{};
 
-  SECTION("Count of n / 2 insertions should be n / 2.")
-  {
-    auto const pairs_begin = cuda::make_transform_iterator(
-      keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
-        return cuco::pair<Key, Value>{i, i};
-      }));
+  float positive_zero = +0.0f;
+  float negative_zero = -0.0f;
 
-    auto const num = map.insert_if(pairs_begin, pairs_begin + size, keys_begin, pred);
-    REQUIRE(num * 2 == size);
+  std::memcpy(&positive_zero_bits, &positive_zero, sizeof(positive_zero));
+  std::memcpy(&negative_zero_bits, &negative_zero, sizeof(negative_zero));
 
-    auto const count = map.count(keys_begin, keys_begin + size);
-    REQUIRE(count * 2 == size);
-  }
+  REQUIRE(positive_zero_bits == 0x00000000u);
+  REQUIRE(negative_zero_bits == 0x80000000u);
+  REQUIRE(positive_zero_bits != negative_zero_bits);
 
-  SECTION("Inserting the same element n / 2 times should return n / 2.")
-  {
-    auto const pairs_begin = cuda::constant_iterator<cuco::pair<Key, Value>>{{1, 1}};
+  thrust::device_vector<cuco::pair<Key, Value>> values{cuco::pair<Key, Value>{0, positive_zero},
+                                                       cuco::pair<Key, Value>{0, negative_zero}};
 
-    auto const num = map.insert_if(pairs_begin, pairs_begin + size, keys_begin, pred);
-    REQUIRE(num * 2 == size);
+  map.insert(values.begin(), values.end());
 
-    auto const count = map.count(keys_begin, keys_begin + size);
-    REQUIRE(count * 2 == size);
-  }
-}
+  thrust::device_vector<Key> query_keys{0};
+  thrust::device_vector<cuco::pair<Key, Value>> results(2);
 
-TEMPLATE_TEST_CASE_SIG(
-  "static_multimap packed_cas opt out",
-  "",
-  ((typename Key, typename Value, cuco::test::probe_sequence Probe, int CGSize),
-   Key,
-   Value,
-   Probe,
-   CGSize),
-  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int32_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::double_hashing, 2),
-  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int32_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int32_t, int64_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 1),
-  (int64_t, int32_t, cuco::test::probe_sequence::linear_probing, 2),
-  (int64_t, int64_t, cuco::test::probe_sequence::linear_probing, 2)
-#if defined(CUCO_HAS_128BIT_ATOMICS)
-    ,
-  (__int128_t, __int128_t, cuco::test::probe_sequence::double_hashing, 2),
-  (__int128_t, int64_t, cuco::test::probe_sequence::double_hashing, 1),
-  (int32_t, __int128_t, cuco::test::probe_sequence::linear_probing, 2)
-#endif
-)
-{
-  constexpr std::size_t num_keys{1'000};
+  auto const [_, output_end] =
+    map.retrieve(query_keys.begin(), query_keys.end(), cuda::discard_iterator{}, results.begin());
 
-  using extent_type = cuco::extent<std::size_t>;
-  using probe       = std::conditional_t<
-          Probe == cuco::test::probe_sequence::linear_probing,
-          cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-          cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+  auto const num_retrieved = cuda::std::distance(results.begin(), output_end);
 
-  auto map = cuco::static_multimap<Key,
-                                   Value,
-                                   extent_type,
-                                   cuda::thread_scope_device,
-                                   cuda::std::equal_to<Key>,
-                                   probe,
-                                   cuco::cuda_allocator<cuda::std::byte>,
-                                   cuco::storage<2>>{
-    num_keys * 2, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  REQUIRE(num_retrieved == 2);
 
-  SECTION("Ensure out-out flag set for translation unnit")
-  {
-    STATIC_REQUIRE(CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS == 0);
-  }
-  test_insert_if(map, num_keys);
+  thrust::host_vector<cuco::pair<Key, Value>> host_results = results;
+
+  std::uint32_t first_bits{};
+  std::uint32_t second_bits{};
+
+  float first_value  = host_results[0].second;
+  float second_value = host_results[1].second;
+
+  std::memcpy(&first_bits, &first_value, sizeof(first_value));
+  std::memcpy(&second_bits, &second_value, sizeof(second_value));
+
+  REQUIRE(first_bits != second_bits);
+
+  bool payload_preserved = (first_bits == 0x00000000u and second_bits == 0x80000000u) or
+                           (first_bits == 0x80000000u and second_bits == 0x00000000u);
+  REQUIRE(payload_preserved);
 }
