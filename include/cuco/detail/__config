@@ -19,8 +19,8 @@
 #error "Support for extended device lambdas is required (nvcc flag --expt-extended-lambda)"
 #endif
 
-#if !defined(CCCL_VERSION) || (CCCL_VERSION < 3000000)
-#error "CCCL version 3.0.0 or later is required"
+#if !defined(CCCL_VERSION) || (CCCL_VERSION < 3002000)
+#error "CCCL version 3.2.0 or later is required"
 #endif
 
 // WAR for cuCollections/804: work around the nvcc __cuda_is_local / isspacep.local

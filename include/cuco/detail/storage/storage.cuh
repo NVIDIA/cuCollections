@@ -7,7 +7,7 @@
 
 #include <cuco/bucket_storage.cuh>
 
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 namespace cuco::detail {
 /**

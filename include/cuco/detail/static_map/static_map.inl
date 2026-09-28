@@ -13,7 +13,7 @@
 #include <cuco/storage.cuh>
 
 #include <cuda/std/tuple>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <algorithm>
 #include <cstddef>

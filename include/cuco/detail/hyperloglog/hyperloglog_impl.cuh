@@ -25,7 +25,7 @@
 #include <cuda/std/span>
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <cooperative_groups.h>
 #include <cooperative_groups/reduce.h>

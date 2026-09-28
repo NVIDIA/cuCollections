@@ -17,7 +17,7 @@
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 namespace cuco::experimental::detail {
 

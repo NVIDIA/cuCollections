@@ -9,7 +9,7 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/std/atomic>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <algorithm>
 #include <cstddef>
