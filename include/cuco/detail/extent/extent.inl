@@ -64,7 +64,7 @@ class valid_extent : public extent<SizeType, N> {
 
   __host__ __device__ constexpr value_type value() const noexcept
   {
-    return base_type::operator value_type();
+    return static_cast<value_type>(*this);
   }
 
  private:
