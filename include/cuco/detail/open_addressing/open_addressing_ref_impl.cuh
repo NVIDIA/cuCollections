@@ -1828,12 +1828,13 @@ class open_addressing_ref_impl
                                                         value_type expected,
                                                         Value desired) noexcept
   {
-    if constexpr (sizeof(value_type) <= 8 and CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
+    if constexpr (sizeof(value_type) <= 8 and
+                  (CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS or !has_payload)) {
       return packed_cas(address, expected, desired);
     }
 #if (__CUDA_ARCH__ >= 900)
     else if constexpr (cuco::detail::is_packable<value_type>() and
-                       CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
+                       (CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS or !has_payload)) {
       return packed_cas(address, expected, desired);
     }
 #endif
@@ -1872,12 +1873,13 @@ class open_addressing_ref_impl
                                                                value_type expected,
                                                                Value desired) noexcept
   {
-    if constexpr (sizeof(value_type) <= 8 and CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
+    if constexpr (sizeof(value_type) <= 8 and
+                  (CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS or !has_payload)) {
       return packed_cas(address, expected, desired);
     }
 #if (__CUDA_ARCH__ >= 900)
     else if constexpr (cuco::detail::is_packable<value_type>() and
-                       CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
+                       (CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS or !has_payload)) {
       return packed_cas(address, expected, desired);
     }
 #endif
