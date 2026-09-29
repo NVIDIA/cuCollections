@@ -93,28 +93,6 @@ class valid_extent : public extent<SizeType, N> {
   friend auto constexpr make_valid_extent(extent<SizeType_, N_> ext);
 };
 
-// Operator overloads
-template <typename SizeType, std::size_t N, typename Rhs>
-__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator-(
-  valid_extent<SizeType, N> const& lhs, Rhs rhs) noexcept
-{
-  return lhs.value() - rhs;
-}
-
-template <typename SizeType, std::size_t N, typename Rhs>
-__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator/(
-  valid_extent<SizeType, N> const& lhs, Rhs rhs) noexcept
-{
-  return lhs.value() / rhs;
-}
-
-template <typename Lhs, typename SizeType, std::size_t N>
-__host__ __device__ constexpr typename valid_extent<SizeType, N>::value_type operator%(
-  Lhs lhs, valid_extent<SizeType, N> const& rhs) noexcept
-{
-  return lhs % rhs.value();
-}
-
 // Primary implementation for fixed CGSize and BucketSize
 template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 [[nodiscard]] auto constexpr make_valid_extent(extent<SizeType, N> ext)
