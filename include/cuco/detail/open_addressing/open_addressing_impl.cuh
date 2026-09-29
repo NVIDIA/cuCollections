@@ -796,7 +796,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return 0; }
-      detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator(), stream};
+    detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator(), stream};
     counter.reset(stream);
 
     auto constexpr block_size  = cuco::detail::default_block_size();
