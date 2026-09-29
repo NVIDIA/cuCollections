@@ -11,7 +11,7 @@
 #include <cuda/std/cstdint>
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 namespace cuco::experimental {
 

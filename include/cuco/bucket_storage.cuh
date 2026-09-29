@@ -12,7 +12,7 @@
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/functional>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <cstddef>
 #include <cstdint>

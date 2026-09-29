@@ -15,7 +15,7 @@
 
 #include <cuda/std/atomic>
 #include <cuda/std/functional>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>

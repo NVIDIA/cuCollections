@@ -29,7 +29,7 @@
 #include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 #include <cuda/utility>
 
 #include <cooperative_groups.h>

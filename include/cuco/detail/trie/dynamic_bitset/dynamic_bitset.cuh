@@ -7,7 +7,7 @@
 
 #include <cuda/std/array>
 #include <cuda/std/cstddef>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 #include <thrust/device_malloc_allocator.h>
 #include <thrust/device_vector.h>
 

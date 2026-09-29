@@ -87,6 +87,19 @@ void test_count_each(Set& set, size_type num_keys)
       cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 1; })));
   }
 
+  SECTION("Count_each of missing keys in a populated set should be zero.")
+  {
+    set.count_each(keys_begin + num_keys,
+                   keys_begin + 2 * num_keys,
+                   set.key_eq(),
+                   set.hash_function(),
+                   counts_begin);
+    REQUIRE(cuco::test::all_of(
+      d_counts.begin(),
+      d_counts.end(),
+      cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 0; })));
+  }
+
   set.clear();
 
   auto constexpr multiplicity = 3;
@@ -100,65 +113,6 @@ void test_count_each(Set& set, size_type num_keys)
   SECTION("Count_each with duplicates should return correct counts.")
   {
     set.count_each(
-      query_begin, query_begin + query_size, set.key_eq(), set.hash_function(), counts_begin);
-    REQUIRE(cuco::test::all_of(d_counts.begin(),
-                               d_counts.begin() + query_size,
-                               cuda::proclaim_return_type<bool>([] __device__(size_type count) {
-                                 return count == multiplicity;
-                               })));
-  }
-}
-
-template <typename Set>
-void test_count_each_outer(Set& set, size_type num_keys)
-{
-  using Key = typename Set::key_type;
-
-  thrust::device_vector<size_type> d_counts(num_keys);
-  auto const counts_begin = d_counts.begin();
-
-  auto keys_begin = cuda::make_transform_iterator(
-    cuda::counting_iterator<size_type>{0},
-    cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
-
-  set.clear();
-
-  SECTION("Count_each_outer of empty set should be all ones.")
-  {
-    set.count_each_outer(
-      keys_begin, keys_begin + num_keys, set.key_eq(), set.hash_function(), counts_begin);
-    REQUIRE(cuco::test::all_of(
-      d_counts.begin(),
-      d_counts.end(),
-      cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 1; })));
-  }
-
-  set.insert(keys_begin, keys_begin + num_keys);
-
-  SECTION("Count_each_outer of n unique keys should be all ones.")
-  {
-    set.count_each_outer(
-      keys_begin, keys_begin + num_keys, set.key_eq(), set.hash_function(), counts_begin);
-    REQUIRE(cuco::test::all_of(
-      d_counts.begin(),
-      d_counts.end(),
-      cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 1; })));
-  }
-
-  set.clear();
-
-  auto constexpr multiplicity = 3;
-  auto duplicate_keys_begin   = cuda::make_transform_iterator(
-    cuda::counting_iterator<size_type>{0},
-    cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i / multiplicity}; }));
-  set.insert(duplicate_keys_begin, duplicate_keys_begin + num_keys);
-
-  auto const query_size  = num_keys / multiplicity;
-  auto const query_begin = cuda::counting_iterator<size_type>{0};
-
-  SECTION("Count_each_outer with duplicates should return correct counts.")
-  {
-    set.count_each_outer(
       query_begin, query_begin + query_size, set.key_eq(), set.hash_function(), counts_begin);
     REQUIRE(cuco::test::all_of(d_counts.begin(),
                                d_counts.begin() + query_size,
@@ -200,5 +154,4 @@ TEMPLATE_TEST_CASE_SIG(
 
   test_unique_sequence(set, num_keys);
   test_count_each(set, num_keys);
-  test_count_each_outer(set, num_keys);
 }

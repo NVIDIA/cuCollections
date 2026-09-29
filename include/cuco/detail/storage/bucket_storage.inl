@@ -13,7 +13,7 @@
 #include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/cstdint>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <cassert>
 #include <memory>

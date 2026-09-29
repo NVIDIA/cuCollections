@@ -14,7 +14,7 @@ include(CTest)
 CPMAddPackage(
   NAME Catch2
   GITHUB_REPOSITORY catchorg/Catch2
-  VERSION 3.3.0
+  VERSION 3.10.0
 )
 
 # Header for catch_discover_tests

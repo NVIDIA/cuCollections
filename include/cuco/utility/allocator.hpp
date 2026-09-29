@@ -7,7 +7,7 @@
 
 #include <cuco/detail/error.hpp>
 
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <cstddef>
 

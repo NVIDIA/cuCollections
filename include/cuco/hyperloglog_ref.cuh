@@ -9,7 +9,7 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/std/cstddef>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <cooperative_groups.h>
 
