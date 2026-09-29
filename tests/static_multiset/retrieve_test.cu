@@ -16,14 +16,14 @@
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <limits>
 
 template <class Container>
 void test_multiplicity(Container& container, std::size_t num_keys, std::size_t multiplicity)
 {
-  using key_type                = typename Container::key_type;
-  auto const empty_key_sentinel = container.empty_key_sentinel();
+  using key_type = typename Container::key_type;
 
   container.clear();
 
@@ -46,8 +46,12 @@ void test_multiplicity(Container& container, std::size_t num_keys, std::size_t m
 
   SECTION("All inserted keys should be contained.")
   {
+    auto const query_begin = cuda::counting_iterator<key_type>{0};
+    REQUIRE(container.count(query_begin, query_begin + num_unique_keys) == num_actual_keys);
     auto const [probed_end, matched_end] = container.retrieve(
-      keys_begin, keys_begin + num_actual_keys, probed_keys.begin(), matched_keys.begin());
+      query_begin, query_begin + num_unique_keys, probed_keys.begin(), matched_keys.begin());
+    REQUIRE(probed_end == probed_keys.end());
+    REQUIRE(matched_end == matched_keys.end());
     thrust::sort(probed_keys.begin(), probed_end);
     thrust::sort(matched_keys.begin(), matched_end);
     REQUIRE(cuco::test::equal(
@@ -58,64 +62,49 @@ void test_multiplicity(Container& container, std::size_t num_keys, std::size_t m
 }
 
 template <class Container>
-void test_outer(Container& container, std::size_t num_keys)
+void test_missing_keys(Container& container, std::size_t num_keys)
 {
-  using key_type                = typename Container::key_type;
-  auto const empty_key_sentinel = container.empty_key_sentinel();
-
+  using key_type = typename Container::key_type;
   container.clear();
-
   auto const keys_begin = cuda::counting_iterator<key_type>{0};
-  auto const query_size = num_keys * 2ull;
+  auto const query_size = num_keys * 2;
+  thrust::device_vector<key_type> probed_keys(num_keys);
+  thrust::device_vector<key_type> matched_keys(num_keys);
 
-  thrust::device_vector<key_type> probed_keys(num_keys * 2ull);
-  thrust::device_vector<key_type> matched_keys(num_keys * 2ull);
-
-  SECTION("Non-inserted keys should output sentinels.")
+  SECTION("Empty input and missing keys should produce no matches.")
   {
-    auto const [probed_end, matched_end] = container.retrieve_outer(keys_begin,
-                                                                    keys_begin + query_size,
-                                                                    container.key_eq(),
-                                                                    container.hash_function(),
-                                                                    probed_keys.begin(),
-                                                                    matched_keys.begin());
-    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
-            num_keys * 2ull);
-    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
-            num_keys * 2ull);
-    REQUIRE(cuco::test::all_of(
-      matched_keys.begin(),
-      matched_keys.end(),
-      cuda::proclaim_return_type<bool>([empty_key_sentinel] __device__(auto const& k) {
-        return static_cast<bool>(k == static_cast<key_type>(empty_key_sentinel));
-      })));
+    for (auto const n : {std::size_t{0}, query_size}) {
+      REQUIRE(container.count(keys_begin, keys_begin + n) == 0);
+      auto const [probed_end, matched_end] = container.retrieve(keys_begin,
+                                                                keys_begin + n,
+                                                                container.key_eq(),
+                                                                container.hash_function(),
+                                                                probed_keys.begin(),
+                                                                matched_keys.begin());
+      REQUIRE(probed_end == probed_keys.begin());
+      REQUIRE(matched_end == matched_keys.begin());
+    }
   }
 
   container.insert(keys_begin, keys_begin + num_keys);
 
-  SECTION("All inserted keys should be contained.")
+  SECTION("Mixed queries should retrieve only matching keys.")
   {
-    auto const [probed_end, matched_end] = container.retrieve_outer(keys_begin,
-                                                                    keys_begin + query_size,
-                                                                    container.key_eq(),
-                                                                    container.hash_function(),
-                                                                    probed_keys.begin(),
-                                                                    matched_keys.begin());
-    thrust::sort_by_key(
-      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
-
+    REQUIRE(container.count(keys_begin, keys_begin + query_size) == num_keys);
+    auto const [probed_end, matched_end] = container.retrieve(keys_begin,
+                                                              keys_begin + query_size,
+                                                              container.key_eq(),
+                                                              container.hash_function(),
+                                                              probed_keys.begin(),
+                                                              matched_keys.begin());
+    REQUIRE(probed_end == probed_keys.end());
+    REQUIRE(matched_end == matched_keys.end());
+    thrust::sort(probed_keys.begin(), probed_end);
+    thrust::sort(matched_keys.begin(), matched_end);
     REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_keys.end(), keys_begin, cuda::std::equal_to<key_type>{}));
-    REQUIRE(cuco::test::equal(matched_keys.begin(),
-                              matched_keys.begin() + num_keys,
-                              keys_begin,
-                              cuda::std::equal_to<key_type>{}));
-    REQUIRE(cuco::test::all_of(
-      matched_keys.begin() + num_keys,
-      matched_keys.end(),
-      cuda::proclaim_return_type<bool>([empty_key_sentinel] __device__(auto const& k) {
-        return static_cast<bool>(k == static_cast<key_type>(empty_key_sentinel));
-      })));
+      probed_keys.begin(), probed_end, keys_begin, cuda::std::equal_to<key_type>{}));
+    REQUIRE(cuco::test::equal(
+      matched_keys.begin(), matched_end, keys_begin, cuda::std::equal_to<key_type>{}));
   }
 }
 
@@ -151,8 +140,7 @@ TEMPLATE_TEST_CASE_SIG(
   auto set = cuco::static_multiset{
     num_keys, desired_load_factor, cuco::empty_key<Key>{empty_key_sentinel}, {}, probe{}};
 
-  test_multiplicity(set, num_keys, 1);  // unique sequence
-  test_multiplicity(set, num_keys, 2);  // each key occurs twice
-  test_multiplicity(set, num_keys, 11);
-  test_outer(set, num_keys);
+  auto const multiplicity = GENERATE(std::size_t{1}, std::size_t{2}, std::size_t{11});
+  test_multiplicity(set, num_keys, multiplicity);
+  test_missing_keys(set, num_keys);
 }
