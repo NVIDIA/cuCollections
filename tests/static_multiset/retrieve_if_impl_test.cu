@@ -63,8 +63,8 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
     for (std::size_t i = 0; i < expected_size; ++i) {
       auto const expected = static_cast<key_type>(i * 2 + 1);
 
-      REQUIRE(probed_keys[i] == expected);
-      REQUIRE(matched_keys[i] == expected);
+      REQUIRE(static_cast<key_type>(probed_keys[i]) == expected);
+      REQUIRE(static_cast<key_type>(matched_keys[i]) == expected);
     }
   }
 
@@ -94,8 +94,8 @@ void test_retrieve_if(Container& container, std::size_t num_keys)
     for (std::size_t i = 0; i < num_results; ++i) {
       auto const expected = static_cast<key_type>(i * 2);
 
-      REQUIRE(probed_keys[i] == expected);
-      REQUIRE(matched_keys[i] == expected);
+      REQUIRE(static_cast<key_type>(probed_keys[i]) == expected);
+      REQUIRE(static_cast<key_type>(matched_keys[i]) == expected);
     }
   }
 
@@ -184,10 +184,10 @@ void test_retrieve_if_stencil(Container& container, std::size_t num_keys)
     thrust::sort_by_key(
       probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
 
-    REQUIRE(probed_keys[0] == key_type{1});
-    REQUIRE(probed_keys[1] == key_type{3});
-    REQUIRE(matched_keys[0] == key_type{1});
-    REQUIRE(matched_keys[1] == key_type{3});
+    REQUIRE(static_cast<key_type>(probed_keys[0]) == key_type{1});
+    REQUIRE(static_cast<key_type>(probed_keys[1]) == key_type{3});
+    REQUIRE(static_cast<key_type>(matched_keys[0]) == key_type{1});
+    REQUIRE(static_cast<key_type>(matched_keys[1]) == key_type{3});
   }
 }
 
@@ -234,8 +234,8 @@ void test_retrieve_if_with_probe(Container& container, std::size_t num_keys)
     for (std::size_t i = 0; i < num_results; ++i) {
       auto const expected = static_cast<key_type>(i * 2);
 
-      REQUIRE(probed_keys[i] == expected);
-      REQUIRE(matched_keys[i] == expected);
+      REQUIRE(static_cast<key_type>(probed_keys[i]) == expected);
+      REQUIRE(static_cast<key_type>(matched_keys[i]) == expected);
     }
   }
 
@@ -313,8 +313,8 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
       auto const output_offset = key * multiplicity;
 
       for (std::size_t j = 0; j < multiplicity; ++j) {
-        REQUIRE(probed_keys[output_offset + j] == expected_key);
-        REQUIRE(matched_keys[output_offset + j] == expected_key);
+        REQUIRE(static_cast<key_type>(probed_keys[output_offset + j]) == expected_key);
+        REQUIRE(static_cast<key_type>(matched_keys[output_offset + j]) == expected_key);
       }
     }
   }
@@ -362,8 +362,8 @@ void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
       for (std::size_t j = 0; j < expected_count; ++j) {
         auto const output_index = key * expected_count + j;
 
-        REQUIRE(probed_keys[output_index] == expected_key);
-        REQUIRE(matched_keys[output_index] == expected_key);
+        REQUIRE(static_cast<key_type>(probed_keys[output_index]) == expected_key);
+        REQUIRE(static_cast<key_type>(matched_keys[output_index]) == expected_key);
       }
     }
   }
