@@ -26,7 +26,7 @@ constexpr int probe_scale = 111;
 
 template <typename T>
 struct identity_hash {
-  __host__ __device__ identity_hash() = default;
+  __host__ __device__ identity_hash() {}
   __host__ __device__ identity_hash([[maybe_unused]] int i) {}
   __device__ T operator()(T k) const { return k; }
 };
