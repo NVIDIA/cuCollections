@@ -539,7 +539,8 @@ class operator_impl<
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
+    ref_.impl_.debug_assert_valid_insert_value(val);
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
@@ -567,7 +568,9 @@ class operator_impl<
         }
       }
       ++probing_iter;
-      if (*probing_iter == init_idx) { return; }
+      auto const probe_exhausted = *probing_iter == init_idx;
+      ref_.impl_.debug_assert_probe_not_exhausted(probe_exhausted);
+      if (probe_exhausted) { return; }
     }
   }
 
@@ -589,7 +592,8 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
+    ref_.impl_.debug_assert_valid_insert_value(val);
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
@@ -637,7 +641,9 @@ class operator_impl<
         if (group.shfl(status, src_lane)) { return; }
       } else {
         ++probing_iter;
-        if (*probing_iter == init_idx) { return; }
+        auto const probe_exhausted = *probing_iter == init_idx;
+        ref_.impl_.debug_assert_probe_not_exhausted(probe_exhausted);
+        if (probe_exhausted) { return; }
       }
     }
   }
@@ -910,7 +916,8 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
+    ref_.impl_.debug_assert_valid_insert_value(val);
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
@@ -957,7 +964,9 @@ class operator_impl<
         }
       }
       ++probing_iter;
-      if (*probing_iter == init_idx) { return false; }
+      auto const probe_exhausted = *probing_iter == init_idx;
+      ref_.impl_.debug_assert_probe_not_exhausted(probe_exhausted);
+      if (probe_exhausted) { return false; }
     }
   }
 
@@ -988,7 +997,8 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
+    ref_.impl_.debug_assert_valid_insert_value(val);
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
@@ -1055,7 +1065,9 @@ class operator_impl<
         }
       } else {
         ++probing_iter;
-        if (*probing_iter == init_idx) { return false; }
+        auto const probe_exhausted = *probing_iter == init_idx;
+        ref_.impl_.debug_assert_probe_not_exhausted(probe_exhausted);
+        if (probe_exhausted) { return false; }
       }
     }
   }
