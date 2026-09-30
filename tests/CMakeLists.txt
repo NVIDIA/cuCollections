@@ -47,17 +47,10 @@ ConfigureTest(UTILITY_TEST
     utility/hash_test.cu
     utility/probing_scheme_test.cu)
 
-# Device assertions poison the CUDA context after firing, so each debug assertion case runs in its
-# own process instead of sharing the Catch2 utility test executable.
-add_executable(DEBUG_ASSERT_TEST utility/debug_assert_test.cu)
-target_link_libraries(DEBUG_ASSERT_TEST PRIVATE cuco CUDA::cudart)
-target_compile_definitions(DEBUG_ASSERT_TEST PRIVATE CUCO_DEBUG)
-target_compile_options(DEBUG_ASSERT_TEST PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-UNDEBUG>)
-set_target_properties(DEBUG_ASSERT_TEST PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
-cuco_set_common_compile_options(DEBUG_ASSERT_TEST)
-foreach(case IN ITEMS empty-key empty-payload probe-empty-key probe-exhaustion storage-bounds)
-    add_test(NAME debug_assert_${case} COMMAND DEBUG_ASSERT_TEST ${case})
-endforeach()
+# catch_discover_tests executes each Catch2 test case in its own process. This matters for device
+# assertion cases because a device assertion poisons that process's CUDA context.
+ConfigureTest(DEBUG_ASSERT_TEST utility/debug_assert_test.cu)
+target_compile_definitions(DEBUG_ASSERT_TEST PRIVATE CUCO_DEBUG NDEBUG)
 
 ###################################################################################################
 # - static_set tests ------------------------------------------------------------------------------

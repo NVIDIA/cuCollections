@@ -8,6 +8,7 @@
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/open_addressing/constraints.cuh>
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
+#include <cuco/detail/utility/assert.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/extent.cuh>
@@ -29,8 +30,6 @@
 #endif
 
 #include <cooperative_groups.h>
-
-#include <cassert>
 
 namespace cuco {
 namespace detail {
@@ -710,8 +709,6 @@ class open_addressing_ref_impl
       ++probing_iter;
       auto const probe_exhausted = *probing_iter == init_idx;
 
-      this->debug_assert_probe_not_exhausted(probe_exhausted);
-
       if (probe_exhausted) { return false; }
     }
   }
@@ -774,8 +771,6 @@ class open_addressing_ref_impl
       ++probing_iter;
       auto const probe_exhausted = *probing_iter == init_idx;
 
-      this->debug_assert_probe_not_exhausted(probe_exhausted);
-
       if (probe_exhausted) { return false; }
     }
   }
@@ -815,8 +810,6 @@ class open_addressing_ref_impl
       }
       ++probing_iter;
       auto const probe_exhausted = *probing_iter == init_idx;
-
-      this->debug_assert_probe_not_exhausted(probe_exhausted);
 
       if (probe_exhausted) { return false; }
     }
@@ -864,8 +857,6 @@ class open_addressing_ref_impl
       ++probing_iter;
       auto const probe_exhausted = *probing_iter == init_idx;
 
-      this->debug_assert_probe_not_exhausted(probe_exhausted);
-
       if (probe_exhausted) { return false; }
     }
   }
@@ -909,8 +900,6 @@ class open_addressing_ref_impl
       }
       ++probing_iter;
       auto const probe_exhausted = *probing_iter == init_idx;
-
-      this->debug_assert_probe_not_exhausted(probe_exhausted);
 
       if (probe_exhausted) { return this->end(); }
     }
@@ -970,8 +959,6 @@ class open_addressing_ref_impl
       ++probing_iter;
       auto const probe_exhausted = *probing_iter == init_idx;
 
-      this->debug_assert_probe_not_exhausted(probe_exhausted);
-
       if (probe_exhausted) { return this->end(); }
     }
   }
@@ -1015,8 +1002,6 @@ class open_addressing_ref_impl
 
         ++probing_iter;
         auto const probe_exhausted = *probing_iter == init_idx;
-
-        this->debug_assert_probe_not_exhausted(probe_exhausted);
 
         if (probe_exhausted) { return count; }
       }
@@ -1062,8 +1047,6 @@ class open_addressing_ref_impl
 
       ++probing_iter;
       auto const probe_exhausted = *probing_iter == init_idx;
-
-      this->debug_assert_probe_not_exhausted(probe_exhausted);
 
       if (probe_exhausted) { return count; }
     }
@@ -1367,13 +1350,11 @@ class open_addressing_ref_impl
             active_flushing_tile.sync();
           }
 
-          // onto the next probing bucket
-          ++probing_iter;
-          auto const probe_exhausted = *probing_iter == init_idx;
-
-          this->debug_assert_probe_not_exhausted(probe_exhausted);
-
-          if (probe_exhausted) { running = false; }
+          // onto the next probing bucket only while this lookup is still active
+          if (running) {
+            ++probing_iter;
+            if (*probing_iter == init_idx) { running = false; }
+          }
         }  // while running
       }  // if active_flag
 
@@ -1561,44 +1542,50 @@ class open_addressing_ref_impl
   }
 
   template <typename ProbeKey>
-  __device__ constexpr void debug_assert_valid_probe_key(ProbeKey key) const noexcept
+  __device__ constexpr void debug_assert_valid_probe_key(
+    [[maybe_unused]] ProbeKey key) const noexcept
   {
 #if defined(CUCO_DEBUG)
-    if constexpr (cuda::std::is_convertible_v<ProbeKey, key_type>) {
-      auto const native_key = static_cast<key_type>(key);
-      assert(!cuco::detail::bitwise_compare(native_key, this->empty_key_sentinel()) &&
-             "Probing for the empty key sentinel is invalid");
-      assert(!cuco::detail::bitwise_compare(native_key, this->erased_key_sentinel()) &&
-             "Probing for the erased key sentinel is invalid");
+    using probe_key_type = cuda::std::remove_cv_t<cuda::std::remove_reference_t<ProbeKey>>;
+
+    if constexpr (cuda::std::is_same_v<probe_key_type, key_type>) {
+      CUCO_DEBUG_ASSERT(!cuco::detail::bitwise_compare(key, this->empty_key_sentinel()),
+                        "Probing for the empty key sentinel is invalid");
+      CUCO_DEBUG_ASSERT(!cuco::detail::bitwise_compare(key, this->erased_key_sentinel()),
+                        "Probing for the erased key sentinel is invalid");
+    } else if constexpr (cuda::std::is_arithmetic_v<probe_key_type> &&
+                         cuda::std::is_arithmetic_v<key_type>) {
+      // Avoid narrowing heterogeneous probes to key_type. Narrowing can turn a valid miss into a
+      // sentinel, e.g. int64_t{4294967295} with an int32_t sentinel of -1.
+      CUCO_DEBUG_ASSERT(key != this->empty_key_sentinel(),
+                        "Probing for the empty key sentinel is invalid");
+      CUCO_DEBUG_ASSERT(key != this->erased_key_sentinel(),
+                        "Probing for the erased key sentinel is invalid");
     }
-#else
-    static_cast<void>(key);
 #endif
   }
 
   template <typename Value>
-  __device__ constexpr void debug_assert_valid_insert_value(Value value) const noexcept
+  __device__ constexpr void debug_assert_valid_insert_value(
+    [[maybe_unused]] Value value) const noexcept
   {
 #if defined(CUCO_DEBUG)
     auto const native = this->native_value(value);
     auto const key    = this->extract_key(native);
     this->debug_assert_valid_probe_key(key);
     if constexpr (has_payload) {
-      assert(!cuco::detail::bitwise_compare(this->extract_payload(native),
-                                            this->empty_value_sentinel()) &&
-             "Inserting the empty payload sentinel is invalid");
+      CUCO_DEBUG_ASSERT(
+        !cuco::detail::bitwise_compare(this->extract_payload(native), this->empty_value_sentinel()),
+        "Inserting the empty payload sentinel is invalid");
     }
-#else
-    static_cast<void>(value);
 #endif
   }
 
-  __device__ constexpr void debug_assert_probe_not_exhausted(bool exhausted) const noexcept
+  __device__ constexpr void debug_assert_probe_not_exhausted(
+    [[maybe_unused]] bool exhausted) const noexcept
   {
 #if defined(CUCO_DEBUG)
-    assert(!exhausted && "Probing exhausted the container capacity");
-#else
-    static_cast<void>(exhausted);
+    CUCO_DEBUG_ASSERT(!exhausted, "Probing exhausted the container capacity");
 #endif
   }
 
