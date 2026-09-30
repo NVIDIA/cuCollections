@@ -664,7 +664,7 @@ class static_multiset {
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    *
    * @param first Beginning of the sequence of keys to count
    * @param last End of the sequence of keys to count
@@ -692,7 +692,7 @@ class static_multiset {
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    * @tparam ProbeKeyEqual Binary callable
    * @tparam ProbeHash Unary hash callable
    *
@@ -846,7 +846,7 @@ class static_multiset {
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
    * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -895,7 +895,7 @@ class static_multiset {
    * @tparam StencilIt Device accessible random access iterator whose value_type is
    * convertible to Predicate's argument type
    * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
-   * argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    * @tparam ProbeEqual Binary callable equal type
    * @tparam ProbeHash Unary callable hasher type that can be constructed from
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
