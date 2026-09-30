@@ -66,56 +66,6 @@ void test_count_if(Set& set, size_type num_keys)
 }
 
 template <typename Set>
-void test_count_outer_if(Set& set, size_type num_keys)
-{
-  using Key = typename Set::key_type;
-
-  auto keys_begin = cuda::make_transform_iterator(
-    cuda::counting_iterator<size_type>{0},
-    cuda::proclaim_return_type<Key>([] __device__(auto i) { return Key{i}; }));
-
-  auto stencil_begin = cuda::counting_iterator<size_type>{0};
-
-  set.clear();
-
-  set.insert(keys_begin, keys_begin + num_keys);
-
-  SECTION("Count_outer_if with all elements selected should match count_outer.")
-  {
-    auto const count = set.count_outer_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil_begin,
-      cuda::proclaim_return_type<bool>([] __device__(size_type) { return true; }));
-
-    REQUIRE(count == num_keys);
-  }
-
-  SECTION("Count_outer_if with no elements selected should return one per input.")
-  {
-    auto const count = set.count_outer_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil_begin,
-      cuda::proclaim_return_type<bool>([] __device__(size_type) { return false; }));
-
-    REQUIRE(count == num_keys);
-  }
-
-  SECTION(
-    "Count_outer_if with alternating predicate should count selected matches and unselected rows.")
-  {
-    auto const count = set.count_outer_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil_begin,
-      cuda::proclaim_return_type<bool>([] __device__(size_type i) { return (i % 2) == 0; }));
-
-    REQUIRE(count == num_keys);
-  }
-}
-
-template <typename Set>
 void test_count_if_stencil(Set& set, size_type num_keys)
 {
   using Key = typename Set::key_type;
@@ -141,17 +91,6 @@ void test_count_if_stencil(Set& set, size_type num_keys)
 
     REQUIRE(count == 100);
   }
-
-  SECTION("Count_outer_if should apply the predicate to the stencil.")
-  {
-    auto const count = set.count_outer_if(
-      keys_begin,
-      keys_begin + num_keys,
-      stencil_begin,
-      cuda::proclaim_return_type<bool>([] __device__(size_type value) { return value < 1100; }));
-
-    REQUIRE(count == num_keys);
-  }
 }
 
 template <typename Set>
@@ -176,17 +115,6 @@ void test_count_if_overloads(Set& set, size_type num_keys)
     auto const count_default = set.count_if(keys_begin, keys_begin + num_keys, stencil_begin, pred);
 
     auto const count_explicit = set.count_if(
-      keys_begin, keys_begin + num_keys, stencil_begin, pred, set.key_eq(), set.hash_function());
-
-    REQUIRE(count_explicit == count_default);
-  }
-
-  SECTION("Count_outer_if explicit default key equality/hash matches overload.")
-  {
-    auto const count_default =
-      set.count_outer_if(keys_begin, keys_begin + num_keys, stencil_begin, pred);
-
-    auto const count_explicit = set.count_outer_if(
       keys_begin, keys_begin + num_keys, stencil_begin, pred, set.key_eq(), set.hash_function());
 
     REQUIRE(count_explicit == count_default);
@@ -224,7 +152,6 @@ TEMPLATE_TEST_CASE_SIG(
     cuco::static_multiset{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
 
   test_count_if(set, num_keys);
-  test_count_outer_if(set, num_keys);
   test_count_if_stencil(set, num_keys);
   test_count_if_overloads(set, num_keys);
 }

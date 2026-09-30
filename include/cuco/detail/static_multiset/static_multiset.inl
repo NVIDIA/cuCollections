@@ -511,53 +511,6 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename InputIt, typename StencilIt, typename Predicate>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_outer_if(
-  InputIt first, InputIt last, StencilIt stencil, Predicate const& pred, cuda::stream_ref stream)
-  const
-{
-  return this->count_outer_if(first, last, stencil, pred, key_eq(), hash_function(), stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <typename InputIt,
-          typename StencilIt,
-          typename Predicate,
-          typename ProbeKeyEqual,
-          typename ProbeHash>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_outer_if(
-  InputIt first,
-  InputIt last,
-  StencilIt stencil,
-  Predicate const& pred,
-  ProbeKeyEqual const& probe_key_equal,
-  ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const
-{
-  return impl_->count_outer_if(
-    first,
-    last,
-    stencil,
-    pred,
-    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
-    stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
 template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash, typename OutputIt>
 void static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_each(
   InputIt first,
@@ -628,33 +581,6 @@ template <class Key,
           class Allocator,
           class Storage>
 template <class InputProbeIt,
-          class ProbeEqual,
-          class ProbeHash,
-          class OutputProbeIt,
-          class OutputMatchIt>
-std::pair<OutputProbeIt, OutputMatchIt>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_outer(
-  InputProbeIt first,
-  InputProbeIt last,
-  ProbeEqual const& probe_equal,
-  ProbeHash const& probe_hash,
-  OutputProbeIt output_probe,
-  OutputMatchIt output_match,
-  cuda::stream_ref stream) const
-{
-  auto const probe_ref =
-    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
-  return impl_->retrieve_outer(first, last, output_probe, output_match, probe_ref, stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <class InputProbeIt,
           class StencilIt,
           class Predicate,
           class OutputProbeIt,
@@ -703,39 +629,6 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
     this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
 
   return impl_->retrieve_if(
-    first, last, stencil, pred, output_probe, output_match, probe_ref, stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-template <class InputProbeIt,
-          class StencilIt,
-          class Predicate,
-          class ProbeEqual,
-          class ProbeHash,
-          class OutputProbeIt,
-          class OutputMatchIt>
-std::pair<OutputProbeIt, OutputMatchIt>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::retrieve_outer_if(
-  InputProbeIt first,
-  InputProbeIt last,
-  StencilIt stencil,
-  Predicate const& pred,
-  ProbeEqual const& probe_equal,
-  ProbeHash const& probe_hash,
-  OutputProbeIt output_probe,
-  OutputMatchIt output_match,
-  cuda::stream_ref stream) const
-{
-  auto const probe_ref =
-    this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
-
-  return impl_->retrieve_outer_if(
     first, last, stencil, pred, output_probe, output_match, probe_ref, stream);
 }
 
