@@ -535,11 +535,11 @@ template <int CGSize,
           typename AtomicT,
           typename Ref>
 CUCO_KERNEL __launch_bounds__(BlockSize) void count_if_n(InputIt first,
-                                                       cuco::detail::index_type n,
-                                                       StencilIt stencil,
-                                                       Predicate pred,
-                                                       AtomicT* count,
-                                                       Ref ref)
+                                                         cuco::detail::index_type n,
+                                                         StencilIt stencil,
+                                                         Predicate pred,
+                                                         AtomicT* count,
+                                                         Ref ref)
 {
   using size_type = typename Ref::size_type;
 
@@ -558,7 +558,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_if_n(InputIt first,
       if (pred(*(stencil + idx))) {
         typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
         thread_count += ref.count(key);
-      } 
+      }
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
@@ -663,13 +663,13 @@ template <int BlockSize,
           class AtomicCounter,
           class Ref>
 CUCO_KERNEL void retrieve_if_n(InputProbeIt input_probe,
-                          cuco::detail::index_type n,
-                          StencilIt stencil,
-                          Predicate pred,
-                          OutputProbeIt output_probe,
-                          OutputMatchIt output_match,
-                          AtomicCounter* atomic_counter,
-                          Ref ref)
+                               cuco::detail::index_type n,
+                               StencilIt stencil,
+                               Predicate pred,
+                               OutputProbeIt output_probe,
+                               OutputMatchIt output_match,
+                               AtomicCounter* atomic_counter,
+                               Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -683,13 +683,13 @@ CUCO_KERNEL void retrieve_if_n(InputProbeIt input_probe,
 
   if (block_begin_offset < block_end_offset) {
     ref.template retrieve_if<BlockSize>(block,
-                                          input_probe + block_begin_offset,
-                                          input_probe + block_end_offset,
-                                          stencil + block_begin_offset,
-                                          pred,
-                                          output_probe,
-                                          output_match,
-                                          *atomic_counter);
+                                        input_probe + block_begin_offset,
+                                        input_probe + block_end_offset,
+                                        stencil + block_begin_offset,
+                                        pred,
+                                        output_probe,
+                                        output_match,
+                                        *atomic_counter);
   }
 }
 

@@ -637,7 +637,14 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
                                                    Ref container_ref,
                                                    cuda::stream_ref stream) const
   {
-    return this->retrieve_if(first, last, cuda::constant_iterator<bool>{true}, cuda::std::identity{}, output_probe, output_match, container_ref, stream);
+    return this->retrieve_if(first,
+                             last,
+                             cuda::constant_iterator<bool>{true},
+                             cuda::std::identity{},
+                             output_probe,
+                             output_match,
+                             container_ref,
+                             stream);
   }
 
   /**
@@ -730,7 +737,12 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
                                 Ref container_ref,
                                 cuda::stream_ref stream) const
   {
-    return this->count_if(first, last, cuda::constant_iterator<bool>{true}, cuda::std::identity{}, container_ref, stream);
+    return this->count_if(first,
+                          last,
+                          cuda::constant_iterator<bool>{true},
+                          cuda::std::identity{},
+                          container_ref,
+                          stream);
   }
 
   /**

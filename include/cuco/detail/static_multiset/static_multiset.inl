@@ -441,29 +441,6 @@ template <class Key,
           class ProbingScheme,
           class Allocator,
           class Storage>
-template <typename InputIt, typename ProbeKeyEqual, typename ProbeHash>
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
-static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_outer(
-  InputIt first,
-  InputIt last,
-  ProbeKeyEqual const& probe_key_equal,
-  ProbeHash const& probe_hash,
-  cuda::stream_ref stream) const
-{
-  return impl_->count_outer(
-    first,
-    last,
-    ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
-    stream);
-}
-
-template <class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
 template <typename InputIt, typename StencilIt, typename Predicate>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count_if(
