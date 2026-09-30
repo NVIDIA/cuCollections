@@ -508,47 +508,72 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void insert_and_find(InputIt first,
 
 /**
  * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+ * if `pred` of the corresponding stencil returns true.
  *
  * @tparam CGSize Number of threads in each CG
  * @tparam BlockSize Number of threads in each block
  * @tparam InputIt Device accessible input iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
  * @tparam AtomicT Atomic counter type
  * @tparam Ref Type of non-owning device container ref allowing access to storage
  *
  * @param first Beginning of the sequence of input elements
  * @param n Number of input elements
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
  * @param count Number of matches
  * @param ref Non-owning container device ref used to access the slot storage
  */
-template <int CGSize, int BlockSize, typename InputIt, typename AtomicT, typename Ref>
-CUCO_KERNEL __launch_bounds__(BlockSize) void count(InputIt first,
-                                                    cuco::detail::index_type n,
-                                                    AtomicT* count,
-                                                    Ref ref)
+template <int CGSize,
+          int BlockSize,
+          typename InputIt,
+          typename StencilIt,
+          typename Predicate,
+          typename AtomicT,
+          typename Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void count_if_n(InputIt first,
+                                                         cuco::detail::index_type n,
+                                                         StencilIt stencil,
+                                                         Predicate pred,
+                                                         AtomicT* count,
+                                                         Ref ref)
 {
   using size_type = typename Ref::size_type;
 
+  size_type constexpr outer_min_count = 1;
+
   using BlockReduce = cub::BlockReduce<size_type, BlockSize>;
   __shared__ typename BlockReduce::TempStorage temp_storage;
+
   size_type thread_count = 0;
 
   auto const loop_stride = cuco::detail::grid_stride() / CGSize;
   auto idx               = cuco::detail::global_thread_id() / CGSize;
 
   while (idx < n) {
-    typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
     if constexpr (CGSize == 1) {
-      thread_count += ref.count(key);
+      if (pred(*(stencil + idx))) {
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+        thread_count += ref.count(key);
+      }
     } else {
       auto const tile =
         cooperative_groups::tiled_partition<CGSize, cooperative_groups::thread_block>(
           cooperative_groups::this_thread_block());
-      thread_count += ref.count(tile, key);
+      if (pred(*(stencil + idx))) {
+        typename cuda::std::iterator_traits<InputIt>::value_type const key = *(first + idx);
+        thread_count += ref.count(tile, key);
+      }
     }
+
     idx += loop_stride;
   }
 
   auto const block_count = BlockReduce(temp_storage).Sum(thread_count);
+
   if (threadIdx.x == 0) { count->fetch_add(block_count, cuda::std::memory_order_relaxed); }
 }
 
@@ -596,15 +621,19 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
 
 /**
  * @brief Retrieves the equivalent container elements of all keys in the range `[input_probe,
- * input_probe + n)`.
+ * input_probe + n)` if `pred` of the corresponding stencil returns true.
  *
- * If key `k = *(input_probe + i)` has one or more matches in the container, copies `k` to
- * `output_probe` and associated slot contents to `output_match`, respectively. The output order is
- * unspecified.
+ * If key `k = *(input_probe + i)` has one or more matches in the container  and `pred` of
+ * its corresponding stencil is true, copies `k` to `output_probe` and associated slot
+ * contents to `output_match`, respectively. The output order is unspecified.
  *
  * @tparam BlockSize The size of the thread block
  * @tparam TileStride Number of tile batches assigned to each thread block
  * @tparam InputProbeIt Device accessible input iterator
+ * @tparam StencilIt Device accessible random access iterator whose value_type is
+ * convertible to Predicate's argument type
+ * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool`
+ * and argument type is convertible from `std::iterator_traits<StencilIt>::value_type`
  * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
  * convertible to the `InputProbeIt`'s `value_type`
  * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -615,6 +644,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
  *
  * @param input_probe Beginning of the sequence of input keys
  * @param n Number of the keys to query
+ * @param stencil Beginning of the stencil sequence
+ * @param pred Predicate to test on every element in the range `[stencil, stencil + n)`
  * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
  * `output_match`
  * @param output_match Beginning of the sequence of matching elements
@@ -625,16 +656,20 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void count_each(InputIt first,
 template <int BlockSize,
           int TileStride,
           class InputProbeIt,
+          class StencilIt,
+          class Predicate,
           class OutputProbeIt,
           class OutputMatchIt,
           class AtomicCounter,
           class Ref>
-CUCO_KERNEL void retrieve(InputProbeIt input_probe,
-                          cuco::detail::index_type n,
-                          OutputProbeIt output_probe,
-                          OutputMatchIt output_match,
-                          AtomicCounter* atomic_counter,
-                          Ref ref)
+CUCO_KERNEL void retrieve_if_n(InputProbeIt input_probe,
+                               cuco::detail::index_type n,
+                               StencilIt stencil,
+                               Predicate pred,
+                               OutputProbeIt output_probe,
+                               OutputMatchIt output_match,
+                               AtomicCounter* atomic_counter,
+                               Ref ref)
 {
   namespace cg = cooperative_groups;
 
@@ -647,12 +682,14 @@ CUCO_KERNEL void retrieve(InputProbeIt input_probe,
     min(n, static_cast<cuco::detail::index_type>(block_begin_offset + tiles_per_block));
 
   if (block_begin_offset < block_end_offset) {
-    ref.template retrieve<BlockSize>(block,
-                                     input_probe + block_begin_offset,
-                                     input_probe + block_end_offset,
-                                     output_probe,
-                                     output_match,
-                                     *atomic_counter);
+    ref.template retrieve_if<BlockSize>(block,
+                                        input_probe + block_begin_offset,
+                                        input_probe + block_end_offset,
+                                        stencil + block_begin_offset,
+                                        pred,
+                                        output_probe,
+                                        output_match,
+                                        *atomic_counter);
   }
 }
 

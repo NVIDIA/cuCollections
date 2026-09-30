@@ -602,17 +602,23 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   }
 
   /**
-   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
+   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`
+   * if `pred` of the corresponding stencil returns true.
    *
-   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
-   * slot contents to `output_match`, respectively. The output order is unspecified.
+   * If key `k = *(first + i)` exists in the container and `pred( *(stencil + i) )` returns true,
+   * copies `k` to `output_probe` and associated slot contents to `output_match`, respectively.
+   * The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()` to determine the size of the output range.
+   * Use `count_if()` with the same stencil and predicate to determine the output size.
    *
    * This function synchronizes the given CUDA stream.
    *
    * @tparam InputProbeIt Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
    * convertible to the `InputProbeIt`'s `value_type`
    * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
@@ -621,6 +627,9 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    *
    * @param first Beginning of the input sequence of keys
    * @param last End of the input sequence of keys
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
    * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
    * `output_match`
    * @param output_match Beginning of the sequence of matching elements
@@ -629,13 +638,20 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    *
    * @return Iterator pair indicating the the end of the output sequences
    */
-  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
-  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputProbeIt first,
-                                                   InputProbeIt last,
-                                                   OutputProbeIt output_probe,
-                                                   OutputMatchIt output_match,
-                                                   Ref container_ref,
-                                                   cuda::stream_ref stream) const
+  template <class InputProbeIt,
+            class StencilIt,
+            class Predicate,
+            class OutputProbeIt,
+            class OutputMatchIt,
+            class Ref>
+  std::pair<OutputProbeIt, OutputMatchIt> retrieve_if(InputProbeIt first,
+                                                      InputProbeIt last,
+                                                      StencilIt stencil,
+                                                      Predicate const& pred,
+                                                      OutputProbeIt output_probe,
+                                                      OutputMatchIt output_match,
+                                                      Ref container_ref,
+                                                      cuda::stream_ref stream) const
   {
     auto const n = detail::distance(first, last);
     if (n == 0) { return {output_probe, output_match}; }
@@ -644,14 +660,13 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
     auto counter       = counter_type{this->allocator(), stream};
     counter.reset(stream.get());
 
-    auto constexpr block_size = cuco::detail::default_block_size();
-
+    auto constexpr block_size  = cuco::detail::default_block_size();
     auto constexpr grid_stride = 4;
     auto const grid_size       = cuco::detail::grid_size(n, cg_size, grid_stride, block_size);
 
-    detail::open_addressing_ns::retrieve<block_size, grid_stride>
+    detail::open_addressing_ns::retrieve_if_n<block_size, grid_stride>
       <<<grid_size, block_size, 0, stream.get()>>>(
-        first, n, output_probe, output_match, counter.data(), container_ref);
+        first, n, stencil, pred, output_probe, output_match, counter.data(), container_ref);
 
     auto const num_retrieved = counter.load_to_host(stream.get());
 
@@ -660,35 +675,46 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
 
   /**
    * @brief Counts the occurrences of keys in `[first, last)` contained in the container
+   * if `pred` of the corresponding stencil returns true.
    *
    * @tparam Input Device accessible input iterator
+   * @tparam StencilIt Device accessible random access iterator whose value_type is
+   * convertible to Predicate's argument type
+   * @tparam Predicate Unary predicate callable whose return type must be convertible to `bool` and
+   * argument type is convertible from <tt>std::iterator_traits<StencilIt>::value_type</tt>
    * @tparam Ref Type of non-owning device container ref allowing access to storage
    *
    * @param first Beginning of the sequence of keys to count
    * @param last End of the sequence of keys to count
+   * @param stencil Beginning of the stencil sequence
+   * @param pred Predicate to test on every element in the range `[stencil, stencil +
+   * std::distance(first, last))`
+   * @param container_ref Non-owning device reference to the container
    * @param stream CUDA stream used for count
    *
    * @return The sum of total occurrences of all keys in `[first, last)`
    */
-  template <typename InputIt, typename Ref>
-  [[nodiscard]] size_type count(InputIt first,
-                                InputIt last,
-                                Ref container_ref,
-                                cuda::stream_ref stream) const
+  template <typename InputIt, typename StencilIt, typename Predicate, typename Ref>
+  [[nodiscard]] size_type count_if(InputIt first,
+                                   InputIt last,
+                                   StencilIt stencil,
+                                   Predicate pred,
+                                   Ref container_ref,
+                                   cuda::stream_ref stream) const
   {
     auto const num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return 0; }
 
     auto counter =
       detail::counter_storage<size_type, thread_scope, allocator_type>{this->allocator(), stream};
+
     counter.reset(stream);
 
-    auto constexpr block_size  = cuco::detail::default_block_size();
-    auto constexpr grid_stride = 4;
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size, grid_stride, block_size);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
 
-    detail::open_addressing_ns::count<cg_size, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, counter.data(), container_ref);
+    detail::open_addressing_ns::count_if_n<cg_size, cuco::detail::default_block_size()>
+      <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
+        first, num_keys, stencil, pred, counter.data(), container_ref);
 
     return counter.load_to_host(stream);
   }
