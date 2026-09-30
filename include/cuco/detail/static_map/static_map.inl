@@ -12,6 +12,8 @@
 #include <cuco/static_map_ref.cuh>
 #include <cuco/storage.cuh>
 
+#include <cuda/iterator>
+#include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <cuda/stream>
 
@@ -698,7 +700,12 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
   InputIt first, InputIt last, cuda::stream_ref stream) const
 {
-  return impl_->count(first, last, ref(op::count), stream);
+  return impl_->count_if(first,
+                         last,
+                         cuda::constant_iterator<bool>{true},
+                         cuda::std::identity{},
+                         ref(op::count),
+                         stream);
 }
 
 template <class Key,
@@ -718,7 +725,14 @@ static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   OutputMatchIt output_match,
   cuda::stream_ref stream) const
 {
-  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+  return impl_->retrieve_if(first,
+                            last,
+                            cuda::constant_iterator<bool>{true},
+                            cuda::std::identity{},
+                            output_probe,
+                            output_match,
+                            this->ref(op::retrieve),
+                            stream);
 }
 
 template <class Key,

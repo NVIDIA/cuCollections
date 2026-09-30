@@ -8,6 +8,7 @@
 #include <cuco/detail/utility/cuda.hpp>
 
 #include <cuda/iterator>
+#include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <thrust/count.h>
 #include <thrust/execution_policy.h>
@@ -449,7 +450,12 @@ static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
   InputIt first, InputIt last, cuda::stream_ref stream) const
 {
-  return impl_->count(first, last, ref(op::count), stream);
+  return impl_->count_if(first,
+                         last,
+                         cuda::constant_iterator<bool>{true},
+                         cuda::std::identity{},
+                         ref(op::count),
+                         stream);
 }
 
 template <class Key,
@@ -469,10 +475,12 @@ static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   ProbeHash const& probe_hash,
   cuda::stream_ref stream) const
 {
-  return impl_->count(first,
-                      last,
-                      ref(op::count).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
-                      stream);
+  return impl_->count_if(first,
+                         last,
+                         cuda::constant_iterator<bool>{true},
+                         cuda::std::identity{},
+                         ref(op::count).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash),
+                         stream);
 }
 
 template <class Key,
@@ -492,7 +500,14 @@ static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   OutputMatchIt output_match,
   cuda::stream_ref stream) const
 {
-  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+  return impl_->retrieve_if(first,
+                            last,
+                            cuda::constant_iterator<bool>{true},
+                            cuda::std::identity{},
+                            output_probe,
+                            output_match,
+                            this->ref(op::retrieve),
+                            stream);
 }
 
 template <class Key,
@@ -520,7 +535,14 @@ static_multimap<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
 {
   auto const probe_ref =
     this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
-  return impl_->retrieve(first, last, output_probe, output_match, probe_ref, stream);
+  return impl_->retrieve_if(first,
+                            last,
+                            cuda::constant_iterator<bool>{true},
+                            cuda::std::identity{},
+                            output_probe,
+                            output_match,
+                            probe_ref,
+                            stream);
 }
 
 template <class Key,

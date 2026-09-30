@@ -9,6 +9,9 @@
 #include <cuco/operator.hpp>
 #include <cuco/static_set_ref.cuh>
 
+#include <cuda/iterator>
+#include <cuda/std/functional>
+
 #include <cstddef>
 
 namespace cuco {
@@ -524,7 +527,12 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::siz
 static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
   InputIt first, InputIt last, cuda::stream_ref stream) const
 {
-  return impl_->count(first, last, ref(op::count), stream);
+  return impl_->count_if(first,
+                         last,
+                         cuda::constant_iterator<bool>{true},
+                         cuda::std::identity{},
+                         ref(op::count),
+                         stream);
 }
 
 template <class Key,
@@ -543,7 +551,14 @@ static_set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::ret
   OutputIt2 output_match,
   cuda::stream_ref stream) const
 {
-  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+  return impl_->retrieve_if(first,
+                            last,
+                            cuda::constant_iterator<bool>{true},
+                            cuda::std::identity{},
+                            output_probe,
+                            output_match,
+                            this->ref(op::retrieve),
+                            stream);
 }
 
 template <class Key,

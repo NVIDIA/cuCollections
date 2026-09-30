@@ -9,6 +9,9 @@
 #include <cuco/operator.hpp>
 #include <cuco/static_multiset_ref.cuh>
 
+#include <cuda/iterator>
+#include <cuda/std/functional>
+
 #include <cstddef>
 
 namespace cuco {
@@ -408,7 +411,12 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::count(
   InputIt first, InputIt last, cuda::stream_ref stream) const
 {
-  return impl_->count(first, last, ref(op::count), stream);
+  return impl_->count_if(first,
+                         last,
+                         cuda::constant_iterator<bool>{true},
+                         cuda::std::identity{},
+                         ref(op::count),
+                         stream);
 }
 
 template <class Key,
@@ -427,9 +435,11 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   ProbeHash const& probe_hash,
   cuda::stream_ref stream) const
 {
-  return impl_->count(
+  return impl_->count_if(
     first,
     last,
+    cuda::constant_iterator<bool>{true},
+    cuda::std::identity{},
     ref(op::count).rebind_key_eq(probe_key_equal).rebind_hash_function(probe_hash),
     stream);
 }
@@ -520,7 +530,14 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
   OutputMatchIt output_match,
   cuda::stream_ref stream) const
 {
-  return impl_->retrieve(first, last, output_probe, output_match, this->ref(op::retrieve), stream);
+  return impl_->retrieve_if(first,
+                            last,
+                            cuda::constant_iterator<bool>{true},
+                            cuda::std::identity{},
+                            output_probe,
+                            output_match,
+                            this->ref(op::retrieve),
+                            stream);
 }
 
 template <class Key,
@@ -547,7 +564,14 @@ static_multiset<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>
 {
   auto const probe_ref =
     this->ref(op::retrieve).rebind_key_eq(probe_equal).rebind_hash_function(probe_hash);
-  return impl_->retrieve(first, last, output_probe, output_match, probe_ref, stream);
+  return impl_->retrieve_if(first,
+                            last,
+                            cuda::constant_iterator<bool>{true},
+                            cuda::std::identity{},
+                            output_probe,
+                            output_match,
+                            probe_ref,
+                            stream);
 }
 
 template <class Key,

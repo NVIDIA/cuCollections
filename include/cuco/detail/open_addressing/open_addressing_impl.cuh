@@ -602,52 +602,6 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   }
 
   /**
-   * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`.
-   *
-   * If key `k = *(first + i)` exists in the container, copies `k` to `output_probe` and associated
-   * slot contents to `output_match`, respectively. The output order is unspecified.
-   *
-   * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()` to determine the size of the output range.
-   *
-   * This function synchronizes the given CUDA stream.
-   *
-   * @tparam InputProbeIt Device accessible input iterator
-   * @tparam OutputProbeIt Device accessible input iterator whose `value_type` is
-   * convertible to the `InputProbeIt`'s `value_type`
-   * @tparam OutputMatchIt Device accessible input iterator whose `value_type` is
-   * convertible to the container's `value_type`
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the input sequence of keys
-   * @param last End of the input sequence of keys
-   * @param output_probe Beginning of the sequence of keys corresponding to matching elements in
-   * `output_match`
-   * @param output_match Beginning of the sequence of matching elements
-   * @param container_ref Non-owning device reference to the container
-   * @param stream CUDA stream this operation is executed in
-   *
-   * @return Iterator pair indicating the the end of the output sequences
-   */
-  template <class InputProbeIt, class OutputProbeIt, class OutputMatchIt, class Ref>
-  std::pair<OutputProbeIt, OutputMatchIt> retrieve(InputProbeIt first,
-                                                   InputProbeIt last,
-                                                   OutputProbeIt output_probe,
-                                                   OutputMatchIt output_match,
-                                                   Ref container_ref,
-                                                   cuda::stream_ref stream) const
-  {
-    return this->retrieve_if(first,
-                             last,
-                             cuda::constant_iterator<bool>{true},
-                             cuda::std::identity{},
-                             output_probe,
-                             output_match,
-                             container_ref,
-                             stream);
-  }
-
-  /**
    * @brief Retrieves all the slots corresponding to all keys in the range `[first, last)`
    * if `pred` of the corresponding stencil returns true.
    *
@@ -656,7 +610,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    * The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()` to determine the size of the output range.
+   * Use `count_if()` with the same stencil and predicate to determine the output size.
    *
    * This function synchronizes the given CUDA stream.
    *
@@ -717,32 +671,6 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
     auto const num_retrieved = counter.load_to_host(stream.get());
 
     return {output_probe + num_retrieved, output_match + num_retrieved};
-  }
-
-  /**
-   * @brief Counts the occurrences of keys in `[first, last)` contained in the container
-   *
-   * @tparam Input Device accessible input iterator
-   * @tparam Ref Type of non-owning device container ref allowing access to storage
-   *
-   * @param first Beginning of the sequence of keys to count
-   * @param last End of the sequence of keys to count
-   * @param stream CUDA stream used for count
-   *
-   * @return The sum of total occurrences of all keys in `[first, last)`
-   */
-  template <typename InputIt, typename Ref>
-  [[nodiscard]] size_type count(InputIt first,
-                                InputIt last,
-                                Ref container_ref,
-                                cuda::stream_ref stream) const
-  {
-    return this->count_if(first,
-                          last,
-                          cuda::constant_iterator<bool>{true},
-                          cuda::std::identity{},
-                          container_ref,
-                          stream);
   }
 
   /**
@@ -1217,7 +1145,6 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
   [[nodiscard]] constexpr storage_ref_type storage_ref() const noexcept { return storage_.ref(); }
 
  private:
-
   /**
    * @brief Extracts the key from a given slot.
    *
