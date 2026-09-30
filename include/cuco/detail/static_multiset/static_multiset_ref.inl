@@ -605,7 +605,7 @@ class operator_impl<
    * The output order is unspecified.
    *
    * Behavior is undefined if the size of the output range exceeds the number of retrieved slots.
-   * Use `count()` to determine the size of the output range.
+   * Use `count_if()` to determine the size of the output range.
    *
    * @tparam BlockSize Size of the thread block this operation is executed in
    * @tparam InputProbeIt Device accessible input iterator whose `value_type` is
