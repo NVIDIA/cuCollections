@@ -66,7 +66,8 @@ struct bucket_probing_results {
  * @throw If the given key type doesn't have unique object representations, i.e.,
  * `cuco::is_bitwise_comparable_v<Key> == false`
  * @throw If the given payload type doesn't have unique object representations, i.e.,
- * `cuco::is_bitwise_comparable_v<T> == false`
+ * `cuco::is_bitwise_comparable_v<T> == false` unless `CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS ==
+ * 0`
  * @throw If the probing scheme type is not inherited from `cuco::detail::probing_scheme_base`
  *
  * @tparam Key Type used for keys. Requires `sizeof(Key) <= cuco::open_addressing_max_key_size` and
@@ -77,7 +78,7 @@ struct bucket_probing_results {
  * @tparam StorageRef Storage ref type. Its `value_type` must fit in
  * `cuco::open_addressing_max_slot_size`;
  * payloads, if present, must be 4 or 8 bytes (or 16 with sm_90+) and satisfy
- * `cuco::is_bitwise_comparable_v<T>`
+ * `cuco::is_bitwise_comparable_v<T>` or `CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS == 0`
  * @tparam AllowsDuplicates Flag indicating whether duplicate keys are allowed or not
  */
 template <typename Key,
@@ -1749,11 +1750,13 @@ class open_addressing_ref_impl
                                                         value_type expected,
                                                         Value desired) noexcept
   {
-    if constexpr (sizeof(value_type) <= 8) {
+    if constexpr (sizeof(value_type) <= 8 and
+                  (CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS or !has_payload)) {
       return packed_cas(address, expected, desired);
     }
 #if (__CUDA_ARCH__ >= 900)
-    else if constexpr (cuco::detail::is_packable<value_type>()) {
+    else if constexpr (cuco::detail::is_packable<value_type>() and
+                       (CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS or !has_payload)) {
       return packed_cas(address, expected, desired);
     }
 #endif
@@ -1792,11 +1795,13 @@ class open_addressing_ref_impl
                                                                value_type expected,
                                                                Value desired) noexcept
   {
-    if constexpr (sizeof(value_type) <= 8) {
+    if constexpr (sizeof(value_type) <= 8 and
+                  (CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS or !has_payload)) {
       return packed_cas(address, expected, desired);
     }
 #if (__CUDA_ARCH__ >= 900)
-    else if constexpr (cuco::detail::is_packable<value_type>()) {
+    else if constexpr (cuco::detail::is_packable<value_type>() and
+                       (CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS or !has_payload)) {
       return packed_cas(address, expected, desired);
     }
 #endif
@@ -1848,9 +1853,11 @@ class open_addressing_ref_impl
   template <typename SlotPtr>
   __device__ void maybe_wait_for_payload(SlotPtr slot_ptr) noexcept
   {
-    if constexpr (has_payload and sizeof(value_type) > 8) {
+    if constexpr (has_payload and
+                  (sizeof(value_type) > 8 or !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS)) {
 #if (__CUDA_ARCH__ >= 900)
-      if constexpr (not cuco::detail::is_packable<value_type>()) {
+      if constexpr (not cuco::detail::is_packable<value_type>() or
+                    !CUCO_REQUIRE_BITWISE_COMPARABLE_PAYLOADS) {
         this->wait_for_payload(slot_ptr->second, this->empty_value_sentinel());
       }
 #else

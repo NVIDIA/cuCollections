@@ -123,6 +123,7 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/insert_contains_test.cu
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
+    static_multimap/opt_out_packed_cas_test.cu
     static_multimap/for_each_test.cu
     static_multimap/retrieve_test.cu
     static_multimap/retrieve_if_test.cu)
