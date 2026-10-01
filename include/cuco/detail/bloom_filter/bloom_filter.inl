@@ -5,15 +5,52 @@
 
 #pragma once
 
+#include <cuco/detail/error.hpp>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/__algorithm/min.h>
+#include <cuda/std/limits>
 #include <cuda/stream>
 
 #include <cstddef>
 
 namespace cuco {
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+template <class E, class>
+__host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(
+  bloom_filter_bytes size_bytes,
+  cuda_thread_scope<Scope> scope,
+  Policy const& policy,
+  Allocator const& alloc,
+  cuda::stream_ref stream)
+  : bloom_filter{[size_bytes] {
+                   constexpr auto block_bytes = sizeof(typename ref_type<>::filter_block_type);
+                   CUCO_EXPECTS(size_bytes.value >= block_bytes,
+                                "Storage size must accommodate at least one filter block");
+                   return extent_type{static_cast<size_type>(
+                     cuda::std::min(size_bytes.value, max_size()) / block_bytes)};
+                 }(),
+                 scope,
+                 policy,
+                 alloc,
+                 stream}
+{
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+[[nodiscard]] __host__ constexpr std::size_t
+bloom_filter<Key, Extent, Scope, Policy, Allocator>::max_size() noexcept
+{
+  constexpr auto block_bytes = sizeof(typename ref_type<>::filter_block_type);
+  constexpr auto max_blocks  = cuda::std::min(
+    static_cast<std::size_t>(Policy::max_filter_blocks),
+    cuda::std::min(static_cast<std::size_t>(cuda::std::numeric_limits<size_type>::max()),
+                   cuda::std::numeric_limits<std::size_t>::max() / block_bytes));
+  return max_blocks * block_bytes;
+}
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(Extent num_blocks,
