@@ -77,9 +77,7 @@ class finalizer {
   }
 
   __host__ __device__ constexpr double bias_corrected_estimate(double e) const noexcept
-  {
-    return (e < 5.0 * this->m_) ? e - this->bias(e) : e;
-  }
+  { return (e < 5.0 * this->m_) ? e - this->bias(e) : e; }
 
   __host__ __device__ constexpr double bias(double e) const noexcept
   {

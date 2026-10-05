@@ -50,9 +50,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
       data_{bitmap},
       run_container_bitmap_{bitmap + metadata_.run_container_bitmap},
       key_cards_{bitmap + metadata_.key_cards}
-  {
-    assert(metadata.valid);
-  }
+  { assert(metadata.valid); }
 
   /**
    * @brief Constructs a storage reference from bitmap data
@@ -93,9 +91,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint32_t> {
    * @return Pointer to the run container bitmap data
    */
   __host__ __device__ cuda::std::byte const* run_container_bitmap() const noexcept
-  {
-    return run_container_bitmap_;
-  }
+  { return run_container_bitmap_; }
 
   /**
    * @brief Returns pointer to the key cardinalities data
@@ -179,9 +175,7 @@ class roaring_bitmap_storage_ref<cuda::std::uint64_t> {
   __host__ __device__
     cuda::std::pair<cuda::std::uint32_t, roaring_bitmap_storage_ref<cuda::std::uint32_t>>*
     buckets() const noexcept
-  {
-    return buckets_;
-  }
+  { return buckets_; }
 
  private:
   metadata_type metadata_;
@@ -265,9 +259,7 @@ class roaring_bitmap_storage<cuda::std::uint32_t, Allocator> {
       data_{allocator_.allocate(metadata_.size_bytes, stream),
             cuco::detail::custom_deleter<cuda::std::size_t, allocator_type>{
               metadata_.size_bytes, allocator_, stream}}
-  {
-    assert(metadata_.valid);
-  }
+  { assert(metadata_.valid); }
 
   /**
    * @brief Move constructor

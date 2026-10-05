@@ -117,9 +117,7 @@ template <class Key,
           class Storage>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear(
   cuda::stream_ref stream)
-{
-  impl_->clear(stream);
-}
+{ impl_->clear(stream); }
 
 template <class Key,
           class T,
@@ -131,9 +129,7 @@ template <class Key,
           class Storage>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::clear_async(
   cuda::stream_ref stream) noexcept
-{
-  impl_->clear_async(stream);
-}
+{ impl_->clear_async(stream); }
 
 template <class Key,
           class T,
@@ -147,9 +143,7 @@ template <typename InputIt>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert(
   InputIt first, InputIt last, cuda::stream_ref stream)
-{
-  return impl_->insert(first, last, ref(op::insert), stream);
-}
+{ return impl_->insert(first, last, ref(op::insert), stream); }
 
 template <class Key,
           class T,
@@ -162,9 +156,7 @@ template <class Key,
 template <typename InputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_async(
   InputIt first, InputIt last, cuda::stream_ref stream) noexcept
-{
-  impl_->insert_async(first, last, ref(op::insert), stream);
-}
+{ impl_->insert_async(first, last, ref(op::insert), stream); }
 
 template <class Key,
           class T,
@@ -222,9 +214,7 @@ template <typename InputIt, typename StencilIt, typename Predicate>
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::insert_if(
   InputIt first, InputIt last, StencilIt stencil, Predicate pred, cuda::stream_ref stream)
-{
-  return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream);
-}
+{ return impl_->insert_if(first, last, stencil, pred, ref(op::insert), stream); }
 
 template <class Key,
           class T,
@@ -241,9 +231,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
                   StencilIt stencil,
                   Predicate pred,
                   cuda::stream_ref stream) noexcept
-{
-  impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream);
-}
+{ impl_->insert_if_async(first, last, stencil, pred, ref(op::insert), stream); }
 
 template <class Key,
           class T,
@@ -394,9 +382,7 @@ template <class Key,
 template <typename InputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::erase_async(
   InputIt first, InputIt last, cuda::stream_ref stream)
-{
-  impl_->erase_async(first, last, ref(op::erase), stream);
-}
+{ impl_->erase_async(first, last, ref(op::erase), stream); }
 
 template <class Key,
           class T,
@@ -429,9 +415,7 @@ template <class Key,
 template <typename InputIt, typename OutputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::contains_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const noexcept
-{
-  impl_->contains_async(first, last, output_begin, ref(op::contains), stream);
-}
+{ impl_->contains_async(first, last, output_begin, ref(op::contains), stream); }
 
 template <class Key,
           class T,
@@ -474,9 +458,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
                     Predicate pred,
                     OutputIt output_begin,
                     cuda::stream_ref stream) const noexcept
-{
-  impl_->contains_if_async(first, last, stencil, pred, output_begin, ref(op::contains), stream);
-}
+{ impl_->contains_if_async(first, last, stencil, pred, output_begin, ref(op::contains), stream); }
 
 template <class Key,
           class T,
@@ -509,9 +491,7 @@ template <class Key,
 template <typename InputIt, typename OutputIt>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::find_async(
   InputIt first, InputIt last, OutputIt output_begin, cuda::stream_ref stream) const
-{
-  impl_->find_async(first, last, output_begin, ref(op::find), stream);
-}
+{ impl_->find_async(first, last, output_begin, ref(op::find), stream); }
 
 template <class Key,
           class T,
@@ -578,9 +558,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
   Predicate pred,
   OutputIt output_begin,
   cuda::stream_ref stream) const
-{
-  impl_->find_if_async(first, last, stencil, pred, output_begin, ref(op::find), stream);
-}
+{ impl_->find_if_async(first, last, stencil, pred, output_begin, ref(op::find), stream); }
 
 template <class Key,
           class T,
@@ -646,9 +624,7 @@ template <class Key,
 template <typename CallbackOp>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::for_each_async(
   CallbackOp&& callback_op, cuda::stream_ref stream) const
-{
-  impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream);
-}
+{ impl_->for_each_async(std::forward<CallbackOp>(callback_op), stream); }
 
 template <class Key,
           class T,
@@ -765,9 +741,7 @@ template <class Key,
           class Storage>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash(
   cuda::stream_ref stream)
-{
-  this->impl_->rehash(*this, stream);
-}
+{ this->impl_->rehash(*this, stream); }
 
 template <class Key,
           class T,
@@ -794,9 +768,7 @@ template <class Key,
           class Storage>
 void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::rehash_async(
   cuda::stream_ref stream)
-{
-  this->impl_->rehash_async(*this, stream);
-}
+{ this->impl_->rehash_async(*this, stream); }
 
 template <class Key,
           class T,
@@ -824,9 +796,7 @@ template <class Key,
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::size(
   cuda::stream_ref stream) const
-{
-  return impl_->size(stream);
-}
+{ return impl_->size(stream); }
 
 template <class Key,
           class T,
@@ -839,9 +809,7 @@ template <class Key,
 constexpr auto
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::capacity()
   const noexcept
-{
-  return impl_->capacity();
-}
+{ return impl_->capacity(); }
 
 template <class Key,
           class T,
@@ -853,9 +821,7 @@ template <class Key,
           class Storage>
 __host__ auto static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::data()
   const -> value_type*
-{
-  return impl_->data();
-}
+{ return impl_->data(); }
 
 template <class Key,
           class T,
@@ -868,9 +834,7 @@ template <class Key,
 constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::empty_key_sentinel()
   const noexcept
-{
-  return impl_->empty_key_sentinel();
-}
+{ return impl_->empty_key_sentinel(); }
 
 template <class Key,
           class T,
@@ -884,9 +848,7 @@ constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, 
   mapped_type
   static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
     empty_value_sentinel() const noexcept
-{
-  return impl_->empty_payload_sentinel();
-}
+{ return impl_->empty_payload_sentinel(); }
 
 template <class Key,
           class T,
@@ -899,9 +861,7 @@ template <class Key,
 constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_type
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::
   erased_key_sentinel() const noexcept
-{
-  return impl_->erased_key_sentinel();
-}
+{ return impl_->erased_key_sentinel(); }
 
 template <class Key,
           class T,
@@ -914,9 +874,7 @@ template <class Key,
 constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_equal
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::key_eq()
   const noexcept
-{
-  return impl_->key_eq();
-}
+{ return impl_->key_eq(); }
 
 template <class Key,
           class T,
@@ -929,9 +887,7 @@ template <class Key,
 constexpr static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::hasher
 static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>::hash_function()
   const noexcept
-{
-  return impl_->hash_function();
-}
+{ return impl_->hash_function(); }
 
 template <class Key,
           class T,

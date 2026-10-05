@@ -20,9 +20,7 @@ namespace cuco {
 namespace detail {
 
 constexpr std::uint64_t extent_div_ceil(std::uint64_t dividend, std::uint64_t divisor)
-{
-  return dividend / divisor + static_cast<std::uint64_t>(dividend % divisor != 0);
-}
+{ return dividend / divisor + static_cast<std::uint64_t>(dividend % divisor != 0); }
 
 template <typename SizeType>
 constexpr std::uint64_t max_extent_value()
@@ -63,9 +61,7 @@ class valid_extent : public extent<SizeType, N> {
   using value_type = typename base_type::value_type;
 
   __host__ __device__ constexpr value_type value() const noexcept
-  {
-    return static_cast<value_type>(*this);
-  }
+  { return static_cast<value_type>(*this); }
 
  private:
   __host__ __device__ explicit constexpr valid_extent(value_type value = {}) noexcept
@@ -123,9 +119,7 @@ template <int32_t CGSize, int32_t BucketSize, typename SizeType, std::size_t N>
 // Overload for SizeType without extent
 template <int32_t CGSize, int32_t BucketSize, typename SizeType>
 [[nodiscard]] auto constexpr make_valid_extent(SizeType size)
-{
-  return make_valid_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size});
-}
+{ return make_valid_extent<CGSize, BucketSize, SizeType, dynamic_extent>(extent<SizeType>{size}); }
 
 // Implementation for ProbingScheme and Storage types
 template <typename ProbingScheme, typename Storage, typename SizeType, std::size_t N>

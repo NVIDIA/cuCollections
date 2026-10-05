@@ -20,9 +20,7 @@ namespace cuco::experimental::detail {
 
 template <class T>
 __host__ __device__ __forceinline__ T aligned_load(cuda::std::byte const* ptr)
-{
-  return *reinterpret_cast<T const*>(cuda::std::assume_aligned<alignof(T)>(ptr));
-}
+{ return *reinterpret_cast<T const*>(cuda::std::assume_aligned<alignof(T)>(ptr)); }
 
 template <class T>
 __host__ __device__ __forceinline__ T misaligned_load(cuda::std::byte const* ptr)
@@ -34,9 +32,7 @@ __host__ __device__ __forceinline__ T misaligned_load(cuda::std::byte const* ptr
 
 template <class T>
 __host__ __device__ __forceinline__ void misaligned_store(cuda::std::byte* ptr, T value)
-{
-  cuda::std::memcpy(ptr, &value, sizeof(T));
-}
+{ cuda::std::memcpy(ptr, &value, sizeof(T)); }
 
 __host__ __device__ __forceinline__ bool check_bit(cuda::std::byte const* bitmap,
                                                    cuda::std::uint32_t index)
@@ -87,9 +83,7 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
    */
   [[nodiscard]] __host__ __device__ static constexpr cuda::std::uint32_t
   no_run_container_offsets_offset(cuda::std::uint32_t bitmap_num_containers) noexcept
-  {
-    return no_run_key_cards_offset + bitmap_num_containers * 2 * sizeof(cuda::std::uint16_t);
-  }
+  { return no_run_key_cards_offset + bitmap_num_containers * 2 * sizeof(cuda::std::uint16_t); }
 
   /**
    * @brief Returns the byte size of a no-run bitmap header.
@@ -125,9 +119,7 @@ struct roaring_bitmap_metadata<cuda::std::uint32_t> {
    */
   [[nodiscard]] __host__ __device__ static constexpr cuda::std::uint16_t container_key(
     cuda::std::uint32_t index) noexcept
-  {
-    return static_cast<cuda::std::uint16_t>(index >> 16);
-  }
+  { return static_cast<cuda::std::uint16_t>(index >> 16); }
 
   /// Total size of the bitmap in bytes
   cuda::std::size_t size_bytes = 0;

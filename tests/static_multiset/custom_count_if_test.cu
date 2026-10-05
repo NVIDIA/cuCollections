@@ -34,17 +34,13 @@ struct identity_hash {
 struct custom_hash {
   template <typename custom_type>
   __device__ custom_type operator()(custom_type k) const
-  {
-    return k / probe_scale;
-  };
+  { return k / probe_scale; };
 };
 
 struct custom_key_eq {
   template <typename lhs_type, typename rhs_type>
   __device__ bool operator()(lhs_type lhs, rhs_type rhs) const
-  {
-    return lhs / probe_scale == rhs;
-  }
+  { return lhs / probe_scale == rhs; }
 };
 
 template <typename Set>

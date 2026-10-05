@@ -80,10 +80,10 @@ class bloom_filter_policy {
   static_assert(WordBytes == 4 || WordBytes == 8, "WordBytes must be 4 or 8 for native atomicOr");
 
  public:
-  using hasher           = Hash;  ///< 64-bit hash functor type
-  using word_type        = cuda::std::conditional_t<WordBytes == 4,
-                                                    unsigned int,
-                                                    unsigned long long int>;  ///< Filter-block word type
+  using hasher    = Hash;  ///< 64-bit hash functor type
+  using word_type = cuda::std::conditional_t<WordBytes == 4,
+                                             unsigned int,
+                                             unsigned long long int>;  ///< Filter-block word type
   using hash_result_type = uint64_t;  ///< Hash function output type
 
  private:
@@ -220,9 +220,7 @@ class bloom_filter_policy {
    */
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
-  {
-    return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
-  }
+  { return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value); }
 
   /**
    * @brief Generates the per-word fingerprint pattern for a key when the horizontal layout is > 1.

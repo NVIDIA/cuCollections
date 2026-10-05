@@ -219,7 +219,7 @@ CUCO_KERNEL void write_roaring_bitmap_header(cuda::std::byte* bitmap,
 
   auto* const offsets = bitmap + metadata_type::no_run_container_offsets_offset(
                                    static_cast<cuda::std::uint32_t>(state.num_containers));
-  auto const offset = static_cast<cuda::std::uint32_t>(
+  auto const offset   = static_cast<cuda::std::uint32_t>(
     metadata_type::no_run_header_bytes(static_cast<cuda::std::uint32_t>(state.num_containers)) +
     payload_offsets[index]);
   misaligned_store(offsets + index * sizeof(cuda::std::uint32_t), offset);

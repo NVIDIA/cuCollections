@@ -68,20 +68,14 @@ void roaring_bitmap_build(nvbench::state& state, nvbench::type_list<Dist>)
 
 template <class Dist>
 void roaring_bitmap_from_indices(nvbench::state& state, nvbench::type_list<Dist> types)
-{
-  roaring_bitmap_build<build_mode::indices>(state, types);
-}
+{ roaring_bitmap_build<build_mode::indices>(state, types); }
 
 void roaring_bitmap_from_indices_unique(nvbench::state& state)
-{
-  roaring_bitmap_build<build_mode::indices>(state, nvbench::type_list<distribution::unique>{});
-}
+{ roaring_bitmap_build<build_mode::indices>(state, nvbench::type_list<distribution::unique>{}); }
 
 template <class Dist>
 void roaring_bitmap_from_sorted_indices(nvbench::state& state, nvbench::type_list<Dist> types)
-{
-  roaring_bitmap_build<build_mode::sorted_indices>(state, types);
-}
+{ roaring_bitmap_build<build_mode::sorted_indices>(state, types); }
 
 void roaring_bitmap_from_sorted_unique_indices(nvbench::state& state)
 {
@@ -120,19 +114,13 @@ void roaring_bitmap_build_container_cardinality(nvbench::state& state)
 }
 
 void roaring_bitmap_from_indices_container_cardinality(nvbench::state& state)
-{
-  roaring_bitmap_build_container_cardinality<build_mode::indices>(state);
-}
+{ roaring_bitmap_build_container_cardinality<build_mode::indices>(state); }
 
 void roaring_bitmap_from_sorted_indices_container_cardinality(nvbench::state& state)
-{
-  roaring_bitmap_build_container_cardinality<build_mode::sorted_indices>(state);
-}
+{ roaring_bitmap_build_container_cardinality<build_mode::sorted_indices>(state); }
 
 void roaring_bitmap_from_sorted_unique_indices_container_cardinality(nvbench::state& state)
-{
-  roaring_bitmap_build_container_cardinality<build_mode::sorted_unique_indices>(state);
-}
+{ roaring_bitmap_build_container_cardinality<build_mode::sorted_unique_indices>(state); }
 
 NVBENCH_BENCH(roaring_bitmap_from_indices_unique)
   .set_name("roaring_bitmap_from_indices_unique")

@@ -134,9 +134,7 @@ constexpr std::uint64_t next_prime(std::uint64_t n, std::uint64_t upper_bound)
  * @return The smallest representable prime greater than or equal to `n`, or zero if none exists
  */
 constexpr std::uint64_t next_prime(std::uint64_t n)
-{
-  return next_prime(n, std::numeric_limits<std::uint64_t>::max());
-}
+{ return next_prime(n, std::numeric_limits<std::uint64_t>::max()); }
 
 }  // namespace detail
 }  // namespace cuco

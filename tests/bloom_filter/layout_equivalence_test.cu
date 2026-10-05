@@ -161,10 +161,10 @@ TEST_CASE("bloom_filter: bitset is invariant under ConditionalAdd", "")
                                           cuda::thread_scope_device,
                                           cuco::bloom_filter_policy<Key>>;
   using filter_on_t  = cuco::bloom_filter<
-     Key,
-     cuco::extent<std::size_t>,
-     cuda::thread_scope_device,
-     cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 8, 8, 8, 1, 1, 8, true>>;
+    Key,
+    cuco::extent<std::size_t>,
+    cuda::thread_scope_device,
+    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 8, 8, 8, 1, 1, 8, true>>;
 
   constexpr int32_t num_blocks = 1'000;
   constexpr int32_t num_keys   = 400;

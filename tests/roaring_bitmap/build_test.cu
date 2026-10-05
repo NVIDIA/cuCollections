@@ -100,15 +100,11 @@ class tracking_allocator {
 
 template <class T, class U>
 bool operator==(tracking_allocator<T> const& lhs, tracking_allocator<U> const& rhs) noexcept
-{
-  return lhs.counts() == rhs.counts();
-}
+{ return lhs.counts() == rhs.counts(); }
 
 template <class T, class U>
 bool operator!=(tracking_allocator<T> const& lhs, tracking_allocator<U> const& rhs) noexcept
-{
-  return not(lhs == rhs);
-}
+{ return not(lhs == rhs); }
 
 }  // namespace
 

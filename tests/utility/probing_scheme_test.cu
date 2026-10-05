@@ -30,9 +30,7 @@ struct constant_hash {
   }
 
   __host__ __device__ constexpr cuda::std::uint32_t operator()(cuda::std::int32_t) const noexcept
-  {
-    return value;
-  }
+  { return value; }
 };
 
 template <typename T>
@@ -43,15 +41,11 @@ struct constexpr_extent {
 
   friend __host__ __device__ constexpr value_type operator-(constexpr_extent<T> lhs,
                                                             value_type rhs) noexcept
-  {
-    return lhs.value - rhs;
-  }
+  { return lhs.value - rhs; }
 
   friend __host__ __device__ constexpr value_type operator%(value_type lhs,
                                                             constexpr_extent<T> rhs) noexcept
-  {
-    return lhs % rhs.value;
-  }
+  { return lhs % rhs.value; }
 
   value_type value;
 };
@@ -170,14 +164,10 @@ TEST_CASE("Probing schemes support the full unsigned hash range", "")
   constexpr auto high_bit = cuda::std::uint32_t{0x80000000};
 
   SECTION("Scalar linear probing")
-  {
-    check_scalar_sequence(cuco::linear_probing<1, constant_hash>{constant_hash{high_bit}}, 10);
-  }
+  { check_scalar_sequence(cuco::linear_probing<1, constant_hash>{constant_hash{high_bit}}, 10); }
 
   SECTION("Cooperative linear probing")
-  {
-    check_cg_sequence(cuco::linear_probing<2, constant_hash>{constant_hash{high_bit}}, 10);
-  }
+  { check_cg_sequence(cuco::linear_probing<2, constant_hash>{constant_hash{high_bit}}, 10); }
 
   SECTION("Scalar double hashing primary hash")
   {

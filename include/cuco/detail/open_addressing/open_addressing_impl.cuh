@@ -117,9 +117,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
       predicate_{pred},
       probing_scheme_{probing_scheme},
       storage_{make_valid_extent<probing_scheme_type, Storage>(capacity), alloc, stream}
-  {
-    this->clear_async(stream);
-  }
+  { this->clear_async(stream); }
 
   /**
    * @brief Constructs a statically-sized open addressing data structure with the number of elements
@@ -164,9 +162,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
       probing_scheme_{probing_scheme},
       storage_{
         make_valid_extent<probing_scheme_type, Storage>(n, desired_load_factor), alloc, stream}
-  {
-    this->clear_async(stream);
-  }
+  { this->clear_async(stream); }
 
   /**
    * @brief Constructs a statically-sized open addressing data structure with the specified initial
@@ -224,9 +220,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    * @param stream CUDA stream this operation is executed in
    */
   void clear_async(cuda::stream_ref stream) noexcept
-  {
-    storage_.initialize_async(empty_slot_sentinel_, stream);
-  }
+  { storage_.initialize_async(empty_slot_sentinel_, stream); }
 
   /**
    * @brief Inserts all keys in the range `[first, last)` and returns the number of successful
@@ -1015,9 +1009,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    */
   template <typename Container>
   void rehash_async(Container const& container, cuda::stream_ref stream)
-  {
-    this->rehash_async(storage_.extent(), container, stream);
-  }
+  { this->rehash_async(storage_.extent(), container, stream); }
 
   /**
    * @brief Asynchronously reserves at least the specified number of slots and regenerates the
@@ -1078,9 +1070,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    * @return The sentinel value used to represent an empty key slot
    */
   [[nodiscard]] constexpr key_type empty_key_sentinel() const noexcept
-  {
-    return this->extract_key(this->empty_slot_sentinel_);
-  }
+  { return this->extract_key(this->empty_slot_sentinel_); }
 
   /**
    * @brief Gets the sentinel value used to represent an empty payload slot.
@@ -1089,9 +1079,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    */
   template <bool HasPayload = has_payload, cuda::std::enable_if_t<HasPayload, int> = 0>
   [[nodiscard]] constexpr auto empty_payload_sentinel() const noexcept
-  {
-    return this->extract_payload(this->empty_slot_sentinel_);
-  }
+  { return this->extract_payload(this->empty_slot_sentinel_); }
 
   /**
    * @brief Gets the sentinel value used to represent an erased key slot.
@@ -1099,9 +1087,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    * @return The sentinel value used to represent an erased key slot
    */
   [[nodiscard]] constexpr key_type erased_key_sentinel() const noexcept
-  {
-    return erased_key_sentinel_;
-  }
+  { return erased_key_sentinel_; }
 
   /**
    * @brief Gets the key comparator.
@@ -1116,9 +1102,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    * @return The probing scheme used for the container
    */
   [[nodiscard]] constexpr probing_scheme_type const& probing_scheme() const noexcept
-  {
-    return probing_scheme_;
-  }
+  { return probing_scheme_; }
 
   /**
    * @brief Gets the function(s) used to hash keys
@@ -1126,9 +1110,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    * @return The function(s) used to hash keys
    */
   [[nodiscard]] constexpr hasher hash_function() const noexcept
-  {
-    return this->probing_scheme().hash_function();
-  }
+  { return this->probing_scheme().hash_function(); }
 
   /**
    * @brief Gets the container allocator.
@@ -1170,9 +1152,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
    */
   template <bool HasPayload = has_payload, cuda::std::enable_if_t<HasPayload, int> = 0>
   [[nodiscard]] constexpr auto extract_payload(value_type const& slot) const noexcept
-  {
-    return slot.second;
-  }
+  { return slot.second; }
 
  protected:
   // TODO: cleanup by using equal wrapper as a data member

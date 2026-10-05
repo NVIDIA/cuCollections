@@ -167,9 +167,7 @@ class open_addressing_ref_impl
    * @return The sentinel value used to represent an empty key slot
    */
   [[nodiscard]] __host__ __device__ constexpr key_type empty_key_sentinel() const noexcept
-  {
-    return this->predicate_.empty_sentinel_;
-  }
+  { return this->predicate_.empty_sentinel_; }
 
   /**
    * @brief Gets the sentinel value used to represent an empty payload slot.
@@ -178,9 +176,7 @@ class open_addressing_ref_impl
    */
   template <bool Dummy = true, typename Enable = cuda::std::enable_if_t<has_payload and Dummy>>
   [[nodiscard]] __host__ __device__ constexpr auto empty_value_sentinel() const noexcept
-  {
-    return this->extract_payload(this->empty_slot_sentinel());
-  }
+  { return this->extract_payload(this->empty_slot_sentinel()); }
 
   /**
    * @brief Gets the sentinel value used to represent an erased key slot.
@@ -188,9 +184,7 @@ class open_addressing_ref_impl
    * @return The sentinel value used to represent an erased key slot
    */
   [[nodiscard]] __host__ __device__ constexpr key_type erased_key_sentinel() const noexcept
-  {
-    return this->predicate_.erased_sentinel_;
-  }
+  { return this->predicate_.erased_sentinel_; }
 
   /**
    * @brief Gets the sentinel used to represent an empty slot.
@@ -198,9 +192,7 @@ class open_addressing_ref_impl
    * @return The sentinel value used to represent an empty slot
    */
   [[nodiscard]] __host__ __device__ constexpr value_type empty_slot_sentinel() const noexcept
-  {
-    return empty_slot_sentinel_;
-  }
+  { return empty_slot_sentinel_; }
 
   /**
    * @brief Returns the function that compares keys for equality.
@@ -210,9 +202,7 @@ class open_addressing_ref_impl
   [[nodiscard]] __host__
     __device__ constexpr detail::equal_wrapper<key_type, key_equal, allows_duplicates>
     predicate() const noexcept
-  {
-    return this->predicate_;
-  }
+  { return this->predicate_; }
 
   /**
    * @brief Gets the key comparator.
@@ -220,9 +210,7 @@ class open_addressing_ref_impl
    * @return The comparator used to compare keys
    */
   [[nodiscard]] __host__ __device__ constexpr key_equal key_eq() const noexcept
-  {
-    return this->predicate().equal_;
-  }
+  { return this->predicate().equal_; }
 
   /**
    * @brief Gets the probing scheme.
@@ -230,9 +218,7 @@ class open_addressing_ref_impl
    * @return The probing scheme used for the container
    */
   [[nodiscard]] __host__ __device__ constexpr probing_scheme_type probing_scheme() const noexcept
-  {
-    return probing_scheme_;
-  }
+  { return probing_scheme_; }
 
   /**
    * @brief Gets the function(s) used to hash keys
@@ -240,9 +226,7 @@ class open_addressing_ref_impl
    * @return The function(s) used to hash keys
    */
   [[nodiscard]] __host__ __device__ constexpr hasher hash_function() const noexcept
-  {
-    return this->probing_scheme().hash_function();
-  }
+  { return this->probing_scheme().hash_function(); }
 
   /**
    * @brief Gets the non-owning storage ref.
@@ -250,9 +234,7 @@ class open_addressing_ref_impl
    * @return The non-owning storage ref of the container
    */
   [[nodiscard]] __host__ __device__ constexpr storage_ref_type storage_ref() const noexcept
-  {
-    return storage_ref_;
-  }
+  { return storage_ref_; }
 
   /**
    * @brief Gets the maximum number of elements the container can hold.
@@ -260,9 +242,7 @@ class open_addressing_ref_impl
    * @return The maximum number of elements the container can hold
    */
   [[nodiscard]] __host__ __device__ constexpr auto capacity() const noexcept
-  {
-    return storage_ref_.capacity();
-  }
+  { return storage_ref_.capacity(); }
 
   /**
    * @brief Gets the bucket extent of the current storage.
@@ -270,9 +250,7 @@ class open_addressing_ref_impl
    * @return The bucket extent.
    */
   [[nodiscard]] __host__ __device__ constexpr extent_type extent() const noexcept
-  {
-    return storage_ref_.extent();
-  }
+  { return storage_ref_.extent(); }
 
   /**
    * @brief Returns an iterator to one past the last slot.
@@ -280,9 +258,7 @@ class open_addressing_ref_impl
    * @return An iterator to one past the last slot
    */
   [[nodiscard]] __host__ __device__ constexpr iterator end() const noexcept
-  {
-    return storage_ref_.end();
-  }
+  { return storage_ref_.end(); }
 
   /**
    * @brief Returns an iterator to one past the last slot.
@@ -1499,9 +1475,7 @@ class open_addressing_ref_impl
    */
   __device__ value_type* get_slot_ptr(size_type probing_idx,
                                       cuda::std::int32_t intra_bucket_idx) const noexcept
-  {
-    return storage_ref_.data() + probing_idx + intra_bucket_idx;
-  }
+  { return storage_ref_.data() + probing_idx + intra_bucket_idx; }
 
   /**
    * @brief Extracts the key from a given value type.
@@ -1535,9 +1509,7 @@ class open_addressing_ref_impl
    */
   template <typename Value, typename Enable = cuda::std::enable_if_t<has_payload and sizeof(Value)>>
   [[nodiscard]] __host__ __device__ constexpr auto extract_payload(Value value) const noexcept
-  {
-    return thrust::raw_reference_cast(value).second;
-  }
+  { return thrust::raw_reference_cast(value).second; }
 
   /**
    * @brief Converts the given type to the container's native `value_type`.
