@@ -710,7 +710,7 @@ class open_addressing_impl : private open_addressing_compatible<Key, Value, Prob
 
     counter.reset(stream);
 
-    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size);
+    auto const grid_size = cuco::detail::grid_size(num_keys, cg_size, 4);
 
     detail::open_addressing_ns::count_if_n<cg_size, cuco::detail::default_block_size()>
       <<<grid_size, cuco::detail::default_block_size(), 0, stream.get()>>>(
