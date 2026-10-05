@@ -13,13 +13,13 @@ ci:
 
 repos:
       - repo: https://github.com/pre-commit/mirrors-clang-format
-        rev: v20.1.4
+        rev: v23.1.2
         hooks:
               - id: clang-format
                 types_or: [c, c++, cuda]
                 args: ['-fallback-style=none', '-style=file', '-i']
       - repo: https://github.com/rapidsai/pre-commit-hooks
-        rev: v1.6.0
+        rev: v1.7.0
         hooks:
               - id: verify-copyright
                 args: [--fix, --spdx]
