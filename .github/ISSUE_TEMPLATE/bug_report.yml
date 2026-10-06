@@ -30,7 +30,7 @@ body:
     attributes:
       label: Describe the bug
       description: A clear and concise description of what problem you are running into.
-      placeholder: "cuco::static_map::insert fails to insert all keys."  
+      placeholder: "cuco::static_map::insert fails to insert all keys."
     validations:
       required: true
   - type: textarea
@@ -69,15 +69,15 @@ body:
     attributes:
       label: Operating System
       description:
-        If applicable, the OS version where this bug occurs. 
+        If applicable, the OS version where this bug occurs.
       placeholder: Ubuntu Linux 20.04
     validations:
-      required: false  
+      required: false
   - type: textarea
     id: nvidia-smi-output
     attributes:
       label: nvidia-smi output
-      description: If applicable, the output from running the `nvidia-smi` command. 
+      description: If applicable, the output from running the `nvidia-smi` command.
       placeholder: |
         +-----------------------------------------------------------------------------+
         | NVIDIA-SMI 495.29.05    Driver Version: 495.29.05    CUDA Version: 11.5     |
@@ -92,12 +92,12 @@ body:
         +-------------------------------+----------------------+----------------------+
     validations:
       required: false
-      
+
   - type: textarea
     id: nvcc-version
     attributes:
       label: NVCC version
-      description: If applicable, the version of nvcc you're using. 
+      description: If applicable, the version of nvcc you're using.
       placeholder: |
         nvcc --version
         nvcc: NVIDIA (R) Cuda compiler driver
