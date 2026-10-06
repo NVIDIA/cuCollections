@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cuco/detail/storage/functors.cuh>
+#include <cuco/detail/utility/assert.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
 
@@ -62,6 +63,10 @@ template <typename T, int BucketSize, typename Extent>
 __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_type
 bucket_storage_ref<T, BucketSize, Extent>::operator[](size_type index) const noexcept
 {
+#if defined(CUCO_DEBUG)
+  CUCO_DEBUG_ASSERT(index <= this->capacity() && bucket_size <= this->capacity() - index,
+                    "Bucket access exceeds storage capacity");
+#endif
   return *reinterpret_cast<bucket_type*>(this->data() + index);
 }
 

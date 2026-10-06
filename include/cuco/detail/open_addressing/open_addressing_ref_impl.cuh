@@ -8,6 +8,7 @@
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/open_addressing/constraints.cuh>
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
+#include <cuco/detail/utility/assert.cuh>
 #include <cuco/detail/utility/cuda.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/extent.cuh>
@@ -368,6 +369,9 @@ class open_addressing_ref_impl
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
 
     auto const val = this->heterogeneous_value(value);
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_insert_value(val);
+#endif
     auto const key = this->extract_key(val);
 
     auto probing_iter =
@@ -402,7 +406,10 @@ class open_addressing_ref_impl
         }
       }
       ++probing_iter;
-      if (*probing_iter == init_idx) { return false; }
+      if (*probing_iter == init_idx) {
+        CUCO_DEBUG_ASSERT(false, "Probing exhausted the container capacity");
+        return false;
+      }
     }
   }
 
@@ -422,6 +429,9 @@ class open_addressing_ref_impl
                          Value value) noexcept
   {
     auto const val = this->heterogeneous_value(value);
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_insert_value(val);
+#endif
     auto const key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
@@ -486,7 +496,10 @@ class open_addressing_ref_impl
         }
       } else {
         ++probing_iter;
-        if (*probing_iter == init_idx) { return false; }
+        if (*probing_iter == init_idx) {
+          CUCO_DEBUG_ASSERT(false, "Probing exhausted the container capacity");
+          return false;
+        }
       }
     }
   }
@@ -518,6 +531,9 @@ class open_addressing_ref_impl
 #endif
 
     auto const val = this->heterogeneous_value(value);
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_insert_value(val);
+#endif
     auto const key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
@@ -551,7 +567,10 @@ class open_addressing_ref_impl
         }
       }
       ++probing_iter;
-      if (*probing_iter == init_idx) { return {this->end(), false}; }
+      if (*probing_iter == init_idx) {
+        CUCO_DEBUG_ASSERT(false, "Probing exhausted the container capacity");
+        return {this->end(), false};
+      }
     };
   }
 
@@ -584,6 +603,9 @@ class open_addressing_ref_impl
 #endif
 
     auto const val = this->heterogeneous_value(value);
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_insert_value(val);
+#endif
     auto const key = this->extract_key(val);
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
@@ -640,7 +662,10 @@ class open_addressing_ref_impl
         }
       } else {
         ++probing_iter;
-        if (*probing_iter == init_idx) { return {this->end(), false}; }
+        if (*probing_iter == init_idx) {
+          CUCO_DEBUG_ASSERT(false, "Probing exhausted the container capacity");
+          return {this->end(), false};
+        }
       }
     }
   }
@@ -658,6 +683,9 @@ class open_addressing_ref_impl
   __device__ bool erase(ProbeKey key) noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
 
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
@@ -704,6 +732,9 @@ class open_addressing_ref_impl
   __device__ bool erase(cooperative_groups::thread_block_tile<cg_size, ParentCG> group,
                         ProbeKey key) noexcept
   {
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -764,6 +795,9 @@ class open_addressing_ref_impl
   [[nodiscard]] __device__ bool contains(ProbeKey key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -803,6 +837,9 @@ class open_addressing_ref_impl
   [[nodiscard]] __device__ bool contains(
     cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -844,6 +881,9 @@ class open_addressing_ref_impl
   [[nodiscard]] __device__ iterator find(ProbeKey key) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -887,6 +927,9 @@ class open_addressing_ref_impl
   [[nodiscard]] __device__ iterator
   find(cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -936,6 +979,9 @@ class open_addressing_ref_impl
   template <typename ProbeKey>
   [[nodiscard]] __device__ size_type count(ProbeKey key) const noexcept
   {
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     if constexpr (not allows_duplicates) {
       return static_cast<size_type>(this->contains(key));
     } else {
@@ -981,6 +1027,9 @@ class open_addressing_ref_impl
   [[nodiscard]] __device__ size_type
   count(cooperative_groups::thread_block_tile<cg_size, ParentCG> group, ProbeKey key) const noexcept
   {
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -1220,6 +1269,9 @@ class open_addressing_ref_impl
         // perform probing
         // make sure the flushing_tile is converged at this point to get a coalesced load
         probe_type const probe_key = *(input_probe + idx);
+#if defined(CUCO_DEBUG)
+        this->debug_assert_valid_probe_key(probe_key);
+#endif
 
         auto probing_iter = probing_scheme_.template make_iterator<bucket_size>(
           probing_tile, probe_key, storage_ref_.extent());
@@ -1335,6 +1387,9 @@ class open_addressing_ref_impl
   __device__ void for_each(ProbeKey key, CallbackOp&& callback_op) const noexcept
   {
     static_assert(cg_size == 1, "Non-CG operation is incompatible with the current probing scheme");
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -1391,6 +1446,9 @@ class open_addressing_ref_impl
                            ProbeKey key,
                            CallbackOp&& callback_op) const noexcept
   {
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -1457,6 +1515,9 @@ class open_addressing_ref_impl
                            CallbackOp&& callback_op,
                            SyncOp&& sync_op) const noexcept
   {
+#if defined(CUCO_DEBUG)
+    this->debug_assert_valid_probe_key(key);
+#endif
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
@@ -1488,6 +1549,46 @@ class open_addressing_ref_impl
       ++probing_iter;
       if (*probing_iter == init_idx) { return; }
     }
+  }
+
+  template <typename ProbeKey>
+  __device__ constexpr void debug_assert_valid_probe_key(
+    [[maybe_unused]] ProbeKey key) const noexcept
+  {
+#if defined(CUCO_DEBUG)
+    using probe_key_type = cuda::std::remove_cv_t<cuda::std::remove_reference_t<ProbeKey>>;
+
+    if constexpr (cuda::std::is_same_v<probe_key_type, key_type>) {
+      CUCO_DEBUG_ASSERT(!cuco::detail::bitwise_compare(key, this->empty_key_sentinel()),
+                        "Probing for the empty key sentinel is invalid");
+      CUCO_DEBUG_ASSERT(!cuco::detail::bitwise_compare(key, this->erased_key_sentinel()),
+                        "Probing for the erased key sentinel is invalid");
+    } else if constexpr (cuda::std::is_arithmetic_v<probe_key_type> &&
+                         cuda::std::is_arithmetic_v<key_type>) {
+      // Avoid narrowing heterogeneous probes to key_type. Narrowing can turn a valid miss into a
+      // sentinel, e.g. int64_t{4294967295} with an int32_t sentinel of -1.
+      CUCO_DEBUG_ASSERT(key != this->empty_key_sentinel(),
+                        "Probing for the empty key sentinel is invalid");
+      CUCO_DEBUG_ASSERT(key != this->erased_key_sentinel(),
+                        "Probing for the erased key sentinel is invalid");
+    }
+#endif
+  }
+
+  template <typename Value>
+  __device__ constexpr void debug_assert_valid_insert_value(
+    [[maybe_unused]] Value value) const noexcept
+  {
+#if defined(CUCO_DEBUG)
+    auto const native = this->native_value(value);
+    auto const key    = this->extract_key(native);
+    this->debug_assert_valid_probe_key(key);
+    if constexpr (has_payload) {
+      CUCO_DEBUG_ASSERT(
+        !cuco::detail::bitwise_compare(this->extract_payload(native), this->empty_value_sentinel()),
+        "Inserting the empty payload sentinel is invalid");
+    }
+#endif
   }
 
   /**
