@@ -539,7 +539,7 @@ class operator_impl<
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
 #if defined(CUCO_DEBUG)
     ref_.impl_.debug_assert_valid_insert_value(val);
 #endif
@@ -595,7 +595,7 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
 #if defined(CUCO_DEBUG)
     ref_.impl_.debug_assert_valid_insert_value(val);
 #endif
@@ -922,7 +922,7 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
 #if defined(CUCO_DEBUG)
     ref_.impl_.debug_assert_valid_insert_value(val);
 #endif
@@ -1006,7 +1006,7 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
 #if defined(CUCO_DEBUG)
     ref_.impl_.debug_assert_valid_insert_value(val);
 #endif
