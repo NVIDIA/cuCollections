@@ -25,12 +25,13 @@ namespace cuco {
  * @brief Non-owning array of slots storage reference type.
  *
  * @tparam T Storage element type
- * @tparam BucketSize Number of slots in each bucket
+ * @tparam BucketSize Number of slots in each bucket; must be a positive power of two
  * @tparam Extent Type of extent denoting storage capacity
  */
 template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::size_t>>
 class bucket_storage_ref {
-  static_assert(BucketSize > 0, "Bucket size must be positive");
+  static_assert(BucketSize > 0 && (BucketSize & (BucketSize - 1)) == 0,
+                "Bucket size must be a positive power of two");
 
  public:
   static constexpr int32_t bucket_size = BucketSize;        ///< Number of elements per bucket
@@ -50,8 +51,7 @@ class bucket_storage_ref {
   /**
    * @brief Constructor of slot storage ref.
    *
-   * @note `slots` must be aligned to `alignment` bytes. This alignment is
-   * preserved at every bucket boundary, including for non-power-of-two buckets.
+   * @note `slots` must be aligned to `alignment` bytes.
    *
    * @param size Number of slots
    * @param slots Pointer to the slots array
@@ -99,8 +99,6 @@ class bucket_storage_ref {
   /**
    * @brief Returns an array of slots (or a bucket) for a given index.
    *
-   * @pre The complete range `[index, index + bucket_size)` is within the storage.
-   *
    * @note `index` need not be a multiple of `bucket_size`.
    *
    * @param index Index of the slot
@@ -114,7 +112,6 @@ class bucket_storage_ref {
    * Unlike `operator[]`, this access exposes the guaranteed bucket alignment to the compiler.
    *
    * @pre `index` is a multiple of `bucket_size`.
-   * @pre The complete range `[index, index + bucket_size)` is within the storage.
    *
    * @param index Index of the first slot in the bucket
    * @return An array containing the bucket's slots
