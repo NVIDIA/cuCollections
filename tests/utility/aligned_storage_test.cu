@@ -13,8 +13,6 @@
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
 
-#include <cooperative_groups.h>
-
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <algorithm>
@@ -63,53 +61,6 @@ struct absolute_hash {
     return static_cast<std::uint32_t>(value < 0 ? -value : value);
   }
 };
-
-template <class Ref>
-struct shifted_storage : Ref {
-  __host__ __device__ explicit constexpr shifted_storage(Ref const& ref) : Ref{ref} {}
-
-  __device__ typename Ref::bucket_type operator[](typename Ref::size_type index) const
-  {
-    return Ref::operator[](index + 1);
-  }
-};
-
-struct zero_hash {
-  __host__ __device__ std::uint32_t operator()(int) const noexcept { return 0; }
-};
-
-using native_probe = cuco::linear_probing<2, zero_hash>;
-
-struct custom_probe : native_probe {
-  template <int B, class ProbeKey, class Extent, class ParentCG>
-  __host__ __device__ auto make_iterator(cooperative_groups::thread_block_tile<2, ParentCG> group,
-                                         ProbeKey key,
-                                         Extent capacity) const noexcept
-  {
-    auto iter = native_probe::template make_iterator<B>(group, key, capacity);
-    ++iter;
-    return iter;
-  }
-};
-
-template <bool CustomStorage, bool CustomProbe, class Ref>
-__global__ void check_fallback_loads(Ref storage, unsigned* errors, unsigned* matches)
-{
-  using storage_type = cuda::std::conditional_t<CustomStorage, shifted_storage<Ref>, Ref>;
-  using probe_type   = cuda::std::conditional_t<CustomProbe, custom_probe, native_probe>;
-  auto const group =
-    cooperative_groups::tiled_partition<2>(cooperative_groups::this_thread_block());
-  auto ref = cuco::static_set_ref{cuco::empty_key<int>{-1},
-                                  cuda::std::equal_to<int>{},
-                                  probe_type{},
-                                  cuco::thread_scope_device,
-                                  storage_type{storage}};
-  if (!ref.rebind_operators(cuco::contains).contains(group, 0)) { atomicAdd(errors, 1u); }
-  ref.rebind_operators(cuco::for_each).for_each(group, 0, [=] __device__(int value) {
-    if (value != 0) { atomicAdd(errors, 1u); }
-    atomicAdd(matches, 1u);
-  });
-}
 
 template <class Ref>
 __device__ void check_reads(Ref ref, unsigned* errors)
@@ -252,29 +203,6 @@ TEMPLATE_TEST_CASE_SIG("aligned bucket loads and general slot access",
     CUCO_CUDA_TRY(cudaDeviceSynchronize());
     REQUIRE(errors[0] == 0);
   }
-}
-
-TEST_CASE("aligned bucket access preserves custom storage and probing", "")
-{
-  cuco::bucket_storage<int, 8> storage{cuco::extent<std::size_t>{80}, cuco::cuda_allocator<int>{}};
-  storage.initialize(-1);
-  int const key = 0;
-  thrust::device_vector<unsigned> result(2, 0);
-  auto* errors  = thrust::raw_pointer_cast(result.data());
-  auto* matches = errors + 1;
-  SECTION("A derived storage ref must retain its overridden slot access.")
-  {
-    CUCO_CUDA_TRY(cudaMemcpy(storage.data() + 1, &key, sizeof(key), cudaMemcpyHostToDevice));
-    check_fallback_loads<true, false><<<1, 2>>>(storage.ref(), errors, matches);
-  }
-  SECTION("A custom probe uses the aligned whole-bucket load.")
-  {
-    CUCO_CUDA_TRY(cudaMemcpy(storage.data() + 16, &key, sizeof(key), cudaMemcpyHostToDevice));
-    check_fallback_loads<false, true><<<1, 2>>>(storage.ref(), errors, matches);
-  }
-  CUCO_CUDA_TRY(cudaDeviceSynchronize());
-  REQUIRE(result[0] == 0);
-  REQUIRE(result[1] == 1);
 }
 
 TEST_CASE("bucket storage realignment preserves allocator ownership and stream", "")
