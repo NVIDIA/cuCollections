@@ -16,7 +16,7 @@
 #include <cuda/atomic>
 #include <cuda/std/array>
 #include <cuda/std/cstddef>
-#include <cuda/stream_ref>
+#include <cuda/stream>
 
 #include <cstddef>
 #include <cstdint>

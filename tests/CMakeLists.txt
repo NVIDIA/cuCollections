@@ -14,7 +14,7 @@ include(CTest)
 CPMAddPackage(
   NAME Catch2
   GITHUB_REPOSITORY catchorg/Catch2
-  VERSION 3.3.0
+  VERSION 3.10.0
 )
 
 # Header for catch_discover_tests
@@ -80,6 +80,7 @@ ConfigureTest(STATIC_MAP_TEST
     static_map/insert_and_find_test.cu
     static_map/insert_or_assign_test.cu
     static_map/insert_or_apply_test.cu
+    static_map/insert_overload_test.cu
     static_map/key_sentinel_test.cu
     static_map/shared_memory_test.cu
     static_map/stream_test.cu
@@ -100,12 +101,15 @@ ConfigureTest(DYNAMIC_MAP_TEST
 # - static_multiset tests -------------------------------------------------------------------------
 ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/contains_test.cu
+    static_multiset/count_if_test.cu
     static_multiset/count_test.cu
+    static_multiset/custom_count_if_test.cu
     static_multiset/custom_count_test.cu
     static_multiset/find_test.cu
     static_multiset/insert_test.cu
     static_multiset/for_each_test.cu
     static_multiset/retrieve_test.cu
+    static_multiset/retrieve_if_impl_test.cu
     static_multiset/retrieve_if_test.cu
     static_multiset/large_input_test.cu
     static_multiset/load_factor_test.cu
@@ -156,4 +160,5 @@ ConfigureTest(BLOOM_FILTER_TEST
 ###################################################################################################
 # - roaring_bitmap ---------------------------------------------------------------------------------
 ConfigureTest(ROARING_BITMAP_TEST
-    roaring_bitmap/contains_test.cu)
+    roaring_bitmap/contains_test.cu
+    roaring_bitmap/build_test.cu)

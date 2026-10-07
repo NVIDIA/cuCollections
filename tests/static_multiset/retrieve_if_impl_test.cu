@@ -1,0 +1,408 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <test_utils.hpp>
+
+#include <cuco/detail/__config>
+#include <cuco/static_multiset.cuh>
+
+#include <cuda/functional>
+#include <cuda/iterator>
+#include <thrust/device_vector.h>
+#include <thrust/distance.h>
+#include <thrust/functional.h>
+#include <thrust/sequence.h>
+#include <thrust/sort.h>
+
+#include <catch2/catch_template_test_macros.hpp>
+
+#include <limits>
+
+template <class Container>
+void test_retrieve_if(Container& container, std::size_t num_keys)
+{
+  using key_type = typename Container::key_type;
+
+  container.clear();
+
+  auto const keys_begin = cuda::counting_iterator<key_type>{0};
+
+  container.insert(keys_begin, keys_begin + num_keys);
+
+  thrust::device_vector<key_type> probed_keys(num_keys);
+  thrust::device_vector<key_type> matched_keys(num_keys);
+  thrust::device_vector<key_type> stencil(num_keys);
+
+  SECTION("retrieve_if should predicate on the stencil, not the probe.")
+  {
+    thrust::sequence(stencil.begin(), stencil.end(), key_type{1});
+
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    auto const num_results =
+      static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
+
+    auto const expected_size = num_keys / 2;
+
+    REQUIRE(num_results == expected_size);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            expected_size);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
+
+    for (std::size_t i = 0; i < expected_size; ++i) {
+      auto const expected = static_cast<key_type>(i * 2 + 1);
+
+      REQUIRE(static_cast<key_type>(probed_keys[i]) == expected);
+      REQUIRE(static_cast<key_type>(matched_keys[i]) == expected);
+    }
+  }
+
+  SECTION("retrieve_if should retrieve only elements satisfying the predicate.")
+  {
+    thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
+
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    auto const num_results =
+      static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
+
+    REQUIRE(num_results == (num_keys + 1) / 2);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            num_results);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
+
+    for (std::size_t i = 0; i < num_results; ++i) {
+      auto const expected = static_cast<key_type>(i * 2);
+
+      REQUIRE(static_cast<key_type>(probed_keys[i]) == expected);
+      REQUIRE(static_cast<key_type>(matched_keys[i]) == expected);
+    }
+  }
+
+  SECTION("retrieve_if should return nothing when the predicate is always false.")
+  {
+    thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
+
+    auto const pred = [] __device__(key_type) { return false; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == 0);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 0);
+  }
+
+  SECTION("retrieve_if should retrieve everything when the predicate is always true.")
+  {
+    thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
+
+    auto const pred = [] __device__(key_type) { return true; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == num_keys);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == num_keys);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
+
+    REQUIRE(cuco::test::equal(
+      probed_keys.begin(), probed_end, keys_begin, cuda::std::equal_to<key_type>{}));
+
+    REQUIRE(cuco::test::equal(
+      matched_keys.begin(), matched_end, keys_begin, cuda::std::equal_to<key_type>{}));
+  }
+}
+
+template <class Container>
+void test_retrieve_if_stencil(Container& container, std::size_t num_keys)
+{
+  using key_type = typename Container::key_type;
+
+  container.clear();
+
+  auto const keys_begin = cuda::counting_iterator<key_type>{0};
+
+  container.insert(keys_begin, keys_begin + num_keys);
+
+  thrust::device_vector<key_type> probes{2, 1, 4, 3};
+  thrust::device_vector<key_type> stencil{1, 2, 3, 4};
+  thrust::device_vector<key_type> probed_keys(4);
+  thrust::device_vector<key_type> matched_keys(4);
+
+  SECTION("retrieve_if should predicate on the stencil, not the probe.")
+  {
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(probes.begin(),
+                                                                 probes.end(),
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    auto const num_results =
+      static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
+
+    // stencil: [1, 2, 3, 4]
+    // probe:   [2, 1, 4, 3]
+    //
+    // Only stencil values 2 and 4 satisfy the predicate, corresponding
+    // to probes 1 and 3.
+    REQUIRE(num_results == 2);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 2);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
+
+    REQUIRE(static_cast<key_type>(probed_keys[0]) == key_type{1});
+    REQUIRE(static_cast<key_type>(probed_keys[1]) == key_type{3});
+    REQUIRE(static_cast<key_type>(matched_keys[0]) == key_type{1});
+    REQUIRE(static_cast<key_type>(matched_keys[1]) == key_type{3});
+  }
+}
+
+template <class Container>
+void test_retrieve_if_with_probe(Container& container, std::size_t num_keys)
+{
+  using key_type = typename Container::key_type;
+
+  container.clear();
+
+  auto const keys_begin = cuda::counting_iterator<key_type>{0};
+
+  container.insert(keys_begin, keys_begin + num_keys);
+
+  thrust::device_vector<key_type> probed_keys(num_keys);
+  thrust::device_vector<key_type> matched_keys(num_keys);
+  thrust::device_vector<key_type> stencil(num_keys);
+
+  thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
+
+  SECTION("retrieve_if should accept explicit equality and hash functions.")
+  {
+    auto const pred = [] __device__(key_type key) { return key % 2 == 0; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 container.key_eq(),
+                                                                 container.hash_function(),
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    auto const num_results =
+      static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
+
+    REQUIRE(num_results == (num_keys + 1) / 2);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            num_results);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
+
+    for (std::size_t i = 0; i < num_results; ++i) {
+      auto const expected = static_cast<key_type>(i * 2);
+
+      REQUIRE(static_cast<key_type>(probed_keys[i]) == expected);
+      REQUIRE(static_cast<key_type>(matched_keys[i]) == expected);
+    }
+  }
+
+  SECTION("retrieve_if with explicit equality and hash should return nothing for false predicate.")
+  {
+    auto const pred = [] __device__(key_type) { return false; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 container.key_eq(),
+                                                                 container.hash_function(),
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == 0);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 0);
+  }
+}
+
+template <class Container>
+void test_retrieve_if_multiplicity(Container& container, std::size_t num_keys)
+{
+  using key_type = typename Container::key_type;
+
+  constexpr std::size_t multiplicity = 2;
+
+  container.clear();
+
+  auto const num_unique_keys = num_keys / multiplicity;
+  auto const num_actual_keys = num_unique_keys * multiplicity;
+
+  auto const keys_begin = cuda::make_transform_iterator(
+    cuda::counting_iterator<key_type>(0),
+    cuda::proclaim_return_type<key_type>([multiplicity] __device__(auto const& i) {
+      return static_cast<key_type>(i / multiplicity);
+    }));
+
+  container.insert(keys_begin, keys_begin + num_actual_keys);
+  REQUIRE(container.size() == num_actual_keys);
+
+  thrust::device_vector<key_type> stencil(num_actual_keys);
+
+  thrust::device_vector<key_type> probed_keys(num_actual_keys * multiplicity);
+  thrust::device_vector<key_type> matched_keys(num_actual_keys * multiplicity);
+
+  thrust::sequence(stencil.begin(), stencil.end(), key_type{0});
+
+  SECTION("retrieve_if should filter duplicate matches using the stencil predicate.")
+  {
+    auto const pred = [] __device__(key_type value) { return value % 2 == 0; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_actual_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    auto const num_results =
+      static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end));
+
+    auto const expected_results = (num_actual_keys / 2) * multiplicity;
+
+    REQUIRE(num_results == expected_results);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            expected_results);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
+
+    for (std::size_t key = 0; key < num_unique_keys; ++key) {
+      auto const expected_key  = static_cast<key_type>(key);
+      auto const output_offset = key * multiplicity;
+
+      for (std::size_t j = 0; j < multiplicity; ++j) {
+        REQUIRE(static_cast<key_type>(probed_keys[output_offset + j]) == expected_key);
+        REQUIRE(static_cast<key_type>(matched_keys[output_offset + j]) == expected_key);
+      }
+    }
+  }
+
+  SECTION("retrieve_if should return nothing when the predicate is always false.")
+  {
+    auto const pred = [] __device__(key_type) { return false; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_actual_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) == 0);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) == 0);
+  }
+
+  SECTION("retrieve_if should return all matches when the predicate is always true.")
+  {
+    auto const pred = [] __device__(key_type) { return true; };
+
+    auto const [probed_end, matched_end] = container.retrieve_if(keys_begin,
+                                                                 keys_begin + num_actual_keys,
+                                                                 stencil.begin(),
+                                                                 pred,
+                                                                 probed_keys.begin(),
+                                                                 matched_keys.begin());
+
+    auto const expected_results = num_actual_keys * multiplicity;
+
+    REQUIRE(static_cast<std::size_t>(std::distance(probed_keys.begin(), probed_end)) ==
+            expected_results);
+    REQUIRE(static_cast<std::size_t>(std::distance(matched_keys.begin(), matched_end)) ==
+            expected_results);
+
+    thrust::sort_by_key(
+      probed_keys.begin(), probed_end, matched_keys.begin(), cuda::std::less<key_type>());
+
+    for (std::size_t key = 0; key < num_unique_keys; ++key) {
+      auto const expected_key   = static_cast<key_type>(key);
+      auto const expected_count = multiplicity * multiplicity;
+
+      for (std::size_t j = 0; j < expected_count; ++j) {
+        auto const output_index = key * expected_count + j;
+
+        REQUIRE(static_cast<key_type>(probed_keys[output_index]) == expected_key);
+        REQUIRE(static_cast<key_type>(matched_keys[output_index]) == expected_key);
+      }
+    }
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "static_multiset retrieve if tests",
+  "",
+  ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
+{
+  constexpr std::size_t num_keys{400};
+  constexpr double desired_load_factor = 0.5;
+  constexpr auto empty_key_sentinel    = std::numeric_limits<Key>::max();
+
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<CGSize, cuco::default_hash_function<Key>>,
+                                   cuco::double_hashing<CGSize, cuco::default_hash_function<Key>>>;
+
+  auto set = cuco::static_multiset{
+    num_keys, desired_load_factor, cuco::empty_key<Key>{empty_key_sentinel}, {}, probe{}};
+
+  test_retrieve_if(set, num_keys);
+  test_retrieve_if_with_probe(set, num_keys);
+  test_retrieve_if_stencil(set, num_keys);
+  test_retrieve_if_multiplicity(set, num_keys);
+}

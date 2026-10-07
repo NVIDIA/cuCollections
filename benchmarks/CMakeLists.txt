@@ -94,4 +94,5 @@ ConfigureBench(BLOOM_FILTER_BENCH
 ###################################################################################################
 # - roaring_bitmap benchmarks ---------------------------------------------------------------------
 ConfigureBench(ROARING_BITMAP_BENCH
+  roaring_bitmap/build_bench.cu
   roaring_bitmap/contains_bench.cu)
