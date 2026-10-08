@@ -896,14 +896,24 @@ class open_addressing_ref_impl
       auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
+        // Classify empty slots first so independent bucket loads can overlap.
+        int32_t first_empty = bucket_size;
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
+          if (cuco::detail::bitwise_compare(this->extract_key(bucket_slots[i()]),
+                                            this->predicate_.empty_sentinel_)) {
+            first_empty = cuda::std::min(first_empty, int32_t{i()});
+          }
+        });
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
         cuda::static_for<bucket_size>([&] __device__(auto i) {
-          if (result.state_ == detail::equal_result::UNEQUAL) {
-            auto res = this->predicate_.template operator()<is_insert::NO>(
-              key, this->extract_key(bucket_slots[i()]));
+          if (i() < first_empty && result.state_ == detail::equal_result::UNEQUAL) {
+            auto const res = this->predicate_.equal_to(key, this->extract_key(bucket_slots[i()]));
             if (res != detail::equal_result::UNEQUAL) { result = bucket_probing_results{res, i()}; }
           }
         });
+        if (result.state_ == detail::equal_result::UNEQUAL && first_empty < bucket_size) {
+          return bucket_probing_results{detail::equal_result::EMPTY, first_empty};
+        }
         return result;
       }();
 
