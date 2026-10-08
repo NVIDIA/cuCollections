@@ -88,6 +88,12 @@ __global__ void access_oob(StorageRef ref)
   static_cast<void>(ref[ref.capacity()]);
 }
 
+template <typename StorageRef>
+__global__ void access_negative(StorageRef ref)
+{
+  static_cast<void>(ref[-2]);
+}
+
 template <typename Ref>
 __global__ void retrieve_from_empty_set(Ref ref,
                                         key_type* input,
@@ -161,6 +167,14 @@ TEST_CASE("CUCO_DEBUG detects out-of-bounds bucket access")
   access_oob<<<1, 1>>>(ref);
   require_device_assert();
 }
+
+TEST_CASE("CUCO_DEBUG detects negative bucket indices")
+{
+  using storage_ref_type = cuco::bucket_storage_ref<key_type, 2, cuco::extent<int>>;
+  auto const ref         = storage_ref_type{cuco::extent<int>{2}, nullptr};
+  access_negative<<<1, 1>>>(ref);
+  require_device_assert();
+}
 TEST_CASE("CUCO_DEBUG permits a full-table lookup miss")
 {
   auto* map = make_map();
@@ -191,6 +205,45 @@ TEST_CASE("CUCO_DEBUG does not narrow heterogeneous probe keys")
   REQUIRE_FALSE(*found);
 
   REQUIRE(cudaFree(found) == cudaSuccess);
+}
+
+TEST_CASE("CUCO_DEBUG permits heterogeneous floating-point lookup hits")
+{
+  auto map = hetero_map_type{cuco::extent<std::size_t>{8},
+                             cuco::empty_key<key_type>{16777217},
+                             cuco::empty_value<mapped_type>{-1},
+                             cuda::std::equal_to<>{},
+                             hetero_probe_type{zero_hash{}}};
+  insert_one<<<1, 1>>>(map.ref(cuco::op::insert), 16777216, 1);
+  require_cuda_success();
+
+  bool* found{};
+  REQUIRE(cudaMallocManaged(&found, sizeof(bool)) == cudaSuccess);
+  *found = false;
+
+  // Converting the sentinel to float rounds it to this distinct, valid stored key.
+  probe_one<<<1, 1>>>(map.ref(cuco::op::contains), 16777216.0f, found);
+  require_cuda_success();
+  REQUIRE(*found);
+
+  REQUIRE(cudaFree(found) == cudaSuccess);
+}
+
+TEST_CASE("CUCO_DEBUG permits heterogeneous unsigned lookup misses")
+{
+  auto* map = make_hetero_map();
+
+  bool* found{};
+  REQUIRE(cudaMallocManaged(&found, sizeof(bool)) == cudaSuccess);
+  *found = true;
+
+  // Usual arithmetic comparison converts the negative sentinel to this unsigned value.
+  probe_one<<<1, 1>>>(map->ref(cuco::op::contains), std::uint32_t{4294967295U}, found);
+  require_cuda_success();
+  REQUIRE_FALSE(*found);
+
+  REQUIRE(cudaFree(found) == cudaSuccess);
+  delete map;
 }
 
 TEST_CASE("CUCO_DEBUG retrieval may finish before probe wraparound")

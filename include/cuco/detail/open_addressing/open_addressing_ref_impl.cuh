@@ -1558,18 +1558,12 @@ class open_addressing_ref_impl
 #if defined(CUCO_DEBUG)
     using probe_key_type = cuda::std::remove_cv_t<cuda::std::remove_reference_t<ProbeKey>>;
 
+    // Heterogeneous probes are interpreted by the user-provided equality predicate; they need
+    // not share the native key's sentinel representation or arithmetic conversion semantics.
     if constexpr (cuda::std::is_same_v<probe_key_type, key_type>) {
       CUCO_DEBUG_ASSERT(!cuco::detail::bitwise_compare(key, this->empty_key_sentinel()),
                         "Probing for the empty key sentinel is invalid");
       CUCO_DEBUG_ASSERT(!cuco::detail::bitwise_compare(key, this->erased_key_sentinel()),
-                        "Probing for the erased key sentinel is invalid");
-    } else if constexpr (cuda::std::is_arithmetic_v<probe_key_type> &&
-                         cuda::std::is_arithmetic_v<key_type>) {
-      // Avoid narrowing heterogeneous probes to key_type. Narrowing can turn a valid miss into a
-      // sentinel, e.g. int64_t{4294967295} with an int32_t sentinel of -1.
-      CUCO_DEBUG_ASSERT(key != this->empty_key_sentinel(),
-                        "Probing for the empty key sentinel is invalid");
-      CUCO_DEBUG_ASSERT(key != this->erased_key_sentinel(),
                         "Probing for the erased key sentinel is invalid");
     }
 #endif

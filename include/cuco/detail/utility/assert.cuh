@@ -18,9 +18,7 @@
 
 namespace cuco::detail {
 
-[[noreturn]] __device__ inline void debug_assert_fail(char const* message,
-                                                      char const* file,
-                                                      int line) noexcept
+__device__ inline void debug_assert_fail(char const* message, char const* file, int line) noexcept
 {
   printf("cuco assertion failed: %s (%s:%d)\n", message, file, line);
   assert(false);
