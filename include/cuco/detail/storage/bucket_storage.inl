@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cuco/detail/storage/functors.cuh>
+#include <cuco/detail/utility/assert.cuh>
 #include <cuco/detail/utility/cuda.hpp>
 #include <cuco/extent.cuh>
 
@@ -14,6 +15,10 @@
 #include <cuda/std/bit>
 #include <cuda/std/cstdint>
 #include <cuda/stream>
+
+#if defined(CUCO_DEBUG)
+#include <cuda/std/type_traits>
+#endif
 
 #include <cassert>
 #include <memory>
@@ -62,6 +67,13 @@ template <typename T, int BucketSize, typename Extent>
 __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_type
 bucket_storage_ref<T, BucketSize, Extent>::operator[](size_type index) const noexcept
 {
+#if defined(CUCO_DEBUG)
+  if constexpr (cuda::std::is_signed_v<size_type>) {
+    CUCO_DEBUG_ASSERT(index >= size_type{0}, "Bucket access precedes storage");
+  }
+  CUCO_DEBUG_ASSERT(index <= this->capacity() && bucket_size <= this->capacity() - index,
+                    "Bucket access exceeds storage capacity");
+#endif
   return *reinterpret_cast<bucket_type*>(this->data() + index);
 }
 

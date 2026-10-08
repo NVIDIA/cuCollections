@@ -47,6 +47,11 @@ ConfigureTest(UTILITY_TEST
     utility/hash_test.cu
     utility/probing_scheme_test.cu)
 
+# catch_discover_tests executes each Catch2 test case in its own process. This matters for device
+# assertion cases because a device assertion poisons that process's CUDA context.
+ConfigureTest(DEBUG_ASSERT_TEST utility/debug_assert_test.cu)
+target_compile_definitions(DEBUG_ASSERT_TEST PRIVATE CUCO_DEBUG NDEBUG)
+
 ###################################################################################################
 # - static_set tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_SET_TEST
