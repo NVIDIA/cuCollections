@@ -1,0 +1,245 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#include <test_utils.hpp>
+
+#include <cuco/detail/__config>
+#include <cuco/static_multiset.cuh>
+
+#include <cuda/functional>
+#include <cuda/iterator>
+#include <cuda/std/tuple>
+#include <thrust/device_vector.h>
+
+#include <catch2/catch_template_test_macros.hpp>
+
+#include <cstddef>
+#include <vector>
+
+namespace {
+
+using size_type = std::size_t;
+
+constexpr int probe_scale = 111;
+
+template <typename T>
+struct identity_hash {
+  __host__ __device__ identity_hash() {}
+  __host__ __device__ identity_hash([[maybe_unused]] int i) {}
+  __device__ T operator()(T k) const { return k; }
+};
+
+struct custom_hash {
+  template <typename custom_type>
+  __device__ custom_type operator()(custom_type k) const
+  {
+    return k / probe_scale;
+  };
+};
+
+struct custom_key_eq {
+  template <typename lhs_type, typename rhs_type>
+  __device__ bool operator()(lhs_type lhs, rhs_type rhs) const
+  {
+    return lhs / probe_scale == rhs;
+  }
+};
+
+template <typename Set>
+void test_count_if_duplicates(Set& set, size_type num_keys)
+{
+  using Key = typename Set::key_type;
+
+  auto constexpr multiplicity = 3;
+
+  auto duplicate_keys_begin =
+    cuda::make_transform_iterator(cuda::counting_iterator<size_type>{0},
+                                  cuda::proclaim_return_type<Key>([] __device__(size_type i) {
+                                    return static_cast<Key>(i / multiplicity);
+                                  }));
+
+  set.clear();
+  set.insert(duplicate_keys_begin, duplicate_keys_begin + num_keys);
+
+  auto query_begin      = cuda::counting_iterator<size_type>{0};
+  auto const query_size = num_keys / multiplicity;
+
+  auto stencil_begin = cuda::counting_iterator<size_type>{0};
+
+  SECTION("Count_if with duplicates and all keys selected returns total multiplicity.")
+  {
+    auto const count =
+      set.count_if(query_begin,
+                   query_begin + query_size,
+                   stencil_begin,
+                   cuda::proclaim_return_type<bool>([] __device__(size_type) { return true; }));
+
+    REQUIRE(count == query_size * multiplicity);
+  }
+
+  SECTION("Count_if with duplicates and no keys selected returns zero.")
+  {
+    auto const count =
+      set.count_if(query_begin,
+                   query_begin + query_size,
+                   stencil_begin,
+                   cuda::proclaim_return_type<bool>([] __device__(size_type) { return false; }));
+
+    REQUIRE(count == 0);
+  }
+
+  SECTION("Count_if with duplicates counts only selected keys.")
+  {
+    auto const count = set.count_if(
+      query_begin,
+      query_begin + query_size,
+      stencil_begin,
+      cuda::proclaim_return_type<bool>([] __device__(size_type i) { return (i % 2) == 0; }));
+
+    auto const expected = ((query_size + 1) / 2) * multiplicity;
+
+    REQUIRE(count == expected);
+  }
+
+  SECTION("Count_if with duplicates counts a single selected key by its multiplicity.")
+  {
+    auto const count =
+      set.count_if(query_begin,
+                   query_begin + query_size,
+                   stencil_begin,
+                   cuda::proclaim_return_type<bool>([] __device__(size_type i) { return i == 0; }));
+
+    REQUIRE(count == multiplicity);
+  }
+}
+
+template <typename Set>
+void test_custom_count_if(Set& set)
+{
+  using Key = typename Set::key_type;
+
+  auto const hash = []() {
+    if constexpr (cuco::is_double_hashing<typename Set::probing_scheme_type>::value) {
+      return cuda::std::tuple{custom_hash{}, custom_hash{}};
+    } else {
+      return custom_hash{};
+    }
+  }();
+
+  // Unequal multiplicities make querying the wrong key change the expected count.
+  constexpr size_type num_unique_keys = 129;
+  std::vector<Key> keys;
+  size_type selected_count = 0;
+  for (size_type key = 1; key <= num_unique_keys; ++key) {
+    auto const multiplicity = key % 4 + 1;
+    keys.insert(keys.end(), multiplicity, static_cast<Key>(key));
+    if (key % 2 == 1) { selected_count += multiplicity; }
+  }
+
+  thrust::device_vector<Key> device_keys(keys.begin(), keys.end());
+  set.clear();
+  set.insert(device_keys.begin(), device_keys.end());
+
+  // Include missing keys at both ends. Custom hash/equality decode the scaled probes.
+  auto const query_begin =
+    cuda::make_transform_iterator(cuda::counting_iterator<size_type>{0},
+                                  cuda::proclaim_return_type<Key>([] __device__(size_type i) {
+                                    return static_cast<Key>(i * probe_scale);
+                                  }));
+  auto const query_end = query_begin + num_unique_keys + 2;
+  // Offset the stencil so applying the predicate to the probe gives a different result.
+  auto const stencil_begin = cuda::counting_iterator<size_type>{1};
+
+  SECTION("Custom count_if counts all matches and ignores missing keys")
+  {
+    REQUIRE(set.count_if(
+              query_begin,
+              query_end,
+              stencil_begin,
+              [] __device__(size_type) { return true; },
+              custom_key_eq{},
+              hash) == keys.size());
+  }
+
+  SECTION("Custom count_if applies the predicate to the stencil")
+  {
+    REQUIRE(set.count_if(
+              query_begin,
+              query_end,
+              stencil_begin,
+              [] __device__(size_type value) { return value % 2 == 0; },
+              custom_key_eq{},
+              hash) == selected_count);
+  }
+
+  SECTION("Custom count_if returns zero when no probes are selected")
+  {
+    REQUIRE(set.count_if(
+              query_begin,
+              query_end,
+              stencil_begin,
+              [] __device__(size_type) { return false; },
+              custom_key_eq{},
+              hash) == 0);
+  }
+
+  SECTION("Custom count_if returns zero when only missing keys are selected")
+  {
+    REQUIRE(set.count_if(
+              query_begin,
+              query_end,
+              stencil_begin,
+              [] __device__(size_type value) { return value == 1 || value == num_unique_keys + 2; },
+              custom_key_eq{},
+              hash) == 0);
+  }
+
+  SECTION("Custom count_if accepts an empty input range")
+  {
+    REQUIRE(set.count_if(
+              query_begin,
+              query_begin,
+              stencil_begin,
+              [] __device__(size_type) { return true; },
+              custom_key_eq{},
+              hash) == 0);
+  }
+}
+
+}  // namespace
+
+TEMPLATE_TEST_CASE_SIG(
+  "static_multiset custom count_if tests",
+  "",
+  ((typename Key, cuco::test::probe_sequence Probe, int CGSize), Key, Probe, CGSize),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int32_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 1),
+  (int64_t, cuco::test::probe_sequence::double_hashing, 2),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int32_t, cuco::test::probe_sequence::linear_probing, 2),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 1),
+  (int64_t, cuco::test::probe_sequence::linear_probing, 2)
+#if defined(CUCO_HAS_128BIT_ATOMICS)
+    ,
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 1),
+  (__int128_t, cuco::test::probe_sequence::double_hashing, 2),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 1),
+  (__int128_t, cuco::test::probe_sequence::linear_probing, 2)
+#endif
+)
+{
+  constexpr size_type num_keys{555};
+
+  using probe = std::conditional_t<Probe == cuco::test::probe_sequence::linear_probing,
+                                   cuco::linear_probing<CGSize, identity_hash<Key>>,
+                                   cuco::double_hashing<CGSize, identity_hash<Key>>>;
+
+  auto set =
+    cuco::static_multiset{num_keys, cuco::empty_key<Key>{-1}, {}, probe{}, {}, cuco::storage<2>{}};
+
+  test_count_if_duplicates(set, num_keys);
+  test_custom_count_if(set);
+}

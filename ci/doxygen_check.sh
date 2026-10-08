@@ -17,13 +17,13 @@ setup_conda() {
             echo "Error: Failed to download miniconda"
             exit 1
         fi
-        
+
         bash "/tmp/miniconda.sh" -b -p "${CONDA_PREFIX}"
         if [ $? -ne 0 ]; then
             echo "Error: Failed to install miniconda"
             exit 1
         fi
-        
+
         rm -f "/tmp/miniconda.sh"
         echo "Miniconda installed successfully"
     fi
@@ -32,7 +32,7 @@ setup_conda() {
 # Function to setup doxygen environment
 setup_doxygen_env() {
     source "${CONDA_PREFIX}/etc/profile.d/conda.sh"
-    
+
     # Check if environment already exists with correct doxygen version
     if conda env list | grep -q "${CONDA_ENV_NAME}"; then
         conda activate "${CONDA_ENV_NAME}"
@@ -46,7 +46,7 @@ setup_doxygen_env() {
             conda env remove -n "${CONDA_ENV_NAME}" -y
         fi
     fi
-    
+
     echo "Creating new doxygen ${DOXYGEN_VERSION} CI environment..."
     # Accept conda ToS and use only conda-forge channel
     conda config --set solver libmamba
@@ -57,7 +57,7 @@ setup_doxygen_env() {
         echo "Error: Failed to create conda environment with doxygen ${DOXYGEN_VERSION}"
         exit 1
     fi
-    
+
     conda activate "${CONDA_ENV_NAME}"
     echo "Doxygen ${DOXYGEN_VERSION} CI environment created and activated"
 }
@@ -92,4 +92,4 @@ else
   echo -e "\n>>>> PASSED: doxygen check\n"
 fi
 
-exit $RETVAL 
+exit $RETVAL
