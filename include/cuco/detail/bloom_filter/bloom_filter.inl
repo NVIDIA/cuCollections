@@ -21,17 +21,17 @@ namespace cuco {
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 template <class E, class>
 __host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(
-  bloom_filter_bytes size_bytes,
+  bloom_filter_bytes bytes,
   cuda_thread_scope<Scope> scope,
   Policy const& policy,
   Allocator const& alloc,
   cuda::stream_ref stream)
-  : bloom_filter{[size_bytes] {
+  : bloom_filter{[bytes] {
                    constexpr auto block_bytes = sizeof(typename ref_type<>::filter_block_type);
-                   CUCO_EXPECTS(size_bytes.value >= block_bytes,
+                   CUCO_EXPECTS(bytes.value >= block_bytes,
                                 "Storage size must accommodate at least one filter block");
-                   return extent_type{static_cast<size_type>(
-                     cuda::std::min(size_bytes.value, max_size()) / block_bytes)};
+                   return extent_type{
+                     static_cast<size_type>(cuda::std::min(bytes.value, max_size()) / block_bytes)};
                  }(),
                  scope,
                  policy,

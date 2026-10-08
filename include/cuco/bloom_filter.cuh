@@ -133,7 +133,7 @@ class bloom_filter {
    *
    * @throws cuco::logic_error If the budget cannot accommodate one filter block
    *
-   * @param size_bytes Storage budget in bytes
+   * @param bytes Storage budget in bytes
    * @param scope The scope in which operations will be performed
    * @param policy Fingerprint generation policy
    * @param alloc Allocator used for allocating device-accessible storage
@@ -142,7 +142,7 @@ class bloom_filter {
   template <class E = Extent,
             class   = cuda::std::enable_if_t<
                 cuda::std::is_same_v<E, cuco::extent<typename Extent::value_type>>>>
-  __host__ explicit bloom_filter(bloom_filter_bytes size_bytes,
+  __host__ explicit bloom_filter(bloom_filter_bytes bytes,
                                  cuda_thread_scope<Scope> scope = {},
                                  Policy const& policy           = {},
                                  Allocator const& alloc         = {},
