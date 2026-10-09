@@ -126,12 +126,11 @@ class bloom_filter {
   /**
    * @brief Constructs a Bloom filter within a storage budget in bytes.
    *
-   * The allocated size is rounded down to a whole number of filter blocks and capped at
-   * `max_size()`.
+   * The allocated size is rounded down to a whole number of filter blocks.
    *
    * @note This overload requires a dynamic extent.
    *
-   * @throws cuco::logic_error If the budget cannot accommodate one filter block
+   * @throws cuco::logic_error If the budget is below `min_bytes()` or exceeds `max_bytes()`
    *
    * @param bytes Storage budget in bytes
    * @param scope The scope in which operations will be performed
@@ -149,13 +148,22 @@ class bloom_filter {
                                  cuda::stream_ref stream = cuda::stream_ref{cudaStream_t{nullptr}});
 
   /**
+   * @brief Returns the minimum storage budget in bytes for the byte-budget constructor.
+   *
+   * @note This limit is one filter block and does not account for a particular static extent.
+   *
+   * @return Minimum storage budget in bytes
+   */
+  [[nodiscard]] __host__ static constexpr std::size_t min_bytes() noexcept;
+
+  /**
    * @brief Returns the maximum storage size in bytes supported by the policy and size type.
    *
    * @note This limit does not account for available device memory or a particular static extent.
    *
    * @return Maximum storage size in bytes
    */
-  [[nodiscard]] __host__ static constexpr std::size_t max_size() noexcept;
+  [[nodiscard]] __host__ static constexpr std::size_t max_bytes() noexcept;
 
   /**
    * @brief Erases all information from the filter.

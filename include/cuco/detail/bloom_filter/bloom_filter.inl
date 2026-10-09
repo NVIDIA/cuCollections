@@ -26,23 +26,30 @@ __host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(
   Policy const& policy,
   Allocator const& alloc,
   cuda::stream_ref stream)
-  : bloom_filter{[bytes] {
-                   constexpr auto block_bytes = sizeof(typename ref_type<>::filter_block_type);
-                   CUCO_EXPECTS(bytes.value >= block_bytes,
-                                "Storage size must accommodate at least one filter block");
-                   return extent_type{
-                     static_cast<size_type>(cuda::std::min(bytes.value, max_size()) / block_bytes)};
-                 }(),
-                 scope,
-                 policy,
-                 alloc,
-                 stream}
+  : bloom_filter{
+      [bytes] {
+        constexpr auto block_bytes = sizeof(typename ref_type<>::filter_block_type);
+        CUCO_EXPECTS(bytes.value >= min_bytes(), "Storage budget is below the minimum filter size");
+        CUCO_EXPECTS(bytes.value <= max_bytes(), "Storage budget exceeds the maximum filter size");
+        return extent_type{static_cast<size_type>(bytes.value / block_bytes)};
+      }(),
+      scope,
+      policy,
+      alloc,
+      stream}
 {
 }
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 [[nodiscard]] __host__ constexpr std::size_t
-bloom_filter<Key, Extent, Scope, Policy, Allocator>::max_size() noexcept
+bloom_filter<Key, Extent, Scope, Policy, Allocator>::min_bytes() noexcept
+{
+  return sizeof(typename ref_type<>::filter_block_type);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+[[nodiscard]] __host__ constexpr std::size_t
+bloom_filter<Key, Extent, Scope, Policy, Allocator>::max_bytes() noexcept
 {
   constexpr auto block_bytes = sizeof(typename ref_type<>::filter_block_type);
   constexpr auto max_blocks  = cuda::std::min(
