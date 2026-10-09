@@ -1045,12 +1045,10 @@ class open_addressing_ref_impl
           predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i()]));
         equals[i()] = (result == detail::equal_result::EQUAL);
         if (result == detail::equal_result::EMPTY) { should_return = true; }
-        if constexpr (not allows_duplicates) {
-          if (result == detail::equal_result::EQUAL) { should_return = true; }
-        }
       });
 
       count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
+      if constexpr (not allows_duplicates) { should_return |= (count != 0); }
 
       if (group.any(should_return)) { return count; }
 
