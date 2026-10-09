@@ -539,7 +539,10 @@ class operator_impl<
 
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
+#if defined(CUCO_DEBUG)
+    ref_.impl_.debug_assert_valid_insert_value(val);
+#endif
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
@@ -567,7 +570,10 @@ class operator_impl<
         }
       }
       ++probing_iter;
-      if (*probing_iter == init_idx) { return; }
+      if (*probing_iter == init_idx) {
+        CUCO_DEBUG_ASSERT(false, "Probing exhausted the container capacity");
+        return;
+      }
     }
   }
 
@@ -589,7 +595,10 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
+#if defined(CUCO_DEBUG)
+    ref_.impl_.debug_assert_valid_insert_value(val);
+#endif
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
@@ -637,7 +646,10 @@ class operator_impl<
         if (group.shfl(status, src_lane)) { return; }
       } else {
         ++probing_iter;
-        if (*probing_iter == init_idx) { return; }
+        if (*probing_iter == init_idx) {
+          CUCO_DEBUG_ASSERT(false, "Probing exhausted the container capacity");
+          return;
+        }
       }
     }
   }
@@ -910,7 +922,10 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
+#if defined(CUCO_DEBUG)
+    ref_.impl_.debug_assert_valid_insert_value(val);
+#endif
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
@@ -957,7 +972,10 @@ class operator_impl<
         }
       }
       ++probing_iter;
-      if (*probing_iter == init_idx) { return false; }
+      if (*probing_iter == init_idx) {
+        CUCO_DEBUG_ASSERT(false, "Probing exhausted the container capacity");
+        return false;
+      }
     }
   }
 
@@ -988,7 +1006,10 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    auto const val            = ref_.impl_.heterogeneous_value(value);
+    auto const val = ref_.impl_.heterogeneous_value(value);
+#if defined(CUCO_DEBUG)
+    ref_.impl_.debug_assert_valid_insert_value(val);
+#endif
     auto const key            = ref_.impl_.extract_key(val);
     auto const probing_scheme = ref_.impl_.probing_scheme();
     auto storage_ref          = ref_.impl_.storage_ref();
@@ -1055,7 +1076,10 @@ class operator_impl<
         }
       } else {
         ++probing_iter;
-        if (*probing_iter == init_idx) { return false; }
+        if (*probing_iter == init_idx) {
+          CUCO_DEBUG_ASSERT(false, "Probing exhausted the container capacity");
+          return false;
+        }
       }
     }
   }

@@ -112,7 +112,7 @@ def update_readme_with_urls(readme_path, url_table, args):
             missing_files.append(file_name)
 
     # Join the lines and write the updated content back to README.md
-    updated_content = "\n".join(updated_lines)
+    updated_content = "\n".join(updated_lines) + "\n"
 
     if missing_files:
         print(f"Error: The following example files are missing in README.md: {missing_files}")
@@ -149,14 +149,14 @@ def get_changed_cuda_files():
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Ensure CUDA example files have up-to-date Godbolt links in the README.")
-    parser.add_argument('--fix', action='store_true', 
+    parser.add_argument('--fix', action='store_true',
                         help="Automatically update mismatched or outdated Godbolt links in the README with correct URLs.")
     args = parser.parse_args()
 
     # Initialize the Git repository
     repo = git.Repo(search_parent_directories=True)
     repo_root = repo.git.rev_parse("--show-toplevel")
-    
+
     # Ensure we are in the ci directory
     ci_dir = os.path.join(repo_root, 'ci')
     os.chdir(ci_dir)

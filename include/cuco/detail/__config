@@ -11,7 +11,7 @@
 
 #if !defined(__CUDACC_VER_MAJOR__) || !defined(__CUDACC_VER_MINOR__)
 #error "NVCC version not found"
-#elif __CUDACC_VER_MAJOR__ < 12 
+#elif __CUDACC_VER_MAJOR__ < 12
 #error "NVCC version 12.0 or later is required"
 #endif
 
