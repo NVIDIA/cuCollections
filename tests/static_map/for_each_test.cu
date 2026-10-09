@@ -63,7 +63,7 @@ void test_for_each(Map& map, size_type num_keys)
       if (((key % 2 == 0)) and (value == 1)) { counter->fetch_add(1, cuda::memory_order_relaxed); }
     },
     stream);
-  REQUIRE(res == num_keys / 2);
+  REQUIRE(counter_storage.load_to_host(stream) == num_keys / 2);
 }
 
 TEMPLATE_TEST_CASE_SIG(
