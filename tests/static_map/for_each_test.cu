@@ -14,6 +14,7 @@
 #include <thrust/device_vector.h>
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
 
 using size_type = std::size_t;
 
@@ -63,7 +64,7 @@ void test_for_each(Map& map, size_type num_keys)
       if (((key % 2 == 0)) and (value == 1)) { counter->fetch_add(1, cuda::memory_order_relaxed); }
     },
     stream);
-  REQUIRE(res == num_keys / 2);
+  REQUIRE(counter_storage.load_to_host(stream) == num_keys / 2);
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -115,4 +116,66 @@ TEMPLATE_TEST_CASE_SIG(
 
   auto map = map_type{num_keys, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
   test_for_each(map, num_keys);
+}
+
+namespace {
+
+struct collision_hash {
+  __host__ __device__ constexpr std::size_t operator()(int) const noexcept { return 0; }
+};
+
+struct counting_equal {
+  int* comparisons;
+
+  __device__ bool operator()(int lhs, int rhs) const noexcept
+  {
+    atomicAdd(comparisons, 1);
+    return lhs == rhs;
+  }
+};
+
+}  // namespace
+
+TEMPLATE_TEST_CASE_SIG("static_map for_each and count stop after a unique match",
+                       "",
+                       ((int CGSize, int BucketSize), CGSize, BucketSize),
+                       (1, 1),
+                       (1, 2),
+                       (2, 1),
+                       (2, 2))
+{
+  thrust::device_vector<int> comparisons(1, 0);
+  auto map = cuco::static_map{128,
+                              cuco::empty_key<int>{-1},
+                              cuco::empty_value<int>{-1},
+                              counting_equal{comparisons.data().get()},
+                              cuco::linear_probing<CGSize, collision_hash>{},
+                              {},
+                              cuco::storage<BucketSize>{}};
+
+  auto const keys  = cuda::counting_iterator<int>{0};
+  auto const pairs = cuda::make_transform_iterator(
+    keys, cuda::proclaim_return_type<cuco::pair<int, int>>([] __device__(int key) {
+      return cuco::pair<int, int>{key, 1};
+    }));
+
+  // Insert the queried key first so it precedes a long chain of colliding keys.
+  map.insert(pairs, pairs + 1);
+  map.insert(pairs + 1, pairs + 17);
+  comparisons[0] = 0;
+
+  // The bulk APIs dispatch to scalar queries for CGSize == 1 and CG queries otherwise.
+  SECTION("for_each")
+  {
+    thrust::device_vector<int> matches(1, 0);
+    map.for_each(keys, keys + 1, [result = matches.data().get()] __device__(auto const&) {
+      atomicAdd(result, 1);
+    });
+    REQUIRE(matches[0] == 1);
+  }
+  SECTION("count") { REQUIRE(map.count(keys, keys + 1) == 1); }
+
+  // A hit in the first probing window must not scan the trailing collision chain.
+  REQUIRE(comparisons[0] > 0);
+  REQUIRE(comparisons[0] <= CGSize * BucketSize);
 }
