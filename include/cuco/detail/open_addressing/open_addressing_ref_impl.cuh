@@ -1039,18 +1039,19 @@ class open_addressing_ref_impl
     while (true) {
       auto const bucket_slots                = storage_ref_[*probing_iter];
       cuda::std::int32_t equals[bucket_size] = {0};
-      bool empty_found                       = false;
+      bool should_return                     = false;
 
       cuda::static_for<bucket_size>([&] __device__(auto i) {
         auto const result =
           predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i()]));
         equals[i()] = (result == detail::equal_result::EQUAL);
-        if (result == detail::equal_result::EMPTY) { empty_found = true; }
+        if (result == detail::equal_result::EMPTY) { should_return = true; }
       });
 
       count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
+      if constexpr (not allows_duplicates) { should_return |= (count != 0); }
 
-      if (group.any(empty_found)) { return count; }
+      if (group.any(should_return)) { return count; }
 
       ++probing_iter;
       if (*probing_iter == init_idx) { return count; }
@@ -1410,6 +1411,7 @@ class open_addressing_ref_impl
             }
             case detail::equal_result::EQUAL: {
               callback_op(bucket_slots[i()]);
+              if constexpr (not allows_duplicates) { should_return = true; }
               break;
             }
             default: break;
@@ -1453,21 +1455,22 @@ class open_addressing_ref_impl
     auto probing_iter =
       probing_scheme_.template make_iterator<bucket_size>(group, key, storage_ref_.extent());
     auto const init_idx = *probing_iter;
-    bool empty          = false;
+    bool should_return  = false;
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-      for (cuda::std::int32_t i = 0; i < bucket_size and !empty; ++i) {
+      for (cuda::std::int32_t i = 0; i < bucket_size and !should_return; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
           key, this->extract_key(bucket_slots[i]))) {
           case detail::equal_result::EMPTY: {
-            empty = true;
+            should_return = true;
             continue;
           }
           case detail::equal_result::EQUAL: {
             callback_op(bucket_slots[i]);
+            if constexpr (not allows_duplicates) { should_return = true; }
             continue;
           }
           default: {
@@ -1475,7 +1478,7 @@ class open_addressing_ref_impl
           }
         }
       }
-      if (group.any(empty)) { return; }
+      if (group.any(should_return)) { return; }
 
       ++probing_iter;
       if (*probing_iter == init_idx) { return; }
