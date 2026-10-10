@@ -551,7 +551,7 @@ class operator_impl<
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref[*probing_iter];
+      auto const bucket_slots = storage_ref.load_bucket(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -607,7 +607,7 @@ class operator_impl<
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref[*probing_iter];
+      auto const bucket_slots = storage_ref.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         detail::bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -938,7 +938,7 @@ class operator_impl<
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
-      auto const bucket_slots = storage_ref[*probing_iter];
+      auto const bucket_slots = storage_ref.load_bucket(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -1022,7 +1022,7 @@ class operator_impl<
     auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
 
     while (true) {
-      auto const bucket_slots = storage_ref[*probing_iter];
+      auto const bucket_slots = storage_ref.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         detail::bucket_probing_results result{detail::equal_result::UNEQUAL, -1};

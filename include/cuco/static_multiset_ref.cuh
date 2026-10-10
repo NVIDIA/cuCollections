@@ -255,7 +255,7 @@ class static_multiset_ref
    *
    * @param tile The cooperative thread group used to copy the data structure
    * @param memory_to_use Array large enough to support `capacity` elements. Object does not take
-   * the ownership of the memory
+   * the ownership of the memory. Must satisfy the storage reference's alignment requirements.
    * @param scope The thread scope of the newly created device ref
    *
    * @return Copy of the current device ref

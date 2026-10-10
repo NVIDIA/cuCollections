@@ -31,7 +31,8 @@ __global__ void shared_memory_test_kernel(Ref* sets,
   size_t const set_id = blockIdx.x;
   size_t const offset = set_id * number_of_elements;
 
-  __shared__ typename Ref::value_type sm_buffer[ValidSize];
+  using storage_ref_type = typename Ref::storage_ref_type;
+  alignas(storage_ref_type::alignment) __shared__ typename Ref::value_type sm_buffer[ValidSize];
 
   auto g          = cuco::test::cg::this_thread_block();
   auto insert_ref = sets[set_id].make_copy(g, sm_buffer, cuco::thread_scope_block);
