@@ -87,8 +87,19 @@ TEMPLATE_TEST_CASE_SIG(
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;
   constexpr size_type num_keys{400};
+  constexpr std::size_t num_blocks{1000};
+  constexpr auto block_bytes = sizeof(typename filter_type::template ref_type<>::filter_block_type);
 
-  auto filter = filter_type{1000};
+  STATIC_REQUIRE(filter_type::min_bytes() == block_bytes);
+  STATIC_REQUIRE(filter_type::max_bytes() == Policy::max_filter_blocks * block_bytes);
+  REQUIRE_THROWS_AS(filter_type{cuco::bloom_filter_bytes{filter_type::min_bytes() - 1}},
+                    cuco::logic_error);
+  REQUIRE_THROWS_AS(filter_type{cuco::bloom_filter_bytes{filter_type::max_bytes() + 1}},
+                    cuco::logic_error);
+  auto min_filter = filter_type{cuco::bloom_filter_bytes{filter_type::min_bytes()}};
+  REQUIRE(static_cast<std::size_t>(min_filter.block_extent()) == 1);
+  auto filter = filter_type{cuco::bloom_filter_bytes{num_blocks * block_bytes + block_bytes - 1}};
+  REQUIRE(static_cast<std::size_t>(filter.block_extent()) == num_blocks);
 
   test_unique_sequence(filter, num_keys);
 }
