@@ -153,6 +153,7 @@ ConfigureTest(HYPERLOGLOG_TEST
 ###################################################################################################
 # - bloom_filter ----------------------------------------------------------------------------------
 ConfigureTest(BLOOM_FILTER_TEST
+    bloom_filter/large_filter_test.cu
     bloom_filter/unique_sequence_test.cu
     bloom_filter/variable_cg_test.cu
     bloom_filter/merge_intersect_test.cu
