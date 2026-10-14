@@ -6,13 +6,17 @@
 #include <cuco/bloom_filter.cuh>
 #include <cuco/utility/error.hpp>
 
+#include <cuda/std/cstdint>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
+#include <thrust/fill.h>
+#include <thrust/iterator/constant_iterator.h>
 
 #include <cooperative_groups.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -20,7 +24,10 @@
 namespace {
 
 struct identity_hash {
-  __host__ __device__ constexpr std::uint64_t operator()(std::uint64_t key) const { return key; }
+  __host__ __device__ constexpr cuda::std::uint64_t operator()(cuda::std::uint64_t key) const
+  {
+    return key;
+  }
 };
 
 using horizontal_add_policy = cuco::bloom_filter_policy<std::uint64_t, identity_hash>;
@@ -56,7 +63,7 @@ TEMPLATE_TEST_CASE("bloom_filter large word indices",
 
   std::size_t free_bytes, total_bytes;
   CUCO_CUDA_TRY(cudaMemGetInfo(&free_bytes, &total_bytes));
-  if (free_bytes < 2 * bytes) { SKIP("Insufficient device memory for two large filters"); }
+  if (free_bytes < 2 * bytes) { SKIP("Insufficient device memory"); }
 
   auto filter      = filter_type{num_blocks};
   auto other       = filter_type{num_blocks};
@@ -66,40 +73,37 @@ TEMPLATE_TEST_CASE("bloom_filter large word indices",
   thrust::device_vector<std::uint64_t> keys(1, key);
   thrust::device_vector<bool> contained(1, false);
 
-  std::array<word_type, words_per_block> zero{}, full;
-  full.fill(~word_type{0});
-  auto read_block = [](word_type const* ptr) {
-    std::array<word_type, words_per_block> result;
-    CUCO_CUDA_TRY(cudaMemcpy(result.data(), ptr, sizeof(result), cudaMemcpyDeviceToHost));
-    return result;
-  };
+  auto const empty    = word_type{0};
+  auto const full     = ~word_type{0};
+  auto const empty_it = thrust::make_constant_iterator(empty);
+  auto const full_it  = thrust::make_constant_iterator(full);
 
-  CUCO_CUDA_TRY(cudaMemset(data, 0, sizeof(zero)));
-  CUCO_CUDA_TRY(cudaMemset(tail, 0, sizeof(zero)));
+  thrust::fill_n(thrust::device, data, words_per_block, empty);
+  thrust::fill_n(thrust::device, tail, words_per_block, empty);
   filter.add(keys.begin(), keys.end());
-  CHECK(read_block(tail) != zero);
-  CHECK(read_block(data) == zero);
+  CHECK_FALSE(thrust::equal(thrust::device, tail, tail + words_per_block, empty_it));
+  CHECK(thrust::equal(thrust::device, data, data + words_per_block, empty_it));
 
-  CUCO_CUDA_TRY(cudaMemset(data, 0, sizeof(zero)));
-  CUCO_CUDA_TRY(cudaMemset(tail, 0xff, sizeof(full)));
+  thrust::fill_n(thrust::device, data, words_per_block, empty);
+  thrust::fill_n(thrust::device, tail, words_per_block, full);
   filter.contains(keys.begin(), keys.end(), contained.begin());
   CHECK(static_cast<bool>(contained[0]));
 
   filter.clear();
-  CHECK(read_block(tail) == zero);
-  CUCO_CUDA_TRY(cudaMemset(other_tail, 0xff, sizeof(full)));
-  CUCO_CUDA_TRY(cudaMemset(tail, 0, sizeof(zero)));
+  CHECK(thrust::equal(thrust::device, tail, tail + words_per_block, empty_it));
+  thrust::fill_n(thrust::device, other_tail, words_per_block, full);
+  thrust::fill_n(thrust::device, tail, words_per_block, empty);
   filter.merge(other);
-  CHECK(read_block(tail) == full);
-  CUCO_CUDA_TRY(cudaMemset(other_tail, 0, sizeof(zero)));
-  CUCO_CUDA_TRY(cudaMemset(tail, 0xff, sizeof(full)));
+  CHECK(thrust::equal(thrust::device, tail, tail + words_per_block, full_it));
+  thrust::fill_n(thrust::device, other_tail, words_per_block, empty);
+  thrust::fill_n(thrust::device, tail, words_per_block, full);
   filter.intersect(other);
-  CHECK(read_block(tail) == zero);
+  CHECK(thrust::equal(thrust::device, tail, tail + words_per_block, empty_it));
 
-  CUCO_CUDA_TRY(cudaMemset(tail, 0xff, sizeof(full)));
+  thrust::fill_n(thrust::device, tail, words_per_block, full);
   clear_large_filter<<<1, 256>>>(filter.ref());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
-  CHECK(read_block(tail) == zero);
+  CHECK(thrust::equal(thrust::device, tail, tail + words_per_block, empty_it));
 
   // A wide extent isolates the int loop counter from the word-count overflow.
   using wide_ref_type = cuco::bloom_filter_ref<std::uint64_t,
@@ -107,8 +111,8 @@ TEMPLATE_TEST_CASE("bloom_filter large word indices",
                                                cuda::thread_scope_device,
                                                policy_type>;
   auto wide_ref = wide_ref_type{data, cuco::extent<std::size_t>{num_blocks}, {}, policy_type{}};
-  CUCO_CUDA_TRY(cudaMemset(tail, 0xff, sizeof(full)));
+  thrust::fill_n(thrust::device, tail, words_per_block, full);
   clear_large_filter<<<1, 256>>>(wide_ref);
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
-  CHECK(read_block(tail) == zero);
+  CHECK(thrust::equal(thrust::device, tail, tail + words_per_block, empty_it));
 }
