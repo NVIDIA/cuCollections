@@ -6,12 +6,12 @@
 #include <cuco/bloom_filter.cuh>
 #include <cuco/utility/error.hpp>
 
+#include <cuda/iterator>
 #include <cuda/std/cstdint>
 #include <thrust/device_vector.h>
 #include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 #include <thrust/fill.h>
-#include <thrust/iterator/constant_iterator.h>
 
 #include <cooperative_groups.h>
 
@@ -75,8 +75,8 @@ TEMPLATE_TEST_CASE("bloom_filter large word indices",
 
   auto const empty    = word_type{0};
   auto const full     = ~word_type{0};
-  auto const empty_it = thrust::make_constant_iterator(empty);
-  auto const full_it  = thrust::make_constant_iterator(full);
+  auto const empty_it = cuda::make_constant_iterator(empty);
+  auto const full_it  = cuda::make_constant_iterator(full);
 
   thrust::fill_n(thrust::device, data, words_per_block, empty);
   thrust::fill_n(thrust::device, tail, words_per_block, empty);
