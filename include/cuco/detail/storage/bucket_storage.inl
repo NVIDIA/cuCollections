@@ -83,6 +83,7 @@ bucket_storage_ref<T, BucketSize, Extent>::load_bucket(size_type index) const no
 {
   assert(index % bucket_size == 0);
   assert(index <= capacity() && bucket_size <= capacity() - index);
+  if constexpr (alignment <= alignof(bucket_type)) { return (*this)[index]; }
   return *reinterpret_cast<bucket_type*>(__builtin_assume_aligned(this->data() + index, alignment));
 }
 
