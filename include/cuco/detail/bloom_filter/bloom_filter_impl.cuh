@@ -34,6 +34,7 @@
 
 #include <cooperative_groups.h>
 
+#include <cstddef>
 #include <cstdint>
 
 namespace cuco::detail {
@@ -102,8 +103,11 @@ class bloom_filter_impl {
   template <class CG>
   __device__ constexpr void clear(CG group)
   {
-    for (int i = group.thread_rank(); i < static_cast<size_type>(num_blocks_) * words_per_block;
-         i += group.size()) {
+    auto const num_words = static_cast<cuco::detail::index_type>(num_blocks_) * words_per_block;
+    auto const stride    = static_cast<cuco::detail::index_type>(group.size());
+    for (cuco::detail::index_type i = static_cast<cuco::detail::index_type>(group.thread_rank());
+         i < num_words;
+         i += stride) {
       words_[i] = 0;
     }
   }
@@ -118,7 +122,7 @@ class bloom_filter_impl {
   {
     CUCO_CUDA_TRY(cub::DeviceFor::ForEachN(
       words_,
-      static_cast<size_type>(num_blocks_) * words_per_block,
+      static_cast<cuco::detail::index_type>(num_blocks_) * words_per_block,
       [] __device__(word_type & word) { word = 0; },
       stream.get()));
   }
@@ -138,7 +142,7 @@ class bloom_filter_impl {
     CUCO_CUDA_TRY(cub::DeviceTransform::Transform(
       cuda::std::tuple{this->data(), other.data()},
       this->data(),
-      this->block_extent() * words_per_block,
+      static_cast<cuco::detail::index_type>(this->block_extent()) * words_per_block,
       [] __device__(word_type a, word_type b) { return a | b; },
       stream.get()));
   }
@@ -158,7 +162,7 @@ class bloom_filter_impl {
     CUCO_CUDA_TRY(cub::DeviceTransform::Transform(
       cuda::std::tuple{this->data(), other.data()},
       this->data(),
-      this->block_extent() * words_per_block,
+      static_cast<cuco::detail::index_type>(this->block_extent()) * words_per_block,
       [] __device__(word_type a, word_type b) { return a & b; },
       stream.get()));
   }
@@ -488,7 +492,8 @@ class bloom_filter_impl {
   }
 
   template <uint32_t NumWords>
-  __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
+  __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(
+    cuco::detail::index_type index) const
   {
     // The block storage is aligned to `alignment()`, but a per-lane load at offset `index` is
     // only guaranteed to be aligned to `min(NumWords * sizeof(word_type), alignment())`. Hand the
@@ -509,7 +514,8 @@ class bloom_filter_impl {
     if constexpr (LoopIndex < add_loop_count) {
       auto const pattern =
         policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
-      auto* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+      auto* word_base = words_ +
+                        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout;
 
       for (int i = 0; i < add_vertical_layout; ++i) {
@@ -532,7 +538,8 @@ class bloom_filter_impl {
       auto const pattern =
         policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
           lower_hash, thread_index);
-      auto* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+      auto* word_base = words_ +
+                        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout * add_horizontal_layout +
                         thread_index * add_vertical_layout;
 
@@ -582,7 +589,7 @@ class bloom_filter_impl {
 
     if constexpr (LoopIndex < contains_loop_count) {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
-        static_cast<size_type>(block_index) * words_per_block +
+        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout);
       auto const expected_pattern =
         policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
@@ -616,7 +623,7 @@ class bloom_filter_impl {
 
     if constexpr (LoopIndex < contains_loop_count) {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
-        static_cast<size_type>(block_index) * words_per_block +
+        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout * contains_horizontal_layout +
         thread_index * contains_vertical_layout);
       auto const expected_pattern =
