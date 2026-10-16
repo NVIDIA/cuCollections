@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cuco/bucket_storage.cuh>
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/open_addressing/constraints.cuh>
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
@@ -379,7 +380,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -438,7 +439,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -540,7 +541,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       for (auto i = 0; i < bucket_size; ++i) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -612,7 +613,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -692,7 +693,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -740,7 +741,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -804,7 +805,7 @@ class open_addressing_ref_impl
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       for (auto i = 0; i < bucket_size; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
@@ -845,7 +846,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       auto const state = [&]() {
         auto res = detail::equal_result::UNEQUAL;
@@ -890,7 +891,7 @@ class open_addressing_ref_impl
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       for (auto i = 0; i < bucket_size; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
@@ -935,7 +936,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -991,7 +992,7 @@ class open_addressing_ref_impl
       size_type count     = 0;
 
       while (true) {
-        auto const bucket_slots                = storage_ref_[*probing_iter];
+        auto const bucket_slots                = storage_ref_.load_bucket(*probing_iter);
         cuda::std::int32_t equals[bucket_size] = {0};
         bool empty_found                       = false;
 
@@ -1036,7 +1037,7 @@ class open_addressing_ref_impl
     size_type count     = 0;
 
     while (true) {
-      auto const bucket_slots                = storage_ref_[*probing_iter];
+      auto const bucket_slots                = storage_ref_.load_bucket(*probing_iter);
       cuda::std::int32_t equals[bucket_size] = {0};
       bool should_return                     = false;
 
@@ -1286,7 +1287,7 @@ class open_addressing_ref_impl
         while (active_flushing_tile.any(running)) {
           if (running) {
             // TODO atomic_ref::load if insert operator is present
-            auto const bucket_slots = this->storage_ref_[*probing_iter];
+            auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
             cuda::static_for<bucket_size>([&] __device__(auto i) {
               equals[i()] = false;
@@ -1397,7 +1398,7 @@ class open_addressing_ref_impl
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
-      auto const bucket_slots = this->storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       bool should_return = false;
       cuda::static_for<bucket_size>([&] __device__(auto i) {
@@ -1458,7 +1459,7 @@ class open_addressing_ref_impl
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
-      auto const bucket_slots = this->storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       for (cuda::std::int32_t i = 0; i < bucket_size and !should_return; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
@@ -1528,7 +1529,7 @@ class open_addressing_ref_impl
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
-      auto const bucket_slots = this->storage_ref_[*probing_iter];
+      auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       for (cuda::std::int32_t i = 0; i < bucket_size and !empty; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
