@@ -9,9 +9,10 @@
 #include <cuco/extent.cuh>
 #include <cuco/utility/allocator.hpp>
 
+#include <cuda/std/algorithm>
 #include <cuda/std/array>
-#include <cuda/std/bit>
 #include <cuda/std/functional>
+#include <cuda/std/numeric>
 #include <cuda/stream>
 
 #include <cstddef>
@@ -24,20 +25,24 @@ namespace cuco {
  * @brief Non-owning array of slots storage reference type.
  *
  * @tparam T Storage element type
- * @tparam BucketSize Number of slots in each bucket
+ * @tparam BucketSize Number of slots in each bucket; must be a positive power of two
  * @tparam Extent Type of extent denoting storage capacity
  */
 template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::size_t>>
 class bucket_storage_ref {
+  static_assert(BucketSize > 0 && (BucketSize & (BucketSize - 1)) == 0,
+                "Bucket size must be a positive power of two");
+
  public:
   static constexpr int32_t bucket_size = BucketSize;        ///< Number of elements per bucket
-  static constexpr std::size_t max_vector_load_bytes = 16;  ///< Maximum vector load width in bytes
+  static constexpr std::size_t max_vector_load_bytes = 32;  ///< Maximum vector load width in bytes
 
   using bucket_type = cuda::std::array<T, BucketSize>;  ///< Slot bucket type
 
   static constexpr std::size_t alignment =
-    cuda::std::min(cuda::std::bit_ceil(sizeof(bucket_type)),
-                   max_vector_load_bytes);  ///< Required alignment in bytes
+    cuda::std::max(alignof(T),
+                   cuda::std::gcd(sizeof(T) * BucketSize,
+                                  max_vector_load_bytes));  ///< Required alignment in bytes
 
   using extent_type = Extent;                            ///< Storage extent type
   using size_type   = typename extent_type::value_type;  ///< Storage size type
@@ -45,6 +50,8 @@ class bucket_storage_ref {
 
   /**
    * @brief Constructor of slot storage ref.
+   *
+   * @note `slots` must be aligned to `alignment` bytes.
    *
    * @param size Number of slots
    * @param slots Pointer to the slots array
@@ -92,10 +99,24 @@ class bucket_storage_ref {
   /**
    * @brief Returns an array of slots (or a bucket) for a given index.
    *
+   * @note `index` need not be a multiple of `bucket_size`.
+   *
    * @param index Index of the slot
    * @return An array of slots
    */
   [[nodiscard]] __device__ constexpr bucket_type operator[](size_type index) const noexcept;
+
+  /**
+   * @brief Loads a bucket starting at a bucket-aligned slot index.
+   *
+   * Unlike `operator[]`, this access exposes the guaranteed bucket alignment to the compiler.
+   *
+   * @pre `index` is a multiple of `bucket_size`.
+   *
+   * @param index Index of the first slot in the bucket
+   * @return An array containing the bucket's slots
+   */
+  [[nodiscard]] __device__ constexpr bucket_type load_bucket(size_type index) const noexcept;
 
   /**
    * @brief Gets the total number of slot buckets in the current storage.
