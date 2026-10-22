@@ -64,6 +64,14 @@ namespace cuco::detail {
  * the Bloom-filter phase. Use this only when the filter fits the reserved L2 region or the key
  * stream has sufficient locality: filters far larger than L2 can continually mark random lines as
  * persisting, thrashing the cache and affecting unrelated kernels.
+ * @tparam FastL2Add When `true`, one hash-selected word of the first 32-byte sector of each key's
+ * block is left untouched (its pattern word is cleared), so a key sets
+ * `pattern_bits - ceil(pattern_bits / words_per_block)` bits in `words_per_block - 1` words. `add`
+ * issues no atomic for the skipped word, so the atomic updates of a key cover its first sector only
+ * partially, which recent GPUs process more efficiently than a fully covered sector; this speeds up
+ * `add` while the filter is cache-resident. It changes the bit pattern (slightly higher
+ * false-positive rate; not interchangeable with filters built without it). No effect for blocks
+ * smaller than one 32-byte sector.
  */
 template <class Hash,
           uint32_t WordBytes,
@@ -75,7 +83,8 @@ template <class Hash,
           uint32_t ContainsVerticalLayout,
           bool ConditionalAdd,
           bool EarlyExitContains,
-          bool PersistingL2Access>
+          bool PersistingL2Access,
+          bool FastL2Add = false>
 class bloom_filter_policy {
   static_assert(WordBytes == 4 || WordBytes == 8, "WordBytes must be 4 or 8 for native atomicOr");
 
@@ -121,6 +130,9 @@ class bloom_filter_policy {
     EarlyExitContains;  ///< short-circuit contains on first missing slice
   static constexpr bool persisting_l2_access =
     PersistingL2Access;  ///< apply persisting L2 cache-policy hints to filter accesses
+  /// Leave one hash-selected word of each key's block untouched. No effect for blocks smaller
+  /// than one 32-byte sector, whose updates are partial already.
+  static constexpr bool fast_l2_add = FastL2Add and WordsPerBlock * WordBytes >= 32;
 
   static constexpr size_t max_filter_blocks =
     cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks
@@ -221,7 +233,11 @@ class bloom_filter_policy {
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
   {
-    return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
+    auto pattern = pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
+    if constexpr (fast_l2_add) {
+      clear_skipped(pattern, lower_hash_value, LoopIndex * VerticalLayout);
+    }
+    return pattern;
   }
 
   /**
@@ -239,12 +255,44 @@ class bloom_filter_policy {
   template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value, uint32_t thread_index) const
   {
-    return pattern_impl<LoopIndex, HorizontalLayout, VerticalLayout>(lower_hash_value,
-                                                                     thread_index);
+    auto pattern =
+      pattern_impl<LoopIndex, HorizontalLayout, VerticalLayout>(lower_hash_value, thread_index);
+    if constexpr (fast_l2_add) {
+      clear_skipped(
+        pattern, lower_hash_value, (LoopIndex * HorizontalLayout + thread_index) * VerticalLayout);
+    }
+    return pattern;
   }
 
  private:
   hasher hash_;
+
+  /// Salt for the skipped-word index, distinct from the fingerprint salts.
+  static constexpr uint32_t skip_salt = 0x9e3779b1U;
+  /// The skipped word is taken from the block's first 32-byte sector: that is the sector whose
+  /// partial coverage makes the update cheaper.
+  static constexpr uint32_t sector_bytes     = 32;
+  static constexpr uint32_t words_per_sector = sector_bytes / WordBytes;
+
+  /// Clears the pattern word of the hash-selected skipped word if it lies in this pattern array,
+  /// whose first element is block word `first_word`.
+  ///
+  /// Branchless: the skip index is per key (data-dependent), so comparing it against each word
+  /// index lets the compiler emit a switch over its values, which diverges across a warp. Instead
+  /// a keep-mask with the skipped bit cleared is shifted per word and turned into an all-ones or
+  /// all-zeros word mask.
+  template <class PatternArrayT>
+  __device__ constexpr void clear_skipped(PatternArrayT& pattern_array,
+                                          uint32_t hash,
+                                          uint32_t first_word) const
+  {
+    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
+    uint32_t const skip            = (skip_salt * hash) >> (32 - index_width);
+    uint32_t const keep            = ~(uint32_t{1} << skip);  // words_per_block <= 32
+    for (uint32_t i = 0; i < pattern_array.size(); ++i) {
+      pattern_array[i] &= word_type{0} - static_cast<word_type>((keep >> (first_word + i)) & 1u);
+    }
+  }
 
   /**
    * @brief pattern_impl - Computes the bit pattern for a vertical layout of words.
