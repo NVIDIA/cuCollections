@@ -84,7 +84,7 @@ template <class Hash,
           bool ConditionalAdd,
           bool EarlyExitContains,
           bool PersistingL2Access,
-          bool FastL2Add = false>
+          bool FastL2Add>
 class bloom_filter_policy {
   static_assert(WordBytes == 4 || WordBytes == 8, "WordBytes must be 4 or 8 for native atomicOr");
 
