@@ -267,8 +267,6 @@ class bloom_filter_policy {
  private:
   hasher hash_;
 
-  /// Salt for the skipped-word index, distinct from the fingerprint salts.
-  static constexpr uint32_t skip_salt = 0x9e3779b1U;
   /// The skipped word is taken from the block's first 32-byte sector: that is the sector whose
   /// partial coverage makes the update cheaper.
   static constexpr uint32_t sector_bytes     = 32;
@@ -277,20 +275,28 @@ class bloom_filter_policy {
   /// Clears the pattern word of the hash-selected skipped word if it lies in this pattern array,
   /// whose first element is block word `first_word`.
   ///
+  /// The skip index is the top bits of the hash: the fingerprint bits come from salted products of
+  /// the hash, so no extra multiply is needed to decorrelate it.
+  ///
   /// Branchless: the skip index is per key (data-dependent), so comparing it against each word
   /// index lets the compiler emit a switch over its values, which diverges across a warp. Instead
   /// a keep-mask with the skipped bit cleared is shifted per word and turned into an all-ones or
-  /// all-zeros word mask.
+  /// all-zeros word mask. With one word per thread the word index is itself a runtime value, and a
+  /// plain comparison is a single predicate.
   template <class PatternArrayT>
   __device__ constexpr void clear_skipped(PatternArrayT& pattern_array,
                                           uint32_t hash,
                                           uint32_t first_word) const
   {
     constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
-    uint32_t const skip            = (skip_salt * hash) >> (32 - index_width);
-    uint32_t const keep            = ~(uint32_t{1} << skip);  // words_per_block <= 32
-    for (uint32_t i = 0; i < pattern_array.size(); ++i) {
-      pattern_array[i] &= word_type{0} - static_cast<word_type>((keep >> (first_word + i)) & 1u);
+    uint32_t const skip            = hash >> (32 - index_width);
+    if constexpr (cuda::std::tuple_size_v<PatternArrayT> == 1) {
+      pattern_array[0] &= word_type{0} - static_cast<word_type>(first_word != skip);
+    } else {
+      uint32_t const keep = ~(uint32_t{1} << skip);  // words_per_block <= 32
+      for (uint32_t i = 0; i < pattern_array.size(); ++i) {
+        pattern_array[i] &= word_type{0} - static_cast<word_type>((keep >> (first_word + i)) & 1u);
+      }
     }
   }
 
