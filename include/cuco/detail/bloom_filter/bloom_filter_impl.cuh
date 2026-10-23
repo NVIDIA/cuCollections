@@ -62,6 +62,7 @@ class bloom_filter_impl {
   static constexpr bool conditional_add            = policy_type::conditional_add;
   static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
   static constexpr bool persisting_l2_access       = policy_type::persisting_l2_access;
+  static constexpr bool fast_l2_add                = policy_type::fast_l2_add;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -218,10 +219,27 @@ class bloom_filter_impl {
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
+    if constexpr (fast_l2_add) {
+      // Shuffle all keys' block indices and hashes first: the skipped word makes the atomics
+      // per-lane conditional, and divergence ahead of a shuffle costs a convergence check per
+      // shuffle. With the shuffles done up front a single check covers all of them.
+      cuda::std::array<uint32_t, num_threads> blocks;
+      cuda::std::array<uint32_t, num_threads> hashes;
 #pragma unroll num_threads
-    for (int i = 0; i < num_threads; ++i) {
-      add_patterns<ConditionalAdd, 0>(
-        group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      for (int i = 0; i < num_threads; ++i) {
+        blocks[i] = group.shfl(block_index, i);
+        hashes[i] = group.shfl(lower_hash, i);
+      }
+#pragma unroll num_threads
+      for (int i = 0; i < num_threads; ++i) {
+        add_patterns<ConditionalAdd, 0>(blocks[i], hashes[i], group.thread_rank());
+      }
+    } else {
+#pragma unroll num_threads
+      for (int i = 0; i < num_threads; ++i) {
+        add_patterns<ConditionalAdd, 0>(
+          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      }
     }
   }
 
@@ -555,6 +573,11 @@ class bloom_filter_impl {
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
+    // Skipped word (FastL2Add): issue no atomic, so the coalesced request leaves this word
+    // inactive.
+    if constexpr (fast_l2_add) {
+      if (pattern == 0) { return; }
+    }
     auto const do_or = [&]() {
       auto* const p = filter_access(word_ptr);
       if constexpr (thread_scope == cuda::thread_scope_thread) {
