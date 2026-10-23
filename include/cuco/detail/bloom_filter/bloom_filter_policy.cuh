@@ -267,6 +267,15 @@ class bloom_filter_policy {
   /**
    * @brief Checks the stored words against a key's pattern when the horizontal layout is 1. The
    * FastL2Add skipped word passes by its index, so every word keeps a plain bit test.
+   *
+   * @tparam LoopIndex Outer-loop iteration index when `words_per_block / VerticalLayout > 1`.
+   * @tparam VerticalLayout Number of contiguous words checked.
+   * @tparam StoredArrayT Array of `VerticalLayout` words.
+   *
+   * @param stored_pattern The stored words.
+   * @param lower_hash_value Lower 32 bits of the key's hash.
+   *
+   * @return Whether every checked word contains its pattern bits.
    */
   template <uint32_t LoopIndex, uint32_t VerticalLayout, class StoredArrayT>
   __device__ constexpr bool matches_pattern(StoredArrayT const& stored_pattern,
@@ -284,6 +293,17 @@ class bloom_filter_policy {
   /**
    * @brief Checks the stored words against a key's pattern when the horizontal layout is > 1. The
    * FastL2Add skipped word passes by its index, so every word keeps a plain bit test.
+   *
+   * @tparam LoopIndex Outer-loop iteration index.
+   * @tparam HorizontalLayout Cooperative-group size cooperating on a single key.
+   * @tparam VerticalLayout Number of contiguous words checked by the calling thread.
+   * @tparam StoredArrayT Array of `VerticalLayout` words.
+   *
+   * @param stored_pattern The calling thread's stored words.
+   * @param lower_hash_value Lower 32 bits of the key's hash.
+   * @param thread_index Caller's rank within the cooperative group.
+   *
+   * @return Whether every checked word contains its pattern bits.
    */
   template <uint32_t LoopIndex,
             uint32_t HorizontalLayout,
@@ -304,14 +324,31 @@ class bloom_filter_policy {
     return match;
   }
 
-  /// Fingerprint words without the FastL2Add skip applied (horizontal layout 1).
+  /**
+   * @brief Generates the per-word fingerprint pattern without the FastL2Add skip applied, when the
+   * horizontal layout is 1.
+   *
+   * @tparam LoopIndex Outer-loop iteration index when `words_per_block / VerticalLayout > 1`.
+   * @tparam VerticalLayout Number of contiguous words this call produces.
+   *
+   * @param lower_hash_value Lower 32 bits of the key's hash.
+   *
+   * @return Array of `VerticalLayout` words.
+   */
   template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto full_array_pattern(uint32_t lower_hash_value) const
   {
     return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
   }
 
-  /// Index of the skipped word in the block's first sector (FastL2Add): the top bits of the hash.
+  /**
+   * @brief Index of the FastL2Add skipped word in the block's first sector: the top bits of the
+   * hash.
+   *
+   * @param hash Lower 32 bits of the key's hash.
+   *
+   * @return Word index in `[0, words per sector)`.
+   */
   __device__ static constexpr uint32_t skip_index(uint32_t hash)
   {
     constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
