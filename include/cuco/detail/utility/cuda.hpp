@@ -48,7 +48,7 @@ constexpr auto grid_size(index_type num,
  *
  * @return Number of SMs
  */
-inline std::int32_t num_multiprocessors(cuda::stream_ref stream)
+inline std::int32_t num_multiprocessors([[maybe_unused]] cuda::stream_ref stream)
 {
 #if CUDART_VERSION >= 13010
   cudaDevResource resource{};
