@@ -14,13 +14,17 @@
 #include <cuco/bloom_filter.cuh>
 #include <cuco/detail/error.hpp>
 
+#include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/equal.h>
 #include <thrust/execution_policy.h>
+#include <thrust/host_vector.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -223,4 +227,320 @@ TEST_CASE("bloom_filter: contains results are invariant under EarlyExitContains"
   filter_on.contains(probe_keys.begin(), probe_keys.end(), result_on.begin());
 
   REQUIRE(thrust::equal(thrust::device, result_off.begin(), result_off.end(), result_on.begin()));
+}
+
+namespace {
+template <std::uint32_t AddH, std::uint32_t AddV, std::uint32_t ContainsH, std::uint32_t ContainsV>
+using skip_policy = cuco::bloom_filter_policy<int32_t,
+                                              cuco::xxhash_64<int32_t>,
+                                              4,
+                                              8,
+                                              8,
+                                              AddH,
+                                              AddV,
+                                              ContainsH,
+                                              ContainsV,
+                                              false,
+                                              false,
+                                              false,
+                                              true>;
+}  // namespace
+
+TEST_CASE("bloom_filter: fast_l2_add leaves exactly one word of a key's block untouched", "")
+{
+  using Key      = int32_t;
+  using filter_t = cuco::bloom_filter<Key,
+                                      cuco::extent<std::size_t>,
+                                      cuda::thread_scope_device,
+                                      skip_policy<8, 1, 1, 8>>;
+  STATIC_REQUIRE(skip_policy<8, 1, 1, 8>::fast_l2_add);
+  STATIC_REQUIRE(not cuco::bloom_filter_policy<Key>::fast_l2_add);
+
+  constexpr int32_t num_blocks = 1;  // every key lands in block 0
+  for (Key k : {0, 1, 2, 3, 12345, -7}) {
+    auto filter = filter_t{num_blocks};
+    thrust::device_vector<Key> key(1, k);
+    filter.add(key.begin(), key.end());
+    auto const nonzero = thrust::count_if(thrust::device,
+                                          filter.data(),
+                                          filter.data() + filter_t::words_per_block,
+                                          [] __device__(auto w) { return w != 0; });
+    // one bit per word (pattern_bits == words_per_block), one word skipped
+    REQUIRE(nonzero == filter_t::words_per_block - 1);
+  }
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter: fast_l2_add bitset and contains are invariant under layout permutations",
+  "",
+  ((class AltPolicy), AltPolicy),
+  (skip_policy<1, 8, 1, 8>),
+  (skip_policy<2, 4, 1, 8>),
+  (skip_policy<4, 2, 2, 4>),
+  (skip_policy<4, 1, 4, 2>),
+  (skip_policy<8, 1, 8, 1>))
+{
+  using Key          = int32_t;
+  using filter_ref_t = cuco::bloom_filter<Key,
+                                          cuco::extent<std::size_t>,
+                                          cuda::thread_scope_device,
+                                          skip_policy<8, 1, 1, 8>>;
+  using filter_alt_t =
+    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, AltPolicy>;
+
+  constexpr int32_t num_blocks = 1'000;
+  constexpr int32_t num_keys   = 400;
+  constexpr int32_t num_probe  = 800;  // mix of inserted and disjoint
+
+  auto filter_ref = filter_ref_t{num_blocks};
+  auto filter_alt = filter_alt_t{num_blocks};
+
+  thrust::device_vector<Key> keys(num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+  filter_ref.add(keys.begin(), keys.end());
+  filter_alt.add(keys.begin(), keys.end());
+
+  auto const total_words =
+    static_cast<std::size_t>(filter_ref.block_extent()) * filter_ref_t::words_per_block;
+  REQUIRE(thrust::equal(
+    thrust::device, filter_ref.data(), filter_ref.data() + total_words, filter_alt.data()));
+
+  thrust::device_vector<Key> probe(num_probe);
+  thrust::sequence(thrust::device, probe.begin(), probe.end());
+  thrust::device_vector<bool> result_ref(num_probe), result_alt(num_probe);
+  filter_ref.contains(probe.begin(), probe.end(), result_ref.begin());
+  filter_alt.contains(probe.begin(), probe.end(), result_alt.begin());
+  REQUIRE(thrust::equal(thrust::device, result_ref.begin(), result_ref.end(), result_alt.begin()));
+  // no false negatives among the inserted keys
+  REQUIRE(thrust::all_of(
+    thrust::device, result_alt.begin(), result_alt.begin() + num_keys, [] __device__(bool b) {
+      return b;
+    }));
+}
+
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter: fast_l2_add on multi-sector blocks skips one word of the first sector",
+  "",
+  ((class Policy, int SkippedLimit), Policy, SkippedLimit),
+  ((cuco::bloom_filter_policy<int32_t,
+                              cuco::xxhash_64<int32_t>,
+                              8,
+                              8,
+                              8,
+                              8,
+                              1,
+                              2,
+                              4,
+                              false,
+                              false,
+                              false,
+                              true>),
+   4),
+  ((cuco::bloom_filter_policy<int32_t,
+                              cuco::xxhash_64<int32_t>,
+                              8,
+                              8,
+                              8,
+                              4,
+                              2,
+                              1,
+                              8,
+                              false,
+                              false,
+                              false,
+                              true>),
+   4),
+  ((cuco::bloom_filter_policy<int32_t,
+                              cuco::xxhash_64<int32_t>,
+                              8,
+                              16,
+                              16,
+                              16,
+                              1,
+                              4,
+                              4,
+                              false,
+                              false,
+                              false,
+                              true>),
+   4),
+  ((cuco::bloom_filter_policy<int32_t,
+                              cuco::xxhash_64<int32_t>,
+                              4,
+                              16,
+                              16,
+                              16,
+                              1,
+                              2,
+                              8,
+                              false,
+                              false,
+                              false,
+                              true>),
+   8))
+{
+  using Key = int32_t;
+  using filter_t =
+    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, Policy>;
+  constexpr auto words = filter_t::words_per_block;
+
+  for (Key k : {0, 1, 2, 3, 12345, -7}) {
+    auto filter = filter_t{1};  // every key lands in block 0
+    thrust::device_vector<Key> key(1, k);
+    filter.add(key.begin(), key.end());
+    thrust::device_vector<typename filter_t::word_type> block(filter.data(), filter.data() + words);
+    thrust::host_vector<typename filter_t::word_type> h = block;
+    int zeros = 0, zero_index = -1;
+    for (int i = 0; i < static_cast<int>(words); ++i) {
+      if (h[i] == 0) { ++zeros, zero_index = i; }
+    }
+    // one bit per word (pattern_bits == words_per_block): exactly one untouched word, in sector 0
+    REQUIRE(zeros == 1);
+    REQUIRE(zero_index < SkippedLimit);
+
+    thrust::device_vector<bool> found(1);
+    filter.contains(key.begin(), key.end(), found.begin());
+    REQUIRE(found[0]);
+  }
+}
+
+TEST_CASE("bloom_filter: fast_l2_add cooperative bulk add matches the per-key layout on many keys",
+          "")
+{
+  using Key = int32_t;
+  // horizontal 8x1 runs the cooperative (shuffle-first) add; 1x8 is non-cooperative
+  using filter_coop_t = cuco::bloom_filter<Key,
+                                           cuco::extent<std::size_t>,
+                                           cuda::thread_scope_device,
+                                           skip_policy<8, 1, 1, 8>>;
+  using filter_ref_t  = cuco::bloom_filter<Key,
+                                           cuco::extent<std::size_t>,
+                                           cuda::thread_scope_device,
+                                           skip_policy<1, 8, 1, 8>>;
+
+  constexpr std::size_t num_blocks = 1 << 16;
+  constexpr int32_t num_keys       = 3'000'017;  // many blocks and a partial last block
+
+  auto filter_coop = filter_coop_t{num_blocks};
+  auto filter_ref  = filter_ref_t{num_blocks};
+  thrust::device_vector<Key> keys(num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+  filter_coop.add(keys.begin(), keys.end());
+  filter_ref.add(keys.begin(), keys.end());
+
+  auto const total_words = num_blocks * filter_coop_t::words_per_block;
+  REQUIRE(thrust::equal(
+    thrust::device, filter_coop.data(), filter_coop.data() + total_words, filter_ref.data()));
+}
+
+template <uint32_t AddH,
+          uint32_t AddV,
+          uint32_t ContainsH,
+          uint32_t ContainsV,
+          bool FastL2Add,
+          uint32_t AddKeysPerThread,
+          uint32_t ContainsKeysPerThread>
+using kpt_policy = cuco::bloom_filter_policy<int32_t,
+                                             cuco::xxhash_64<int32_t>,
+                                             4,
+                                             8,
+                                             8,
+                                             AddH,
+                                             AddV,
+                                             ContainsH,
+                                             ContainsV,
+                                             false,
+                                             false,
+                                             false,
+                                             FastL2Add,
+                                             AddKeysPerThread,
+                                             ContainsKeysPerThread>;
+
+TEMPLATE_TEST_CASE_SIG("bloom_filter: bulk add and contains are invariant under keys per thread",
+                       "",
+                       ((uint32_t AddH,
+                         uint32_t AddV,
+                         uint32_t ContainsH,
+                         uint32_t ContainsV,
+                         bool FastL2Add,
+                         uint32_t AddKpt,
+                         uint32_t ContainsKpt),
+                        AddH,
+                        AddV,
+                        ContainsH,
+                        ContainsV,
+                        FastL2Add,
+                        AddKpt,
+                        ContainsKpt),
+                       (8, 1, 1, 8, false, 4, 4),
+                       (8, 1, 1, 8, true, 4, 4),
+                       (8, 1, 1, 8, true, 2, 8),
+                       (1, 8, 8, 1, false, 4, 4),
+                       (1, 8, 8, 1, true, 3, 5))
+{
+  using Key      = int32_t;
+  using filter_t = cuco::bloom_filter<
+    Key,
+    cuco::extent<std::size_t>,
+    cuda::thread_scope_device,
+    kpt_policy<AddH, AddV, ContainsH, ContainsV, FastL2Add, AddKpt, ContainsKpt>>;
+  using filter_ref_t =
+    cuco::bloom_filter<Key,
+                       cuco::extent<std::size_t>,
+                       cuda::thread_scope_device,
+                       kpt_policy<AddH, AddV, ContainsH, ContainsV, FastL2Add, 1, 1>>;
+
+  constexpr std::size_t num_blocks = 1 << 16;
+  // more than one wave of multi-key blocks plus a tail; less than one wave (one key per thread
+  // only); exactly one multi-key block at the smallest keys per thread
+  auto const num_keys = GENERATE(int32_t{3'000'017}, int32_t{1'000}, int32_t{1'024});
+
+  auto filter     = filter_t{num_blocks};
+  auto filter_ref = filter_ref_t{num_blocks};
+  thrust::device_vector<Key> keys(2 * num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+  filter.add(keys.begin(), keys.begin() + num_keys);
+  filter_ref.add(keys.begin(), keys.begin() + num_keys);
+
+  auto const total_words = num_blocks * filter_t::words_per_block;
+  REQUIRE(
+    thrust::equal(thrust::device, filter.data(), filter.data() + total_words, filter_ref.data()));
+
+  // half inserted, half not: identical answers, and no false negatives
+  thrust::device_vector<bool> result(2 * num_keys, false);
+  thrust::device_vector<bool> result_ref(2 * num_keys, false);
+  filter.contains(keys.begin(), keys.end(), result.begin());
+  filter_ref.contains(keys.begin(), keys.end(), result_ref.begin());
+  REQUIRE(thrust::equal(thrust::device, result.begin(), result.end(), result_ref.begin()));
+  REQUIRE(cuco::test::all_of(result.begin(), result.begin() + num_keys, cuda::std::identity{}));
+}
+
+TEST_CASE("bloom_filter: fast_l2_add has no effect on blocks smaller than one sector", "")
+{
+  using Key = int32_t;
+  // 16-byte blocks: 4 x 4-byte words, cooperative add over 4 threads
+  using off_policy =
+    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 4, 4, 4, 1, 1, 4, false, false, false>;
+  using on_policy = cuco::
+    bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 4, 4, 4, 1, 1, 4, false, false, false, true>;
+  STATIC_REQUIRE(not on_policy::fast_l2_add);
+
+  using filter_off_t =
+    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, off_policy>;
+  using filter_on_t =
+    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, on_policy>;
+
+  constexpr std::size_t num_blocks = 1'000;
+  constexpr int32_t num_keys       = 400;
+
+  auto filter_off = filter_off_t{num_blocks};
+  auto filter_on  = filter_on_t{num_blocks};
+  thrust::device_vector<Key> keys(num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+  filter_off.add(keys.begin(), keys.end());
+  filter_on.add(keys.begin(), keys.end());
+
+  auto const total_words = num_blocks * filter_off_t::words_per_block;
+  REQUIRE(thrust::equal(
+    thrust::device, filter_off.data(), filter_off.data() + total_words, filter_on.data()));
 }

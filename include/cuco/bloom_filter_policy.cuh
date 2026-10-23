@@ -47,6 +47,17 @@ namespace cuco {
  * persisting access policy. Reserve/reset persisting L2
  * separately (e.g. `cudaDeviceSetLimit`). Enable only when the working set fits the reserved
  * region, otherwise persisting lines can thrash the cache and slow other work.
+ * @tparam FastL2Add When `true`, speeds up `add` for filters that fit in L2 on recent GPUs: each
+ * key leaves one hash-selected word of its block's first 32-byte sector untouched, so its atomic
+ * updates cover that sector only partially, which recent memory systems process more efficiently.
+ * This changes the bit pattern: the skipped word's fingerprint bits are dropped, which slightly
+ * raises the false-positive rate, and filters built with and without it are not interchangeable.
+ * `contains` is about as fast as without it. No effect for blocks smaller than 32 bytes.
+ * @tparam AddKeysPerThread Keys each thread handles in bulk `add`. A thread loads all its keys
+ * before the first update, so each warp has that many key loads in flight; this helps on GPUs with
+ * few resident warps per SM. Does not change the bit pattern. Defaults to `1`.
+ * @tparam ContainsKeysPerThread Keys each thread handles in bulk `contains`, as for
+ * `AddKeysPerThread`. Defaults to `1`.
  */
 template <class Key,
           class Hash                        = cuco::xxhash_64<Key>,
@@ -61,7 +72,10 @@ template <class Key,
           std::uint32_t ContainsVerticalLayout = WordsPerBlock / ContainsHorizontalLayout,
           bool ConditionalAdd                  = false,
           bool EarlyExitContains               = false,
-          bool PersistingL2Access              = false>
+          bool PersistingL2Access              = false,
+          bool FastL2Add                       = false,
+          std::uint32_t AddKeysPerThread       = 1,
+          std::uint32_t ContainsKeysPerThread  = 1>
 using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         WordBytes,
                                                         WordsPerBlock,
@@ -72,7 +86,10 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         ContainsVerticalLayout,
                                                         ConditionalAdd,
                                                         EarlyExitContains,
-                                                        PersistingL2Access>;
+                                                        PersistingL2Access,
+                                                        FastL2Add,
+                                                        AddKeysPerThread,
+                                                        ContainsKeysPerThread>;
 
 /**
  * @brief Deprecated compatibility alias for the old parametric Bloom filter policy API.
@@ -116,6 +133,9 @@ using parametric_filter_policy =
                               ContainsVerticalLayout,
                               ConditionalAdd,
                               EarlyExitContains,
-                              PersistingL2Access>;
+                              PersistingL2Access,
+                              false,
+                              1,
+                              1>;
 
 }  // namespace cuco

@@ -52,6 +52,77 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n(InputIt first,
   add_n_impl<ConditionalAdd, CGSize, BlockSize>(first, n, ref);
 }
 
+/// `add_n` with `KeysPerThread` keys per thread, for full blocks only: block `b` covers keys
+/// `[b, b + 1) * BlockSize * KeysPerThread` (strided by `BlockSize`), and each thread loads all its
+/// keys before the first update, so a warp has `KeysPerThread` key loads in flight. The caller
+/// handles the remaining keys with `add_n`.
+template <bool ConditionalAdd,
+          int32_t CGSize,
+          int32_t BlockSize,
+          int32_t KeysPerThread,
+          class InputIt,
+          class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void add_n_multi_key(InputIt first, Ref ref)
+{
+  namespace cg   = cooperative_groups;
+  using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
+
+  auto const idx = static_cast<cuco::detail::index_type>(blockIdx.x) * BlockSize * KeysPerThread +
+                   static_cast<cuco::detail::index_type>(threadIdx.x);
+  key_type keys[KeysPerThread];
+#pragma unroll
+  for (int32_t i = 0; i < KeysPerThread; ++i) {
+    keys[i] = *(first + idx + i * BlockSize);
+  }
+  if constexpr (CGSize > 1) {
+    auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
+#pragma unroll
+    for (int32_t i = 0; i < KeysPerThread; ++i) {
+      ref.template add_coop<ConditionalAdd>(group, keys[i]);
+    }
+  } else {
+#pragma unroll
+    for (int32_t i = 0; i < KeysPerThread; ++i) {
+      ref.template add<ConditionalAdd>(keys[i]);
+    }
+  }
+}
+
+/// `contains_n` with `KeysPerThread` keys per thread, for full blocks only (see `add_n_multi_key`).
+template <int32_t CGSize,
+          int32_t BlockSize,
+          int32_t KeysPerThread,
+          class InputIt,
+          class OutputIt,
+          class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_n_multi_key(InputIt first,
+                                                                   OutputIt output_begin,
+                                                                   Ref ref)
+{
+  namespace cg   = cooperative_groups;
+  using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
+
+  auto const idx = static_cast<cuco::detail::index_type>(blockIdx.x) * BlockSize * KeysPerThread +
+                   static_cast<cuco::detail::index_type>(threadIdx.x);
+  key_type keys[KeysPerThread];
+#pragma unroll
+  for (int32_t i = 0; i < KeysPerThread; ++i) {
+    keys[i] = *(first + idx + i * BlockSize);
+  }
+  if constexpr (CGSize > 1) {
+    auto group = cg::tiled_partition<CGSize>(cg::this_thread_block());
+#pragma unroll
+    for (int32_t i = 0; i < KeysPerThread; ++i) {
+      *(output_begin + idx + i * BlockSize) = ref.contains_coop(group, keys[i]);
+    }
+  } else {
+#pragma unroll
+    for (int32_t i = 0; i < KeysPerThread; ++i) {
+      *(output_begin + idx + i * BlockSize) = ref.contains(keys[i]);
+    }
+  }
+}
+
 template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
 __device__ void contains_n_impl(InputIt first,
                                 cuco::detail::index_type n,

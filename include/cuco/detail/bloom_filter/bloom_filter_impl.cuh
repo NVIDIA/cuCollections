@@ -62,6 +62,9 @@ class bloom_filter_impl {
   static constexpr bool conditional_add            = policy_type::conditional_add;
   static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
   static constexpr bool persisting_l2_access       = policy_type::persisting_l2_access;
+  static constexpr bool fast_l2_add                = policy_type::fast_l2_add;
+  static constexpr auto add_keys_per_thread        = policy_type::add_keys_per_thread;
+  static constexpr auto contains_keys_per_thread   = policy_type::contains_keys_per_thread;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -218,10 +221,27 @@ class bloom_filter_impl {
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
+    if constexpr (fast_l2_add) {
+      // Shuffle all keys' block indices and hashes first: the skipped word makes the atomics
+      // per-lane conditional, and divergence ahead of a shuffle costs a convergence check per
+      // shuffle. With the shuffles done up front a single check covers all of them.
+      cuda::std::array<uint32_t, num_threads> blocks;
+      cuda::std::array<uint32_t, num_threads> hashes;
 #pragma unroll num_threads
-    for (int i = 0; i < num_threads; ++i) {
-      add_patterns<ConditionalAdd, 0>(
-        group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      for (int i = 0; i < num_threads; ++i) {
+        blocks[i] = group.shfl(block_index, i);
+        hashes[i] = group.shfl(lower_hash, i);
+      }
+#pragma unroll num_threads
+      for (int i = 0; i < num_threads; ++i) {
+        add_patterns<ConditionalAdd, 0>(blocks[i], hashes[i], group.thread_rank());
+      }
+    } else {
+#pragma unroll num_threads
+      for (int i = 0; i < num_threads; ++i) {
+        add_patterns<ConditionalAdd, 0>(
+          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      }
     }
   }
 
@@ -274,15 +294,35 @@ class bloom_filter_impl {
   template <class InputIt>
   __host__ void add_async(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
   {
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
-    auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
 
+    if constexpr (add_keys_per_thread > 1) {
+      // Full blocks of `add_keys_per_thread` keys per thread; the remaining keys go to `add_n`
+      // below. Inputs smaller than one wave of such blocks keep one key per thread to use more SMs.
+      auto constexpr keys_per_thread = static_cast<int32_t>(add_keys_per_thread);
+      auto constexpr keys_per_block  = cuco::detail::index_type{block_size} * keys_per_thread;
+      auto const kernel              = detail::bloom_filter_ns::add_n_multi_key<conditional_add,
+                                                                                cg_size,
+                                                                                block_size,
+                                                                                keys_per_thread,
+                                                                                InputIt,
+                                                                                bloom_filter_impl>;
+      auto const num_full_blocks     = num_keys / keys_per_block;
+      if (num_full_blocks > 0 and
+          num_full_blocks >= cuco::detail::max_occupancy_grid_size(block_size, kernel, stream)) {
+        kernel<<<num_full_blocks, block_size, 0, stream.get()>>>(first, *this);
+        first += num_full_blocks * keys_per_block;
+        num_keys -= num_full_blocks * keys_per_block;
+        if (num_keys == 0) { return; }
+      }
+    }
     detail::bloom_filter_ns::add_n<conditional_add, cg_size, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+      <<<cuco::detail::int_div_ceil(num_keys, block_size), block_size, 0, stream.get()>>>(
+        first, num_keys, *this);
   }
 
   template <class InputIt>
@@ -399,15 +439,35 @@ class bloom_filter_impl {
                                OutputIt output_begin,
                                cuda::stream_ref stream) const noexcept
   {
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
-    auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
 
+    if constexpr (contains_keys_per_thread > 1) {
+      // As in `add_async`: full multi-key blocks first, the remaining keys with `contains_n`.
+      auto constexpr keys_per_thread = static_cast<int32_t>(contains_keys_per_thread);
+      auto constexpr keys_per_block  = cuco::detail::index_type{block_size} * keys_per_thread;
+      auto const kernel              = detail::bloom_filter_ns::contains_n_multi_key<cg_size,
+                                                                                     block_size,
+                                                                                     keys_per_thread,
+                                                                                     InputIt,
+                                                                                     OutputIt,
+                                                                                     bloom_filter_impl>;
+      auto const num_full_blocks     = num_keys / keys_per_block;
+      if (num_full_blocks > 0 and
+          num_full_blocks >= cuco::detail::max_occupancy_grid_size(block_size, kernel, stream)) {
+        kernel<<<num_full_blocks, block_size, 0, stream.get()>>>(first, output_begin, *this);
+        first += num_full_blocks * keys_per_block;
+        output_begin += num_full_blocks * keys_per_block;
+        num_keys -= num_full_blocks * keys_per_block;
+        if (num_keys == 0) { return; }
+      }
+    }
     detail::bloom_filter_ns::contains_n<cg_size, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+      <<<cuco::detail::int_div_ceil(num_keys, block_size), block_size, 0, stream.get()>>>(
+        first, num_keys, output_begin, *this);
   }
 
   template <class InputIt, class OutputIt>
@@ -555,6 +615,11 @@ class bloom_filter_impl {
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
+    // Skipped word (FastL2Add): issue no atomic, so the coalesced request leaves this word
+    // inactive.
+    if constexpr (fast_l2_add) {
+      if (pattern == 0) { return; }
+    }
     auto const do_or = [&]() {
       auto* const p = filter_access(word_ptr);
       if constexpr (thread_scope == cuda::thread_scope_thread) {
