@@ -63,6 +63,12 @@ class bloom_filter_impl {
   static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
   static constexpr bool persisting_l2_access       = policy_type::persisting_l2_access;
   static constexpr bool fast_l2_add                = policy_type::fast_l2_add;
+  /// Per-thread salts of the cooperative add and contains layouts
+  using add_salts_type =
+    typename policy_type::template thread_salts<add_horizontal_layout, add_vertical_layout>;
+  using contains_salts_type =
+    typename policy_type::template thread_salts<contains_horizontal_layout,
+                                                contains_vertical_layout>;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -191,7 +197,7 @@ class bloom_filter_impl {
     } else {
 #pragma unroll
       for (uint32_t thread_index = 0; thread_index < add_horizontal_layout; ++thread_index) {
-        add_patterns<ConditionalAdd, 0>(block_index, lower_hash, thread_index);
+        add_patterns<ConditionalAdd, 0>(block_index, lower_hash, add_salts(thread_index));
       }
     }
   }
@@ -207,7 +213,7 @@ class bloom_filter_impl {
       auto const lower_hash  = sh.second;
       auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
-      add_patterns<ConditionalAdd, 0>(block_index, lower_hash, group.thread_rank());
+      add_patterns<ConditionalAdd, 0>(block_index, lower_hash, add_salts(group.thread_rank()));
     }
   }
 
@@ -218,6 +224,7 @@ class bloom_filter_impl {
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    auto const thread_salts             = add_salts(group.thread_rank());
 
     if constexpr (fast_l2_add) {
       // Shuffle all keys' block indices and hashes first: the skipped word makes the atomics
@@ -232,13 +239,13 @@ class bloom_filter_impl {
       }
 #pragma unroll num_threads
       for (int i = 0; i < num_threads; ++i) {
-        add_patterns<ConditionalAdd, 0>(blocks[i], hashes[i], group.thread_rank());
+        add_patterns<ConditionalAdd, 0>(blocks[i], hashes[i], thread_salts);
       }
     } else {
 #pragma unroll num_threads
       for (int i = 0; i < num_threads; ++i) {
         add_patterns<ConditionalAdd, 0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+          group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts);
       }
     }
   }
@@ -258,12 +265,13 @@ class bloom_filter_impl {
       lower_hash      = sh.second;
       block_index     = policy_.block_index(upper_hash, num_blocks_);
     }
+    auto const thread_salts = add_salts(group.thread_rank());
 
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
       if (group.shfl(is_valid, i)) {
         add_patterns<ConditionalAdd, 0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+          group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts);
       }
     }
   }
@@ -322,7 +330,8 @@ class bloom_filter_impl {
       bool result = true;
 #pragma unroll
       for (uint32_t thread_index = 0; thread_index < contains_horizontal_layout; ++thread_index) {
-        result = result && compare_patterns<0>(block_index, lower_hash, thread_index);
+        result =
+          result && compare_patterns<0>(block_index, lower_hash, contains_salts(thread_index));
       }
       return result;
     }
@@ -339,7 +348,8 @@ class bloom_filter_impl {
       auto const lower_hash  = sh.second;
       auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
-      return group.all(compare_patterns<0>(block_index, lower_hash, group.thread_rank()));
+      return group.all(
+        compare_patterns<0>(block_index, lower_hash, contains_salts(group.thread_rank())));
     }
   }
 
@@ -350,12 +360,13 @@ class bloom_filter_impl {
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    auto const thread_salts             = contains_salts(group.thread_rank());
     bool result_out                     = false;
 
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      auto const result = group.all(compare_patterns<0>(
-        group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+      auto const result = group.all(
+        compare_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts));
       if (i == group.thread_rank()) { result_out = result; }
     }
     return result_out;
@@ -377,12 +388,13 @@ class bloom_filter_impl {
       block_index     = policy_.block_index(upper_hash, num_blocks_);
     }
 
-    bool result_out = false;
+    auto const thread_salts = contains_salts(group.thread_rank());
+    bool result_out         = false;
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
       if (group.shfl(is_valid, i)) {
-        auto const result = group.all(compare_patterns<0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+        auto const result = group.all(
+          compare_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts));
         if (i == group.thread_rank()) { result_out = result; }
       }
     }
@@ -562,28 +574,39 @@ class bloom_filter_impl {
     }
   }
 
+  // Salts of a cooperative-group thread, selected once per thread and reused for every key.
+  __device__ constexpr add_salts_type add_salts(uint32_t thread_index) const
+  {
+    return policy_.template make_thread_salts<add_horizontal_layout, add_vertical_layout>(
+      thread_index);
+  }
+
+  __device__ constexpr contains_salts_type contains_salts(uint32_t thread_index) const
+  {
+    return policy_.template make_thread_salts<contains_horizontal_layout, contains_vertical_layout>(
+      thread_index);
+  }
+
   template <bool ConditionalAdd, uint32_t LoopIndex>
   __device__ constexpr void add_patterns(uint32_t block_index,
                                          uint32_t lower_hash,
-                                         uint32_t thread_index)
+                                         add_salts_type const& thread_salts)
   {
     static_assert(add_horizontal_layout > 1, "add_patterns() requires add_horizontal_layout > 1");
 
     if constexpr (LoopIndex < add_loop_count) {
-      auto const pattern =
-        policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
-          lower_hash, thread_index);
-      auto* word_base = words_ +
+      auto const pattern = policy_.template array_pattern<LoopIndex>(lower_hash, thread_salts);
+      auto* word_base    = words_ +
                         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout * add_horizontal_layout +
-                        thread_index * add_vertical_layout;
+                        thread_salts.thread_index * add_vertical_layout;
 
       for (int i = 0; i < add_vertical_layout; ++i) {
         atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
       }
 
       // Recurse.
-      add_patterns<ConditionalAdd, LoopIndex + 1>(block_index, lower_hash, thread_index);
+      add_patterns<ConditionalAdd, LoopIndex + 1>(block_index, lower_hash, thread_salts);
     }
   }
 
@@ -651,7 +674,7 @@ class bloom_filter_impl {
   template <uint32_t LoopIndex>
   __device__ constexpr bool compare_patterns(uint32_t block_index,
                                              uint32_t lower_hash,
-                                             uint32_t thread_index) const
+                                             contains_salts_type const& thread_salts) const
   {
     static_assert(contains_horizontal_layout > 1,
                   "compare_patterns() requires HorizontalLayout > 1");
@@ -660,18 +683,16 @@ class bloom_filter_impl {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout * contains_horizontal_layout +
-        thread_index * contains_vertical_layout);
-      bool const match = policy_.template matches_pattern<LoopIndex,
-                                                          contains_horizontal_layout,
-                                                          contains_vertical_layout>(
-        stored_pattern, lower_hash, thread_index);
+        thread_salts.thread_index * contains_vertical_layout);
+      bool const match =
+        policy_.template matches_pattern<LoopIndex>(stored_pattern, lower_hash, thread_salts);
 
       // Per-thread early exit: short-circuit this thread's recursion if its slice already missed.
       if constexpr (early_exit_contains) {
         if (!match) { return false; }
-        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index);
+        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_salts);
       } else {
-        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index) && match;
+        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_salts) && match;
       }
     } else {
       return true;
