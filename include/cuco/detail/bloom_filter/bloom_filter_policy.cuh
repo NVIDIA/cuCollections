@@ -265,18 +265,8 @@ class bloom_filter_policy {
   }
 
   /**
-   * @brief Checks stored words against a key's pattern when the horizontal layout is 1.
-   *
-   * Under FastL2Add the skipped word is excluded by a predicate on its index rather than by
-   * clearing its expected word, so each word keeps a plain bit test.
-   *
-   * @tparam LoopIndex Outer-loop iteration index when `words_per_block / VerticalLayout > 1`.
-   * @tparam VerticalLayout Number of contiguous words checked.
-   *
-   * @param stored_pattern The `VerticalLayout` stored words.
-   * @param lower_hash_value Lower 32 bits of the key's hash.
-   *
-   * @return Whether every (non-skipped) word contains its pattern bits.
+   * @brief Checks the stored words against a key's pattern when the horizontal layout is 1. The
+   * FastL2Add skipped word passes by its index, so every word keeps a plain bit test.
    */
   template <uint32_t LoopIndex, uint32_t VerticalLayout, class StoredArrayT>
   __device__ constexpr bool matches_pattern(StoredArrayT const& stored_pattern,
@@ -285,11 +275,8 @@ class bloom_filter_policy {
     auto const expected = pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
     bool match          = true;
     for (uint32_t i = 0; i < VerticalLayout; ++i) {
-      bool word_match = (stored_pattern[i] & expected[i]) == expected[i];
-      if constexpr (fast_l2_add) {
-        word_match = word_match or LoopIndex * VerticalLayout + i == skip_index(lower_hash_value);
-      }
-      match &= word_match;
+      match &= (stored_pattern[i] & expected[i]) == expected[i] or
+               (fast_l2_add and LoopIndex * VerticalLayout + i == skip_index(lower_hash_value));
     }
     return match;
   }
