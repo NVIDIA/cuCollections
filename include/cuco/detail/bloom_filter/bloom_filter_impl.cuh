@@ -267,12 +267,13 @@ class bloom_filter_impl {
     }
     auto const thread_salts = add_salts(group.thread_rank());
 
+    // Shuffle outside the per-key branch: the bulk kernels' tiles sync with the full-warp mask
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      if (group.shfl(is_valid, i)) {
-        add_patterns<ConditionalAdd, 0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts);
-      }
+      auto const valid = group.shfl(is_valid, i);
+      auto const block = group.shfl(block_index, i);
+      auto const hash  = group.shfl(lower_hash, i);
+      if (valid) { add_patterns<ConditionalAdd, 0>(block, hash, thread_salts); }
     }
   }
 
@@ -390,13 +391,13 @@ class bloom_filter_impl {
 
     auto const thread_salts = contains_salts(group.thread_rank());
     bool result_out         = false;
+    // An invalid key probes block 0 and its result is discarded, so that every thread reaches the
+    // collectives (the bulk kernels' tiles sync with the full-warp mask)
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      if (group.shfl(is_valid, i)) {
-        auto const result = group.all(
-          compare_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts));
-        if (i == group.thread_rank()) { result_out = result; }
-      }
+      auto const result = group.all(
+        compare_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts));
+      if (i == group.thread_rank()) { result_out = result; }
     }
     return result_out;
   }
