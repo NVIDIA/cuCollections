@@ -264,6 +264,36 @@ class bloom_filter_policy {
     return pattern;
   }
 
+  /**
+   * @brief Checks stored words against a key's pattern when the horizontal layout is 1.
+   *
+   * Under FastL2Add the skipped word is excluded by a predicate on its index rather than by
+   * clearing its expected word, so each word keeps a plain bit test.
+   *
+   * @tparam LoopIndex Outer-loop iteration index when `words_per_block / VerticalLayout > 1`.
+   * @tparam VerticalLayout Number of contiguous words checked.
+   *
+   * @param stored_pattern The `VerticalLayout` stored words.
+   * @param lower_hash_value Lower 32 bits of the key's hash.
+   *
+   * @return Whether every (non-skipped) word contains its pattern bits.
+   */
+  template <uint32_t LoopIndex, uint32_t VerticalLayout, class StoredArrayT>
+  __device__ constexpr bool matches_pattern(StoredArrayT const& stored_pattern,
+                                            uint32_t lower_hash_value) const
+  {
+    auto const expected = pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
+    bool match          = true;
+    for (uint32_t i = 0; i < VerticalLayout; ++i) {
+      bool word_match = (stored_pattern[i] & expected[i]) == expected[i];
+      if constexpr (fast_l2_add) {
+        word_match = word_match or LoopIndex * VerticalLayout + i == skip_index(lower_hash_value);
+      }
+      match &= word_match;
+    }
+    return match;
+  }
+
  private:
   hasher hash_;
 
@@ -272,11 +302,17 @@ class bloom_filter_policy {
   static constexpr uint32_t sector_bytes     = 32;
   static constexpr uint32_t words_per_sector = sector_bytes / WordBytes;
 
+  /// Index of the skipped word within the block's first sector (FastL2Add). The skip index is the
+  /// top bits of the hash: the fingerprint bits come from salted products of the hash, so no extra
+  /// multiply is needed to decorrelate it.
+  __device__ static constexpr uint32_t skip_index(uint32_t hash)
+  {
+    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
+    return hash >> (32 - index_width);
+  }
+
   /// Clears the pattern word of the hash-selected skipped word if it lies in this pattern array,
   /// whose first element is block word `first_word`.
-  ///
-  /// The skip index is the top bits of the hash: the fingerprint bits come from salted products of
-  /// the hash, so no extra multiply is needed to decorrelate it.
   ///
   /// Branchless: the skip index is per key (data-dependent), so comparing it against each word
   /// index lets the compiler emit a switch over its values, which diverges across a warp. Instead
@@ -288,8 +324,7 @@ class bloom_filter_policy {
                                           uint32_t hash,
                                           uint32_t first_word) const
   {
-    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
-    uint32_t const skip            = hash >> (32 - index_width);
+    uint32_t const skip = skip_index(hash);
     if constexpr (cuda::std::tuple_size_v<PatternArrayT> == 1) {
       pattern_array[0] &= word_type{0} - static_cast<word_type>(first_word != skip);
     } else {

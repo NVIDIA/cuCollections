@@ -614,13 +614,8 @@ class bloom_filter_impl {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout);
-      auto const expected_pattern =
-        policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
-
-      bool match = true;
-      for (int i = 0; i < contains_vertical_layout; ++i) {
-        match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
-      }
+      bool const match = policy_.template matches_pattern<LoopIndex, contains_vertical_layout>(
+        stored_pattern, lower_hash);
 
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
