@@ -281,13 +281,35 @@ class bloom_filter_policy {
     return match;
   }
 
- private:
-  hasher hash_;
+  /**
+   * @brief Checks the stored words against a key's pattern when the horizontal layout is > 1. The
+   * FastL2Add skipped word passes by its index, so every word keeps a plain bit test.
+   */
+  template <uint32_t LoopIndex,
+            uint32_t HorizontalLayout,
+            uint32_t VerticalLayout,
+            class StoredArrayT>
+  __device__ constexpr bool matches_pattern(StoredArrayT const& stored_pattern,
+                                            uint32_t lower_hash_value,
+                                            uint32_t thread_index) const
+  {
+    auto const expected =
+      pattern_impl<LoopIndex, HorizontalLayout, VerticalLayout>(lower_hash_value, thread_index);
+    uint32_t const first_word = (LoopIndex * HorizontalLayout + thread_index) * VerticalLayout;
+    bool match                = true;
+    for (uint32_t i = 0; i < VerticalLayout; ++i) {
+      match &= (stored_pattern[i] & expected[i]) == expected[i] or
+               (fast_l2_add and first_word + i == skip_index(lower_hash_value));
+    }
+    return match;
+  }
 
-  /// The skipped word is taken from the block's first 32-byte sector: that is the sector whose
-  /// partial coverage makes the update cheaper.
-  static constexpr uint32_t sector_bytes     = 32;
-  static constexpr uint32_t words_per_sector = sector_bytes / WordBytes;
+  /// Fingerprint words without the FastL2Add skip applied (horizontal layout 1).
+  template <uint32_t LoopIndex, uint32_t VerticalLayout>
+  __device__ constexpr auto full_array_pattern(uint32_t lower_hash_value) const
+  {
+    return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
+  }
 
   /// Index of the skipped word in the block's first sector (FastL2Add): the top bits of the hash.
   __device__ static constexpr uint32_t skip_index(uint32_t hash)
@@ -295,6 +317,14 @@ class bloom_filter_policy {
     constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
     return hash >> (32 - index_width);
   }
+
+ private:
+  hasher hash_;
+
+  /// The skipped word is taken from the block's first 32-byte sector: that is the sector whose
+  /// partial coverage makes the update cheaper.
+  static constexpr uint32_t sector_bytes     = 32;
+  static constexpr uint32_t words_per_sector = sector_bytes / WordBytes;
 
   /// Clears the pattern word of the hash-selected skipped word if it lies in this pattern array,
   /// whose first element is block word `first_word`.
