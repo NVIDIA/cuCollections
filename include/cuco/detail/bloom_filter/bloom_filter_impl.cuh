@@ -63,6 +63,8 @@ class bloom_filter_impl {
   static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
   static constexpr bool persisting_l2_access       = policy_type::persisting_l2_access;
   static constexpr bool fast_l2_add                = policy_type::fast_l2_add;
+  static constexpr auto add_keys_per_thread        = policy_type::add_keys_per_thread;
+  static constexpr auto contains_keys_per_thread   = policy_type::contains_keys_per_thread;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -292,15 +294,35 @@ class bloom_filter_impl {
   template <class InputIt>
   __host__ void add_async(InputIt first, InputIt last, cuda::stream_ref stream) noexcept
   {
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
-    auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
 
+    if constexpr (add_keys_per_thread > 1) {
+      // Full blocks of `add_keys_per_thread` keys per thread; the remaining keys go to `add_n`
+      // below. Inputs smaller than one wave of such blocks keep one key per thread to use more SMs.
+      auto constexpr keys_per_thread = static_cast<int32_t>(add_keys_per_thread);
+      auto constexpr keys_per_block  = cuco::detail::index_type{block_size} * keys_per_thread;
+      auto const kernel              = detail::bloom_filter_ns::add_n_multi_key<conditional_add,
+                                                                                cg_size,
+                                                                                block_size,
+                                                                                keys_per_thread,
+                                                                                InputIt,
+                                                                                bloom_filter_impl>;
+      auto const num_full_blocks     = num_keys / keys_per_block;
+      if (num_full_blocks > 0 and
+          num_full_blocks >= cuco::detail::max_occupancy_grid_size(block_size, kernel, stream)) {
+        kernel<<<num_full_blocks, block_size, 0, stream.get()>>>(first, *this);
+        first += num_full_blocks * keys_per_block;
+        num_keys -= num_full_blocks * keys_per_block;
+        if (num_keys == 0) { return; }
+      }
+    }
     detail::bloom_filter_ns::add_n<conditional_add, cg_size, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, *this);
+      <<<cuco::detail::int_div_ceil(num_keys, block_size), block_size, 0, stream.get()>>>(
+        first, num_keys, *this);
   }
 
   template <class InputIt>
@@ -417,15 +439,35 @@ class bloom_filter_impl {
                                OutputIt output_begin,
                                cuda::stream_ref stream) const noexcept
   {
-    auto const num_keys = cuco::detail::distance(first, last);
+    auto num_keys = cuco::detail::distance(first, last);
     if (num_keys == 0) { return; }
 
     auto constexpr block_size = 256;
     auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
-    auto const grid_size      = cuco::detail::int_div_ceil(num_keys, block_size);
 
+    if constexpr (contains_keys_per_thread > 1) {
+      // As in `add_async`: full multi-key blocks first, the remaining keys with `contains_n`.
+      auto constexpr keys_per_thread = static_cast<int32_t>(contains_keys_per_thread);
+      auto constexpr keys_per_block  = cuco::detail::index_type{block_size} * keys_per_thread;
+      auto const kernel              = detail::bloom_filter_ns::contains_n_multi_key<cg_size,
+                                                                                     block_size,
+                                                                                     keys_per_thread,
+                                                                                     InputIt,
+                                                                                     OutputIt,
+                                                                                     bloom_filter_impl>;
+      auto const num_full_blocks     = num_keys / keys_per_block;
+      if (num_full_blocks > 0 and
+          num_full_blocks >= cuco::detail::max_occupancy_grid_size(block_size, kernel, stream)) {
+        kernel<<<num_full_blocks, block_size, 0, stream.get()>>>(first, output_begin, *this);
+        first += num_full_blocks * keys_per_block;
+        output_begin += num_full_blocks * keys_per_block;
+        num_keys -= num_full_blocks * keys_per_block;
+        if (num_keys == 0) { return; }
+      }
+    }
     detail::bloom_filter_ns::contains_n<cg_size, block_size>
-      <<<grid_size, block_size, 0, stream.get()>>>(first, num_keys, output_begin, *this);
+      <<<cuco::detail::int_div_ceil(num_keys, block_size), block_size, 0, stream.get()>>>(
+        first, num_keys, output_begin, *this);
   }
 
   template <class InputIt, class OutputIt>

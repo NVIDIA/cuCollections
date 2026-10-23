@@ -72,6 +72,9 @@ namespace cuco::detail {
  * `add` while the filter is cache-resident. It changes the bit pattern (slightly higher
  * false-positive rate; not interchangeable with filters built without it). No effect for blocks
  * smaller than one 32-byte sector.
+ * @tparam AddKeysPerThread Keys per thread in bulk `add`; all are loaded before the first update.
+ * Launch shape only: does not change the bit pattern.
+ * @tparam ContainsKeysPerThread Keys per thread in bulk `contains`, as for `AddKeysPerThread`.
  */
 template <class Hash,
           uint32_t WordBytes,
@@ -84,9 +87,15 @@ template <class Hash,
           bool ConditionalAdd,
           bool EarlyExitContains,
           bool PersistingL2Access,
-          bool FastL2Add>
+          bool FastL2Add,
+          uint32_t AddKeysPerThread,
+          uint32_t ContainsKeysPerThread>
 class bloom_filter_policy {
   static_assert(WordBytes == 4 || WordBytes == 8, "WordBytes must be 4 or 8 for native atomicOr");
+  static_assert(AddKeysPerThread >= 1 && AddKeysPerThread <= 16,
+                "AddKeysPerThread must be in [1, 16]");
+  static_assert(ContainsKeysPerThread >= 1 && ContainsKeysPerThread <= 16,
+                "ContainsKeysPerThread must be in [1, 16]");
 
  public:
   using hasher           = Hash;  ///< 64-bit hash functor type
@@ -133,6 +142,10 @@ class bloom_filter_policy {
   /// Leave one hash-selected word of each key's block untouched. No effect for blocks smaller
   /// than one 32-byte sector, whose updates are partial already.
   static constexpr bool fast_l2_add = FastL2Add and WordsPerBlock * WordBytes >= 32;
+  static constexpr uint32_t add_keys_per_thread =
+    AddKeysPerThread;  ///< keys per thread in bulk add
+  static constexpr uint32_t contains_keys_per_thread =
+    ContainsKeysPerThread;  ///< keys per thread in bulk contains
 
   static constexpr size_t max_filter_blocks =
     cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks

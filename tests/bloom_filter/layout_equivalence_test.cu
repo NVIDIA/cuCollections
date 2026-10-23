@@ -24,6 +24,7 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -430,6 +431,88 @@ TEST_CASE("bloom_filter: fast_l2_add cooperative bulk add matches the per-key la
   auto const total_words = num_blocks * filter_coop_t::words_per_block;
   REQUIRE(thrust::equal(
     thrust::device, filter_coop.data(), filter_coop.data() + total_words, filter_ref.data()));
+}
+
+template <uint32_t AddH,
+          uint32_t AddV,
+          uint32_t ContainsH,
+          uint32_t ContainsV,
+          bool FastL2Add,
+          uint32_t AddKeysPerThread,
+          uint32_t ContainsKeysPerThread>
+using kpt_policy = cuco::bloom_filter_policy<int32_t,
+                                             cuco::xxhash_64<int32_t>,
+                                             4,
+                                             8,
+                                             8,
+                                             AddH,
+                                             AddV,
+                                             ContainsH,
+                                             ContainsV,
+                                             false,
+                                             false,
+                                             false,
+                                             FastL2Add,
+                                             AddKeysPerThread,
+                                             ContainsKeysPerThread>;
+
+TEMPLATE_TEST_CASE_SIG("bloom_filter: bulk add and contains are invariant under keys per thread",
+                       "",
+                       ((uint32_t AddH,
+                         uint32_t AddV,
+                         uint32_t ContainsH,
+                         uint32_t ContainsV,
+                         bool FastL2Add,
+                         uint32_t AddKpt,
+                         uint32_t ContainsKpt),
+                        AddH,
+                        AddV,
+                        ContainsH,
+                        ContainsV,
+                        FastL2Add,
+                        AddKpt,
+                        ContainsKpt),
+                       (8, 1, 1, 8, false, 4, 4),
+                       (8, 1, 1, 8, true, 4, 4),
+                       (8, 1, 1, 8, true, 2, 8),
+                       (1, 8, 8, 1, false, 4, 4),
+                       (1, 8, 8, 1, true, 3, 5))
+{
+  using Key      = int32_t;
+  using filter_t = cuco::bloom_filter<
+    Key,
+    cuco::extent<std::size_t>,
+    cuda::thread_scope_device,
+    kpt_policy<AddH, AddV, ContainsH, ContainsV, FastL2Add, AddKpt, ContainsKpt>>;
+  using filter_ref_t =
+    cuco::bloom_filter<Key,
+                       cuco::extent<std::size_t>,
+                       cuda::thread_scope_device,
+                       kpt_policy<AddH, AddV, ContainsH, ContainsV, FastL2Add, 1, 1>>;
+
+  constexpr std::size_t num_blocks = 1 << 16;
+  // more than one wave of multi-key blocks plus a tail; less than one wave (one key per thread
+  // only); exactly one multi-key block at the smallest keys per thread
+  auto const num_keys = GENERATE(int32_t{3'000'017}, int32_t{1'000}, int32_t{1'024});
+
+  auto filter     = filter_t{num_blocks};
+  auto filter_ref = filter_ref_t{num_blocks};
+  thrust::device_vector<Key> keys(2 * num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+  filter.add(keys.begin(), keys.begin() + num_keys);
+  filter_ref.add(keys.begin(), keys.begin() + num_keys);
+
+  auto const total_words = num_blocks * filter_t::words_per_block;
+  REQUIRE(
+    thrust::equal(thrust::device, filter.data(), filter.data() + total_words, filter_ref.data()));
+
+  // half inserted, half not: identical answers, and no false negatives
+  thrust::device_vector<bool> result(2 * num_keys, false);
+  thrust::device_vector<bool> result_ref(2 * num_keys, false);
+  filter.contains(keys.begin(), keys.end(), result.begin());
+  filter_ref.contains(keys.begin(), keys.end(), result_ref.begin());
+  REQUIRE(thrust::equal(thrust::device, result.begin(), result.end(), result_ref.begin()));
+  REQUIRE(cuco::test::all_of(result.begin(), result.begin() + num_keys, cuda::std::identity{}));
 }
 
 TEST_CASE("bloom_filter: fast_l2_add has no effect on blocks smaller than one sector", "")
