@@ -302,9 +302,7 @@ class bloom_filter_policy {
   static constexpr uint32_t sector_bytes     = 32;
   static constexpr uint32_t words_per_sector = sector_bytes / WordBytes;
 
-  /// Index of the skipped word within the block's first sector (FastL2Add). The skip index is the
-  /// top bits of the hash: the fingerprint bits come from salted products of the hash, so no extra
-  /// multiply is needed to decorrelate it.
+  /// Index of the skipped word in the block's first sector (FastL2Add): the top bits of the hash.
   __device__ static constexpr uint32_t skip_index(uint32_t hash)
   {
     constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
@@ -317,8 +315,7 @@ class bloom_filter_policy {
   /// Branchless: the skip index is per key (data-dependent), so comparing it against each word
   /// index lets the compiler emit a switch over its values, which diverges across a warp. Instead
   /// a keep-mask with the skipped bit cleared is shifted per word and turned into an all-ones or
-  /// all-zeros word mask. With one word per thread the word index is itself a runtime value, and a
-  /// plain comparison is a single predicate.
+  /// all-zeros word mask.
   template <class PatternArrayT>
   __device__ constexpr void clear_skipped(PatternArrayT& pattern_array,
                                           uint32_t hash,
