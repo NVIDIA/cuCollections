@@ -55,9 +55,9 @@ namespace cuco {
  * `contains` is about as fast as without it. No effect for blocks smaller than 32 bytes.
  * @tparam AddKeysPerThread Keys each thread handles in bulk `add`. A thread loads all its keys
  * before the first update, so each warp has that many key loads in flight; this helps on GPUs with
- * few resident warps per SM. Does not change the bit pattern. Defaults to `1`.
+ * few resident warps per SM. Does not change the bit pattern. Defaults to `4`.
  * @tparam ContainsKeysPerThread Keys each thread handles in bulk `contains`, as for
- * `AddKeysPerThread`. Defaults to `1`.
+ * `AddKeysPerThread`. Defaults to `4`.
  */
 template <class Key,
           class Hash                        = cuco::xxhash_64<Key>,
@@ -74,8 +74,8 @@ template <class Key,
           bool EarlyExitContains               = false,
           bool PersistingL2Access              = false,
           bool FastL2Add                       = false,
-          std::uint32_t AddKeysPerThread       = 1,
-          std::uint32_t ContainsKeysPerThread  = 1>
+          std::uint32_t AddKeysPerThread       = 4,
+          std::uint32_t ContainsKeysPerThread  = 4>
 using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         WordBytes,
                                                         WordsPerBlock,
@@ -135,7 +135,7 @@ using parametric_filter_policy =
                               EarlyExitContains,
                               PersistingL2Access,
                               false,
-                              1,
-                              1>;
+                              4,
+                              4>;
 
 }  // namespace cuco
