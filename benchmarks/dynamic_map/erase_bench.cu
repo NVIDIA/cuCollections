@@ -14,6 +14,10 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
+#include <memory_stats.hpp>
+
+#include <algorithm>
+
 using namespace cuco::benchmark;  // defaults, dist_from_state
 using namespace cuco::utility;    // key_generator, distribution
 
@@ -43,18 +47,23 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_erase(
 
   state.add_element_count(num_keys);
 
-  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
-             [&](nvbench::launch& launch, auto& timer) {
-               cuco::dynamic_map<Key, Value> map{static_cast<size_t>(initial_size),
-                                                 cuco::empty_key<Key>{-1},
-                                                 cuco::empty_value<Value>{-1},
-                                                 cuco::erased_key<Key>{-2}};
-               map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
+  std::size_t peak_memory_usage = 0;
+  state.exec(
+    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
+      with_tracking_allocator_t<cuco::dynamic_map<Key, Value>> map{
+        static_cast<size_t>(initial_size),
+        cuco::empty_key<Key>{-1},
+        cuco::empty_value<Value>{-1},
+        cuco::erased_key<Key>{-2}};
+      map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
 
-               timer.start();
-               map.erase(keys.begin(), keys.end(), {launch.get_stream()});
-               timer.stop();
-             });
+      auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
+      timer.start();
+      map.erase(keys.begin(), keys.end(), {launch.get_stream()});
+      timer.stop();
+      peak_memory_usage = std::max(peak_memory_usage, mem_stats_logger.peak_memory_usage());
+    });
+  state.add_buffer_size(peak_memory_usage, "peak_memory_usage", "peak_memory_usage");
 }
 
 template <typename Key, typename Value, typename Dist>

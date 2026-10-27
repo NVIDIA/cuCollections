@@ -13,6 +13,8 @@
 
 #include <thrust/device_vector.h>
 
+#include <memory_stats.hpp>
+
 using namespace cuco::benchmark;  // defaults, dist_from_state
 using namespace cuco::utility;    // key_generator, distribution
 
@@ -34,14 +36,17 @@ void static_multiset_insert(nvbench::state& state, nvbench::type_list<Key, Dist>
 
   state.add_element_count(num_keys);
 
-  cuco::static_multiset<Key> set{size, cuco::empty_key<Key>{-1}};
+  with_tracking_allocator_t<cuco::static_multiset<Key>> set{size, cuco::empty_key<Key>{-1}};
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     timer.start();
     set.insert_async(keys.begin(), keys.end(), {launch.get_stream()});
     timer.stop();
     set.clear_async({launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 NVBENCH_BENCH_TYPES(static_multiset_insert,

@@ -52,6 +52,9 @@ ConfigureTest(UTILITY_TEST
 ConfigureTest(DEBUG_ASSERT_TEST utility/debug_assert_test.cu)
 target_compile_definitions(DEBUG_ASSERT_TEST PRIVATE CUCO_DEBUG NDEBUG)
 
+ConfigureTest(BENCHMARK_MEMORY_STATS_TEST benchmarks/memory_stats_test.cu)
+target_include_directories(BENCHMARK_MEMORY_STATS_TEST PRIVATE ${CUCO_SOURCE_DIR}/benchmarks)
+
 ###################################################################################################
 # - static_set tests ------------------------------------------------------------------------------
 ConfigureTest(STATIC_SET_TEST

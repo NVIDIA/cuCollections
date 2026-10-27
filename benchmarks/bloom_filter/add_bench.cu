@@ -17,6 +17,8 @@
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 
+#include <memory_stats.hpp>
+
 #include <cstdint>
 
 using namespace cuco::benchmark;  // defaults, dist_from_state, rebind_hasher_t
@@ -68,8 +70,8 @@ void bloom_filter_add(nvbench::state& state,
                                                                           false,
                                                                           false,
                                                                           false>;
-    using filter_type =
-      cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
+    using filter_type                         = with_tracking_allocator_t<
+                              cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>>;
 
     auto const num_keys       = state.get_int64("NumInputs");
     auto const filter_size_mb = state.get_int64("FilterSizeMB");
@@ -90,12 +92,15 @@ void bloom_filter_add(nvbench::state& state,
     thrust::device_vector<Key> keys(num_keys);
     thrust::sequence(thrust::device, keys.begin(), keys.end(), 0);
 
+    auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
     state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
       timer.start();
       filter.add_async(keys.begin(), keys.end(), {launch.get_stream()});
       timer.stop();
       filter.clear_async({launch.get_stream()});
     });
+    state.add_buffer_size(
+      mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
   }
 }
 

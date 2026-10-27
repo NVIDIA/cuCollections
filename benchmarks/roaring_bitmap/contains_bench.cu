@@ -16,6 +16,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/universal_vector.h>
 
+#include <memory_stats.hpp>
+
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -40,7 +42,8 @@ void roaring_bitmap_contains(nvbench::state& state, nvbench::type_list<T>)
   file.read(reinterpret_cast<char*>(thrust::raw_pointer_cast(buffer.data())), file_size);
   file.close();
 
-  cuco::experimental::roaring_bitmap<T> roaring_bitmap(thrust::raw_pointer_cast(buffer.data()));
+  with_tracking_allocator_t<cuco::experimental::roaring_bitmap<T>> roaring_bitmap(
+    thrust::raw_pointer_cast(buffer.data()));
 
   thrust::device_vector<T> items(num_items);
 
@@ -58,10 +61,13 @@ void roaring_bitmap_contains(nvbench::state& state, nvbench::type_list<T>)
   summ.set_string("description", "Bitmap size in MB");
   summ.set_float64("value", static_cast<double>(file_size) / (1024 * 1024));
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec([&](nvbench::launch& launch) {
     roaring_bitmap.contains_async(
       items.begin(), items.end(), contained.begin(), {launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 NVBENCH_BENCH_TYPES(roaring_bitmap_contains,
