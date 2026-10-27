@@ -587,12 +587,12 @@ class bloom_filter_impl {
     }
   }
 
-  template <bool ConditionalAdd, bool MaySkip = fast_l2_add>
+  template <bool ConditionalAdd, bool SkipZero = fast_l2_add>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    // Skipped word (FastL2Add): issue no atomic, so the coalesced request leaves this word
-    // inactive.
-    if constexpr (MaySkip) {
+    // Issue no atomic for a zero pattern: with FastL2Add the skipped word's pattern is cleared, so
+    // the coalesced request leaves that word inactive.
+    if constexpr (SkipZero) {
       if (pattern == 0) { return; }
     }
     auto const do_or = [&]() {
