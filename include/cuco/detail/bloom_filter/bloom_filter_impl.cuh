@@ -539,7 +539,7 @@ class bloom_filter_impl {
         // The thread owns the whole first sector: one atomic less, shifting past the skipped word,
         // instead of a conditional atomic per word.
         auto const pattern =
-          policy_.template full_array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
+          policy_.template array_pattern<LoopIndex, add_vertical_layout, false>(lower_hash);
         uint32_t const skip = policy_type::skip_index(lower_hash);
         for (uint32_t i = 0; i + 1 < sector_words; ++i) {
           bool const past = i >= skip;
@@ -619,6 +619,22 @@ class bloom_filter_impl {
     }
   }
 
+  /// Whether every stored word contains its expected bits. The FastL2Add skipped word (unset by
+  /// `add`) passes by its index, so every word keeps a plain bit test.
+  template <class PatternArrayT>
+  __device__ constexpr bool matches(PatternArrayT const& stored_pattern,
+                                    PatternArrayT const& expected_pattern,
+                                    uint32_t lower_hash,
+                                    uint32_t first_word) const
+  {
+    bool match = true;
+    for (uint32_t i = 0; i < expected_pattern.size(); ++i) {
+      match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i] or
+               (fast_l2_add and first_word + i == policy_type::skip_index(lower_hash));
+    }
+    return match;
+  }
+
   /// Compare the stored pattern against the expected pattern for the given hash value.
   // Precondition: contains_horizontal_layout == 1
   template <uint32_t LoopIndex>
@@ -631,8 +647,10 @@ class bloom_filter_impl {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout);
-      bool const match = policy_.template matches_pattern<LoopIndex, contains_vertical_layout>(
-        stored_pattern, lower_hash);
+      auto const expected_pattern =
+        policy_.template array_pattern<LoopIndex, contains_vertical_layout, false>(lower_hash);
+      bool const match =
+        matches(stored_pattern, expected_pattern, lower_hash, LoopIndex * contains_vertical_layout);
 
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
@@ -661,10 +679,15 @@ class bloom_filter_impl {
         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout * contains_horizontal_layout +
         thread_index * contains_vertical_layout);
-      bool const match = policy_.template matches_pattern<LoopIndex,
-                                                          contains_horizontal_layout,
-                                                          contains_vertical_layout>(
-        stored_pattern, lower_hash, thread_index);
+      auto const expected_pattern = policy_.template array_pattern<LoopIndex,
+                                                                   contains_horizontal_layout,
+                                                                   contains_vertical_layout,
+                                                                   false>(lower_hash, thread_index);
+      bool const match =
+        matches(stored_pattern,
+                expected_pattern,
+                lower_hash,
+                (LoopIndex * contains_horizontal_layout + thread_index) * contains_vertical_layout);
 
       // Per-thread early exit: short-circuit this thread's recursion if its slice already missed.
       if constexpr (early_exit_contains) {
