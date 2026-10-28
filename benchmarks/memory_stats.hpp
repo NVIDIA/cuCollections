@@ -17,11 +17,11 @@ namespace cuco::benchmark {
 /**
  * @brief Tracks peak outstanding device bytes allocated through tracking_allocator in this scope.
  *
- * Construct after benchmark setup, immediately before state.exec (or inside its callback, after
- * per-iteration setup). Allocations made before the scope, including input/output buffers and
- * existing container storage, are excluded. Accounting
- * follows allocator calls, not CUDA pool reservations or physical completion of asynchronous frees.
- * Each benchmark state runs on one host thread. Nested logging scopes are not supported.
+ * Construct after benchmark setup, immediately before state.exec or a separate measurement pass.
+ * Allocations made before the scope, including input/output buffers and existing container storage,
+ * are excluded. Accounting follows allocator calls, not CUDA pool reservations or physical
+ * completion of asynchronous frees. Each benchmark state runs on one host thread. Nested logging
+ * scopes are not supported.
  */
 class memory_stats_logger {
  public:

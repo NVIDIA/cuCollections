@@ -16,8 +16,6 @@
 
 #include <memory_stats.hpp>
 
-#include <algorithm>
-
 using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
@@ -47,27 +45,37 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_erase(
 
   state.add_element_count(num_keys);
 
-  std::size_t peak_memory_usage = 0;
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      cuco::dynamic_map map{cuco::extent<std::size_t>{static_cast<size_t>(initial_size)},
-                            cuco::empty_key<Key>{-1},
-                            cuco::empty_value<Value>{-1},
-                            cuco::erased_key<Key>{-2},
-                            {},
-                            {},
-                            {},
-                            {},
-                            tracking_allocator<pair_type>{}};
-      map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
+  auto const make_map = [&](cuda::stream_ref stream) {
+    return cuco::dynamic_map{cuco::extent<std::size_t>{static_cast<size_t>(initial_size)},
+                             cuco::empty_key<Key>{-1},
+                             cuco::empty_value<Value>{-1},
+                             cuco::erased_key<Key>{-2},
+                             {},
+                             {},
+                             {},
+                             {},
+                             tracking_allocator<pair_type>{},
+                             stream};
+  };
 
-      auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
-      timer.start();
-      map.erase(keys.begin(), keys.end(), {launch.get_stream()});
-      timer.stop();
-      peak_memory_usage = std::max(peak_memory_usage, mem_stats_logger.peak_memory_usage());
-    });
-  state.add_buffer_size(peak_memory_usage, "peak_memory_usage", "peak_memory_usage");
+  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
+             [&](nvbench::launch& launch, auto& timer) {
+               auto map = make_map({launch.get_stream()});
+               map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
+
+               timer.start();
+               map.erase(keys.begin(), keys.end(), {launch.get_stream()});
+               timer.stop();
+             });
+
+  // Measure once with the same setup, excluding container initialization from the peak.
+  auto const stream = cuda::stream_ref{state.get_cuda_stream()};
+  auto map          = make_map(stream);
+  map.insert(pairs.begin(), pairs.end(), stream);
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
+  map.erase(keys.begin(), keys.end(), stream);
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 template <typename Key, typename Value, typename Dist>

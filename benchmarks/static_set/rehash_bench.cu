@@ -46,9 +46,11 @@ void static_set_rehash(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   set.insert(keys.begin(), keys.end());
 
-  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::sync,
              [&](nvbench::launch& launch) { set.rehash({launch.get_stream()}); });
+  // A single pass excludes storage retained from earlier rehash iterations.
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
+  set.rehash({state.get_cuda_stream()});
   state.add_buffer_size(
     mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
