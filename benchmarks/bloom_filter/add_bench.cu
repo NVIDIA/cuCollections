@@ -70,8 +70,11 @@ void bloom_filter_add(nvbench::state& state,
                                                                           false,
                                                                           false,
                                                                           false>;
-    using filter_type                         = with_tracking_allocator_t<
-                              cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>>;
+    using filter_type                         = cuco::bloom_filter<Key,
+                                                                   cuco::extent<size_type>,
+                                                                   cuda::thread_scope_device,
+                                                                   policy_type,
+                                                                   tracking_allocator<cuda::std::byte>>;
 
     auto const num_keys       = state.get_int64("NumInputs");
     auto const filter_size_mb = state.get_int64("FilterSizeMB");

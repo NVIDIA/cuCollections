@@ -48,8 +48,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_retrieve(
 
   state.add_element_count(num_keys);
 
-  with_tracking_allocator_t<cuco::static_multimap<Key, Value>> map{
-    size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  cuco::static_multimap map{cuco::extent<std::size_t>{size},
+                            cuco::empty_key<Key>{-1},
+                            cuco::empty_value<Value>{-1},
+                            {},
+                            {},
+                            {},
+                            {},
+                            tracking_allocator<pair_type>{}};
   map.insert(pairs.begin(), pairs.end());
 
   auto const output_size = map.count(keys.begin(), keys.end());

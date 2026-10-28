@@ -36,7 +36,13 @@ void static_multiset_count(nvbench::state& state, nvbench::type_list<Key, Dist>)
   [[maybe_unused]] key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
-  auto map = with_tracking_allocator_t<cuco::static_multiset<Key>>{size, cuco::empty_key<Key>{-1}};
+  auto map = cuco::static_multiset{cuco::extent<std::size_t>{size},
+                                   cuco::empty_key<Key>{-1},
+                                   {},
+                                   {},
+                                   {},
+                                   {},
+                                   tracking_allocator<Key>{}};
   map.insert(keys.begin(), keys.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);

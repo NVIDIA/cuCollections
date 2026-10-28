@@ -43,8 +43,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert(
     return pair_type(key, {});
   });
 
-  auto map = with_tracking_allocator_t<cuco::static_map<Key, Value>>{
-    size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  auto map = cuco::static_map{cuco::extent<std::size_t>{size},
+                              cuco::empty_key<Key>{-1},
+                              cuco::empty_value<Value>{-1},
+                              {},
+                              {},
+                              {},
+                              {},
+                              tracking_allocator<pair_type>{}};
 
   state.add_element_count(num_keys);
   auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();

@@ -36,7 +36,13 @@ void static_multiset_insert(nvbench::state& state, nvbench::type_list<Key, Dist>
 
   state.add_element_count(num_keys);
 
-  with_tracking_allocator_t<cuco::static_multiset<Key>> set{size, cuco::empty_key<Key>{-1}};
+  cuco::static_multiset set{cuco::extent<std::size_t>{size},
+                            cuco::empty_key<Key>{-1},
+                            {},
+                            {},
+                            {},
+                            {},
+                            tracking_allocator<Key>{}};
 
   auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {

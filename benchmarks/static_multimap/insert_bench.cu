@@ -50,15 +50,15 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_insert(
   std::size_t peak_memory_usage = 0;
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      with_tracking_allocator_t<cuco::static_multimap<Key, Value>> map{size,
-                                                                       cuco::empty_key<Key>{-1},
-                                                                       cuco::empty_value<Value>{-1},
-                                                                       {},
-                                                                       {},
-                                                                       {},
-                                                                       {},
-                                                                       {},
-                                                                       {launch.get_stream()}};
+      cuco::static_multimap map{cuco::extent<std::size_t>{size},
+                                cuco::empty_key<Key>{-1},
+                                cuco::empty_value<Value>{-1},
+                                {},
+                                {},
+                                {},
+                                {},
+                                tracking_allocator<pair_type>{},
+                                {launch.get_stream()}};
 
       auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
       timer.start();

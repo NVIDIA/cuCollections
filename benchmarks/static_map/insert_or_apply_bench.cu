@@ -47,8 +47,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
 
   state.add_element_count(num_keys);
 
-  with_tracking_allocator_t<cuco::static_map<Key, Value>> map{
-    size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+  cuco::static_map map{cuco::extent<std::size_t>{size},
+                       cuco::empty_key<Key>{-1},
+                       cuco::empty_value<Value>{0},
+                       {},
+                       {},
+                       {},
+                       {},
+                       tracking_allocator<pair_type>{}};
 
   auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {

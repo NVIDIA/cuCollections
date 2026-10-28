@@ -50,11 +50,15 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_erase(
   std::size_t peak_memory_usage = 0;
   state.exec(
     nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      with_tracking_allocator_t<cuco::dynamic_map<Key, Value>> map{
-        static_cast<size_t>(initial_size),
-        cuco::empty_key<Key>{-1},
-        cuco::empty_value<Value>{-1},
-        cuco::erased_key<Key>{-2}};
+      cuco::dynamic_map map{cuco::extent<std::size_t>{static_cast<size_t>(initial_size)},
+                            cuco::empty_key<Key>{-1},
+                            cuco::empty_value<Value>{-1},
+                            cuco::erased_key<Key>{-2},
+                            {},
+                            {},
+                            {},
+                            {},
+                            tracking_allocator<pair_type>{}};
       map.insert(pairs.begin(), pairs.end(), {launch.get_stream()});
 
       auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();

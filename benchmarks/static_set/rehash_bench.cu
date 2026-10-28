@@ -36,7 +36,13 @@ void static_set_rehash(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   state.add_element_count(capacity);
 
-  with_tracking_allocator_t<cuco::static_set<Key>> set{capacity, cuco::empty_key<Key>{-1}};
+  cuco::static_set set{cuco::extent<std::size_t>{capacity},
+                       cuco::empty_key<Key>{-1},
+                       {},
+                       {},
+                       {},
+                       {},
+                       tracking_allocator<Key>{}};
 
   set.insert(keys.begin(), keys.end());
 

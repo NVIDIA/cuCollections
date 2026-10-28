@@ -42,8 +42,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_find(
     return pair_type(key, {});
   });
 
-  with_tracking_allocator_t<cuco::dynamic_map<Key, Value>> map{
-    static_cast<size_t>(initial_size), cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  cuco::dynamic_map map{cuco::extent<std::size_t>{static_cast<size_t>(initial_size)},
+                        cuco::empty_key<Key>{-1},
+                        cuco::empty_value<Value>{-1},
+                        {},
+                        {},
+                        {},
+                        {},
+                        tracking_allocator<pair_type>{}};
   map.insert(pairs.begin(), pairs.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);

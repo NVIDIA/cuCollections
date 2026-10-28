@@ -44,8 +44,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_contains(
     return pair_type(key, {});
   });
 
-  auto map = with_tracking_allocator_t<cuco::static_map<Key, Value>>{
-    size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  auto map = cuco::static_map{cuco::extent<std::size_t>{size},
+                              cuco::empty_key<Key>{-1},
+                              cuco::empty_value<Value>{-1},
+                              {},
+                              {},
+                              {},
+                              {},
+                              tracking_allocator<pair_type>{}};
   map.insert(pairs.begin(), pairs.end());
 
   gen.dropout(keys.begin(), keys.end(), matching_rate);

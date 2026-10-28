@@ -7,8 +7,6 @@
 
 #include <cuco/utility/allocator.hpp>
 
-#include <cuda/atomic>
-
 #include <algorithm>
 #include <cstddef>
 #include <memory>
@@ -133,86 +131,5 @@ class tracking_allocator {
 
   Upstream upstream_;
 };
-
-/** @brief Replace only a container's allocator, preserving its other template arguments. */
-template <class Container>
-struct with_tracking_allocator;
-
-// static_map, static_multimap, dynamic_map
-template <template <class, class, class, cuda::thread_scope, class, class, class, class> class Map,
-          class Key,
-          class Value,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-struct with_tracking_allocator<
-  Map<Key, Value, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>> {
-  using type = Map<Key,
-                   Value,
-                   Extent,
-                   Scope,
-                   KeyEqual,
-                   ProbingScheme,
-                   tracking_allocator<typename Allocator::value_type, Allocator>,
-                   Storage>;
-};
-
-// static_set, static_multiset
-template <template <class, class, cuda::thread_scope, class, class, class, class> class Set,
-          class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class KeyEqual,
-          class ProbingScheme,
-          class Allocator,
-          class Storage>
-struct with_tracking_allocator<
-  Set<Key, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Storage>> {
-  using type = Set<Key,
-                   Extent,
-                   Scope,
-                   KeyEqual,
-                   ProbingScheme,
-                   tracking_allocator<typename Allocator::value_type, Allocator>,
-                   Storage>;
-};
-
-// bloom_filter
-template <template <class, class, cuda::thread_scope, class, class> class Filter,
-          class Key,
-          class Extent,
-          cuda::thread_scope Scope,
-          class Policy,
-          class Allocator>
-struct with_tracking_allocator<Filter<Key, Extent, Scope, Policy, Allocator>> {
-  using type = Filter<Key,
-                      Extent,
-                      Scope,
-                      Policy,
-                      tracking_allocator<typename Allocator::value_type, Allocator>>;
-};
-
-// hyperloglog
-template <template <class, cuda::thread_scope, class, class> class Estimator,
-          class T,
-          cuda::thread_scope Scope,
-          class Hash,
-          class Allocator>
-struct with_tracking_allocator<Estimator<T, Scope, Hash, Allocator>> {
-  using type =
-    Estimator<T, Scope, Hash, tracking_allocator<typename Allocator::value_type, Allocator>>;
-};
-
-// roaring_bitmap
-template <template <class, class> class Bitmap, class T, class Allocator>
-struct with_tracking_allocator<Bitmap<T, Allocator>> {
-  using type = Bitmap<T, tracking_allocator<typename Allocator::value_type, Allocator>>;
-};
-
-template <class Container>
-using with_tracking_allocator_t = typename with_tracking_allocator<Container>::type;
 
 }  // namespace cuco::benchmark

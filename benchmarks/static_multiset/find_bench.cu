@@ -36,7 +36,13 @@ void static_multiset_find(nvbench::state& state, nvbench::type_list<Key, Dist>)
   [[maybe_unused]] key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
-  with_tracking_allocator_t<cuco::static_multiset<Key>> set{size, cuco::empty_key<Key>{-1}};
+  cuco::static_multiset set{cuco::extent<std::size_t>{size},
+                            cuco::empty_key<Key>{-1},
+                            {},
+                            {},
+                            {},
+                            {},
+                            tracking_allocator<Key>{}};
   set.insert(keys.begin(), keys.end());
 
   // TODO: would crash if not passing nullptr, why?

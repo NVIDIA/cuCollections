@@ -28,7 +28,7 @@ template <build_mode Mode, class InputIt>
 auto build_roaring_bitmap(InputIt first, InputIt last, cuda::stream_ref stream)
 {
   using bitmap_type =
-    with_tracking_allocator_t<cuco::experimental::roaring_bitmap<cuda::std::uint32_t>>;
+    cuco::experimental::roaring_bitmap<cuda::std::uint32_t, tracking_allocator<cuda::std::byte>>;
 
   if constexpr (Mode == build_mode::indices) {
     return bitmap_type::from_indices(first, last, {}, stream);
