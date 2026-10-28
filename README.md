@@ -93,13 +93,6 @@ Binaries will be built into:
 - `build/benchmarks/`
 - `build/examples/`
 
-Each benchmark reports `peak_memory_usage` in bytes through NVBench. This is the maximum outstanding
-device memory allocated by cuCollections during the measured operation, excluding input/output buffers
-and container storage allocated during setup. Tracking starts immediately before `state.exec`, or
-after per-iteration setup for callbacks that construct containers before starting their timers.
-Operations that allocate no memory report zero. The metric tracks allocator requests, not CUDA
-memory-pool reservations or the physical completion of asynchronous frees.
-
 ### Build Script:
 
 Alternatively, you can use the build script located at `ci/build.sh`. Calling this script with no arguments will trigger a full build which will be located at `build/local`.
