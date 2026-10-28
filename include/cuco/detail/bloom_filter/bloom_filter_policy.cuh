@@ -424,102 +424,58 @@ class bloom_filter_policy {
   __device__ constexpr void select_salts(ThreadSalts& ts, uint32_t thread_index) const
   {
     if constexpr (LoopIndex < ThreadSalts::loop_count) {
-      using salt_array_t = cuda::std::array<uint32_t, ThreadSalts::salts_per_thread>;
       ts.salt[LoopIndex] =
-        salts_of<LoopIndex, 0, ThreadSalts::horizontal_layout, ThreadSalts, salt_array_t>(
-          thread_index);
+        salts_of<LoopIndex, 0, ThreadSalts::horizontal_layout, ThreadSalts>(thread_index);
       if constexpr (pattern_bits != max_bits_per_word * words_per_block) {
+        // Trailing virtual threads get the salts left below `pattern_bits`, possibly none
+        uint32_t const first = ThreadSalts::salts_per_thread *
+                               (LoopIndex * ThreadSalts::horizontal_layout + thread_index);
+        uint32_t const left = first < pattern_bits ? pattern_bits - first : 0u;
         ts.num_salts[LoopIndex] =
-          num_salts_of<LoopIndex, 0, ThreadSalts::horizontal_layout, ThreadSalts>(thread_index);
+          left < ThreadSalts::salts_per_thread ? left : ThreadSalts::salts_per_thread;
       }
       select_salts<LoopIndex + 1>(ts, thread_index);
     }
   }
 
-  // Salts of rank `thread_index` in [LowerRank, UpperRank): a compile-time tree of selects, so the
-  // compiler can keep it branch-free.
+  // Salts of rank `thread_index` among ranks `Rank + k * Stride`, k in [0, Count): a compile-time
+  // tree of selects on the rank's bits, lowest first, which the compiler keeps branch-free.
   template <uint32_t LoopIndex,
-            uint32_t LowerRank,
-            uint32_t UpperRank,
-            class ThreadSalts,
-            class SaltArrayT>
-  __device__ static constexpr SaltArrayT salts_of(uint32_t thread_index)
-  {
-    if constexpr (LowerRank + 1 == UpperRank) {
-      constexpr uint32_t first =
-        ThreadSalts::salts_per_thread * (LoopIndex * ThreadSalts::horizontal_layout + LowerRank);
-      constexpr uint32_t last = cuda::std::min(first + ThreadSalts::salts_per_thread, pattern_bits);
-      SaltArrayT s{};
-      copy_salts<first, last>(s, cuda::std::make_index_sequence<ThreadSalts::salts_per_thread>{});
-      return s;
-    } else {
-      // Interleaved halves selected by the lowest rank bit first: a select per pair, then per
-      // pair of pairs, which the compiler keeps branch-free.
-      constexpr uint32_t stride = 1;
-      return salts_bit<LoopIndex,
-                       LowerRank,
-                       UpperRank - LowerRank,
-                       stride,
-                       ThreadSalts,
-                       SaltArrayT>(thread_index);
-    }
-  }
-
-  // Ranks LowerRank + k * Stride for k in [0, Count): select on bit log2(Stride) of the rank.
-  template <uint32_t LoopIndex,
-            uint32_t LowerRank,
+            uint32_t Rank,
             uint32_t Count,
-            uint32_t Stride,
             class ThreadSalts,
-            class SaltArrayT>
-  __device__ static constexpr SaltArrayT salts_bit(uint32_t thread_index)
+            uint32_t Stride = 1>
+  __device__ static constexpr auto salts_of(uint32_t thread_index)
   {
     if constexpr (Count == 1) {
-      return salts_of<LoopIndex, LowerRank, LowerRank + 1, ThreadSalts, SaltArrayT>(thread_index);
+      constexpr uint32_t first =
+        ThreadSalts::salts_per_thread * (LoopIndex * ThreadSalts::horizontal_layout + Rank);
+      cuda::std::array<uint32_t, ThreadSalts::salts_per_thread> leaf{};
+      copy_salts<first>(leaf, cuda::std::make_index_sequence<ThreadSalts::salts_per_thread>{});
+      return leaf;
     } else {
-      auto const even =
-        salts_bit<LoopIndex, LowerRank, Count / 2, Stride * 2, ThreadSalts, SaltArrayT>(
-          thread_index);
+      auto const even = salts_of<LoopIndex, Rank, Count / 2, ThreadSalts, Stride * 2>(thread_index);
       auto const odd =
-        salts_bit<LoopIndex, LowerRank + Stride, Count / 2, Stride * 2, ThreadSalts, SaltArrayT>(
-          thread_index);
+        salts_of<LoopIndex, Rank + Stride, Count / 2, ThreadSalts, Stride * 2>(thread_index);
       return (thread_index & Stride) ? odd : even;
     }
   }
 
-  // Valid salts of rank `thread_index` in [LowerRank, UpperRank).
-  template <uint32_t LoopIndex, uint32_t LowerRank, uint32_t UpperRank, class ThreadSalts>
-  __device__ static constexpr uint32_t num_salts_of(uint32_t thread_index)
+  // dst[i] = salts[First + i], or 0 from `pattern_bits` on.
+  template <uint32_t First, class SaltArrayT, size_t... I>
+  __device__ static constexpr void copy_salts(SaltArrayT& dst, cuda::std::index_sequence<I...>)
   {
-    if constexpr (LowerRank + 1 == UpperRank) {
-      constexpr uint32_t first =
-        ThreadSalts::salts_per_thread * (LoopIndex * ThreadSalts::horizontal_layout + LowerRank);
-      constexpr uint32_t last = cuda::std::min(first + ThreadSalts::salts_per_thread, pattern_bits);
-      return last > first ? last - first : 0u;
-    } else {
-      constexpr uint32_t mid = (LowerRank + UpperRank) / 2;
-      return thread_index < mid
-               ? num_salts_of<LoopIndex, LowerRank, mid, ThreadSalts>(thread_index)
-               : num_salts_of<LoopIndex, mid, UpperRank, ThreadSalts>(thread_index);
-    }
+    ((dst[I] = salt_or_zero<First + static_cast<uint32_t>(I)>()), ...);
   }
 
-  // Salt `Index` if it belongs to the range ending at `Last` (<= pattern_bits), else 0.
-  template <uint32_t Index, uint32_t Last>
+  template <uint32_t Index>
   __device__ static constexpr uint32_t salt_or_zero()
   {
-    if constexpr (Index < Last) {
+    if constexpr (Index < pattern_bits) {
       return cuda::std::get<Index>(salts);
     } else {
       return 0u;
     }
-  }
-
-  // dst[s] = salts[First + s] for First + s < Last, else 0.
-  template <uint32_t First, uint32_t Last, class SaltArrayT, size_t... S>
-  __device__ static constexpr void copy_salts(SaltArrayT& dst, cuda::std::index_sequence<S...>)
-  {
-    ((dst[S] = salt_or_zero<First + static_cast<uint32_t>(S), Last>()), ...);
   }
 
   // Fingerprint words of one cooperative-group thread from its salts (no FastL2Add skip).
