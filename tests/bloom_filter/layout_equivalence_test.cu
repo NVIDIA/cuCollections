@@ -128,43 +128,44 @@ TEMPLATE_TEST_CASE_SIG(
 }
 
 namespace {
-template <uint32_t Words,
-          uint32_t PatternBits,
-          uint32_t AddH,
-          uint32_t AddV,
-          uint32_t ContainsH,
-          uint32_t ContainsV,
+// 32-bit words, `Words` per block; the layouts, pattern bits and FastL2Add vary per test.
+template <std::uint32_t Words,
+          std::uint32_t PatternBits,
+          std::uint32_t AddH,
+          std::uint32_t AddV,
+          std::uint32_t ContainsH,
+          std::uint32_t ContainsV,
           bool FastL2Add = false>
-using mixed_policy = cuco::bloom_filter_policy<int32_t,
-                                               cuco::xxhash_64<int32_t>,
-                                               4,
-                                               Words,
-                                               PatternBits,
-                                               AddH,
-                                               AddV,
-                                               ContainsH,
-                                               ContainsV,
-                                               false,
-                                               false,
-                                               false,
-                                               FastL2Add>;
+using layout_policy = cuco::bloom_filter_policy<int32_t,
+                                                cuco::xxhash_64<int32_t>,
+                                                4,
+                                                Words,
+                                                PatternBits,
+                                                AddH,
+                                                AddV,
+                                                ContainsH,
+                                                ContainsV,
+                                                false,
+                                                false,
+                                                false,
+                                                FastL2Add>;
 }  // namespace
 
 // Reference: one thread per key for add and contains. Alternatives mix cooperative add and
 // contains layouts, several bits per word, uneven pattern bits and 64-byte blocks.
 using mixed_layout_cases = std::tuple<
-  std::pair<mixed_policy<8, 8, 1, 8, 1, 8>, mixed_policy<8, 8, 8, 1, 2, 4>>,
-  std::pair<mixed_policy<8, 8, 1, 8, 1, 8>, mixed_policy<8, 8, 2, 4, 4, 2>>,
-  std::pair<mixed_policy<8, 8, 1, 8, 1, 8>, mixed_policy<8, 8, 4, 1, 8, 1>>,
-  std::pair<mixed_policy<8, 16, 1, 8, 1, 8>, mixed_policy<8, 16, 4, 2, 2, 2>>,
-  std::pair<mixed_policy<8, 16, 1, 8, 1, 8>, mixed_policy<8, 16, 8, 1, 4, 1>>,
-  std::pair<mixed_policy<8, 12, 1, 8, 1, 8>, mixed_policy<8, 12, 8, 1, 2, 4>>,
-  std::pair<mixed_policy<8, 12, 1, 8, 1, 8>, mixed_policy<8, 12, 2, 2, 4, 2>>,
-  std::pair<mixed_policy<16, 16, 1, 16, 1, 16>, mixed_policy<16, 16, 16, 1, 4, 4>>,
-  std::pair<mixed_policy<16, 16, 1, 16, 1, 16>, mixed_policy<16, 16, 8, 1, 2, 8>>,
-  std::pair<mixed_policy<16, 32, 1, 16, 1, 16>, mixed_policy<16, 32, 16, 1, 2, 8>>,
-  std::pair<mixed_policy<8, 8, 1, 8, 1, 8, true>, mixed_policy<8, 8, 4, 2, 4, 2, true>>,
-  std::pair<mixed_policy<16, 16, 1, 16, 1, 16, true>, mixed_policy<16, 16, 16, 1, 4, 4, true>>>;
+  std::pair<layout_policy<8, 8, 1, 8, 1, 8>, layout_policy<8, 8, 8, 1, 2, 4>>,
+  std::pair<layout_policy<8, 8, 1, 8, 1, 8>, layout_policy<8, 8, 2, 4, 4, 2>>,
+  std::pair<layout_policy<8, 8, 1, 8, 1, 8>, layout_policy<8, 8, 4, 1, 8, 1>>,
+  std::pair<layout_policy<8, 16, 1, 8, 1, 8>, layout_policy<8, 16, 4, 2, 2, 2>>,
+  std::pair<layout_policy<8, 16, 1, 8, 1, 8>, layout_policy<8, 16, 8, 1, 4, 1>>,
+  std::pair<layout_policy<8, 12, 1, 8, 1, 8>, layout_policy<8, 12, 8, 1, 2, 4>>,
+  std::pair<layout_policy<8, 12, 1, 8, 1, 8>, layout_policy<8, 12, 2, 2, 4, 2>>,
+  std::pair<layout_policy<16, 16, 1, 16, 1, 16>, layout_policy<16, 16, 16, 1, 4, 4>>,
+  std::pair<layout_policy<16, 16, 1, 16, 1, 16>, layout_policy<16, 16, 8, 1, 2, 8>>,
+  std::pair<layout_policy<16, 32, 1, 16, 1, 16>, layout_policy<16, 32, 16, 1, 2, 8>>,
+  std::pair<layout_policy<8, 8, 1, 8, 1, 8, true>, layout_policy<8, 8, 4, 2, 4, 2, true>>,
+  std::pair<layout_policy<16, 16, 1, 16, 1, 16, true>, layout_policy<16, 16, 16, 1, 4, 4, true>>>;
 
 TEMPLATE_LIST_TEST_CASE("bloom_filter: bitset and contains are invariant under mixed layouts",
                         "",
@@ -314,19 +315,7 @@ TEST_CASE("bloom_filter: contains results are invariant under EarlyExitContains"
 
 namespace {
 template <std::uint32_t AddH, std::uint32_t AddV, std::uint32_t ContainsH, std::uint32_t ContainsV>
-using skip_policy = cuco::bloom_filter_policy<int32_t,
-                                              cuco::xxhash_64<int32_t>,
-                                              4,
-                                              8,
-                                              8,
-                                              AddH,
-                                              AddV,
-                                              ContainsH,
-                                              ContainsV,
-                                              false,
-                                              false,
-                                              false,
-                                              true>;
+using skip_policy = layout_policy<8, 8, AddH, AddV, ContainsH, ContainsV, true>;
 }  // namespace
 
 TEST_CASE("bloom_filter: fast_l2_add leaves exactly one word of a key's block untouched", "")
@@ -515,27 +504,15 @@ TEMPLATE_TEST_CASE_SIG(
   }
 }
 
-template <uint32_t Words, uint32_t AddH, uint32_t AddV>
-using wide_skip_policy = cuco::bloom_filter_policy<int32_t,
-                                                   cuco::xxhash_64<int32_t>,
-                                                   4,
-                                                   Words,
-                                                   Words,
-                                                   AddH,
-                                                   AddV,
-                                                   1,
-                                                   Words,
-                                                   false,
-                                                   false,
-                                                   false,
-                                                   true>;
+using wide_coop_policy = layout_policy<16, 16, 16, 1, 1, 16, true>;
+using wide_ref_policy  = layout_policy<16, 16, 1, 16, 1, 16, true>;
 
 TEMPLATE_TEST_CASE_SIG(
   "bloom_filter: fast_l2_add cooperative bulk add matches the per-key layout on many keys",
   "",
   ((class CoopPolicy, class RefPolicy), CoopPolicy, RefPolicy),
   (skip_policy<8, 1, 1, 8>, skip_policy<1, 8, 1, 8>),
-  (wide_skip_policy<16, 16, 1>, wide_skip_policy<16, 1, 16>))
+  (wide_coop_policy, wide_ref_policy))
 {
   using Key = int32_t;
   // the horizontal layouts run the cooperative (shuffle-first) add; 1xN is non-cooperative
