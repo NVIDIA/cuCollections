@@ -21,7 +21,7 @@
 #include <cmath>
 #include <cstddef>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 template <typename InputIt>

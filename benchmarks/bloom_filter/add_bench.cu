@@ -21,7 +21,7 @@
 
 #include <cstdint>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state, rebind_hasher_t
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats, rebind_hasher_t
 using namespace cuco::utility;    // key_generator, distribution
 
 /**

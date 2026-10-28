@@ -22,7 +22,7 @@
 #include <fstream>
 #include <string>
 
-using namespace cuco::benchmark;  // defaults
+using namespace cuco::benchmark;  // defaults, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 template <typename T>
