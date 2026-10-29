@@ -557,8 +557,7 @@ class bloom_filter_impl {
   {
     auto constexpr keys_per_block = cuco::detail::index_type{BlockSize} * KeysPerThread;
     auto const num_blocks         = num_keys / keys_per_block;
-    if (num_blocks == 0 or
-        num_blocks < cuco::detail::max_occupancy_grid_size(BlockSize, kernel, stream)) {
+    if (num_blocks == 0 or num_blocks < cuco::detail::max_occupancy_grid_size(BlockSize, kernel)) {
       return 0;
     }
     kernel<<<num_blocks, BlockSize, 0, stream.get()>>>(args...);
