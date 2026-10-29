@@ -14,7 +14,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state
+#include <memory_stats.hpp>
+
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
@@ -39,8 +41,14 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_retrieve_all(
     return pair_type(key, {});
   });
 
-  cuco::dynamic_map<Key, Value> map{
-    static_cast<size_t>(initial_size), cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  cuco::dynamic_map map{cuco::extent<std::size_t>{static_cast<size_t>(initial_size)},
+                        cuco::empty_key<Key>{-1},
+                        cuco::empty_value<Value>{-1},
+                        {},
+                        {},
+                        {},
+                        {},
+                        tracking_allocator<pair_type>{}};
   map.insert(pairs.begin(), pairs.end());
 
   thrust::device_vector<Key> retrieved_keys(map.size());
@@ -48,9 +56,12 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_retrieve_all(
 
   state.add_element_count(map.size());
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
     map.retrieve_all(retrieved_keys.begin(), retrieved_values.begin(), {launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 template <typename Key, typename Value, typename Dist>

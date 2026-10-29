@@ -17,6 +17,8 @@
 #include <thrust/sort.h>
 #include <thrust/tabulate.h>
 
+#include <memory_stats.hpp>
+
 using namespace cuco::benchmark;
 using namespace cuco::utility;
 
@@ -25,7 +27,8 @@ enum class build_mode { indices, sorted_indices, sorted_unique_indices };
 template <build_mode Mode, class InputIt>
 auto build_roaring_bitmap(InputIt first, InputIt last, cuda::stream_ref stream)
 {
-  using bitmap_type = cuco::experimental::roaring_bitmap<cuda::std::uint32_t>;
+  using bitmap_type =
+    cuco::experimental::roaring_bitmap<cuda::std::uint32_t, tracking_allocator<cuda::std::byte>>;
 
   if constexpr (Mode == build_mode::indices) {
     return bitmap_type::from_indices(first, last, {}, stream);
@@ -57,6 +60,7 @@ void roaring_bitmap_build(nvbench::state& state, nvbench::type_list<Dist>)
   state.add_element_count(num_inputs);
   state.add_global_memory_reads<index_type>(num_inputs, "InputSize");
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                timer.start();
@@ -64,6 +68,8 @@ void roaring_bitmap_build(nvbench::state& state, nvbench::type_list<Dist>)
                  indices.begin(), indices.end(), cuda::stream_ref{launch.get_stream()});
                timer.stop();
              });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 template <class Dist>
@@ -110,6 +116,7 @@ void roaring_bitmap_build_container_cardinality(nvbench::state& state)
   state.add_element_count(num_inputs);
   state.add_global_memory_reads<index_type>(num_inputs, "InputSize");
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                timer.start();
@@ -117,6 +124,8 @@ void roaring_bitmap_build_container_cardinality(nvbench::state& state)
                  indices.begin(), indices.end(), cuda::stream_ref{launch.get_stream()});
                timer.stop();
              });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 void roaring_bitmap_from_indices_container_cardinality(nvbench::state& state)

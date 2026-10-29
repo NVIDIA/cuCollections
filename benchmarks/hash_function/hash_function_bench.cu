@@ -13,6 +13,8 @@
 #include <cuda/std/cstddef>
 #include <thrust/device_vector.h>
 
+#include <memory_stats.hpp>
+
 #include <cstdint>
 #include <type_traits>
 
@@ -94,10 +96,13 @@ void hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
 
   state.add_element_count(num_keys);
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec([&](nvbench::launch& launch) {
     hash_bench_kernel<block_size><<<grid_size, block_size, 0, launch.get_stream()>>>(
       Hash{}, num_keys, hash_values.begin(), materialize_result);
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 template <int32_t BlockSize, typename Hasher, typename InputIt, typename OutputIt>
@@ -154,10 +159,13 @@ void string_hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
   state.add_element_count(num_keys);
   // state.add_global_memory_reads<cuda::std::byte>(storage.size() * n_repeats);
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec([&](nvbench::launch& launch) {
     string_hash_bench_kernel<block_size><<<grid_size, block_size, 0, launch.get_stream()>>>(
       Hash{}, keys.begin(), num_keys, hash_values.begin(), materialize_result);
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 NVBENCH_BENCH_TYPES(

@@ -15,7 +15,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state
+#include <memory_stats.hpp>
+
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
@@ -45,8 +47,16 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
 
   state.add_element_count(num_keys);
 
-  cuco::static_map map{size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{0}};
+  cuco::static_map map{cuco::extent<std::size_t>{size},
+                       cuco::empty_key<Key>{-1},
+                       cuco::empty_value<Value>{0},
+                       {},
+                       {},
+                       {},
+                       {},
+                       tracking_allocator<pair_type>{}};
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     timer.start();
     map.insert_or_apply_async(
@@ -54,6 +64,8 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_map_insert_or_appl
     timer.stop();
     map.clear_async({launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 template <typename Key, typename Value, typename Dist>
