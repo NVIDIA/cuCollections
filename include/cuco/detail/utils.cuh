@@ -45,20 +45,22 @@ __device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda:
 template <typename SizeType, typename HashType>
 __host__ __device__ constexpr SizeType hash_to_index(HashType hash, SizeType upper_bound) noexcept
 {
-  using unsigned_size_type = cuda::std::make_unsigned_t<SizeType>;
+  using unsigned_size_type   = cuda::std::make_unsigned_t<SizeType>;
+  constexpr auto hash_bytes  = sizeof(HashType);
+  constexpr auto index_bytes = sizeof(SizeType);
   if constexpr (cuda::std::is_same_v<HashType, cuda::std::array<std::uint64_t, 2>>) {
     return hash_to_index<SizeType>(static_cast<unsigned_size_type>(hash[0]), upper_bound);
-  } else if constexpr (sizeof(HashType) > sizeof(cuda::std::uint64_t)) {
-    static_assert(cuda::std::is_integral_v<HashType> and sizeof(HashType) == 16);
+  } else if constexpr (hash_bytes > 8) {
+    static_assert(cuda::std::is_integral_v<HashType> and hash_bytes == 16);
     return hash_to_index<SizeType>(static_cast<unsigned_size_type>(hash), upper_bound);
-  } else if constexpr (sizeof(HashType) == 4 and sizeof(SizeType) == 8) {
+  } else if constexpr (hash_bytes == 4 and index_bytes == 8) {
     auto const bits  = static_cast<cuda::std::uint32_t>(hash);
     auto const bound = static_cast<cuda::std::uint64_t>(upper_bound);
     // Decompose the 96-bit product without introducing a full 64-bit high multiply.
     return static_cast<SizeType>(cuda::mul_hi(bits, static_cast<cuda::std::uint32_t>(bound)) +
                                  static_cast<cuda::std::uint64_t>(bits) *
                                    static_cast<cuda::std::uint32_t>(bound >> 32));
-  } else if constexpr (sizeof(HashType) == 8 and sizeof(SizeType) == 4) {
+  } else if constexpr (hash_bytes == 8 and index_bytes == 4) {
     auto const bits  = static_cast<cuda::std::uint64_t>(hash);
     auto const bound = static_cast<cuda::std::uint32_t>(upper_bound);
     // Only the upper 32 bits of the 96-bit product are needed.
@@ -68,9 +70,9 @@ __host__ __device__ constexpr SizeType hash_to_index(HashType hash, SizeType upp
     return static_cast<SizeType>(middle >> 32);
   } else {
     using unsigned_hash_type = cuda::std::make_unsigned_t<HashType>;
-    using product_type       = cuda::std::
-      conditional_t<(sizeof(HashType) > sizeof(SizeType)), unsigned_hash_type, unsigned_size_type>;
-    static_assert(sizeof(product_type) <= sizeof(cuda::std::uint64_t));
+    using product_type =
+      cuda::std::conditional_t<(hash_bytes > index_bytes), unsigned_hash_type, unsigned_size_type>;
+    static_assert(sizeof(product_type) <= 8);
     constexpr auto shift = cuda::std::numeric_limits<product_type>::digits -
                            cuda::std::numeric_limits<unsigned_hash_type>::digits;
     // Left-align a narrower hash so widening does not shrink the range of initial indices.
