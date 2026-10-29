@@ -43,13 +43,13 @@ __device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda:
  * @return An index in `[0, upper_bound)`
  */
 template <typename SizeType, typename HashType>
-__host__ __device__ constexpr SizeType reduce_hash(HashType hash, SizeType upper_bound) noexcept
+__host__ __device__ constexpr SizeType hash_to_index(HashType hash, SizeType upper_bound) noexcept
 {
   if constexpr (cuda::std::is_same_v<HashType, cuda::std::array<std::uint64_t, 2>>) {
-    return reduce_hash<SizeType>(hash[0], upper_bound);
+    return hash_to_index<SizeType>(hash[0], upper_bound);
   } else if constexpr (sizeof(HashType) > sizeof(cuda::std::uint64_t)) {
     static_assert(cuda::std::is_integral_v<HashType> and sizeof(HashType) == 16);
-    return reduce_hash<SizeType>(static_cast<cuda::std::uint64_t>(hash), upper_bound);
+    return hash_to_index<SizeType>(static_cast<cuda::std::uint64_t>(hash), upper_bound);
   } else if constexpr (sizeof(HashType) == 4 and sizeof(SizeType) == 8) {
     auto const bits  = static_cast<cuda::std::uint32_t>(hash);
     auto const bound = static_cast<cuda::std::uint64_t>(upper_bound);

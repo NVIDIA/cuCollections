@@ -102,7 +102,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
   using size_type             = typename Extent::value_type;
   size_type const num_buckets = upper_bound / BucketSize;
   size_type const init =
-    cuco::detail::reduce_hash<size_type>(hash_(probe_key), num_buckets) * BucketSize;
+    cuco::detail::hash_to_index<size_type>(hash_(probe_key), num_buckets) * BucketSize;
   return detail::probing_iterator<Extent>{init, static_cast<size_type>(BucketSize), upper_bound};
 }
 
@@ -117,7 +117,7 @@ __host__ __device__ constexpr auto linear_probing<CGSize, Hash>::make_iterator(
   size_type constexpr stride = cg_size * BucketSize;
   size_type const num_groups = upper_bound / stride;
   size_type const init =
-    cuco::detail::reduce_hash<size_type>(hash_(probe_key), num_groups) * stride +
+    cuco::detail::hash_to_index<size_type>(hash_(probe_key), num_groups) * stride +
     g.thread_rank() * BucketSize;
   return detail::probing_iterator<Extent>{init, stride, upper_bound};
 }
@@ -165,9 +165,9 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_it
   using size_type             = typename Extent::value_type;
   size_type const num_buckets = upper_bound / BucketSize;
   return detail::probing_iterator<Extent>{
-    static_cast<size_type>(cuco::detail::reduce_hash<size_type>(hash1_(probe_key), num_buckets) *
+    static_cast<size_type>(cuco::detail::hash_to_index<size_type>(hash1_(probe_key), num_buckets) *
                            BucketSize),
-    static_cast<size_type>((cuco::detail::reduce_hash<size_type>(
+    static_cast<size_type>((cuco::detail::hash_to_index<size_type>(
                               hash2_(probe_key), static_cast<size_type>(num_buckets - 1)) +
                             1) *
                            BucketSize),  // step size in range [1, prime - 1]
@@ -186,10 +186,10 @@ __host__ __device__ constexpr auto double_hashing<CGSize, Hash1, Hash2>::make_it
   size_type const num_groups = upper_bound / stride;
 
   return detail::probing_iterator<Extent>{
-    static_cast<size_type>(cuco::detail::reduce_hash<size_type>(hash1_(probe_key), num_groups) *
+    static_cast<size_type>(cuco::detail::hash_to_index<size_type>(hash1_(probe_key), num_groups) *
                              stride +
                            g.thread_rank() * BucketSize),
-    static_cast<size_type>((cuco::detail::reduce_hash<size_type>(
+    static_cast<size_type>((cuco::detail::hash_to_index<size_type>(
                               hash2_(probe_key), static_cast<size_type>(num_groups - 1)) +
                             1) *
                            stride),

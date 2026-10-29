@@ -21,8 +21,6 @@ namespace cuco {
  * multiplicity.
  *
  * @note `Hash` should be callable object type.
- * @note Hash bits should be uniformly distributed across the result type's width. Initial bucket
- * selection uses multiply-high range reduction rather than modulo.
  *
  * @tparam CGSize Size of CUDA Cooperative Groups
  * @tparam Hash Unary callable type
@@ -108,8 +106,6 @@ class linear_probing : private detail::probing_scheme_base<CGSize> {
  * probing especially when dealing with high multiplicty and/or high occupancy use cases.
  *
  * @note `Hash1` and `Hash2` should be callable object type.
- * @note Hash bits should be uniformly distributed across each result type's width. Initial bucket
- * and step selection use multiply-high range reduction rather than modulo.
  *
  * @note `Hash2` needs to be able to construct from an integer value to avoid secondary clustering.
  *
