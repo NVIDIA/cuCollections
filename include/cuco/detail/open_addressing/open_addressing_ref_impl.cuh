@@ -442,6 +442,33 @@ class open_addressing_ref_impl
       auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
+        if constexpr (bucket_size > 1) {
+          // Resolve availability before the ordered key comparisons.
+          int32_t first_available = bucket_size;
+          cuda::static_for<bucket_size>([&] __device__(auto i) {
+            auto const slot_key = this->extract_key(bucket_slots[i()]);
+            if (cuco::detail::bitwise_compare(slot_key, this->predicate_.empty_sentinel_) ||
+                cuco::detail::bitwise_compare(slot_key, this->predicate_.erased_sentinel_)) {
+              first_available = cuda::std::min(first_available, int32_t{i()});
+            }
+          });
+          bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
+          if constexpr (!allows_duplicates) {
+            cuda::static_for<bucket_size>([&] __device__(auto i) {
+              if (i() < first_available && result.state_ == detail::equal_result::UNEQUAL) {
+                auto const res =
+                  this->predicate_.equal_to(key, this->extract_key(bucket_slots[i()]));
+                if (res != detail::equal_result::UNEQUAL) {
+                  result = bucket_probing_results{res, i()};
+                }
+              }
+            });
+          }
+          if (result.state_ == detail::equal_result::UNEQUAL && first_available < bucket_size) {
+            return bucket_probing_results{detail::equal_result::AVAILABLE, first_available};
+          }
+          return result;
+        }
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
         cuda::static_for<bucket_size>([&] __device__(auto i) {
           if (result.state_ == detail::equal_result::UNEQUAL) {
@@ -474,9 +501,13 @@ class open_addressing_ref_impl
         auto status         = insert_result::CONTINUE;
         if (group.thread_rank() == src_lane) {
           if constexpr (SupportsErase) {
-            status = attempt_insert(this->get_slot_ptr(*probing_iter, intra_bucket_index),
-                                    bucket_slots[intra_bucket_index],
-                                    val);
+            // Use constant indices to keep the bucket snapshot out of local memory.
+            auto slot_content = bucket_slots[0];
+            cuda::static_for<bucket_size>([&, slot_index = intra_bucket_index] __device__(auto i) {
+              if (slot_index == i()) { slot_content = bucket_slots[i()]; }
+            });
+            status = attempt_insert(
+              this->get_slot_ptr(*probing_iter, intra_bucket_index), slot_content, val);
           } else {
             status = attempt_insert(this->get_slot_ptr(*probing_iter, intra_bucket_index),
                                     this->empty_slot_sentinel(),
@@ -645,7 +676,11 @@ class open_addressing_ref_impl
         auto const res      = group.shfl(reinterpret_cast<intptr_t>(slot_ptr), src_lane);
         auto const status   = [&, target_idx = intra_bucket_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          return this->attempt_insert_stable(slot_ptr, bucket_slots[target_idx], val);
+          auto slot_content = bucket_slots[0];
+          cuda::static_for<bucket_size>([&, slot_index = target_idx] __device__(auto i) {
+            if (slot_index == i()) { slot_content = bucket_slots[i()]; }
+          });
+          return this->attempt_insert_stable(slot_ptr, slot_content, val);
         }();
 
         switch (group.shfl(status, src_lane)) {
@@ -807,14 +842,22 @@ class open_addressing_ref_impl
       // TODO atomic_ref::load if insert operator is present
       auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
-      for (auto i = 0; i < bucket_size; ++i) {
-        switch (this->predicate_.template operator()<is_insert::NO>(
-          key, this->extract_key(bucket_slots[i]))) {
-          case detail::equal_result::UNEQUAL: continue;
-          case detail::equal_result::EMPTY: return false;
-          case detail::equal_result::EQUAL: return true;
+      int32_t first_empty = bucket_size;
+      cuda::static_for<bucket_size>([&] __device__(auto i) {
+        if (cuco::detail::bitwise_compare(this->extract_key(bucket_slots[i()]),
+                                          this->predicate_.empty_sentinel_)) {
+          first_empty = cuda::std::min(first_empty, int32_t{i()});
         }
-      }
+      });
+      bool found = false;
+      cuda::static_for<bucket_size>([&] __device__(auto i) {
+        if (i() < first_empty && !found) {
+          found = this->predicate_.equal_to(key, this->extract_key(bucket_slots[i()])) ==
+                  detail::equal_result::EQUAL;
+        }
+      });
+      if (found) { return true; }
+      if (first_empty < bucket_size) { return false; }
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
     }
@@ -848,18 +891,22 @@ class open_addressing_ref_impl
     while (true) {
       auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
-      auto const state = [&]() {
-        auto res = detail::equal_result::UNEQUAL;
-        for (auto i = 0; i < bucket_size; ++i) {
-          res = this->predicate_.template operator()<is_insert::NO>(
-            key, this->extract_key(bucket_slots[i]));
-          if (res != detail::equal_result::UNEQUAL) { return res; }
+      int32_t first_empty = bucket_size;
+      cuda::static_for<bucket_size>([&] __device__(auto i) {
+        if (cuco::detail::bitwise_compare(this->extract_key(bucket_slots[i()]),
+                                          this->predicate_.empty_sentinel_)) {
+          first_empty = cuda::std::min(first_empty, int32_t{i()});
         }
-        return res;
-      }();
-
-      if (group.any(state == detail::equal_result::EQUAL)) { return true; }
-      if (group.any(state == detail::equal_result::EMPTY)) { return false; }
+      });
+      bool found = false;
+      cuda::static_for<bucket_size>([&] __device__(auto i) {
+        if (i() < first_empty && !found) {
+          found = this->predicate_.equal_to(key, this->extract_key(bucket_slots[i()])) ==
+                  detail::equal_result::EQUAL;
+        }
+      });
+      if (group.any(found)) { return true; }
+      if (group.any(first_empty < bucket_size)) { return false; }
 
       ++probing_iter;
       if (*probing_iter == init_idx) { return false; }
@@ -939,14 +986,24 @@ class open_addressing_ref_impl
       auto const bucket_slots = storage_ref_.load_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
+        // Classify empty slots first so independent bucket loads can overlap.
+        int32_t first_empty = bucket_size;
+        cuda::static_for<bucket_size>([&] __device__(auto i) {
+          if (cuco::detail::bitwise_compare(this->extract_key(bucket_slots[i()]),
+                                            this->predicate_.empty_sentinel_)) {
+            first_empty = cuda::std::min(first_empty, int32_t{i()});
+          }
+        });
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
         cuda::static_for<bucket_size>([&] __device__(auto i) {
-          if (result.state_ == detail::equal_result::UNEQUAL) {
-            auto res = this->predicate_.template operator()<is_insert::NO>(
-              key, this->extract_key(bucket_slots[i()]));
+          if (i() < first_empty && result.state_ == detail::equal_result::UNEQUAL) {
+            auto const res = this->predicate_.equal_to(key, this->extract_key(bucket_slots[i()]));
             if (res != detail::equal_result::UNEQUAL) { result = bucket_probing_results{res, i()}; }
           }
         });
+        if (result.state_ == detail::equal_result::UNEQUAL && first_empty < bucket_size) {
+          return bucket_probing_results{detail::equal_result::EMPTY, first_empty};
+        }
         return result;
       }();
 

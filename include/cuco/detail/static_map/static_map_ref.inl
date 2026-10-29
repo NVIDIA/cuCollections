@@ -1057,8 +1057,11 @@ class operator_impl<
         auto const src_lane = __ffs(group_contains_available) - 1;
         auto const status   = [&, target_idx = intra_bucket_index]() {
           if (group.thread_rank() != src_lane) { return insert_result::CONTINUE; }
-          return ref_.attempt_insert_or_apply<UseDirectApply>(
-            slot_ptr, bucket_slots[target_idx], val, op);
+          auto slot_content = bucket_slots[0];
+          cuda::static_for<bucket_size>([&, slot_index = target_idx] __device__(auto i) {
+            if (slot_index == i()) { slot_content = bucket_slots[i()]; }
+          });
+          return ref_.attempt_insert_or_apply<UseDirectApply>(slot_ptr, slot_content, val, op);
         }();
 
         switch (group.shfl(status, src_lane)) {
