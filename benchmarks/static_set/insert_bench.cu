@@ -13,7 +13,9 @@
 
 #include <thrust/device_vector.h>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state
+#include <memory_stats.hpp>
+
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
@@ -34,14 +36,23 @@ void static_set_insert(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   state.add_element_count(num_keys);
 
-  cuco::static_set<Key> set{size, cuco::empty_key<Key>{-1}};
+  cuco::static_set set{cuco::extent<std::size_t>{size},
+                       cuco::empty_key<Key>{-1},
+                       {},
+                       {},
+                       {},
+                       {},
+                       tracking_allocator<Key>{}};
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     timer.start();
     set.insert_async(keys.begin(), keys.end(), {launch.get_stream()});
     timer.stop();
     set.clear_async({launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 NVBENCH_BENCH_TYPES(static_set_insert,

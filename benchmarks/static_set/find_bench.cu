@@ -14,7 +14,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state
+#include <memory_stats.hpp>
+
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
@@ -34,7 +36,13 @@ void static_set_find(nvbench::state& state, nvbench::type_list<Key, Dist>)
   [[maybe_unused]] key_generator gen{};
   gen.generate(dist_from_state<Dist>(state), keys.begin(), keys.end());
 
-  cuco::static_set<Key> set{size, cuco::empty_key<Key>{-1}};
+  cuco::static_set set{cuco::extent<std::size_t>{size},
+                       cuco::empty_key<Key>{-1},
+                       {},
+                       {},
+                       {},
+                       {},
+                       tracking_allocator<Key>{}};
   set.insert(keys.begin(), keys.end());
 
   // TODO: would crash if not passing nullptr, why?
@@ -44,9 +52,12 @@ void static_set_find(nvbench::state& state, nvbench::type_list<Key, Dist>)
 
   state.add_element_count(num_keys);
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec([&](nvbench::launch& launch) {
     set.find_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 NVBENCH_BENCH_TYPES(static_set_find,

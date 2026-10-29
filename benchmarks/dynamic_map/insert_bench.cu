@@ -14,7 +14,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state
+#include <memory_stats.hpp>
+
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
@@ -44,17 +46,39 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> dynamic_map_insert(
 
   state.add_element_count(num_keys);
 
-  state.exec(
-    nvbench::exec_tag::sync | nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
-      cuco::dynamic_map<Key, Value> map{
-        static_cast<size_t>(initial_size), cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  auto const make_map = [&](cuda::stream_ref stream) {
+    return cuco::dynamic_map{cuco::extent<std::size_t>{static_cast<size_t>(initial_size)},
+                             cuco::empty_key<Key>{-1},
+                             cuco::empty_value<Value>{-1},
+                             {},
+                             {},
+                             {},
+                             {},
+                             tracking_allocator<pair_type>{},
+                             stream};
+  };
+  auto const insert_batches = [&](auto& map, cuda::stream_ref stream) {
+    for (int64_t i = 0; i < num_keys; i += batch_size) {
+      map.insert(pairs.begin() + i, pairs.begin() + i + batch_size, stream);
+    }
+  };
 
-      timer.start();
-      for (int64_t i = 0; i < num_keys; i += batch_size) {
-        map.insert(pairs.begin() + i, pairs.begin() + i + batch_size, {launch.get_stream()});
-      }
-      timer.stop();
-    });
+  state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
+             [&](nvbench::launch& launch, auto& timer) {
+               auto map = make_map({launch.get_stream()});
+
+               timer.start();
+               insert_batches(map, {launch.get_stream()});
+               timer.stop();
+             });
+
+  // Measure once with the same setup, excluding container initialization from the peak.
+  auto const stream           = cuda::stream_ref{state.get_cuda_stream()};
+  auto map                    = make_map(stream);
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
+  insert_batches(map, stream);
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 template <typename Key, typename Value, typename Dist>
