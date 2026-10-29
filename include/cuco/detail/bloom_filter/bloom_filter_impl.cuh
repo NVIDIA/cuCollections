@@ -65,6 +65,12 @@ class bloom_filter_impl {
   static constexpr bool fast_l2_add                = policy_type::fast_l2_add;
   static constexpr auto add_keys_per_thread        = policy_type::add_keys_per_thread;
   static constexpr auto contains_keys_per_thread   = policy_type::contains_keys_per_thread;
+  /// Per-thread salts of the add and contains layouts (one thread per key for horizontal layout 1)
+  using add_salts_type =
+    typename policy_type::template thread_salts<add_horizontal_layout, add_vertical_layout>;
+  using contains_salts_type =
+    typename policy_type::template thread_salts<contains_horizontal_layout,
+                                                contains_vertical_layout>;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -188,13 +194,9 @@ class bloom_filter_impl {
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
-    if constexpr (add_horizontal_layout == 1) {
-      add_pattern<ConditionalAdd, 0>(block_index, lower_hash);
-    } else {
 #pragma unroll
-      for (uint32_t thread_index = 0; thread_index < add_horizontal_layout; ++thread_index) {
-        add_patterns<ConditionalAdd, 0>(block_index, lower_hash, thread_index);
-      }
+    for (uint32_t thread_index = 0; thread_index < add_horizontal_layout; ++thread_index) {
+      add_patterns<ConditionalAdd, 0>(block_index, lower_hash, add_salts(thread_index));
     }
   }
 
@@ -209,7 +211,7 @@ class bloom_filter_impl {
       auto const lower_hash  = sh.second;
       auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
-      add_patterns<ConditionalAdd, 0>(block_index, lower_hash, group.thread_rank());
+      add_patterns<ConditionalAdd, 0>(block_index, lower_hash, add_salts(group.thread_rank()));
     }
   }
 
@@ -220,6 +222,7 @@ class bloom_filter_impl {
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    auto const thread_salts             = add_salts(group.thread_rank());
 
     if constexpr (fast_l2_add) {
       // Shuffle all keys' block indices and hashes first: the skipped word makes the atomics
@@ -234,13 +237,13 @@ class bloom_filter_impl {
       }
 #pragma unroll num_threads
       for (int i = 0; i < num_threads; ++i) {
-        add_patterns<ConditionalAdd, 0>(blocks[i], hashes[i], group.thread_rank());
+        add_patterns<ConditionalAdd, 0>(blocks[i], hashes[i], thread_salts);
       }
     } else {
 #pragma unroll num_threads
       for (int i = 0; i < num_threads; ++i) {
         add_patterns<ConditionalAdd, 0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+          group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts);
       }
     }
   }
@@ -260,13 +263,15 @@ class bloom_filter_impl {
       lower_hash      = sh.second;
       block_index     = policy_.block_index(upper_hash, num_blocks_);
     }
+    auto const thread_salts = add_salts(group.thread_rank());
 
+    // Shuffle outside the per-key branch: the bulk kernels' tiles sync with the full-warp mask
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      if (group.shfl(is_valid, i)) {
-        add_patterns<ConditionalAdd, 0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
-      }
+      auto const valid = group.shfl(is_valid, i);
+      auto const block = group.shfl(block_index, i);
+      auto const hash  = group.shfl(lower_hash, i);
+      if (valid) { add_patterns<ConditionalAdd, 0>(block, hash, thread_salts); }
     }
   }
 
@@ -338,16 +343,12 @@ class bloom_filter_impl {
     auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
-    if constexpr (contains_horizontal_layout == 1) {
-      return compare_pattern<0>(block_index, lower_hash);
-    } else {
-      bool result = true;
+    bool result = true;
 #pragma unroll
-      for (uint32_t thread_index = 0; thread_index < contains_horizontal_layout; ++thread_index) {
-        result = result && compare_patterns<0>(block_index, lower_hash, thread_index);
-      }
-      return result;
+    for (uint32_t thread_index = 0; thread_index < contains_horizontal_layout; ++thread_index) {
+      result = result && compare_patterns<0>(block_index, lower_hash, contains_salts(thread_index));
     }
+    return result;
   }
 
   template <class CG, class ProbeKey>
@@ -361,7 +362,8 @@ class bloom_filter_impl {
       auto const lower_hash  = sh.second;
       auto const block_index = policy_.block_index(sh.first, num_blocks_);
 
-      return group.all(compare_patterns<0>(block_index, lower_hash, group.thread_rank()));
+      return group.all(
+        compare_patterns<0>(block_index, lower_hash, contains_salts(group.thread_rank())));
     }
   }
 
@@ -372,12 +374,13 @@ class bloom_filter_impl {
 
     auto const [upper_hash, lower_hash] = policy_.split_hash(probe_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
+    auto const thread_salts             = contains_salts(group.thread_rank());
     bool result_out                     = false;
 
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      auto const result = group.all(compare_patterns<0>(
-        group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
+      auto const result = group.all(
+        compare_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts));
       if (i == group.thread_rank()) { result_out = result; }
     }
     return result_out;
@@ -399,14 +402,15 @@ class bloom_filter_impl {
       block_index     = policy_.block_index(upper_hash, num_blocks_);
     }
 
-    bool result_out = false;
+    auto const thread_salts = contains_salts(group.thread_rank());
+    bool result_out         = false;
+    // An invalid key probes block 0 and its result is discarded, so that every thread reaches the
+    // collectives (the bulk kernels' tiles sync with the full-warp mask)
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
-      if (group.shfl(is_valid, i)) {
-        auto const result = group.all(compare_patterns<0>(
-          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank()));
-        if (i == group.thread_rank()) { result_out = result; }
-      }
+      auto const result = group.all(
+        compare_patterns<0>(group.shfl(block_index, i), group.shfl(lower_hash, i), thread_salts));
+      if (i == group.thread_rank()) { result_out = result; }
     }
     return result_out;
   }
@@ -566,58 +570,66 @@ class bloom_filter_impl {
       __builtin_assume_aligned(filter_access(ptr), load_alignment));
   }
 
-  template <bool ConditionalAdd, uint32_t LoopIndex>
-  __device__ constexpr void add_pattern(uint32_t block_index, uint32_t lower_hash)
+  // Salts of a thread of the group cooperating on a key, selected once per thread and reused for
+  // every key. With horizontal layout 1 the only rank is 0 and the salts are compile-time
+  // constants.
+  __device__ constexpr add_salts_type add_salts(uint32_t thread_index) const
   {
-    static_assert(add_horizontal_layout == 1, "add_pattern() requires add_horizontal_layout == 1");
+    return policy_.template make_thread_salts<add_horizontal_layout, add_vertical_layout>(
+      thread_index);
+  }
 
-    if constexpr (LoopIndex < add_loop_count) {
-      auto const pattern =
-        policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
-      auto* word_base = words_ +
-                        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
-                        LoopIndex * add_vertical_layout;
-
-      for (int i = 0; i < add_vertical_layout; ++i) {
-        atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
-      }
-
-      // Recurse.
-      add_pattern<ConditionalAdd, LoopIndex + 1>(block_index, lower_hash);
-    }
+  __device__ constexpr contains_salts_type contains_salts(uint32_t thread_index) const
+  {
+    return policy_.template make_thread_salts<contains_horizontal_layout, contains_vertical_layout>(
+      thread_index);
   }
 
   template <bool ConditionalAdd, uint32_t LoopIndex>
   __device__ constexpr void add_patterns(uint32_t block_index,
                                          uint32_t lower_hash,
-                                         uint32_t thread_index)
+                                         add_salts_type const& thread_salts)
   {
-    static_assert(add_horizontal_layout > 1, "add_patterns() requires add_horizontal_layout > 1");
-
     if constexpr (LoopIndex < add_loop_count) {
+      // A FastL2Add thread that owns the whole first sector (horizontal layout 1) issues one atomic
+      // less, shifting past the skipped word, instead of a conditional atomic per word.
+      constexpr uint32_t sector_words   = 32 / sizeof(word_type);
+      constexpr bool shift_past_skipped = fast_l2_add and add_horizontal_layout == 1 and
+                                          LoopIndex == 0 and add_vertical_layout >= sector_words;
       auto const pattern =
-        policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
-          lower_hash, thread_index);
+        policy_.template array_pattern<LoopIndex, not shift_past_skipped>(lower_hash, thread_salts);
       auto* word_base = words_ +
                         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout * add_horizontal_layout +
-                        thread_index * add_vertical_layout;
+                        thread_salts.thread_index * add_vertical_layout;
 
-      for (int i = 0; i < add_vertical_layout; ++i) {
-        atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
+      if constexpr (shift_past_skipped) {
+        uint32_t const skip = policy_type::skip_index(lower_hash);
+        for (uint32_t i = 0; i + 1 < sector_words; ++i) {
+          bool const past = i >= skip;
+          atomic_or<ConditionalAdd, false>(word_base + i + past,
+                                           past ? pattern[i + 1] : pattern[i]);
+        }
+        for (uint32_t i = sector_words; i < add_vertical_layout; ++i) {
+          atomic_or<ConditionalAdd, false>(word_base + i, pattern[i]);
+        }
+      } else {
+        for (int i = 0; i < add_vertical_layout; ++i) {
+          atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
+        }
       }
 
       // Recurse.
-      add_patterns<ConditionalAdd, LoopIndex + 1>(block_index, lower_hash, thread_index);
+      add_patterns<ConditionalAdd, LoopIndex + 1>(block_index, lower_hash, thread_salts);
     }
   }
 
-  template <bool ConditionalAdd>
+  template <bool ConditionalAdd, bool SkipZero = fast_l2_add>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    // Skipped word (FastL2Add): issue no atomic, so the coalesced request leaves this word
-    // inactive.
-    if constexpr (fast_l2_add) {
+    // Issue no atomic for a zero pattern: with FastL2Add the skipped word's pattern is cleared, so
+    // the coalesced request leaves that word inactive.
+    if constexpr (SkipZero) {
       if (pattern == 0) { return; }
     }
     auto const do_or = [&]() {
@@ -644,69 +656,48 @@ class bloom_filter_impl {
     }
   }
 
-  /// Compare the stored pattern against the expected pattern for the given hash value.
-  // Precondition: contains_horizontal_layout == 1
-  template <uint32_t LoopIndex>
-  __device__ constexpr bool compare_pattern(uint32_t block_index, uint32_t lower_hash) const
+  /// Whether every stored word contains its expected bits. The FastL2Add skipped word (unset by
+  /// `add`) passes by its index, so every word keeps a plain bit test.
+  template <class PatternArrayT>
+  __device__ constexpr bool matches(PatternArrayT const& stored_pattern,
+                                    PatternArrayT const& expected_pattern,
+                                    uint32_t lower_hash,
+                                    uint32_t first_word) const
   {
-    static_assert(contains_horizontal_layout == 1,
-                  "compare_pattern() requires contains_horizontal_layout == 1");
-
-    if constexpr (LoopIndex < contains_loop_count) {
-      auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
-        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
-        LoopIndex * contains_vertical_layout);
-      auto const expected_pattern =
-        policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
-
-      bool match = true;
-      for (int i = 0; i < contains_vertical_layout; ++i) {
-        match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
-      }
-
-      // Recurse.
-      // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
-      // words.
-      if constexpr (early_exit_contains) {
-        if (!match) { return false; }
-        return compare_pattern<LoopIndex + 1>(block_index, lower_hash);
-      } else {
-        return compare_pattern<LoopIndex + 1>(block_index, lower_hash) && match;
-      }
-    } else {
-      return true;
+    bool match = true;
+    for (uint32_t i = 0; i < expected_pattern.size(); ++i) {
+      match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i] or
+               (fast_l2_add and first_word + i == policy_type::skip_index(lower_hash));
     }
+    return match;
   }
 
+  /// Compare the stored pattern against the expected pattern for the given hash value.
   template <uint32_t LoopIndex>
   __device__ constexpr bool compare_patterns(uint32_t block_index,
                                              uint32_t lower_hash,
-                                             uint32_t thread_index) const
+                                             contains_salts_type const& thread_salts) const
   {
-    static_assert(contains_horizontal_layout > 1,
-                  "compare_patterns() requires HorizontalLayout > 1");
-
     if constexpr (LoopIndex < contains_loop_count) {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout * contains_horizontal_layout +
-        thread_index * contains_vertical_layout);
+        thread_salts.thread_index * contains_vertical_layout);
       auto const expected_pattern =
-        policy_
-          .template array_pattern<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
-            lower_hash, thread_index);
-
-      bool match = true;
-      for (int i = 0; i < contains_vertical_layout; ++i) {
-        match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
-      }
+        policy_.template array_pattern<LoopIndex, false>(lower_hash, thread_salts);
+      bool const match =
+        matches(stored_pattern,
+                expected_pattern,
+                lower_hash,
+                (LoopIndex * contains_horizontal_layout + thread_salts.thread_index) *
+                  contains_vertical_layout);
 
       // Per-thread early exit: short-circuit this thread's recursion if its slice already missed.
       if constexpr (early_exit_contains) {
         if (!match) { return false; }
-        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index);
+        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_salts);
       } else {
-        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_index) && match;
+        return compare_patterns<LoopIndex + 1>(block_index, lower_hash, thread_salts) && match;
       }
     } else {
       return true;
