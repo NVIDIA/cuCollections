@@ -8,7 +8,6 @@
 #include <cuco/detail/__config>
 
 #include <cuda/std/array>
-#include <cuda/std/cmath>
 #include <cuda/std/cstdint>
 #include <cuda/std/limits>
 #include <cuda/std/type_traits>

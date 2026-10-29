@@ -13,8 +13,6 @@
 #include <cuco/types.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
-#include <cuda/std/atomic>
-
 #include <memory>
 
 namespace cuco {

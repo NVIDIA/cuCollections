@@ -9,8 +9,6 @@
 #include <cuco/detail/hash_functions/murmurhash3.cuh>
 #include <cuco/detail/hash_functions/xxhash.cuh>
 
-#include <thrust/functional.h>
-
 namespace cuco {
 
 /**

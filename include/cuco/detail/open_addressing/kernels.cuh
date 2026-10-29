@@ -7,8 +7,8 @@
 #include <cuco/detail/utility/cuda.cuh>
 
 #include <cub/block/block_reduce.cuh>
+#include <cuda/__functional/proclaim_return_type.h>
 #include <cuda/atomic>
-#include <cuda/functional>
 #include <cuda/std/iterator>
 #include <cuda/std/type_traits>
 
