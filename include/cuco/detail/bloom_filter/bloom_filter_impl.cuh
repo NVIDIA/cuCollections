@@ -547,8 +547,9 @@ class bloom_filter_impl {
   }
 
   // Launches the multi-key `kernel` on the full blocks of `BlockSize * KeysPerThread` keys and
-  // returns the number of keys it covers: none for inputs below one wave of such blocks, which keep
-  // one key per thread to use more SMs. The caller handles the remaining keys.
+  // returns the number of keys it covers: none for inputs below one wave of such blocks on the SMs
+  // available to `stream` (e.g. those of its green context), which keep one key per thread to use
+  // more SMs. The caller handles the remaining keys.
   template <int32_t BlockSize, int32_t KeysPerThread, class Kernel, class... Args>
   __host__ static cuco::detail::index_type launch_multi_key(Kernel kernel,
                                                             cuco::detail::index_type num_keys,
@@ -557,7 +558,8 @@ class bloom_filter_impl {
   {
     auto constexpr keys_per_block = cuco::detail::index_type{BlockSize} * KeysPerThread;
     auto const num_blocks         = num_keys / keys_per_block;
-    if (num_blocks == 0 or num_blocks < cuco::detail::max_occupancy_grid_size(BlockSize, kernel)) {
+    if (num_blocks == 0 or
+        num_blocks < cuco::detail::max_occupancy_grid_size(BlockSize, kernel, stream)) {
       return 0;
     }
     kernel<<<num_blocks, BlockSize, 0, stream.get()>>>(args...);
