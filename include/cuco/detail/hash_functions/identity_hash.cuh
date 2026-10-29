@@ -13,9 +13,6 @@ namespace cuco::detail {
 /**
  * @brief An Identity hash function to hash the given argument on host and device
  *
- * @note This function does not mix the input bits. Multiply-high probing can cluster keys whose
- * values occupy only a small part of the hash range.
- *
  * @note Identity hashes are deterministic, and thus do not need seeds.
  *
  * @tparam Key The type of the values to hash
