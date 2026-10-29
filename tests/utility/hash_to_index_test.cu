@@ -27,7 +27,7 @@ __global__ void hash_to_indices(Hash const* hashes, Size const* bounds, Size* ou
   if (i < count) { output[i] = cuco::detail::hash_to_index<Size>(hashes[i], bounds[i]); }
 }
 
-TEST_CASE("Hash reduction is constexpr and preserves unsigned hash bits", "")
+TEST_CASE("hash_to_index is constexpr and preserves unsigned hash bits", "")
 {
   using cuco::detail::hash_to_index;
   STATIC_REQUIRE(hash_to_index<std::int32_t>(std::uint32_t{0x80000000}, 10) == 5);
@@ -42,7 +42,7 @@ TEST_CASE("Hash reduction is constexpr and preserves unsigned hash bits", "")
 }
 
 #if defined(CUCO_HAS_INT128)
-TEMPLATE_TEST_CASE("Scalar 128-bit hashes narrow to the index width",
+TEMPLATE_TEST_CASE("hash_to_index narrows scalar 128-bit hashes to the index width",
                    "",
                    std::int32_t,
                    std::uint32_t,
@@ -65,7 +65,7 @@ TEMPLATE_TEST_CASE("Scalar 128-bit hashes narrow to the index width",
   REQUIRE(output[0] == expected);
 }
 
-TEMPLATE_TEST_CASE_SIG("Hash reduction matches a wide product on host and device",
+TEMPLATE_TEST_CASE_SIG("hash_to_index matches a wide product on host and device",
                        "",
                        ((typename Hash, typename Size), Hash, Size),
                        (std::uint32_t, std::int32_t),
@@ -135,7 +135,7 @@ TEMPLATE_TEST_CASE_SIG("Hash reduction matches a wide product on host and device
 }
 #endif
 
-TEMPLATE_TEST_CASE("Two-word 128-bit hashes narrow to the index width",
+TEMPLATE_TEST_CASE("hash_to_index narrows two-word 128-bit hashes to the index width",
                    "",
                    std::int32_t,
                    std::uint32_t,
