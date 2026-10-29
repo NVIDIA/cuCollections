@@ -306,24 +306,19 @@ class bloom_filter_impl {
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
 
     if constexpr (add_keys_per_thread > 1) {
-      // Full blocks of `add_keys_per_thread` keys per thread; the remaining keys go to `add_n`
-      // below. Inputs smaller than one wave of such blocks keep one key per thread to use more SMs.
+      // Full blocks of `add_keys_per_thread` keys per thread first; `add_n` takes the rest.
       auto constexpr keys_per_thread = static_cast<int32_t>(add_keys_per_thread);
-      auto constexpr keys_per_block  = cuco::detail::index_type{block_size} * keys_per_thread;
       auto const kernel              = detail::bloom_filter_ns::add_n_multi_key<conditional_add,
                                                                                 cg_size,
                                                                                 block_size,
                                                                                 keys_per_thread,
                                                                                 InputIt,
                                                                                 bloom_filter_impl>;
-      auto const num_full_blocks     = num_keys / keys_per_block;
-      if (num_full_blocks > 0 and
-          num_full_blocks >= cuco::detail::max_occupancy_grid_size(block_size, kernel, stream)) {
-        kernel<<<num_full_blocks, block_size, 0, stream.get()>>>(first, *this);
-        first += num_full_blocks * keys_per_block;
-        num_keys -= num_full_blocks * keys_per_block;
-        if (num_keys == 0) { return; }
-      }
+      auto const done =
+        launch_multi_key<block_size, keys_per_thread>(kernel, num_keys, stream, first, *this);
+      first += done;
+      num_keys -= done;
+      if (num_keys == 0) { return; }
     }
     detail::bloom_filter_ns::add_n<conditional_add, cg_size, block_size>
       <<<cuco::detail::int_div_ceil(num_keys, block_size), block_size, 0, stream.get()>>>(
@@ -452,22 +447,18 @@ class bloom_filter_impl {
     if constexpr (contains_keys_per_thread > 1) {
       // As in `add_async`: full multi-key blocks first, the remaining keys with `contains_n`.
       auto constexpr keys_per_thread = static_cast<int32_t>(contains_keys_per_thread);
-      auto constexpr keys_per_block  = cuco::detail::index_type{block_size} * keys_per_thread;
       auto const kernel              = detail::bloom_filter_ns::contains_n_multi_key<cg_size,
                                                                                      block_size,
                                                                                      keys_per_thread,
                                                                                      InputIt,
                                                                                      OutputIt,
                                                                                      bloom_filter_impl>;
-      auto const num_full_blocks     = num_keys / keys_per_block;
-      if (num_full_blocks > 0 and
-          num_full_blocks >= cuco::detail::max_occupancy_grid_size(block_size, kernel, stream)) {
-        kernel<<<num_full_blocks, block_size, 0, stream.get()>>>(first, output_begin, *this);
-        first += num_full_blocks * keys_per_block;
-        output_begin += num_full_blocks * keys_per_block;
-        num_keys -= num_full_blocks * keys_per_block;
-        if (num_keys == 0) { return; }
-      }
+      auto const done                = launch_multi_key<block_size, keys_per_thread>(
+        kernel, num_keys, stream, first, output_begin, *this);
+      first += done;
+      output_begin += done;
+      num_keys -= done;
+      if (num_keys == 0) { return; }
     }
     detail::bloom_filter_ns::contains_n<cg_size, block_size>
       <<<cuco::detail::int_div_ceil(num_keys, block_size), block_size, 0, stream.get()>>>(
@@ -553,6 +544,25 @@ class bloom_filter_impl {
     } else {
       return ptr;
     }
+  }
+
+  // Launches the multi-key `kernel` on the full blocks of `BlockSize * KeysPerThread` keys and
+  // returns the number of keys it covers: none for inputs below one wave of such blocks, which keep
+  // one key per thread to use more SMs. The caller handles the remaining keys.
+  template <int32_t BlockSize, int32_t KeysPerThread, class Kernel, class... Args>
+  __host__ static cuco::detail::index_type launch_multi_key(Kernel kernel,
+                                                            cuco::detail::index_type num_keys,
+                                                            cuda::stream_ref stream,
+                                                            Args... args)
+  {
+    auto constexpr keys_per_block = cuco::detail::index_type{BlockSize} * KeysPerThread;
+    auto const num_blocks         = num_keys / keys_per_block;
+    if (num_blocks == 0 or
+        num_blocks < cuco::detail::max_occupancy_grid_size(BlockSize, kernel, stream)) {
+      return 0;
+    }
+    kernel<<<num_blocks, BlockSize, 0, stream.get()>>>(args...);
+    return num_blocks * keys_per_block;
   }
 
   template <uint32_t NumWords>

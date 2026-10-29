@@ -101,6 +101,20 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n(InputIt first,
   add_n_impl<ConditionalAdd, CGSize, BlockSize>(first, n, ref);
 }
 
+/// Loads the calling thread's keys of a full multi-key block, `idx + i * BlockSize` for i in
+/// [0, KeysPerThread), before any of them is used, and returns `idx`.
+template <int32_t BlockSize, class InputIt, class Key, int32_t KeysPerThread>
+__device__ cuco::detail::index_type load_keys(InputIt first, Key (&keys)[KeysPerThread])
+{
+  auto const idx = static_cast<cuco::detail::index_type>(blockIdx.x) * BlockSize * KeysPerThread +
+                   static_cast<cuco::detail::index_type>(threadIdx.x);
+#pragma unroll
+  for (int32_t i = 0; i < KeysPerThread; ++i) {
+    keys[i] = *(first + idx + i * BlockSize);
+  }
+  return idx;
+}
+
 /// `add_n` with `KeysPerThread` keys per thread, for full blocks only: block `b` covers keys
 /// `[b, b + 1) * BlockSize * KeysPerThread` (strided by `BlockSize`), and each thread loads all its
 /// keys before the first update, so a warp has `KeysPerThread` key loads in flight. The caller
@@ -115,13 +129,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n_multi_key(InputIt first, Ref
 {
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  auto const idx = static_cast<cuco::detail::index_type>(blockIdx.x) * BlockSize * KeysPerThread +
-                   static_cast<cuco::detail::index_type>(threadIdx.x);
   key_type keys[KeysPerThread];
-#pragma unroll
-  for (int32_t i = 0; i < KeysPerThread; ++i) {
-    keys[i] = *(first + idx + i * BlockSize);
-  }
+  auto const idx = load_keys<BlockSize>(first, keys);
   if constexpr (CGSize > 1) {
     auto const group = warp_tile<CGSize>{};
 #pragma unroll
@@ -149,13 +158,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_n_multi_key(InputIt first
 {
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
-  auto const idx = static_cast<cuco::detail::index_type>(blockIdx.x) * BlockSize * KeysPerThread +
-                   static_cast<cuco::detail::index_type>(threadIdx.x);
   key_type keys[KeysPerThread];
-#pragma unroll
-  for (int32_t i = 0; i < KeysPerThread; ++i) {
-    keys[i] = *(first + idx + i * BlockSize);
-  }
+  auto const idx = load_keys<BlockSize>(first, keys);
   if constexpr (CGSize > 1) {
     auto const group = warp_tile<CGSize>{};
 #pragma unroll
