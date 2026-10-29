@@ -31,8 +31,8 @@ __device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda:
  * @brief Maps an unsigned hash bit pattern into `[0, upper_bound)` using multiply-high.
  *
  * @note Hash bits should be uniformly distributed across the hash type's width. This is range
- * reduction, not a remainder operation. A 128-bit hash uses only its low 64-bit word (the first
- * element for a two-word hash).
+ * reduction, not a remainder operation. A 128-bit hash is narrowed to the unsigned index type
+ * before reduction, using the first element for a two-word hash.
  *
  * @tparam SizeType Integral index type
  * @tparam HashType Integral hash type of at most 128 bits, or a two-word 128-bit hash
@@ -45,11 +45,12 @@ __device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda:
 template <typename SizeType, typename HashType>
 __host__ __device__ constexpr SizeType hash_to_index(HashType hash, SizeType upper_bound) noexcept
 {
+  using unsigned_size_type = cuda::std::make_unsigned_t<SizeType>;
   if constexpr (cuda::std::is_same_v<HashType, cuda::std::array<std::uint64_t, 2>>) {
-    return hash_to_index<SizeType>(hash[0], upper_bound);
+    return hash_to_index<SizeType>(static_cast<unsigned_size_type>(hash[0]), upper_bound);
   } else if constexpr (sizeof(HashType) > sizeof(cuda::std::uint64_t)) {
     static_assert(cuda::std::is_integral_v<HashType> and sizeof(HashType) == 16);
-    return hash_to_index<SizeType>(static_cast<cuda::std::uint64_t>(hash), upper_bound);
+    return hash_to_index<SizeType>(static_cast<unsigned_size_type>(hash), upper_bound);
   } else if constexpr (sizeof(HashType) == 4 and sizeof(SizeType) == 8) {
     auto const bits  = static_cast<cuda::std::uint32_t>(hash);
     auto const bound = static_cast<cuda::std::uint64_t>(upper_bound);
@@ -57,9 +58,16 @@ __host__ __device__ constexpr SizeType hash_to_index(HashType hash, SizeType upp
     return static_cast<SizeType>(cuda::mul_hi(bits, static_cast<cuda::std::uint32_t>(bound)) +
                                  static_cast<cuda::std::uint64_t>(bits) *
                                    static_cast<cuda::std::uint32_t>(bound >> 32));
+  } else if constexpr (sizeof(HashType) == 8 and sizeof(SizeType) == 4) {
+    auto const bits  = static_cast<cuda::std::uint64_t>(hash);
+    auto const bound = static_cast<cuda::std::uint32_t>(upper_bound);
+    // Only the upper 32 bits of the 96-bit product are needed.
+    auto const middle =
+      static_cast<cuda::std::uint64_t>(static_cast<cuda::std::uint32_t>(bits >> 32)) * bound +
+      cuda::mul_hi(static_cast<cuda::std::uint32_t>(bits), bound);
+    return static_cast<SizeType>(middle >> 32);
   } else {
     using unsigned_hash_type = cuda::std::make_unsigned_t<HashType>;
-    using unsigned_size_type = cuda::std::make_unsigned_t<SizeType>;
     using product_type       = cuda::std::
       conditional_t<(sizeof(HashType) > sizeof(SizeType)), unsigned_hash_type, unsigned_size_type>;
     static_assert(sizeof(product_type) <= sizeof(cuda::std::uint64_t));

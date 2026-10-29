@@ -42,21 +42,27 @@ TEST_CASE("Hash reduction is constexpr and preserves unsigned hash bits", "")
 }
 
 #if defined(CUCO_HAS_INT128)
-TEST_CASE("Scalar 128-bit hash reduction uses the low word on host and device", "")
+TEMPLATE_TEST_CASE("Scalar 128-bit hashes narrow to the index width",
+                   "",
+                   std::int32_t,
+                   std::uint32_t,
+                   std::int64_t,
+                   std::uint64_t)
 {
   constexpr auto hash =
-    (static_cast<unsigned __int128>(0x123456789abcdef0ull) << 64) | 0x8000000000000000ull;
-  STATIC_REQUIRE(cuco::detail::hash_to_index<std::uint64_t>(hash, 10) == 5);
-  STATIC_REQUIRE(cuco::detail::hash_to_index<std::int32_t>(hash, 10) == 5);
+    (static_cast<unsigned __int128>(0x123456789abcdef0ull) << 64) | 0x4000000080000000ull;
+  constexpr TestType expected = sizeof(TestType) == 4 ? 5 : 2;
+  STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(hash, 10) == expected);
+  STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(static_cast<__int128>(-1), 10) == 9);
   thrust::device_vector<unsigned __int128> hashes(1, hash);
-  thrust::device_vector<std::uint64_t> bounds(1, 10);
-  thrust::device_vector<std::uint64_t> output(1);
+  thrust::device_vector<TestType> bounds(1, 10);
+  thrust::device_vector<TestType> output(1);
   hash_to_indices<<<1, 1>>>(thrust::raw_pointer_cast(hashes.data()),
                             thrust::raw_pointer_cast(bounds.data()),
                             thrust::raw_pointer_cast(output.data()),
                             1);
   CUCO_CUDA_TRY(cudaGetLastError());
-  REQUIRE(output[0] == 5);
+  REQUIRE(output[0] == expected);
 }
 
 TEMPLATE_TEST_CASE_SIG("Hash reduction matches a wide product on host and device",
@@ -129,19 +135,26 @@ TEMPLATE_TEST_CASE_SIG("Hash reduction matches a wide product on host and device
 }
 #endif
 
-TEST_CASE("128-bit hash reduction uses the first word on host and device", "")
+TEMPLATE_TEST_CASE("Two-word 128-bit hashes narrow to the index width",
+                   "",
+                   std::int32_t,
+                   std::uint32_t,
+                   std::int64_t,
+                   std::uint64_t)
 {
   using hash_type = cuda::std::array<std::uint64_t, 2>;
-  constexpr hash_type hash{0x8000000000000000ull, 0xffffffffffffffffull};
-  STATIC_REQUIRE(cuco::detail::hash_to_index<std::uint64_t>(hash, 10) == 5);
-  STATIC_REQUIRE(cuco::detail::hash_to_index<std::int32_t>(hash, 10) == 5);
+  constexpr hash_type hash{0x4000000080000000ull, 0xffffffffffffffffull};
+  constexpr TestType expected = sizeof(TestType) == 4 ? 5 : 2;
+  STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(hash, 10) == expected);
+  STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(hash_type{0, 0xffffffffffffffffull}, 10) ==
+                 0);
   thrust::device_vector<hash_type> hashes(1, hash);
-  thrust::device_vector<std::uint64_t> bounds(1, 10);
-  thrust::device_vector<std::uint64_t> output(1);
+  thrust::device_vector<TestType> bounds(1, 10);
+  thrust::device_vector<TestType> output(1);
   hash_to_indices<<<1, 1>>>(thrust::raw_pointer_cast(hashes.data()),
                             thrust::raw_pointer_cast(bounds.data()),
                             thrust::raw_pointer_cast(output.data()),
                             1);
   CUCO_CUDA_TRY(cudaGetLastError());
-  REQUIRE(output[0] == 5);
+  REQUIRE(output[0] == expected);
 }
