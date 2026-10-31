@@ -123,8 +123,9 @@ template <typename T, int BucketSize, typename Extent>
 __device__ constexpr bucket_storage_ref<T, BucketSize, Extent>::bucket_type
 bucket_storage_ref<T, BucketSize, Extent>::load_bucket(size_type index) const noexcept
 {
-  assert(index % bucket_size == 0);
-  assert(index <= capacity() && bucket_size <= capacity() - index);
+  CUCO_DEBUG_ASSERT(index % bucket_size == 0, "Bucket index must be a multiple of bucket_size");
+  CUCO_DEBUG_ASSERT(index <= this->capacity() && bucket_size <= this->capacity() - index,
+                    "Bucket access exceeds storage capacity");
   if constexpr (cuco::detail::loads_as_slot_words<T, alignment>()) {
     using word_type = cuco::detail::packed_t<T>;
     // Load each slot as one word and keep every word in a register here. A field-wise copy lets the
