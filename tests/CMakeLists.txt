@@ -45,6 +45,7 @@ ConfigureTest(UTILITY_TEST
     utility/storage_test.cu
     utility/fast_int_test.cu
     utility/hash_test.cu
+    utility/hash_to_index_test.cu
     utility/probing_scheme_test.cu)
 
 # catch_discover_tests executes each Catch2 test case in its own process. This matters for device

@@ -13,11 +13,7 @@ namespace cuco::detail {
 /**
  * @brief An Identity hash function to hash the given argument on host and device
  *
- * @note `identity_hash` is perfect if `hash_table_capacity >= |input set|`
- *
- * @note `identity_hash` is only intended to be used perfectly.
- *
- * @note Perfect hashes are deterministic, and thus do not need seeds.
+ * @note Identity hashes are deterministic, and thus do not need seeds.
  *
  * @tparam Key The type of the values to hash
  */
