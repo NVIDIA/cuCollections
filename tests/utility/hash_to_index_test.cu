@@ -42,7 +42,7 @@ TEST_CASE("hash_to_index is constexpr and preserves unsigned hash bits", "")
 }
 
 #if defined(CUCO_HAS_INT128)
-TEMPLATE_TEST_CASE("hash_to_index narrows scalar 128-bit hashes to the index width",
+TEMPLATE_TEST_CASE("hash_to_index uses the high word of scalar 128-bit hashes",
                    "",
                    std::int32_t,
                    std::uint32_t,
@@ -50,10 +50,13 @@ TEMPLATE_TEST_CASE("hash_to_index narrows scalar 128-bit hashes to the index wid
                    std::uint64_t)
 {
   constexpr auto hash =
-    (static_cast<unsigned __int128>(0x123456789abcdef0ull) << 64) | 0x4000000080000000ull;
-  constexpr TestType expected = sizeof(TestType) == 4 ? 5 : 2;
+    (static_cast<unsigned __int128>(0x4000000080000000ull) << 64) | 0x123456789abcdef0ull;
+  constexpr TestType expected = 2;
   STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(hash, 10) == expected);
   STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(static_cast<__int128>(-1), 10) == 9);
+  // The low word does not contribute.
+  STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(
+                   static_cast<unsigned __int128>(0xffffffffffffffffull), 10) == 0);
   thrust::device_vector<unsigned __int128> hashes(1, hash);
   thrust::device_vector<TestType> bounds(1, 10);
   thrust::device_vector<TestType> output(1);
@@ -135,7 +138,7 @@ TEMPLATE_TEST_CASE_SIG("hash_to_index matches a wide product on host and device"
 }
 #endif
 
-TEMPLATE_TEST_CASE("hash_to_index narrows two-word 128-bit hashes to the index width",
+TEMPLATE_TEST_CASE("hash_to_index uses the high word of two-word 128-bit hashes",
                    "",
                    std::int32_t,
                    std::uint32_t,
@@ -143,10 +146,10 @@ TEMPLATE_TEST_CASE("hash_to_index narrows two-word 128-bit hashes to the index w
                    std::uint64_t)
 {
   using hash_type = cuda::std::array<std::uint64_t, 2>;
-  constexpr hash_type hash{0x4000000080000000ull, 0xffffffffffffffffull};
-  constexpr TestType expected = sizeof(TestType) == 4 ? 5 : 2;
+  constexpr hash_type hash{0x123456789abcdef0ull, 0x4000000080000000ull};
+  constexpr TestType expected = 2;
   STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(hash, 10) == expected);
-  STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(hash_type{0, 0xffffffffffffffffull}, 10) ==
+  STATIC_REQUIRE(cuco::detail::hash_to_index<TestType>(hash_type{0xffffffffffffffffull, 0}, 10) ==
                  0);
   thrust::device_vector<hash_type> hashes(1, hash);
   thrust::device_vector<TestType> bounds(1, 10);

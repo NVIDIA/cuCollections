@@ -31,8 +31,8 @@ __device__ __forceinline__ cuda::std::int32_t count_least_significant_bits(cuda:
  * @brief Maps an unsigned hash bit pattern into `[0, upper_bound)` using multiply-high.
  *
  * @note Hash bits should be uniformly distributed across the hash type's width. This is range
- * reduction, not a remainder operation. A 128-bit hash is narrowed to the unsigned index type
- * before reduction, using the first element for a two-word hash.
+ * reduction, not a remainder operation. A 128-bit hash contributes its high 64 bits (the second
+ * element of a two-word hash), which are then reduced like a 64-bit hash.
  *
  * @tparam SizeType Integral index type
  * @tparam HashType Integral hash type of at most 128 bits, or a two-word 128-bit hash
@@ -49,10 +49,12 @@ __host__ __device__ constexpr SizeType hash_to_index(HashType hash, SizeType upp
   constexpr auto hash_bytes  = sizeof(HashType);
   constexpr auto index_bytes = sizeof(SizeType);
   if constexpr (cuda::std::is_same_v<HashType, cuda::std::array<std::uint64_t, 2>>) {
-    return hash_to_index<SizeType>(static_cast<unsigned_size_type>(hash[0]), upper_bound);
+    return hash_to_index<SizeType>(hash[1], upper_bound);
   } else if constexpr (hash_bytes > 8) {
     static_assert(cuda::std::is_integral_v<HashType> and hash_bytes == 16);
-    return hash_to_index<SizeType>(static_cast<unsigned_size_type>(hash), upper_bound);
+    using unsigned_hash_type = cuda::std::make_unsigned_t<HashType>;
+    return hash_to_index<SizeType>(
+      static_cast<std::uint64_t>(static_cast<unsigned_hash_type>(hash) >> 64), upper_bound);
   } else if constexpr (hash_bytes == 4 and index_bytes == 8) {
     auto const bits  = static_cast<cuda::std::uint32_t>(hash);
     auto const bound = static_cast<cuda::std::uint64_t>(upper_bound);
