@@ -13,6 +13,7 @@
 #include <cuda/std/limits>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
+#include <cuda/std/utility>
 
 #include <cstdint>
 
@@ -72,6 +73,9 @@ namespace cuco::detail {
  * `add` while the filter is cache-resident. It changes the bit pattern (slightly higher
  * false-positive rate; not interchangeable with filters built without it). No effect for blocks
  * smaller than one 32-byte sector.
+ * @tparam AddKeysPerThread Keys per thread in bulk `add`; all are loaded before the first update.
+ * Launch shape only: does not change the bit pattern.
+ * @tparam ContainsKeysPerThread Keys per thread in bulk `contains`, as for `AddKeysPerThread`.
  */
 template <class Hash,
           uint32_t WordBytes,
@@ -84,9 +88,15 @@ template <class Hash,
           bool ConditionalAdd,
           bool EarlyExitContains,
           bool PersistingL2Access,
-          bool FastL2Add>
+          bool FastL2Add,
+          uint32_t AddKeysPerThread,
+          uint32_t ContainsKeysPerThread>
 class bloom_filter_policy {
   static_assert(WordBytes == 4 || WordBytes == 8, "WordBytes must be 4 or 8 for native atomicOr");
+  static_assert(AddKeysPerThread >= 1 && AddKeysPerThread <= 16,
+                "AddKeysPerThread must be in [1, 16]");
+  static_assert(ContainsKeysPerThread >= 1 && ContainsKeysPerThread <= 16,
+                "ContainsKeysPerThread must be in [1, 16]");
 
  public:
   using hasher           = Hash;  ///< 64-bit hash functor type
@@ -133,6 +143,10 @@ class bloom_filter_policy {
   /// Leave one hash-selected word of each key's block untouched. No effect for blocks smaller
   /// than one 32-byte sector, whose updates are partial already.
   static constexpr bool fast_l2_add = FastL2Add and WordsPerBlock * WordBytes >= 32;
+  static constexpr uint32_t add_keys_per_thread =
+    AddKeysPerThread;  ///< keys per thread in bulk add
+  static constexpr uint32_t contains_keys_per_thread =
+    ContainsKeysPerThread;  ///< keys per thread in bulk contains
 
   static constexpr size_t max_filter_blocks =
     cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks
@@ -145,12 +159,11 @@ class bloom_filter_policy {
  private:
   static constexpr uint32_t bit_index_width = cuda::std::bit_width(word_bits - 1);
   // TODO: for non-multiple `(pattern_bits, words_per_block)` configs (e.g. PatternBits=12,
-  // WordsPerBlock=8), the salt walk in `set_bits` advances `PatternArrayIndex` every
-  // `max_bits_per_word` salts, packing all bits into the first
-  // `ceil(pattern_bits / words_per_block)` words and leaving the rest at zero. This wastes block
-  // capacity and inflates FPR. Distribute floor bits to every word plus one extra bit to the
-  // first `pattern_bits % words_per_block` words, and update the salt-to-word mapping in
-  // `set_bits` accordingly.
+  // WordsPerBlock=8), `salted_pattern` moves to the next word every `max_bits_per_word` salts,
+  // packing all bits into the first `ceil(pattern_bits / words_per_block)` words and leaving the
+  // rest at zero. This wastes block capacity and inflates FPR. Distribute floor bits to every word
+  // plus one extra bit to the first `pattern_bits % words_per_block` words, and update the
+  // salt-to-word mapping in `select_salts` and `salted_pattern` accordingly.
   static constexpr uint32_t max_bits_per_word =
     cuco::detail::int_div_ceil(pattern_bits, words_per_block);
 
@@ -221,54 +234,99 @@ class bloom_filter_policy {
   }
 
   /**
-   * @brief Generates the per-word fingerprint pattern for a key when the horizontal layout is 1.
+   * @brief Salts of one thread of the group cooperating on a key, for every outer-loop iteration.
    *
-   * @tparam LoopIndex Outer-loop iteration index when `words_per_block / VerticalLayout > 1`.
-   * @tparam VerticalLayout Number of contiguous words this call produces.
+   * The `HorizontalLayout` threads of a group each own `VerticalLayout` contiguous words per
+   * outer-loop iteration; iteration `l` of rank `r` is virtual thread `l * HorizontalLayout + r`,
+   * which owns block words `[v, v + 1) * VerticalLayout` and the salts `[v, v + 1) *
+   * salts_per_thread`. Horizontal layout 1 is a group of one thread.
+   *
+   * The salts depend only on the thread's rank. Selecting them once, ahead of a loop over keys,
+   * leaves one multiply per fingerprint bit inside the loop; for horizontal layout 1 they are
+   * compile-time constants.
+   *
+   * @tparam HorizontalLayout Number of threads cooperating on a single key.
+   * @tparam VerticalLayout Number of contiguous words per thread and outer-loop iteration.
+   */
+  template <uint32_t HorizontalLayout, uint32_t VerticalLayout>
+  struct thread_salts {
+    static constexpr uint32_t horizontal_layout = HorizontalLayout;  ///< Threads per key
+    static constexpr uint32_t vertical_layout   = VerticalLayout;    ///< Words per thread
+    /// Outer-loop iterations covering a block
+    static constexpr uint32_t loop_count = words_per_block / (HorizontalLayout * VerticalLayout);
+    /// Salts of one virtual thread
+    static constexpr uint32_t salts_per_thread = max_bits_per_word * VerticalLayout;
+
+    /// Salts per outer-loop iteration; unused entries (see `num_salts`) are zero
+    cuda::std::array<cuda::std::array<uint32_t, salts_per_thread>, loop_count> salt;
+    /// Valid salts per outer-loop iteration, fewer than `salts_per_thread` only for trailing
+    /// virtual threads when `pattern_bits` is not a multiple of `words_per_block`
+    cuda::std::array<uint32_t, loop_count> num_salts;
+    uint32_t thread_index;  ///< Rank within the cooperative group
+  };
+
+  /**
+   * @brief Selects the salts of one thread of the group cooperating on a key.
+   *
+   * @tparam HorizontalLayout Number of threads cooperating on a single key.
+   * @tparam VerticalLayout Number of contiguous words per thread and outer-loop iteration.
+   *
+   * @param thread_index Caller's rank within the group (0 for horizontal layout 1).
+   *
+   * @return The thread's salts.
+   */
+  template <uint32_t HorizontalLayout, uint32_t VerticalLayout>
+  __device__ constexpr auto make_thread_salts(uint32_t thread_index) const
+  {
+    thread_salts<HorizontalLayout, VerticalLayout> ts{};
+    ts.thread_index = thread_index;
+    select_salts<0>(ts, thread_index);
+    return ts;
+  }
+
+  /**
+   * @brief Generates the per-word fingerprint pattern of one thread from its salts.
+   *
+   * @tparam LoopIndex Outer-loop iteration index.
+   * @tparam ClearSkipped Whether the FastL2Add skipped word's pattern is cleared (`add`); `false`
+   * keeps it, for callers that handle the skipped word by its index.
+   * @tparam ThreadSalts `thread_salts` of the calling thread.
    *
    * @param lower_hash_value Lower 32 bits of the key's hash.
+   * @param ts Salts of the calling thread.
    *
-   * @return Array of `VerticalLayout` words.
+   * @return Array of `ThreadSalts::vertical_layout` words owned by the calling thread.
    */
-  template <uint32_t LoopIndex, uint32_t VerticalLayout>
-  __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
+  template <uint32_t LoopIndex, bool ClearSkipped = fast_l2_add, class ThreadSalts>
+  __device__ constexpr auto array_pattern(uint32_t lower_hash_value, ThreadSalts const& ts) const
   {
-    auto pattern = pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
-    if constexpr (fast_l2_add) {
-      clear_skipped(pattern, lower_hash_value, LoopIndex * VerticalLayout);
+    auto pattern = salted_pattern<LoopIndex>(lower_hash_value, ts);
+    if constexpr (fast_l2_add and ClearSkipped) {
+      clear_skipped(pattern,
+                    lower_hash_value,
+                    (LoopIndex * ThreadSalts::horizontal_layout + ts.thread_index) *
+                      ThreadSalts::vertical_layout);
     }
     return pattern;
   }
 
   /**
-   * @brief Generates the per-word fingerprint pattern for a key when the horizontal layout is > 1.
+   * @brief Index of the FastL2Add skipped word in the block's first sector: the top bits of the
+   * hash.
    *
-   * @tparam LoopIndex Outer-loop iteration index.
-   * @tparam HorizontalLayout Cooperative-group size cooperating on a single key.
-   * @tparam VerticalLayout Number of contiguous words this call produces.
+   * @param hash Lower 32 bits of the key's hash.
    *
-   * @param lower_hash_value Lower 32 bits of the key's hash.
-   * @param thread_index Caller's rank within the cooperative group.
-   *
-   * @return Array of `VerticalLayout` words owned by the calling thread.
+   * @return Word index in `[0, words per sector)`.
    */
-  template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
-  __device__ constexpr auto array_pattern(uint32_t lower_hash_value, uint32_t thread_index) const
+  __device__ static constexpr uint32_t skip_index(uint32_t hash)
   {
-    auto pattern =
-      pattern_impl<LoopIndex, HorizontalLayout, VerticalLayout>(lower_hash_value, thread_index);
-    if constexpr (fast_l2_add) {
-      clear_skipped(
-        pattern, lower_hash_value, (LoopIndex * HorizontalLayout + thread_index) * VerticalLayout);
-    }
-    return pattern;
+    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
+    return hash >> (32 - index_width);
   }
 
  private:
   hasher hash_;
 
-  /// Salt for the skipped-word index, distinct from the fingerprint salts.
-  static constexpr uint32_t skip_salt = 0x9e3779b1U;
   /// The skipped word is taken from the block's first 32-byte sector: that is the sector whose
   /// partial coverage makes the update cheaper.
   static constexpr uint32_t sector_bytes     = 32;
@@ -286,133 +344,95 @@ class bloom_filter_policy {
                                           uint32_t hash,
                                           uint32_t first_word) const
   {
-    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
-    uint32_t const skip            = (skip_salt * hash) >> (32 - index_width);
-    uint32_t const keep            = ~(uint32_t{1} << skip);  // words_per_block <= 32
-    for (uint32_t i = 0; i < pattern_array.size(); ++i) {
-      pattern_array[i] &= word_type{0} - static_cast<word_type>((keep >> (first_word + i)) & 1u);
-    }
-  }
-
-  /**
-   * @brief pattern_impl - Computes the bit pattern for a vertical layout of words.
-   * I use the terminology of a `virtual thread` to refer to an ordering of the vertical layouts,
-   * namely
-   *   virtual_thread_index = LoopIndex * HorizontalLayout + thread_index,
-   * where LoopIndex is the index of the outermost loop in the range:
-   *     [0, words_per_block / (HorizontalLayout * VerticalLayout)).
-   * @param hash
-   * @return cuda::std::array<word_type, VerticalLayout> - The bit pattern for the vertical layout
-   * defined by the LoopIndex.
-   */
-
-  // Precondition: <add/contains>_horizontal_layout == 1
-  template <uint32_t LoopIndex, uint32_t VerticalLayout>
-  __device__ constexpr auto pattern_impl(uint32_t hash) const
-  {
-    using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
-
-    // Sanity check
-    constexpr uint32_t num_iterations = words_per_block / VerticalLayout;
-    static_assert(LoopIndex < num_iterations,
-                  "the loop index cannot exceed the number of loop iterations");
-
-    pattern_array_t pattern_array{0};
-    constexpr uint32_t salt_start_index = max_bits_per_word * VerticalLayout * LoopIndex;
-    constexpr uint32_t salt_end_index =
-      cuda::std::min(salt_start_index + max_bits_per_word * VerticalLayout, pattern_bits);
-    constexpr uint32_t pattern_array_start_index = 0;
-    set_bits<salt_start_index, salt_end_index, pattern_array_start_index>(hash, pattern_array);
-    return pattern_array;
-  }
-
-  // Precondition: <add/contains>_horizontal_layout > 1
-  template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
-  __device__ constexpr auto pattern_impl(uint32_t hash, uint32_t thread_index) const
-  {
-    using pattern_array_t = cuda::std::array<word_type, VerticalLayout>;
-
-    // Sanity check
-    constexpr uint32_t num_iterations = words_per_block / (HorizontalLayout * VerticalLayout);
-    static_assert(LoopIndex < num_iterations,
-                  "the loop index cannot exceed the number of loop iterations");
-
-    // [lower_bound, upper_bound) defines the range of virtual thread indices for this loop
-    // iteration.
-    constexpr uint32_t lower_bound = LoopIndex * HorizontalLayout;
-    constexpr uint32_t upper_bound = lower_bound + HorizontalLayout;
-
-    // A virtual thread flips max_bits_per_virtual_thread bits in the pattern array, excepting
-    // potentially some of the last virtual threads (if pattern_bits % words_per_block != 0).
-    constexpr uint32_t max_bits_per_virtual_thread = max_bits_per_word * VerticalLayout;
-
-    pattern_array_t pattern_array{0};
-    if constexpr (num_iterations == 1) {
-      thread_dispatch<max_bits_per_virtual_thread, lower_bound, upper_bound>(
-        hash, thread_index, pattern_array);
+    uint32_t const skip = skip_index(hash);
+    if constexpr (cuda::std::tuple_size_v<PatternArrayT> == 1) {
+      pattern_array[0] &= word_type{0} - static_cast<word_type>(first_word != skip);
     } else {
-      uint32_t const virtual_thread_index = LoopIndex * HorizontalLayout + thread_index;
-      thread_dispatch<max_bits_per_virtual_thread, lower_bound, upper_bound>(
-        hash, virtual_thread_index, pattern_array);
-    }
-    return pattern_array;
-  }
-
-  // Dispatches a dynamic virtual thread index to a static virtual thread index by building a
-  // compile-time decision tree over the range [LowerBound, UpperBound) for the virtual thread
-  // index. This method is only used when <add/contains>_horizontal_layout > 1.
-  template <uint32_t MaxBitsPerVirtualThread,
-            uint32_t LowerBound,
-            uint32_t UpperBound,
-            class PatternArrayT>
-  __device__ constexpr void thread_dispatch(uint32_t hash,
-                                            uint32_t thread_index,
-                                            PatternArrayT& pattern_array) const
-  {
-    // Sanity check
-    static_assert(LowerBound < UpperBound);
-
-    if constexpr (LowerBound + 1 == UpperBound) {
-      // Base case: thread_index == LowerBound
-      constexpr uint32_t salt_start_index = MaxBitsPerVirtualThread * LowerBound;
-      constexpr uint32_t salt_end_index =
-        cuda::std::min(salt_start_index + MaxBitsPerVirtualThread, pattern_bits);
-      constexpr uint32_t pattern_array_start_index = 0;
-      set_bits<salt_start_index, salt_end_index, pattern_array_start_index>(hash, pattern_array);
-    } else {
-      // Recursive case: thread_index > LowerBound
-      constexpr uint32_t mid = (LowerBound + UpperBound) / 2;
-      if (thread_index < mid) {
-        thread_dispatch<MaxBitsPerVirtualThread, LowerBound, mid>(
-          hash, thread_index, pattern_array);
-      } else {
-        thread_dispatch<MaxBitsPerVirtualThread, mid, UpperBound>(
-          hash, thread_index, pattern_array);
+      uint32_t const keep = ~(uint32_t{1} << skip);  // words_per_block <= 32
+      for (uint32_t i = 0; i < pattern_array.size(); ++i) {
+        pattern_array[i] &= word_type{0} - static_cast<word_type>((keep >> (first_word + i)) & 1u);
       }
     }
   }
 
-  // Set bits in the pattern array using salts starting from SaltIndex.
-  template <uint32_t SaltIndex,
-            uint32_t SaltEndIndex,
-            uint32_t PatternArrayIndex,
-            class PatternArrayT>
-  __device__ constexpr void set_bits(uint32_t hash, PatternArrayT& pattern_array) const
+  // Fills `ts` for outer-loop iterations LoopIndex.. with the salts of virtual thread
+  // `LoopIndex * horizontal_layout + thread_index`. Runs once per thread, ahead of any loop over
+  // keys.
+  template <uint32_t LoopIndex, class ThreadSalts>
+  __device__ constexpr void select_salts(ThreadSalts& ts, uint32_t thread_index) const
   {
-    if constexpr (SaltIndex < SaltEndIndex) {
-      // Select top bit_index_width bits from salted hash to determine the bit index.
-      uint32_t const bit_index =
-        (cuda::std::get<SaltIndex>(salts) * hash) >> (32 - bit_index_width);
-
-      // Set the bit in the pattern array.
-      cuda::std::get<PatternArrayIndex>(pattern_array) |= word_type{1} << bit_index;
-
-      // Recurse.
-      constexpr uint32_t next_salt_index = SaltIndex + 1;
-      constexpr uint32_t next_pattern_array_index =
-        PatternArrayIndex + (next_salt_index % max_bits_per_word == 0 ? 1 : 0);
-      set_bits<next_salt_index, SaltEndIndex, next_pattern_array_index>(hash, pattern_array);
+    if constexpr (LoopIndex < ThreadSalts::loop_count) {
+      ts.salt[LoopIndex] =
+        salts_of<LoopIndex, 0, ThreadSalts::horizontal_layout, ThreadSalts>(thread_index);
+      if constexpr (pattern_bits != max_bits_per_word * words_per_block) {
+        // Trailing virtual threads get the salts left below `pattern_bits`, possibly none
+        uint32_t const first = ThreadSalts::salts_per_thread *
+                               (LoopIndex * ThreadSalts::horizontal_layout + thread_index);
+        uint32_t const left = first < pattern_bits ? pattern_bits - first : 0u;
+        ts.num_salts[LoopIndex] =
+          left < ThreadSalts::salts_per_thread ? left : ThreadSalts::salts_per_thread;
+      }
+      select_salts<LoopIndex + 1>(ts, thread_index);
     }
+  }
+
+  // Salts of rank `thread_index` among ranks `Rank + k * Stride`, k in [0, Count): a compile-time
+  // tree of selects on the rank's bits, lowest first, which the compiler keeps branch-free.
+  template <uint32_t LoopIndex,
+            uint32_t Rank,
+            uint32_t Count,
+            class ThreadSalts,
+            uint32_t Stride = 1>
+  __device__ static constexpr auto salts_of(uint32_t thread_index)
+  {
+    if constexpr (Count == 1) {
+      constexpr uint32_t first =
+        ThreadSalts::salts_per_thread * (LoopIndex * ThreadSalts::horizontal_layout + Rank);
+      cuda::std::array<uint32_t, ThreadSalts::salts_per_thread> leaf{};
+      copy_salts<first>(leaf, cuda::std::make_index_sequence<ThreadSalts::salts_per_thread>{});
+      return leaf;
+    } else {
+      auto const even = salts_of<LoopIndex, Rank, Count / 2, ThreadSalts, Stride * 2>(thread_index);
+      auto const odd =
+        salts_of<LoopIndex, Rank + Stride, Count / 2, ThreadSalts, Stride * 2>(thread_index);
+      return (thread_index & Stride) ? odd : even;
+    }
+  }
+
+  // dst[i] = salts[First + i], or 0 from `pattern_bits` on.
+  template <uint32_t First, class SaltArrayT, size_t... I>
+  __device__ static constexpr void copy_salts(SaltArrayT& dst, cuda::std::index_sequence<I...>)
+  {
+    ((dst[I] = salt_or_zero<First + static_cast<uint32_t>(I)>()), ...);
+  }
+
+  template <uint32_t Index>
+  __device__ static constexpr uint32_t salt_or_zero()
+  {
+    if constexpr (Index < pattern_bits) {
+      return cuda::std::get<Index>(salts);
+    } else {
+      return 0u;
+    }
+  }
+
+  // Fingerprint words of one thread from its salts (no FastL2Add skip).
+  template <uint32_t LoopIndex, class ThreadSalts>
+  __device__ constexpr auto salted_pattern(uint32_t hash, ThreadSalts const& ts) const
+  {
+    static_assert(LoopIndex < ThreadSalts::loop_count,
+                  "the loop index cannot exceed the number of loop iterations");
+    // Every virtual thread has all its salts unless pattern_bits leaves trailing words short.
+    constexpr bool all_salts = pattern_bits == max_bits_per_word * words_per_block;
+
+    cuda::std::array<word_type, ThreadSalts::vertical_layout> pattern_array{0};
+    for (uint32_t s = 0; s < ThreadSalts::salts_per_thread; ++s) {
+      if (all_salts or s < ts.num_salts[LoopIndex]) {
+        uint32_t const bit_index = (ts.salt[LoopIndex][s] * hash) >> (32 - bit_index_width);
+        pattern_array[s / max_bits_per_word] |= word_type{1} << bit_index;
+      }
+    }
+    return pattern_array;
   }
 };
 
