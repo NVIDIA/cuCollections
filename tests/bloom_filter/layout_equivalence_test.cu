@@ -229,20 +229,30 @@ TEST_CASE("bloom_filter: contains results are invariant under EarlyExitContains"
 }
 
 namespace {
+// 32-bit words, `Words` per block; the layouts, pattern bits and FastL2Add vary per test.
+template <std::uint32_t Words,
+          std::uint32_t PatternBits,
+          std::uint32_t AddH,
+          std::uint32_t AddV,
+          std::uint32_t ContainsH,
+          std::uint32_t ContainsV,
+          bool FastL2Add>
+using layout_policy = cuco::bloom_filter_policy<int32_t,
+                                                cuco::xxhash_64<int32_t>,
+                                                4,
+                                                Words,
+                                                PatternBits,
+                                                AddH,
+                                                AddV,
+                                                ContainsH,
+                                                ContainsV,
+                                                false,
+                                                false,
+                                                false,
+                                                FastL2Add>;
+
 template <std::uint32_t AddH, std::uint32_t AddV, std::uint32_t ContainsH, std::uint32_t ContainsV>
-using skip_policy = cuco::bloom_filter_policy<int32_t,
-                                              cuco::xxhash_64<int32_t>,
-                                              4,
-                                              8,
-                                              8,
-                                              AddH,
-                                              AddV,
-                                              ContainsH,
-                                              ContainsV,
-                                              false,
-                                              false,
-                                              false,
-                                              true>;
+using skip_policy = layout_policy<8, 8, AddH, AddV, ContainsH, ContainsV, true>;
 }  // namespace
 
 TEST_CASE("bloom_filter: fast_l2_add leaves exactly one word of a key's block untouched", "")
@@ -376,7 +386,35 @@ TEMPLATE_TEST_CASE_SIG(
                               false,
                               false,
                               true>),
-   8))
+   8),
+  ((cuco::bloom_filter_policy<int32_t,
+                              cuco::xxhash_64<int32_t>,
+                              4,
+                              16,
+                              16,
+                              1,
+                              16,
+                              1,
+                              16,
+                              false,
+                              false,
+                              false,
+                              true>),
+   8),
+  ((cuco::bloom_filter_policy<int32_t,
+                              cuco::xxhash_64<int32_t>,
+                              8,
+                              8,
+                              8,
+                              1,
+                              8,
+                              4,
+                              2,
+                              false,
+                              false,
+                              false,
+                              true>),
+   4))
 {
   using Key = int32_t;
   using filter_t =
@@ -403,19 +441,22 @@ TEMPLATE_TEST_CASE_SIG(
   }
 }
 
-TEST_CASE("bloom_filter: fast_l2_add cooperative bulk add matches the per-key layout on many keys",
-          "")
+using wide_coop_policy = layout_policy<16, 16, 16, 1, 1, 16, true>;
+using wide_ref_policy  = layout_policy<16, 16, 1, 16, 1, 16, true>;
+
+TEMPLATE_TEST_CASE_SIG(
+  "bloom_filter: fast_l2_add cooperative bulk add matches the per-key layout on many keys",
+  "",
+  ((class CoopPolicy, class RefPolicy), CoopPolicy, RefPolicy),
+  (skip_policy<8, 1, 1, 8>, skip_policy<1, 8, 1, 8>),
+  (wide_coop_policy, wide_ref_policy))
 {
   using Key = int32_t;
-  // horizontal 8x1 runs the cooperative (shuffle-first) add; 1x8 is non-cooperative
-  using filter_coop_t = cuco::bloom_filter<Key,
-                                           cuco::extent<std::size_t>,
-                                           cuda::thread_scope_device,
-                                           skip_policy<8, 1, 1, 8>>;
-  using filter_ref_t  = cuco::bloom_filter<Key,
-                                           cuco::extent<std::size_t>,
-                                           cuda::thread_scope_device,
-                                           skip_policy<1, 8, 1, 8>>;
+  // the horizontal layouts run the cooperative (shuffle-first) add; 1xN is non-cooperative
+  using filter_coop_t =
+    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, CoopPolicy>;
+  using filter_ref_t =
+    cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, RefPolicy>;
 
   constexpr std::size_t num_blocks = 1 << 16;
   constexpr int32_t num_keys       = 3'000'017;  // many blocks and a partial last block
