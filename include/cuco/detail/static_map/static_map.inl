@@ -14,8 +14,8 @@
 
 #include <cuda/iterator>
 #include <cuda/std/functional>
-#include <cuda/std/tuple>
 #include <cuda/stream>
+#include <thrust/iterator/zip_iterator.h>
 
 #include <algorithm>
 #include <cstddef>

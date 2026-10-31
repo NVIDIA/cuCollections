@@ -20,10 +20,6 @@
 #include <cuda/std/functional>
 #include <cuda/stream>
 
-#if defined(CUCO_HAS_CUDA_BARRIER)
-#include <cuda/barrier>
-#endif
-
 #include <cstddef>
 #include <type_traits>
 #include <utility>

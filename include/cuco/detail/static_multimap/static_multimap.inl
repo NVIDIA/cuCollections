@@ -10,8 +10,7 @@
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <cuda/std/tuple>
-#include <thrust/count.h>
-#include <thrust/execution_policy.h>
+#include <thrust/iterator/zip_iterator.h>
 
 #include <iterator>
 

@@ -9,7 +9,6 @@
 #include <cuco/operator.hpp>
 
 #include <cuda/atomic>
-#include <cuda/std/functional>
 #include <cuda/std/utility>
 
 #include <cooperative_groups.h>

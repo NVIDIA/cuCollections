@@ -15,14 +15,8 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 #include <cuco/utility/traits.hpp>
 
-#include <cuda/std/atomic>
 #include <cuda/std/functional>
-#include <cuda/std/utility>
 #include <cuda/stream>
-
-#if defined(CUCO_HAS_CUDA_BARRIER)
-#include <cuda/barrier>
-#endif
 
 #include <cstddef>
 #include <memory>
