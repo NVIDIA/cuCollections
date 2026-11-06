@@ -15,7 +15,6 @@ using BF_KEY = nvbench::int64_t;
 
 static constexpr auto BF_N = 1'000'000'000;
 
-auto const BF_SIZE_MB_RANGE_CACHE =
-  std::vector<nvbench::int64_t>{1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
+auto const BF_SIZE_MB_RANGE_CACHE = std::vector<nvbench::int64_t>{1, 4, 16, 64, 256, 1024};
 
 }  // namespace cuco::benchmark::defaults
