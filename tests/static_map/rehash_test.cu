@@ -39,6 +39,9 @@ TEST_CASE("static_map rehash test", "")
   map.rehash(num_keys * 2);
   REQUIRE(map.size() == num_keys);
 
+  map.rehash_async(num_keys * 4);
+  REQUIRE(map.size() == num_keys);
+
   map.erase(keys_begin, keys_begin + num_erased_keys);
   map.rehash();
   REQUIRE(map.size() == num_keys - num_erased_keys);
