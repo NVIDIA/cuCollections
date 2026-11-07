@@ -10,7 +10,9 @@
 
 #include <cuda/functional>
 #include <cuda/iterator>
+#include <thrust/count.h>
 #include <thrust/device_vector.h>
+#include <thrust/for_each.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -120,4 +122,46 @@ TEMPLATE_TEST_CASE_SIG(
                                                 cuco::erased_key<Key>{-2}};
 
   test_erase(map, num_keys);
+}
+
+TEST_CASE("static_map erase through a rebound ref", "")
+{
+  using key_type    = int32_t;
+  using mapped_type = int32_t;
+  using probe       = cuco::linear_probing<1, cuco::murmurhash3_32<key_type>>;
+
+  constexpr size_type num_keys{1'000};
+
+  auto map = cuco::static_map<key_type,
+                              mapped_type,
+                              cuco::extent<size_type>,
+                              cuda::thread_scope_device,
+                              cuda::std::equal_to<key_type>,
+                              probe,
+                              cuco::cuda_allocator<cuda::std::byte>,
+                              cuco::storage<1>>{num_keys * 2,
+                                                cuco::empty_key<key_type>{-1},
+                                                cuco::empty_value<mapped_type>{-1},
+                                                cuco::erased_key<key_type>{-2}};
+
+  auto keys_begin  = cuda::counting_iterator<key_type>(1);
+  auto pairs_begin = cuda::make_transform_iterator(
+    keys_begin,
+    cuda::proclaim_return_type<cuco::pair<key_type, mapped_type>>([] __device__(key_type const& x) {
+      return cuco::pair<key_type, mapped_type>(x, static_cast<mapped_type>(x));
+    }));
+  map.insert(pairs_begin, pairs_begin + num_keys);
+
+  auto erase_ref = map.ref(cuco::op::insert).rebind_operators(cuco::op::erase);
+
+  thrust::for_each(keys_begin,
+                   keys_begin + num_keys / 2,
+                   [erase_ref] __device__(key_type key) mutable { erase_ref.erase(key); });
+
+  // An erased slot must not end the probe sequence of the keys behind it.
+  thrust::device_vector<bool> d_keys_exist(num_keys);
+  map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
+  auto const num_found =
+    thrust::count(d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), true);
+  REQUIRE(num_found == num_keys - num_keys / 2);
 }

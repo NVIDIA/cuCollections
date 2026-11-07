@@ -262,6 +262,7 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::r
 {
   return static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
     this->probing_scheme(),
     {},
@@ -281,6 +282,7 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::r
 {
   return static_set_ref<Key, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
     key_equal,
     this->probing_scheme(),
     {},
@@ -305,6 +307,7 @@ static_set_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>::r
                         cuda::std::decay_t<decltype(probing_scheme)>,
                         StorageRef,
                         Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                      cuco::erased_key<Key>{this->erased_key_sentinel()},
                                       this->key_eq(),
                                       probing_scheme,
                                       {},
