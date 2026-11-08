@@ -332,6 +332,7 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
                              ProbingScheme,
                              decltype(storage_ref),
                              Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                           cuco::erased_key<Key>{this->erased_key_sentinel()},
                                            this->key_eq(),
                                            this->probing_scheme(),
                                            scope,
