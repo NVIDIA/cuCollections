@@ -29,7 +29,9 @@ namespace cuco {
  * 32-byte sector.
  * @tparam PatternBits Fingerprint bits per key (paper's k). Defaults to `WordsPerBlock`.
  * @tparam AddHorizontalLayout CG size for add (paper's Theta). Defaults to `WordsPerBlock` for
- * fully horizontal add.
+ * fully horizontal add. Larger layouts (more threads per key or more words per thread, for add
+ * and contains) keep more keys in flight and usually use more registers per thread; small layouts
+ * such as `1x1` use the fewest.
  * @tparam AddVerticalLayout Words per thread per add step (paper's Phi). Defaults to `1` for fully
  * horizontal add.
  * @tparam ContainsHorizontalLayout CG size for contains. Defaults to the paper's optimized layout:
@@ -53,6 +55,11 @@ namespace cuco {
  * This changes the bit pattern: the skipped word's fingerprint bits are dropped, which slightly
  * raises the false-positive rate, and filters built with and without it are not interchangeable.
  * `contains` is about as fast as without it. No effect for blocks smaller than 32 bytes.
+ * @tparam AddKeysPerThread Keys each thread handles in bulk `add`. A thread loads all its keys
+ * before the first update, so each warp has that many key loads in flight; this helps on GPUs with
+ * few resident warps per SM. Does not change the bit pattern. Defaults to `4`.
+ * @tparam ContainsKeysPerThread Keys each thread handles in bulk `contains`, as for
+ * `AddKeysPerThread`. Defaults to `4`.
  */
 template <class Key,
           class Hash                        = cuco::xxhash_64<Key>,
@@ -68,7 +75,9 @@ template <class Key,
           bool ConditionalAdd                  = false,
           bool EarlyExitContains               = false,
           bool PersistingL2Access              = false,
-          bool FastL2Add                       = false>
+          bool FastL2Add                       = false,
+          std::uint32_t AddKeysPerThread       = 4,
+          std::uint32_t ContainsKeysPerThread  = 4>
 using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         WordBytes,
                                                         WordsPerBlock,
@@ -80,7 +89,9 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         ConditionalAdd,
                                                         EarlyExitContains,
                                                         PersistingL2Access,
-                                                        FastL2Add>;
+                                                        FastL2Add,
+                                                        AddKeysPerThread,
+                                                        ContainsKeysPerThread>;
 
 /**
  * @brief Deprecated compatibility alias for the old parametric Bloom filter policy API.
@@ -125,6 +136,8 @@ using parametric_filter_policy =
                               ConditionalAdd,
                               EarlyExitContains,
                               PersistingL2Access,
-                              false>;
+                              false,
+                              4,
+                              4>;
 
 }  // namespace cuco
