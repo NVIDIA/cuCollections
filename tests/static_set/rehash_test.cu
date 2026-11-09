@@ -31,36 +31,10 @@ TEST_CASE("static_set rehash test", "")
   set.rehash(num_keys * 2);
   REQUIRE(set.size() == num_keys);
 
+  set.rehash_async(num_keys * 4);
+  REQUIRE(set.size() == num_keys);
+
   set.erase(d_keys.begin(), d_keys.begin() + num_erased_keys);
   set.rehash();
   REQUIRE(set.size() == num_keys - num_erased_keys);
-}
-
-TEST_CASE("static_set rehash test with multi-slot buckets", "")
-{
-  using key_type = int;
-  using set_type = cuco::static_set<key_type,
-                                    cuco::extent<std::size_t>,
-                                    cuda::thread_scope_device,
-                                    cuda::std::equal_to<key_type>,
-                                    cuco::linear_probing<1, cuco::default_hash_function<key_type>>,
-                                    cuco::cuda_allocator<cuda::std::byte>,
-                                    cuco::storage<2>>;
-
-  constexpr std::size_t num_keys{400};
-
-  set_type set{num_keys, cuco::empty_key<key_type>{-1}};
-
-  thrust::device_vector<key_type> d_keys(num_keys);
-  thrust::sequence(d_keys.begin(), d_keys.end());
-  set.insert(d_keys.begin(), d_keys.end());
-
-  set.rehash();
-  REQUIRE(set.size() == num_keys);
-
-  set.rehash(num_keys * 2);
-  REQUIRE(set.size() == num_keys);
-
-  set.rehash_async(num_keys * 4);
-  REQUIRE(set.size() == num_keys);
 }

@@ -7,7 +7,6 @@
 
 #include <cuco/static_multimap.cuh>
 
-#include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
