@@ -46,7 +46,8 @@ ConfigureTest(UTILITY_TEST
     utility/fast_int_test.cu
     utility/hash_test.cu
     utility/hash_to_index_test.cu
-    utility/probing_scheme_test.cu)
+    utility/probing_scheme_test.cu
+    utility/ref_rebind_test.cu)
 
 # catch_discover_tests executes each Catch2 test case in its own process. This matters for device
 # assertion cases because a device assertion poisons that process's CUDA context.

@@ -315,6 +315,7 @@ __host__ __device__ auto constexpr static_multimap_ref<
   return static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
     impl_.probing_scheme(),
     {},
@@ -336,6 +337,7 @@ static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operator
   return static_multimap_ref<Key, T, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
     key_equal,
     this->probing_scheme(),
     {},
@@ -363,6 +365,7 @@ static_multimap_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operator
                              StorageRef,
                              Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
                                            cuco::empty_value<T>{this->empty_value_sentinel()},
+                                           cuco::erased_key<Key>{this->erased_key_sentinel()},
                                            this->key_eq(),
                                            probing_scheme,
                                            {},
