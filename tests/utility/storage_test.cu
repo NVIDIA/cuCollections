@@ -11,6 +11,9 @@
 #include <cuco/utility/allocator.hpp>
 
 #include <cuda/std/bit>
+#include <cuda/std/functional>
+#include <thrust/device_vector.h>
+#include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -149,11 +152,14 @@ TEMPLATE_TEST_CASE_SIG("bucket storage alignment with different bucket sizes",
                        (int32_t, 1),
                        (int32_t, 2),
                        (int32_t, 4),
+                       (int32_t, 8),
                        (int64_t, 1),
                        (int64_t, 2),
+                       (int64_t, 4),
                        (cuco::pair<int32_t, int32_t>, 1),
                        (cuco::pair<int32_t, int32_t>, 2),
-                       (cuco::pair<int64_t, int64_t>, 1))
+                       (cuco::pair<int64_t, int64_t>, 1),
+                       (cuco::pair<int64_t, int64_t>, 2))
 {
   constexpr std::size_t size{1'000};
 
@@ -161,6 +167,8 @@ TEMPLATE_TEST_CASE_SIG("bucket storage alignment with different bucket sizes",
   using storage_type =
     cuco::bucket_storage<T, BucketSize, cuco::extent<std::size_t>, allocator_type>;
   using storage_ref_type = typename storage_type::ref_type;
+
+  if constexpr (sizeof(T) * BucketSize == 32) { STATIC_REQUIRE(storage_ref_type::alignment == 32); }
 
   auto allocator = allocator_type{};
 
@@ -173,4 +181,46 @@ TEMPLATE_TEST_CASE_SIG("bucket storage alignment with different bucket sizes",
 
     REQUIRE((ptr % alignment) == 0);
   }
+}
+
+namespace {
+
+template <class Ref>
+__global__ void copy_buckets(Ref storage, typename Ref::value_type* output)
+{
+  auto const index = threadIdx.x * Ref::bucket_size;
+  if (index >= storage.capacity()) { return; }
+  auto const bucket = storage.load_bucket(index);
+  for (int i = 0; i < Ref::bucket_size; ++i) {
+    output[index + i] = bucket[i];
+  }
+}
+
+}  // namespace
+
+TEMPLATE_TEST_CASE_SIG("whole-bucket loads from borrowed storage",
+                       "",
+                       ((typename T, int BucketSize), T, BucketSize),
+                       (int32_t, 4),
+                       (int32_t, 8),
+                       (int64_t, 4),
+                       (int64_t, 8))
+{
+  using ref_type           = cuco::bucket_storage_ref<T, BucketSize>;
+  constexpr auto alignment = ref_type::alignment;
+  constexpr auto padding   = alignment / sizeof(T);
+  constexpr auto size      = 5 * BucketSize;
+
+  // Offset the base so only the required alignment holds; leave no trailing slots.
+  thrust::device_vector<T> allocation(size + padding);
+  thrust::sequence(allocation.begin(), allocation.end(), T{1});
+  auto* slots = thrust::raw_pointer_cast(allocation.data()) + padding;
+  REQUIRE(reinterpret_cast<std::uintptr_t>(slots) % (2 * alignment) == alignment);
+
+  thrust::device_vector<T> output(size, T{0});
+  copy_buckets<<<1, 32>>>(ref_type{cuco::extent<std::size_t>{size}, slots},
+                          thrust::raw_pointer_cast(output.data()));
+  CUCO_CUDA_TRY(cudaDeviceSynchronize());
+  REQUIRE(cuco::test::equal(
+    allocation.begin() + padding, allocation.end(), output.begin(), cuda::std::equal_to<T>{}));
 }
