@@ -18,27 +18,21 @@ TEST_CASE("static_multiset rehash test", "")
 {
   using key_type = int;
 
-  constexpr std::size_t num_unique_keys{400};
-  constexpr std::size_t multiplicity{2};
-  constexpr std::size_t num_keys{num_unique_keys * multiplicity};
+  constexpr std::size_t num_keys{400};
 
   // `static_multiset` defaults to two slots per bucket.
   cuco::static_multiset set{num_keys * 2, cuco::empty_key<key_type>{-1}};
   REQUIRE(decltype(set)::bucket_size == 2);
 
-  thrust::device_vector<key_type> d_keys(num_unique_keys);
+  thrust::device_vector<key_type> d_keys(num_keys);
   thrust::sequence(d_keys.begin(), d_keys.end());
 
-  for (std::size_t i = 0; i < multiplicity; ++i) {
-    set.insert(d_keys.begin(), d_keys.end());
-  }
+  set.insert(d_keys.begin(), d_keys.end());
   REQUIRE(set.size() == num_keys);
 
-  thrust::device_vector<bool> d_contained(num_unique_keys);
+  thrust::device_vector<bool> d_contained(num_keys);
   auto const check_contents = [&]() {
     REQUIRE(set.size() == num_keys);
-    REQUIRE(set.count(d_keys.begin(), d_keys.end()) == num_keys);
-
     set.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
     REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   };

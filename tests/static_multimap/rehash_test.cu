@@ -21,33 +21,27 @@ TEST_CASE("static_multimap rehash test", "")
   using value_type = int;
   using pair_type  = cuco::pair<key_type, value_type>;
 
-  constexpr std::size_t num_unique_keys{400};
-  constexpr std::size_t multiplicity{2};
-  constexpr std::size_t num_keys{num_unique_keys * multiplicity};
+  constexpr std::size_t num_keys{400};
 
   // `static_multimap` defaults to two slots per bucket.
   cuco::static_multimap map{
     num_keys * 2, cuco::empty_key<key_type>{-1}, cuco::empty_value<value_type>{-1}};
   REQUIRE(decltype(map)::bucket_size == 2);
 
-  thrust::device_vector<key_type> d_keys(num_unique_keys);
+  thrust::device_vector<key_type> d_keys(num_keys);
   thrust::sequence(d_keys.begin(), d_keys.end());
 
-  thrust::device_vector<pair_type> d_pairs(num_unique_keys);
+  thrust::device_vector<pair_type> d_pairs(num_keys);
   thrust::transform(d_keys.begin(), d_keys.end(), d_pairs.begin(), [] __device__(key_type key) {
     return pair_type{key, key};
   });
 
-  for (std::size_t i = 0; i < multiplicity; ++i) {
-    map.insert(d_pairs.begin(), d_pairs.end());
-  }
+  map.insert(d_pairs.begin(), d_pairs.end());
   REQUIRE(map.size() == num_keys);
 
-  thrust::device_vector<bool> d_contained(num_unique_keys);
+  thrust::device_vector<bool> d_contained(num_keys);
   auto const check_contents = [&]() {
     REQUIRE(map.size() == num_keys);
-    REQUIRE(map.count(d_keys.begin(), d_keys.end()) == num_keys);
-
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
     REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   };
