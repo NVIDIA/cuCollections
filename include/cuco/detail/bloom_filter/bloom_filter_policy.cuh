@@ -225,16 +225,18 @@ class bloom_filter_policy {
    *
    * @tparam LoopIndex Outer-loop iteration index when `words_per_block / VerticalLayout > 1`.
    * @tparam VerticalLayout Number of contiguous words this call produces.
+   * @tparam ClearSkipped Whether the FastL2Add skipped word's pattern is cleared (`add`); `false`
+   * keeps it, for callers that handle the skipped word by its index.
    *
    * @param lower_hash_value Lower 32 bits of the key's hash.
    *
    * @return Array of `VerticalLayout` words.
    */
-  template <uint32_t LoopIndex, uint32_t VerticalLayout>
+  template <uint32_t LoopIndex, uint32_t VerticalLayout, bool ClearSkipped = fast_l2_add>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
   {
     auto pattern = pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
-    if constexpr (fast_l2_add) {
+    if constexpr (fast_l2_add and ClearSkipped) {
       clear_skipped(pattern, lower_hash_value, LoopIndex * VerticalLayout);
     }
     return pattern;
@@ -246,29 +248,46 @@ class bloom_filter_policy {
    * @tparam LoopIndex Outer-loop iteration index.
    * @tparam HorizontalLayout Cooperative-group size cooperating on a single key.
    * @tparam VerticalLayout Number of contiguous words this call produces.
+   * @tparam ClearSkipped Whether the FastL2Add skipped word's pattern is cleared (`add`); `false`
+   * keeps it, for callers that handle the skipped word by its index.
    *
    * @param lower_hash_value Lower 32 bits of the key's hash.
    * @param thread_index Caller's rank within the cooperative group.
    *
    * @return Array of `VerticalLayout` words owned by the calling thread.
    */
-  template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
+  template <uint32_t LoopIndex,
+            uint32_t HorizontalLayout,
+            uint32_t VerticalLayout,
+            bool ClearSkipped = fast_l2_add>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value, uint32_t thread_index) const
   {
     auto pattern =
       pattern_impl<LoopIndex, HorizontalLayout, VerticalLayout>(lower_hash_value, thread_index);
-    if constexpr (fast_l2_add) {
+    if constexpr (fast_l2_add and ClearSkipped) {
       clear_skipped(
         pattern, lower_hash_value, (LoopIndex * HorizontalLayout + thread_index) * VerticalLayout);
     }
     return pattern;
   }
 
+  /**
+   * @brief Index of the FastL2Add skipped word in the block's first sector: the top bits of the
+   * hash.
+   *
+   * @param hash Lower 32 bits of the key's hash.
+   *
+   * @return Word index in `[0, words per sector)`.
+   */
+  __device__ static constexpr uint32_t skip_index(uint32_t hash)
+  {
+    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
+    return hash >> (32 - index_width);
+  }
+
  private:
   hasher hash_;
 
-  /// Salt for the skipped-word index, distinct from the fingerprint salts.
-  static constexpr uint32_t skip_salt = 0x9e3779b1U;
   /// The skipped word is taken from the block's first 32-byte sector: that is the sector whose
   /// partial coverage makes the update cheaper.
   static constexpr uint32_t sector_bytes     = 32;
@@ -286,11 +305,14 @@ class bloom_filter_policy {
                                           uint32_t hash,
                                           uint32_t first_word) const
   {
-    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
-    uint32_t const skip            = (skip_salt * hash) >> (32 - index_width);
-    uint32_t const keep            = ~(uint32_t{1} << skip);  // words_per_block <= 32
-    for (uint32_t i = 0; i < pattern_array.size(); ++i) {
-      pattern_array[i] &= word_type{0} - static_cast<word_type>((keep >> (first_word + i)) & 1u);
+    uint32_t const skip = skip_index(hash);
+    if constexpr (cuda::std::tuple_size_v<PatternArrayT> == 1) {
+      pattern_array[0] &= word_type{0} - static_cast<word_type>(first_word != skip);
+    } else {
+      uint32_t const keep = ~(uint32_t{1} << skip);  // words_per_block <= 32
+      for (uint32_t i = 0; i < pattern_array.size(); ++i) {
+        pattern_array[i] &= word_type{0} - static_cast<word_type>((keep >> (first_word + i)) & 1u);
+      }
     }
   }
 
