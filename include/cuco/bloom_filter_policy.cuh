@@ -29,7 +29,9 @@ namespace cuco {
  * 32-byte sector.
  * @tparam PatternBits Fingerprint bits per key (paper's k). Defaults to `WordsPerBlock`.
  * @tparam AddHorizontalLayout CG size for add (paper's Theta). Defaults to `WordsPerBlock` for
- * fully horizontal add.
+ * fully horizontal add. Larger layouts (more threads per key or more words per thread, for add
+ * and contains) keep more keys in flight and usually use more registers per thread; small layouts
+ * such as `1x1` use the fewest.
  * @tparam AddVerticalLayout Words per thread per add step (paper's Phi). Defaults to `1` for fully
  * horizontal add.
  * @tparam ContainsHorizontalLayout CG size for contains. Defaults to the paper's optimized layout:
