@@ -119,10 +119,6 @@ struct type_strings<cuda::hash<char, Algorithm>> {
 
 }  // namespace nvbench
 
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::identity_hash<char>,
-                             "identity_hash",
-                             "cuco::identity_hash");
-
 #if defined(CUCO_HAS_128BIT_ATOMICS)
 NVBENCH_DECLARE_TYPE_STRINGS(__int128_t, "I128", "__int128_t");
 #endif

@@ -161,9 +161,7 @@ using hash_types =
                      cuda::hash<large_key<32>, cuda::hash_algorithm::xxhash_32>,
                      cuda::hash<nvbench::int32_t, cuda::hash_algorithm::xxhash_64>,
                      cuda::hash<nvbench::int64_t, cuda::hash_algorithm::xxhash_64>,
-                     cuda::hash<large_key<32>, cuda::hash_algorithm::xxhash_64>,
-                     cuco::murmurhash3_fmix_32<nvbench::int32_t>,
-                     cuco::murmurhash3_fmix_64<nvbench::int64_t>
+                     cuda::hash<large_key<32>, cuda::hash_algorithm::xxhash_64>
 #if defined(CUCO_HAS_INT128)
                      ,
                      cuda::hash<nvbench::int32_t, cuda::hash_algorithm::murmurhash3_x86_128>,
