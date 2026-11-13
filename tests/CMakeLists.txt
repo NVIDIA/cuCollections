@@ -44,7 +44,14 @@ ConfigureTest(UTILITY_TEST
     utility/next_prime_test.cu
     utility/storage_test.cu
     utility/fast_int_test.cu
-    utility/probing_scheme_test.cu)
+    utility/hash_to_index_test.cu
+    utility/probing_scheme_test.cu
+    utility/ref_rebind_test.cu)
+
+# catch_discover_tests executes each Catch2 test case in its own process. This matters for device
+# assertion cases because a device assertion poisons that process's CUDA context.
+ConfigureTest(DEBUG_ASSERT_TEST utility/debug_assert_test.cu)
+target_compile_definitions(DEBUG_ASSERT_TEST PRIVATE CUCO_DEBUG NDEBUG)
 
 ###################################################################################################
 # - static_set tests ------------------------------------------------------------------------------
@@ -111,6 +118,7 @@ ConfigureTest(STATIC_MULTISET_TEST
     static_multiset/retrieve_if_test.cu
     static_multiset/large_input_test.cu
     static_multiset/load_factor_test.cu
+    static_multiset/rehash_test.cu
     static_multiset/stream_test.cu)
 
 ###################################################################################################
@@ -122,6 +130,7 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/insert_contains_test.cu
     static_multimap/insert_if_test.cu
     static_multimap/multiplicity_test.cu
+    static_multimap/rehash_test.cu
     static_multimap/for_each_test.cu
     static_multimap/retrieve_test.cu
     static_multimap/retrieve_if_test.cu)
@@ -147,6 +156,7 @@ ConfigureTest(HYPERLOGLOG_TEST
 ###################################################################################################
 # - bloom_filter ----------------------------------------------------------------------------------
 ConfigureTest(BLOOM_FILTER_TEST
+    bloom_filter/large_filter_test.cu
     bloom_filter/unique_sequence_test.cu
     bloom_filter/variable_cg_test.cu
     bloom_filter/merge_intersect_test.cu

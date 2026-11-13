@@ -9,6 +9,7 @@
 #include <cuco/detail/pair/helpers.cuh>
 #include <cuco/detail/utility/strong_type.cuh>
 
+#include <cuda/__functional/proclaim_return_type.h>
 #include <cuda/iterator>
 #include <cuda/std/cmath>
 #include <cuda/std/functional>  // TODO include <cuda/std/algorithm> instead once available

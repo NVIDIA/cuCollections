@@ -18,7 +18,7 @@ function(cuco_add_header_tests)
     "${CUCO_SOURCE_DIR}/include/cuco/*.cuh"
     "${CUCO_SOURCE_DIR}/include/cuco/*.hpp"
   )
-  
+
   list(LENGTH headers headers_count)
   message(STATUS "Found ${headers_count} headers for testing")
 
@@ -27,7 +27,7 @@ function(cuco_add_header_tests)
     # Add any headers that should be excluded from testing here
     # Example: cuco/internal_header.cuh
   )
-  
+
   # Remove excluded headers
   if(excluded_headers)
     list(REMOVE_ITEM headers ${excluded_headers})
@@ -41,20 +41,20 @@ function(cuco_add_header_tests)
     string(MD5 header_hash "${header}")
     string(SUBSTRING "${header_hash}" 0 8 header_hash_short)
     set(headertest_target "cuco_header_${header_target_name}_${header_hash_short}")
-    
+
     set(header_src "${CMAKE_CURRENT_BINARY_DIR}/headers/${headertest_target}/${header}.cu")
-    
+
     # Create the directory if it doesn't exist
     get_filename_component(header_dir "${header_src}" DIRECTORY)
     file(MAKE_DIRECTORY "${header_dir}")
-    
+
     # Write simple test file that includes the header
     file(WRITE "${header_src}" "#include <${header}>\nint main() { return 0; }\n")
 
     # Create executable test for this specific header
     add_executable(${headertest_target} ${header_src})
     target_link_libraries(${headertest_target} PRIVATE cuco::cuco CUDA::cudart)
-    
+
     # Use common compile options (includes all compiler-specific warning suppressions)
     cuco_set_common_compile_options(${headertest_target})
 

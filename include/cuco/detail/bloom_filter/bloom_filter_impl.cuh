@@ -21,19 +21,17 @@
 #include <cuda/__memory/address_space.h>
 #include <cuda/annotated_ptr>
 #include <cuda/atomic>
-#include <cuda/iterator>
 #include <cuda/std/__algorithm/max.h>
 #include <cuda/std/__algorithm/min.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/array>
 #include <cuda/std/bit>
-#include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 #include <cuda/stream>
-#include <cuda/utility>
 
 #include <cooperative_groups.h>
 
+#include <cstddef>
 #include <cstdint>
 
 namespace cuco::detail {
@@ -61,6 +59,7 @@ class bloom_filter_impl {
   static constexpr bool conditional_add            = policy_type::conditional_add;
   static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
   static constexpr bool persisting_l2_access       = policy_type::persisting_l2_access;
+  static constexpr bool fast_l2_add                = policy_type::fast_l2_add;
   static constexpr auto add_loop_count =
     words_per_block / (add_vertical_layout * add_horizontal_layout);
   static constexpr auto contains_loop_count =
@@ -102,8 +101,11 @@ class bloom_filter_impl {
   template <class CG>
   __device__ constexpr void clear(CG group)
   {
-    for (int i = group.thread_rank(); i < static_cast<size_type>(num_blocks_) * words_per_block;
-         i += group.size()) {
+    auto const num_words = static_cast<cuco::detail::index_type>(num_blocks_) * words_per_block;
+    auto const stride    = static_cast<cuco::detail::index_type>(group.size());
+    for (cuco::detail::index_type i = static_cast<cuco::detail::index_type>(group.thread_rank());
+         i < num_words;
+         i += stride) {
       words_[i] = 0;
     }
   }
@@ -118,7 +120,7 @@ class bloom_filter_impl {
   {
     CUCO_CUDA_TRY(cub::DeviceFor::ForEachN(
       words_,
-      static_cast<size_type>(num_blocks_) * words_per_block,
+      static_cast<cuco::detail::index_type>(num_blocks_) * words_per_block,
       [] __device__(word_type & word) { word = 0; },
       stream.get()));
   }
@@ -138,7 +140,7 @@ class bloom_filter_impl {
     CUCO_CUDA_TRY(cub::DeviceTransform::Transform(
       cuda::std::tuple{this->data(), other.data()},
       this->data(),
-      this->block_extent() * words_per_block,
+      static_cast<cuco::detail::index_type>(this->block_extent()) * words_per_block,
       [] __device__(word_type a, word_type b) { return a | b; },
       stream.get()));
   }
@@ -158,7 +160,7 @@ class bloom_filter_impl {
     CUCO_CUDA_TRY(cub::DeviceTransform::Transform(
       cuda::std::tuple{this->data(), other.data()},
       this->data(),
-      this->block_extent() * words_per_block,
+      static_cast<cuco::detail::index_type>(this->block_extent()) * words_per_block,
       [] __device__(word_type a, word_type b) { return a & b; },
       stream.get()));
   }
@@ -214,10 +216,27 @@ class bloom_filter_impl {
     auto const [upper_hash, lower_hash] = policy_.split_hash(build_key);
     auto const block_index              = policy_.block_index(upper_hash, num_blocks_);
 
+    if constexpr (fast_l2_add) {
+      // Shuffle all keys' block indices and hashes first: the skipped word makes the atomics
+      // per-lane conditional, and divergence ahead of a shuffle costs a convergence check per
+      // shuffle. With the shuffles done up front a single check covers all of them.
+      cuda::std::array<uint32_t, num_threads> blocks;
+      cuda::std::array<uint32_t, num_threads> hashes;
 #pragma unroll num_threads
-    for (int i = 0; i < num_threads; ++i) {
-      add_patterns<ConditionalAdd, 0>(
-        group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      for (int i = 0; i < num_threads; ++i) {
+        blocks[i] = group.shfl(block_index, i);
+        hashes[i] = group.shfl(lower_hash, i);
+      }
+#pragma unroll num_threads
+      for (int i = 0; i < num_threads; ++i) {
+        add_patterns<ConditionalAdd, 0>(blocks[i], hashes[i], group.thread_rank());
+      }
+    } else {
+#pragma unroll num_threads
+      for (int i = 0; i < num_threads; ++i) {
+        add_patterns<ConditionalAdd, 0>(
+          group.shfl(block_index, i), group.shfl(lower_hash, i), group.thread_rank());
+      }
     }
   }
 
@@ -488,7 +507,8 @@ class bloom_filter_impl {
   }
 
   template <uint32_t NumWords>
-  __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(size_type index) const
+  __device__ constexpr cuda::std::array<word_type, NumWords> vec_load_words(
+    cuco::detail::index_type index) const
   {
     // The block storage is aligned to `alignment()`, but a per-lane load at offset `index` is
     // only guaranteed to be aligned to `min(NumWords * sizeof(word_type), alignment())`. Hand the
@@ -509,7 +529,8 @@ class bloom_filter_impl {
     if constexpr (LoopIndex < add_loop_count) {
       auto const pattern =
         policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
-      auto* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+      auto* word_base = words_ +
+                        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout;
 
       for (int i = 0; i < add_vertical_layout; ++i) {
@@ -532,7 +553,8 @@ class bloom_filter_impl {
       auto const pattern =
         policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
           lower_hash, thread_index);
-      auto* word_base = words_ + static_cast<size_type>(block_index) * words_per_block +
+      auto* word_base = words_ +
+                        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout * add_horizontal_layout +
                         thread_index * add_vertical_layout;
 
@@ -548,6 +570,11 @@ class bloom_filter_impl {
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
+    // Skipped word (FastL2Add): issue no atomic, so the coalesced request leaves this word
+    // inactive.
+    if constexpr (fast_l2_add) {
+      if (pattern == 0) { return; }
+    }
     auto const do_or = [&]() {
       auto* const p = filter_access(word_ptr);
       if constexpr (thread_scope == cuda::thread_scope_thread) {
@@ -582,7 +609,7 @@ class bloom_filter_impl {
 
     if constexpr (LoopIndex < contains_loop_count) {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
-        static_cast<size_type>(block_index) * words_per_block +
+        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout);
       auto const expected_pattern =
         policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
@@ -616,7 +643,7 @@ class bloom_filter_impl {
 
     if constexpr (LoopIndex < contains_loop_count) {
       auto const stored_pattern = this->vec_load_words<contains_vertical_layout>(
-        static_cast<size_type>(block_index) * words_per_block +
+        static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout * contains_horizontal_layout +
         thread_index * contains_vertical_layout);
       auto const expected_pattern =

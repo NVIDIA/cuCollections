@@ -15,6 +15,8 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
+#include <memory_stats.hpp>
+
 using namespace cuco::benchmark;
 using namespace cuco::utility;
 
@@ -39,17 +41,26 @@ void static_multiset_retrieve(nvbench::state& state, nvbench::type_list<Key, Dis
 
   state.add_element_count(num_keys);
 
-  cuco::static_multiset<Key> set{size, cuco::empty_key<Key>{-1}};
+  cuco::static_multiset set{cuco::extent<std::size_t>{size},
+                            cuco::empty_key<Key>{-1},
+                            {},
+                            {},
+                            {},
+                            {},
+                            tracking_allocator<Key>{}};
   set.insert(keys.begin(), keys.end());
 
   auto const output_size = set.count(keys.begin(), keys.end());
   thrust::device_vector<Key> output_match(output_size);
   auto output_probe_begin = cuda::discard_iterator{};
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
     set.retrieve(
       keys.begin(), keys.end(), output_probe_begin, output_match.begin(), {launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 NVBENCH_BENCH_TYPES(static_multiset_retrieve,

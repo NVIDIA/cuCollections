@@ -91,23 +91,23 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/roaring_testdata.cmake)
 function(cuco_set_common_compile_options target_name)
     # Parse optional arguments
     cmake_parse_arguments(CUCO_OPTS "ADD_LINEINFO" "" "" ${ARGN})
-    
+
     # Base compile options common to all targets
-    target_compile_options(${target_name} PRIVATE 
-        --compiler-options=-Wall --compiler-options=-Wextra --compiler-options=-Werror 
+    target_compile_options(${target_name} PRIVATE
+        --compiler-options=-Wall --compiler-options=-Wextra --compiler-options=-Werror
         -Wno-deprecated-gpu-targets --expt-extended-lambda -Werror=all-warnings
     )
-    
+
     # Add lineinfo option if requested (typically for benchmarks)
     if(CUCO_OPTS_ADD_LINEINFO)
         target_compile_options(${target_name} PRIVATE -lineinfo)
     endif()
-    
+
     # Add GCC-specific warning suppression only for GCC
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_compile_options(${target_name} PRIVATE -Xcompiler -Wno-subobject-linkage)
     endif()
-    
+
     # Add Clang-specific warning suppression for deprecated literal operators
     # (Catch2 and cuco code still use deprecated syntax)
     # Only for Clang 15+ which introduced this warning

@@ -5,15 +5,59 @@
 
 #pragma once
 
+#include <cuco/detail/error.hpp>
 #include <cuco/detail/storage/storage_base.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/atomic>
+#include <cuda/std/__algorithm/min.h>
+#include <cuda/std/limits>
 #include <cuda/stream>
 
 #include <cstddef>
 
 namespace cuco {
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+template <class E, class>
+__host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(
+  bloom_filter_bytes bytes,
+  cuda_thread_scope<Scope> scope,
+  Policy const& policy,
+  Allocator const& alloc,
+  cuda::stream_ref stream)
+  : bloom_filter{
+      [bytes] {
+        constexpr auto block_bytes = sizeof(typename ref_type<>::filter_block_type);
+        CUCO_EXPECTS(bytes.value >= min_bytes(), "Storage budget is below the minimum filter size");
+        CUCO_EXPECTS(bytes.value <= max_bytes(), "Storage budget exceeds the maximum filter size");
+        return extent_type{static_cast<size_type>(bytes.value / block_bytes)};
+      }(),
+      scope,
+      policy,
+      alloc,
+      stream}
+{
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+[[nodiscard]] __host__ constexpr std::size_t
+bloom_filter<Key, Extent, Scope, Policy, Allocator>::min_bytes() noexcept
+{
+  return sizeof(typename ref_type<>::filter_block_type);
+}
+
+template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
+[[nodiscard]] __host__ constexpr std::size_t
+bloom_filter<Key, Extent, Scope, Policy, Allocator>::max_bytes() noexcept
+{
+  constexpr auto block_bytes = sizeof(typename ref_type<>::filter_block_type);
+  constexpr auto max_blocks  = cuda::std::min(
+    static_cast<std::size_t>(Policy::max_filter_blocks),
+    cuda::std::min(static_cast<std::size_t>(cuda::std::numeric_limits<size_type>::max()),
+                   cuda::std::numeric_limits<std::size_t>::max() / block_bytes));
+  return max_blocks * block_bytes;
+}
 
 template <class Key, class Extent, cuda::thread_scope Scope, class Policy, class Allocator>
 __host__ bloom_filter<Key, Extent, Scope, Policy, Allocator>::bloom_filter(Extent num_blocks,

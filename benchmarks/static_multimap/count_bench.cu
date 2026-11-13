@@ -14,7 +14,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/transform.h>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state
+#include <memory_stats.hpp>
+
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
@@ -46,13 +48,22 @@ std::enable_if_t<(sizeof(Key) == sizeof(Value)), void> static_multimap_count(
 
   state.add_element_count(num_keys);
 
-  cuco::static_multimap<Key, Value> map{
-    size, cuco::empty_key<Key>{-1}, cuco::empty_value<Value>{-1}};
+  cuco::static_multimap map{cuco::extent<std::size_t>{size},
+                            cuco::empty_key<Key>{-1},
+                            cuco::empty_value<Value>{-1},
+                            {},
+                            {},
+                            {},
+                            {},
+                            tracking_allocator<pair_type>{}};
   map.insert(pairs.begin(), pairs.end());
 
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::sync, [&](nvbench::launch& launch) {
     auto count = map.count(keys.begin(), keys.end(), {launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 template <typename Key, typename Value, typename Dist>

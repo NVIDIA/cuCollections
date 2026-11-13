@@ -16,11 +16,11 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cuda/atomic>
-#include <cuda/functional>
 #include <cuda/iterator>
 #include <cuda/std/__algorithm/max.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/bit>
 #include <cuda/std/cstddef>
+#include <cuda/std/functional>
 #include <cuda/std/limits>
 #include <cuda/std/span>
 #include <cuda/std/type_traits>
