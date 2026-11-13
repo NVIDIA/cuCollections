@@ -12,6 +12,7 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/functional>
 #include <cuda/iterator>
 
 #include <nv/target>
@@ -35,11 +36,19 @@ auto dist_from_state(nvbench::state const& state)
 }
 
 template <typename T, typename NewType>
-struct rebind_hasher;
+struct rebind_unary_hasher;
 
 template <template <typename> class Template, typename OldType, typename NewType>
-struct rebind_hasher<Template<OldType>, NewType> {
+struct rebind_unary_hasher<Template<OldType>, NewType> {
   using type = Template<NewType>;
+};
+
+template <typename T, typename NewType>
+struct rebind_hasher : rebind_unary_hasher<T, NewType> {};
+
+template <typename OldType, cuda::hash_algorithm Algorithm, typename NewType>
+struct rebind_hasher<cuda::hash<OldType, Algorithm>, NewType> {
+  using type = cuda::hash<NewType, Algorithm>;
 };
 
 template <typename T, typename NewType>
@@ -86,20 +95,29 @@ NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::gaussian,
                              "GAUSSIAN",
                              "distribution::gaussian");
 
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_64<char>, "xxhash_64", "cuco::xxhash_64");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_32<char>, "xxhash_32", "cuco::xxhash_32");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_32<char>,
-                             "murmurhash3_32",
-                             "cuco::murmurhash3_32");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x86_128<char>,
-                             "murmurhash3_x86_128",
-                             "cuco::murmurhash3_x86_128");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x64_128<char>,
-                             "murmurhash3_x64_128",
-                             "cuco::murmurhash3_x64_128");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::identity_hash<char>,
-                             "identity_hash",
-                             "cuco::identity_hash");
+namespace nvbench {
+
+template <cuda::hash_algorithm Algorithm>
+struct type_strings<cuda::hash<char, Algorithm>> {
+  static std::string input_string()
+  {
+    switch (Algorithm) {
+      case cuda::hash_algorithm::xxhash_32: return "xxhash_32";
+      case cuda::hash_algorithm::xxhash_64: return "xxhash_64";
+      case cuda::hash_algorithm::murmurhash3_32: return "murmurhash3_32";
+      case cuda::hash_algorithm::murmurhash3_x86_128: return "murmurhash3_x86_128";
+      case cuda::hash_algorithm::murmurhash3_x64_128: return "murmurhash3_x64_128";
+    }
+    CUCO_FAIL("Unexpected hash algorithm");
+  }
+
+  static std::string description()
+  {
+    return "cuda::hash<char, cuda::hash_algorithm::" + input_string() + ">";
+  }
+};
+
+}  // namespace nvbench
 
 #if defined(CUCO_HAS_128BIT_ATOMICS)
 NVBENCH_DECLARE_TYPE_STRINGS(__int128_t, "I128", "__int128_t");

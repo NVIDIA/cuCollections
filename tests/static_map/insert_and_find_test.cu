@@ -56,8 +56,10 @@ TEMPLATE_TEST_CASE_SIG(
   {
     using probe = std::conditional_t<
       Probe == cuco::test::probe_sequence::linear_probing,
-      cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-      cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+      cuco::linear_probing<CGSize, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>,
+      cuco::double_hashing<CGSize,
+                           cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>,
+                           cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>>;
 
     constexpr size_type num_keys{400};
 

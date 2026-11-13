@@ -38,7 +38,7 @@ namespace cuco::detail {
  * most one 32-byte sector per cooperating thread. `PatternBits` trades false-positive rate against
  * space.
  *
- * @tparam Hash 64-bit hash functor whose call operator returns `uint64_t`.
+ * @tparam Hash 64-bit hash functor whose call operator returns `uint64_t` (by value or reference).
  * @tparam WordBytes Size in bytes of the underlying word type. Must be `4` or `8`.
  * @tparam WordsPerBlock Words per filter block. Must be a power of two and <= 32.
  * @tparam PatternBits Number of fingerprint bits (k in the paper).
@@ -196,8 +196,9 @@ class bloom_filter_policy {
     // The split_hash() design requires a 64-bit hash split into upper 32 bits (block selection
     // via multiply-shift) and lower 32 bits (pattern generation via salt-based multiplicative
     // hashing). This is a permanent design requirement, not a temporary limitation.
-    static_assert(cuda::std::is_same_v<decltype(hash_(key)), hash_result_type>,
-                  "bloom_filter_policy requires a 64-bit hash function");
+    static_assert(
+      cuda::std::is_same_v<cuda::std::remove_cvref_t<decltype(hash_(key))>, hash_result_type>,
+      "bloom_filter_policy requires a 64-bit hash function");
     auto const hash_value = hash_(key);
     return {static_cast<uint32_t>(hash_value >> 32), static_cast<uint32_t>(hash_value)};
   }

@@ -20,9 +20,9 @@ TEST_CASE("hyperloglog: type deduction bug with hash functions returning referen
   auto constexpr sketch_size_kb = 1;
   auto constexpr num_items      = 1000;
 
-  auto first = cuda::make_transform_iterator(cuda::counting_iterator<uint64_t>(0),
-                                             cuco::xxhash_64<uint64_t>{});
-  auto last  = first + num_items;
+  auto first = cuda::make_transform_iterator(
+    cuda::counting_iterator<uint64_t>(0), cuda::hash<uint64_t, cuda::hash_algorithm::xxhash_64>{});
+  auto last = first + num_items;
 
   cuco::hyperloglog<uint64_t, cuda::thread_scope_device, cuda::std::identity> estimator{
     cuco::sketch_size_kb(sketch_size_kb)};

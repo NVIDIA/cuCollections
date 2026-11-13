@@ -12,6 +12,7 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/functional>
 #include <cuda/std/limits>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
@@ -59,7 +60,7 @@ void bloom_filter_add(nvbench::state& state,
     auto constexpr contains_vertical_layout   = words_per_block;
     auto constexpr contains_horizontal_layout = 1;
     using policy_type                         = cuco::bloom_filter_policy<Key,
-                                                                          cuco::xxhash_64<Key>,
+                                                                          cuda::hash<Key, cuda::hash_algorithm::xxhash_64>,
                                                                           WordBytes,
                                                                           words_per_block,
                                                                           PatternBits,

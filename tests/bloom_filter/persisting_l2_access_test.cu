@@ -12,6 +12,7 @@
 #include <cuco/bloom_filter.cuh>
 #include <cuco/bloom_filter_ref.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/equal.h>
 #include <thrust/execution_policy.h>
@@ -30,21 +31,22 @@ namespace {
 
 using key_type = int32_t;
 
-using shared_ref_type = cuco::bloom_filter_ref<key_type,
-                                               cuco::extent<uint32_t>,
-                                               cuda::thread_scope_block,
-                                               cuco::bloom_filter_policy<key_type,
-                                                                         cuco::xxhash_64<key_type>,
-                                                                         4,
-                                                                         8,
-                                                                         8,
-                                                                         8,
-                                                                         1,
-                                                                         1,
-                                                                         8,
-                                                                         false,
-                                                                         false,
-                                                                         true>>;
+using shared_ref_type = cuco::bloom_filter_ref<
+  key_type,
+  cuco::extent<uint32_t>,
+  cuda::thread_scope_block,
+  cuco::bloom_filter_policy<key_type,
+                            cuda::hash<key_type, cuda::hash_algorithm::xxhash_64>,
+                            4,
+                            8,
+                            8,
+                            8,
+                            1,
+                            1,
+                            8,
+                            false,
+                            false,
+                            true>>;
 
 __global__ void shared_memory_persisting_l2_smoke_kernel(int* results)
 {
@@ -72,31 +74,31 @@ __global__ void shared_memory_persisting_l2_smoke_kernel(int* results)
 
 TEST_CASE("bloom_filter: PersistingL2Access preserves global-memory results", "")
 {
-  using normal_filter_type = cuco::bloom_filter<key_type,
-                                                cuco::extent<std::size_t>,
-                                                cuda::thread_scope_device,
-                                                cuco::bloom_filter_policy<key_type>>;
-  using persisting_l2_filter_type =
-    cuco::bloom_filter<key_type,
-                       cuco::extent<std::size_t>,
-                       cuda::thread_scope_device,
-                       cuco::bloom_filter_policy<key_type,
-                                                 cuco::xxhash_64<key_type>,
-                                                 4,
-                                                 8,
-                                                 8,
-                                                 8,
-                                                 1,
-                                                 1,
-                                                 8,
-                                                 false,
-                                                 false,
-                                                 true>>;
+  using normal_filter_type        = cuco::bloom_filter<key_type,
+                                                       cuco::extent<std::size_t>,
+                                                       cuda::thread_scope_device,
+                                                       cuco::bloom_filter_policy<key_type>>;
+  using persisting_l2_filter_type = cuco::bloom_filter<
+    key_type,
+    cuco::extent<std::size_t>,
+    cuda::thread_scope_device,
+    cuco::bloom_filter_policy<key_type,
+                              cuda::hash<key_type, cuda::hash_algorithm::xxhash_64>,
+                              4,
+                              8,
+                              8,
+                              8,
+                              1,
+                              1,
+                              8,
+                              false,
+                              false,
+                              true>>;
 
   STATIC_REQUIRE_FALSE(cuco::bloom_filter_policy<key_type>::persisting_l2_access);
   STATIC_REQUIRE_FALSE((cuco::bloom_filter_policy<key_type>::persisting_l2_access));
   STATIC_REQUIRE((cuco::bloom_filter_policy<key_type,
-                                            cuco::xxhash_64<key_type>,
+                                            cuda::hash<key_type, cuda::hash_algorithm::xxhash_64>,
                                             4,
                                             8,
                                             8,

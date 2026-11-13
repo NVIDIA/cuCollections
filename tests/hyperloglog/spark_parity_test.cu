@@ -35,8 +35,9 @@
 
 TEST_CASE("hyperloglog: Spark parity: deterministic cardinality estimation", "")
 {
-  using T              = int;
-  using estimator_type = cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+  using T = int;
+  using estimator_type =
+    cuco::hyperloglog<T, cuda::thread_scope_device, cuda::hash<T, cuda::hash_algorithm::xxhash_64>>;
 
   constexpr size_t repeats = 10;
   // This factor determines the error threshold for passing the test
@@ -89,8 +90,9 @@ TEST_CASE("hyperloglog: Spark parity: deterministic cardinality estimation", "")
 
 TEST_CASE("hyperloglog: Spark parity: regression for issue #696", "")
 {
-  using T              = int;
-  using estimator_type = cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+  using T = int;
+  using estimator_type =
+    cuco::hyperloglog<T, cuda::thread_scope_device, cuda::hash<T, cuda::hash_algorithm::xxhash_64>>;
 
   auto const standard_deviation   = cuco::standard_deviation{0.3};
   std::vector<T> const host_items = {
@@ -112,7 +114,7 @@ TEST_CASE("hyperloglog: Spark parity: regression for issue #696", "")
     1113480821, 789387254,   -1724956749, -1201901245};
   thrust::device_vector<T> items = host_items;
 
-  estimator_type estimator{standard_deviation, cuco::xxhash_64<T>{42}};
+  estimator_type estimator{standard_deviation, cuda::hash<T, cuda::hash_algorithm::xxhash_64>{42}};
   estimator.add(items.begin(), items.end());
 
   REQUIRE(estimator.estimate() == 81);
@@ -123,8 +125,9 @@ TEST_CASE("hyperloglog: Spark parity: regression for issue #696", "")
 
 TEST_CASE("hyperloglog: Spark parity: merging HLL instances", "")
 {
-  using T              = int;
-  using estimator_type = cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+  using T = int;
+  using estimator_type =
+    cuco::hyperloglog<T, cuda::thread_scope_device, cuda::hash<T, cuda::hash_algorithm::xxhash_64>>;
 
   auto num_items          = 1000000;
   auto standard_deviation = cuco::standard_deviation(0.05);
@@ -169,7 +172,7 @@ TEST_CASE("hyperloglog: Spark parity: add 0.0 and -0.0", "")
 {
   using T = double;
   using estimator_type =
-    cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+    cuco::hyperloglog<T, cuda::thread_scope_device, cuda::hash<T, cuda::hash_algorithm::xxhash_64>>;
 
   auto standard_deviation = cuco::standard_deviation(0.05);
 
@@ -185,7 +188,7 @@ TEST_CASE("hyperloglog: Spark parity: add NaN", "")
 {
   using T = double;
   using estimator_type =
-    cuco::hyperloglog<T, cuda::thread_scope_device, cuco::xxhash_64<T>>;
+    cuco::hyperloglog<T, cuda::thread_scope_device, cuda::hash<T, cuda::hash_algorithm::xxhash_64>>;
 
   auto standard_deviation = cuco::standard_deviation(0.05);
 

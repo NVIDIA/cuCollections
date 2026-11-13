@@ -5,18 +5,20 @@
 
 #include <benchmark_defaults.hpp>
 
+#include <cuco/detail/utility/cuda.cuh>
 #include <cuco/hash_functions.cuh>
 #include <cuco/utility/key_generator.cuh>
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/functional>
 #include <cuda/std/cstddef>
+#include <cuda/std/type_traits>
 #include <thrust/device_vector.h>
 
 #include <memory_stats.hpp>
 
 #include <cstdint>
-#include <type_traits>
 
 // repeat hash computation n times
 static constexpr auto n_repeats = 100;
@@ -34,29 +36,21 @@ struct large_key {
   int32_t data_[Words];
 };
 
-template <typename T>
-constexpr __host__ __device__ void hash_result_aggregate(T& agg, T hash_val)
-{
-  agg += hash_val;
-}
+template <typename Hash>
+struct hash_key {
+  using type = typename Hash::argument_type;
+};
 
-template <>
-constexpr __host__ __device__ void hash_result_aggregate(cuda::std::array<uint64_t, 2>& agg,
-                                                         cuda::std::array<uint64_t, 2> hash_val)
-{
-  agg[0] += hash_val[0];
-  agg[1] += hash_val[1];
-}
+template <typename Key, cuda::hash_algorithm Algorithm>
+struct hash_key<cuda::hash<Key, Algorithm>> {
+  using type = Key;
+};
 
-template <>
-constexpr __host__ __device__ void hash_result_aggregate(cuda::std::array<uint32_t, 4>& agg,
-                                                         cuda::std::array<uint32_t, 4> hash_val)
-{
-  agg[0] += hash_val[0];
-  agg[1] += hash_val[1];
-  agg[2] += hash_val[2];
-  agg[3] += hash_val[3];
-}
+template <typename Hash>
+using hash_key_t = typename hash_key<Hash>::type;
+
+template <typename Hash>
+using hash_result_t = cuda::std::invoke_result_t<Hash, hash_key_t<Hash>>;
 
 template <int32_t BlockSize, typename Hasher, typename OutputIt>
 __global__ void hash_bench_kernel(Hasher hash,
@@ -67,12 +61,12 @@ __global__ void hash_bench_kernel(Hasher hash,
   cuco::detail::index_type const gid         = BlockSize * blockIdx.x + threadIdx.x;
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = gid;
-  typename Hasher::result_type agg           = {};
+  hash_result_t<Hasher> agg                  = {};
 
   while (idx < n) {
-    typename Hasher::argument_type key(idx);
+    hash_key_t<Hasher> key(idx);
     for (int32_t i = 0; i < n_repeats; ++i) {  // execute hash func n times
-      hash_result_aggregate(agg, hash(key));
+      agg += hash(key);
     }
     idx += loop_stride;
   }
@@ -91,8 +85,7 @@ void hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
   auto const num_keys           = state.get_int64("NumInputs");
   auto const grid_size          = (num_keys + block_size * 16 - 1) / block_size * 16;
 
-  thrust::device_vector<typename Hash::result_type> hash_values((materialize_result) ? num_keys
-                                                                                     : 1);
+  thrust::device_vector<hash_result_t<Hash>> hash_values((materialize_result) ? num_keys : 1);
 
   state.add_element_count(num_keys);
 
@@ -112,12 +105,12 @@ __global__ void string_hash_bench_kernel(
   cuco::detail::index_type const gid         = BlockSize * blockIdx.x + threadIdx.x;
   cuco::detail::index_type const loop_stride = gridDim.x * BlockSize;
   cuco::detail::index_type idx               = gid;
-  typename Hasher::result_type agg           = {};
+  hash_result_t<Hasher> agg                  = {};
 
   while (idx < n) {
     auto const key = thrust::raw_reference_cast(*(in + idx));
     for (int32_t i = 0; i < n_repeats; ++i) {  // execute hash func n times
-      hash_result_aggregate(agg, hash.compute_hash(key.data(), key.size()));
+      agg += hash(key);
     }
     idx += loop_stride;
   }
@@ -132,7 +125,7 @@ __global__ void string_hash_bench_kernel(
 template <typename Hash>
 void string_hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
 {
-  static_assert(std::is_same_v<typename Hash::argument_type, cuda::std::byte>,
+  static_assert(cuda::std::is_same_v<hash_key_t<Hash>, cuda::std::byte>,
                 "Argument type must be cuda::std::byte");
 
   bool const materialize_result = false;
@@ -153,8 +146,7 @@ void string_hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
   auto const& keys = sequences.first;
   // auto const& storage = sequences.second;
 
-  thrust::device_vector<typename Hash::result_type> hash_values((materialize_result) ? num_keys
-                                                                                     : 1);
+  thrust::device_vector<hash_result_t<Hash>> hash_values((materialize_result) ? num_keys : 1);
 
   state.add_element_count(num_keys);
   // state.add_global_memory_reads<cuda::std::byte>(storage.size() * n_repeats);
@@ -168,36 +160,44 @@ void string_hash_eval(nvbench::state& state, nvbench::type_list<Hash>)
     mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
-NVBENCH_BENCH_TYPES(
-  hash_eval,
-  NVBENCH_TYPE_AXES(nvbench::type_list<cuco::murmurhash3_32<nvbench::int32_t>,
-                                       cuco::murmurhash3_32<nvbench::int64_t>,
-                                       cuco::murmurhash3_32<large_key<32>>,  // 32*4bytes
-                                       cuco::xxhash_32<nvbench::int32_t>,
-                                       cuco::xxhash_32<nvbench::int64_t>,
-                                       cuco::xxhash_32<large_key<32>>,
-                                       cuco::xxhash_64<nvbench::int32_t>,
-                                       cuco::xxhash_64<nvbench::int64_t>,
-                                       cuco::xxhash_64<large_key<32>>,
-                                       cuco::murmurhash3_fmix_32<nvbench::int32_t>,
-                                       cuco::murmurhash3_fmix_64<nvbench::int64_t>,
-                                       cuco::murmurhash3_x86_128<nvbench::int32_t>,
-                                       cuco::murmurhash3_x86_128<nvbench::int64_t>,
-                                       cuco::murmurhash3_x86_128<large_key<32>>,
-                                       cuco::murmurhash3_x64_128<nvbench::int32_t>,
-                                       cuco::murmurhash3_x64_128<nvbench::int64_t>,
-                                       cuco::murmurhash3_x64_128<large_key<32>>>))
+using hash_types =
+  nvbench::type_list<cuda::hash<nvbench::int32_t, cuda::hash_algorithm::murmurhash3_32>,
+                     cuda::hash<nvbench::int64_t, cuda::hash_algorithm::murmurhash3_32>,
+                     cuda::hash<large_key<32>, cuda::hash_algorithm::murmurhash3_32>,  // 32*4bytes
+                     cuda::hash<nvbench::int32_t, cuda::hash_algorithm::xxhash_32>,
+                     cuda::hash<nvbench::int64_t, cuda::hash_algorithm::xxhash_32>,
+                     cuda::hash<large_key<32>, cuda::hash_algorithm::xxhash_32>,
+                     cuda::hash<nvbench::int32_t, cuda::hash_algorithm::xxhash_64>,
+                     cuda::hash<nvbench::int64_t, cuda::hash_algorithm::xxhash_64>,
+                     cuda::hash<large_key<32>, cuda::hash_algorithm::xxhash_64>
+#if defined(CUCO_HAS_INT128)
+                     ,
+                     cuda::hash<nvbench::int32_t, cuda::hash_algorithm::murmurhash3_x86_128>,
+                     cuda::hash<nvbench::int64_t, cuda::hash_algorithm::murmurhash3_x86_128>,
+                     cuda::hash<large_key<32>, cuda::hash_algorithm::murmurhash3_x86_128>,
+                     cuda::hash<nvbench::int32_t, cuda::hash_algorithm::murmurhash3_x64_128>,
+                     cuda::hash<nvbench::int64_t, cuda::hash_algorithm::murmurhash3_x64_128>,
+                     cuda::hash<large_key<32>, cuda::hash_algorithm::murmurhash3_x64_128>
+#endif
+                     >;
+
+NVBENCH_BENCH_TYPES(hash_eval, NVBENCH_TYPE_AXES(hash_types))
   .set_name("hash_function_eval")
   .set_type_axes_names({"Hash"})
   .add_int64_axis("NumInputs", {cuco::benchmark::defaults::N * 10});
 
-NVBENCH_BENCH_TYPES(
-  string_hash_eval,
-  NVBENCH_TYPE_AXES(nvbench::type_list<cuco::murmurhash3_32<cuda::std::byte>,
-                                       cuco::xxhash_32<cuda::std::byte>,
-                                       cuco::xxhash_64<cuda::std::byte>,
-                                       cuco::murmurhash3_x86_128<cuda::std::byte>,
-                                       cuco::murmurhash3_x64_128<cuda::std::byte>>))
+using string_hash_types =
+  nvbench::type_list<cuda::hash<cuda::std::byte, cuda::hash_algorithm::murmurhash3_32>,
+                     cuda::hash<cuda::std::byte, cuda::hash_algorithm::xxhash_32>,
+                     cuda::hash<cuda::std::byte, cuda::hash_algorithm::xxhash_64>
+#if defined(CUCO_HAS_INT128)
+                     ,
+                     cuda::hash<cuda::std::byte, cuda::hash_algorithm::murmurhash3_x86_128>,
+                     cuda::hash<cuda::std::byte, cuda::hash_algorithm::murmurhash3_x64_128>
+#endif
+                     >;
+
+NVBENCH_BENCH_TYPES(string_hash_eval, NVBENCH_TYPE_AXES(string_hash_types))
   .set_name("string_hash_function_eval")
   .set_type_axes_names({"Hash"})
   .add_int64_axis("NumInputs", {cuco::benchmark::defaults::N / 4})

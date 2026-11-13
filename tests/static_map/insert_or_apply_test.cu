@@ -10,6 +10,7 @@
 #include <cuco/utility/reduction_functors.cuh>
 
 #include <cuda/atomic>
+#include <cuda/functional>
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
@@ -164,8 +165,9 @@ TEMPLATE_TEST_CASE_SIG(
 
   using probe = std::conditional_t<
     Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+    cuco::linear_probing<CGSize, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>,
+    cuco::double_hashing<CGSize, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>,
+cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>>;
 
   using map_type = cuco::static_map<Key,
                                     Value,
@@ -218,9 +220,8 @@ TEMPLATE_TEST_CASE_SIG("static_map insert_or_apply all unique keys tests",
                                     cuco::extent<size_type>,
                                     cuda::thread_scope_device,
                                     cuda::std::equal_to<Key>,
-                                    cuco::linear_probing<2, cuco::murmurhash3_32<Key>>,
-                                    cuco::cuda_allocator<cuda::std::byte>,
-                                    cuco::storage<2>>;
+                                    cuco::linear_probing<2, cuda::hash<Key,
+cuda::hash_algorithm::murmurhash3_32>>, cuco::cuda_allocator<cuda::std::byte>, cuco::storage<2>>;
 
   SECTION("sentinel equals init; has_init = true")
   {
@@ -250,14 +251,15 @@ TEMPLATE_TEST_CASE_SIG(
 {
   using Value = Key;
 
-  using map_type = cuco::static_map<Key,
-                                    Value,
-                                    cuco::extent<size_type>,
-                                    cuda::thread_scope_device,
-                                    cuda::std::equal_to<Key>,
-                                    cuco::linear_probing<1, cuco::murmurhash3_32<Key>>,
-                                    cuco::cuda_allocator<cuda::std::byte>,
-                                    cuco::storage<2>>;
+  using map_type =
+    cuco::static_map<Key,
+                     Value,
+                     cuco::extent<size_type>,
+                     cuda::thread_scope_device,
+                     cuda::std::equal_to<Key>,
+                     cuco::linear_probing<1, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>,
+                     cuco::cuda_allocator<cuda::std::byte>,
+                     cuco::storage<2>>;
 
   SECTION("duplicate keys")
   {

@@ -10,6 +10,8 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/functional>
+
 #include <cstdint>
 #include <vector>
 
@@ -22,12 +24,9 @@ using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, 
 using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 #endif
-using HASH_RANGE = nvbench::type_list<cuco::identity_hash<char>,
-                                      cuco::xxhash_32<char>,
-                                      cuco::xxhash_64<char>,
-                                      cuco::murmurhash3_32<char>>;  //,
-// cuco::murmurhash3_x86_128<char>,
-// cuco::murmurhash3_x64_128<char>>; // TODO handle tuple-like hash value
+using HASH_RANGE = nvbench::type_list<cuda::hash<char, cuda::hash_algorithm::xxhash_32>,
+                                      cuda::hash<char, cuda::hash_algorithm::xxhash_64>,
+                                      cuda::hash<char, cuda::hash_algorithm::murmurhash3_32>>;
 
 auto constexpr N             = 100'000'000;
 auto constexpr OCCUPANCY     = 0.5;

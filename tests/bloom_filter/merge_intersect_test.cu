@@ -152,9 +152,29 @@ TEMPLATE_TEST_CASE_SIG(
   "",
   ((class Key, class Policy), Key, Policy),
   (int32_t, cuco::bloom_filter_policy<int32_t>),
-  (int32_t, cuco::bloom_filter_policy<int32_t, cuco::xxhash_64<int32_t>, 4, 1, 1, 1, 1, 1, 1>),
-  (int64_t, cuco::bloom_filter_policy<int64_t, cuco::xxhash_64<int64_t>, 8, 1, 1, 1, 1, 1, 1>),
-  (int64_t, cuco::bloom_filter_policy<int64_t, cuco::xxhash_64<int64_t>, 8, 8, 8>))
+  (int32_t,
+   cuco::bloom_filter_policy<int32_t,
+                             cuda::hash<int32_t, cuda::hash_algorithm::xxhash_64>,
+                             4,
+                             1,
+                             1,
+                             1,
+                             1,
+                             1,
+                             1>),
+  (int64_t,
+   cuco::bloom_filter_policy<int64_t,
+                             cuda::hash<int64_t, cuda::hash_algorithm::xxhash_64>,
+                             8,
+                             1,
+                             1,
+                             1,
+                             1,
+                             1,
+                             1>),
+  (int64_t,
+   cuco::
+     bloom_filter_policy<int64_t, cuda::hash<int64_t, cuda::hash_algorithm::xxhash_64>, 8, 8, 8>))
 {
   using filter_type =
     cuco::bloom_filter<Key, cuco::extent<size_t>, cuda::thread_scope_device, Policy>;

@@ -8,6 +8,7 @@
 #include <cuco/hash_functions.cuh>
 #include <cuco/hyperloglog.cuh>
 
+#include <cuda/functional>
 #include <thrust/device_vector.h>
 #include <thrust/sequence.h>
 
@@ -36,8 +37,10 @@ TEST_CASE("hyperloglog: add_if with stencil predicate")
 
     auto pred = [] __device__(int x) { return x % 2 == 0; };
 
-    cuco::hyperloglog<int64_t, cuda::thread_scope_device, cuco::xxhash_64<int64_t>> estimator{
-      cuco::precision(hll_precision)};
+    cuco::hyperloglog<int64_t,
+                      cuda::thread_scope_device,
+                      cuda::hash<int64_t, cuda::hash_algorithm::xxhash_64>>
+      estimator{cuco::precision(hll_precision)};
 
     REQUIRE(estimator.estimate() == 0);
 
@@ -58,8 +61,10 @@ TEST_CASE("hyperloglog: add_if with stencil predicate")
 
     auto pred = [] __device__(int x) { return x != 0; };
 
-    cuco::hyperloglog<int64_t, cuda::thread_scope_device, cuco::xxhash_64<int64_t>> estimator{
-      cuco::precision(hll_precision)};
+    cuco::hyperloglog<int64_t,
+                      cuda::thread_scope_device,
+                      cuda::hash<int64_t, cuda::hash_algorithm::xxhash_64>>
+      estimator{cuco::precision(hll_precision)};
 
     estimator.add_if_async(items.begin(), items.end(), stencil.begin(), pred);
 
@@ -77,8 +82,10 @@ TEST_CASE("hyperloglog: add_if with stencil predicate")
 
     auto pred = [] __device__(int x) { return x != 0; };
 
-    cuco::hyperloglog<int64_t, cuda::thread_scope_device, cuco::xxhash_64<int64_t>> estimator{
-      cuco::precision(hll_precision)};
+    cuco::hyperloglog<int64_t,
+                      cuda::thread_scope_device,
+                      cuda::hash<int64_t, cuda::hash_algorithm::xxhash_64>>
+      estimator{cuco::precision(hll_precision)};
 
     estimator.add_if_async(items.begin(), items.end(), stencil.begin(), pred);
 

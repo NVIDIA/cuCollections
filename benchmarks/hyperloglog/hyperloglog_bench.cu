@@ -72,7 +72,7 @@ void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
   using estimator_type = cuco::hyperloglog<T,
                                            cuda::thread_scope_device,
-                                           cuco::xxhash_64<T>,
+                                           cuda::hash<T, cuda::hash_algorithm::xxhash_64>,
                                            tracking_allocator<cuda::std::byte>>;
 
   auto const num_items      = state.get_int64("NumInputs");
@@ -118,7 +118,7 @@ void hyperloglog_add(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
   using estimator_type = cuco::hyperloglog<T,
                                            cuda::thread_scope_device,
-                                           cuco::xxhash_64<T>,
+                                           cuda::hash<T, cuda::hash_algorithm::xxhash_64>,
                                            tracking_allocator<cuda::std::byte>>;
 
   auto const num_items      = state.get_int64("NumInputs");

@@ -9,6 +9,7 @@
 #include <cuco/hash_functions.cuh>
 #include <cuco/static_map.cuh>
 
+#include <cuda/functional>
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
@@ -63,8 +64,10 @@ TEMPLATE_TEST_CASE_SIG("static_map hash tests",
 #endif
 )
 {
-  test_hash_function<Key, cuco::murmurhash3_32<Key>>();
-  test_hash_function<Key, cuco::murmurhash3_x64_128<Key>>();
-  test_hash_function<Key, cuco::xxhash_32<Key>>();
-  test_hash_function<Key, cuco::xxhash_64<Key>>();
+  test_hash_function<Key, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>();
+#if defined(CUCO_HAS_INT128)
+  test_hash_function<Key, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_x64_128>>();
+#endif
+  test_hash_function<Key, cuda::hash<Key, cuda::hash_algorithm::xxhash_32>>();
+  test_hash_function<Key, cuda::hash<Key, cuda::hash_algorithm::xxhash_64>>();
 }

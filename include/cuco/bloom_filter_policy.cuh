@@ -9,6 +9,8 @@
 #include <cuco/hash_functions.cuh>
 #include <cuco/utility/cuda.cuh>
 
+#include <cuda/functional>
+
 #include <cstdint>
 
 namespace cuco {
@@ -23,7 +25,8 @@ namespace cuco {
  * multiply-shift) and lower 32 bits (pattern generation).
  *
  * @tparam Key Key type to hash.
- * @tparam Hash 64-bit hash functor type. Defaults to `cuco::xxhash_64<Key>`.
+ * @tparam Hash 64-bit hash functor type. Defaults to `cuda::hash<Key,
+ * cuda::hash_algorithm::xxhash_64>`.
  * @tparam WordBytes Size in bytes of the underlying word type. Must be `4` or `8`. Defaults to `4`.
  * @tparam WordsPerBlock Words per filter block. Defaults to the number of words that fit in one
  * 32-byte sector.
@@ -55,7 +58,7 @@ namespace cuco {
  * `contains` is about as fast as without it. No effect for blocks smaller than 32 bytes.
  */
 template <class Key,
-          class Hash                        = cuco::xxhash_64<Key>,
+          class Hash                        = cuda::hash<Key, cuda::hash_algorithm::xxhash_64>,
           std::uint32_t WordBytes           = 4,
           std::uint32_t WordsPerBlock       = utility::sector_size_bytes / WordBytes,
           std::uint32_t PatternBits         = WordsPerBlock,
