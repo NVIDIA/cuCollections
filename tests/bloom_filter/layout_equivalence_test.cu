@@ -339,7 +339,7 @@ TEST_CASE("bloom_filter: contains results are invariant under EarlyExitContains"
 namespace {
 template <std::uint32_t AddH, std::uint32_t AddV, std::uint32_t ContainsH, std::uint32_t ContainsV>
 using skip_policy = cuco::bloom_filter_policy<int32_t,
-                                              cuco::xxhash_64<int32_t>,
+                                              cuda::hash<int32_t, cuda::hash_algorithm::xxhash_64>,
                                               4,
                                               8,
                                               8,
@@ -430,7 +430,7 @@ TEMPLATE_TEST_CASE_SIG(
   "",
   ((class Policy, int SkippedLimit), Policy, SkippedLimit),
   ((cuco::bloom_filter_policy<int32_t,
-                              cuco::xxhash_64<int32_t>,
+                              cuda::hash<int32_t, cuda::hash_algorithm::xxhash_64>,
                               8,
                               8,
                               8,
@@ -444,7 +444,7 @@ TEMPLATE_TEST_CASE_SIG(
                               true>),
    4),
   ((cuco::bloom_filter_policy<int32_t,
-                              cuco::xxhash_64<int32_t>,
+                              cuda::hash<int32_t, cuda::hash_algorithm::xxhash_64>,
                               8,
                               8,
                               8,
@@ -458,7 +458,7 @@ TEMPLATE_TEST_CASE_SIG(
                               true>),
    4),
   ((cuco::bloom_filter_policy<int32_t,
-                              cuco::xxhash_64<int32_t>,
+                              cuda::hash<int32_t, cuda::hash_algorithm::xxhash_64>,
                               8,
                               16,
                               16,
@@ -472,7 +472,7 @@ TEMPLATE_TEST_CASE_SIG(
                               true>),
    4),
   ((cuco::bloom_filter_policy<int32_t,
-                              cuco::xxhash_64<int32_t>,
+                              cuda::hash<int32_t, cuda::hash_algorithm::xxhash_64>,
                               4,
                               16,
                               16,
@@ -544,10 +544,31 @@ TEST_CASE("bloom_filter: fast_l2_add has no effect on blocks smaller than one se
 {
   using Key = int32_t;
   // 16-byte blocks: 4 x 4-byte words, cooperative add over 4 threads
-  using off_policy =
-    cuco::bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 4, 4, 4, 1, 1, 4, false, false, false>;
-  using on_policy = cuco::
-    bloom_filter_policy<Key, cuco::xxhash_64<Key>, 4, 4, 4, 4, 1, 1, 4, false, false, false, true>;
+  using off_policy = cuco::bloom_filter_policy<Key,
+                                               cuda::hash<Key, cuda::hash_algorithm::xxhash_64>,
+                                               4,
+                                               4,
+                                               4,
+                                               4,
+                                               1,
+                                               1,
+                                               4,
+                                               false,
+                                               false,
+                                               false>;
+  using on_policy  = cuco::bloom_filter_policy<Key,
+                                               cuda::hash<Key, cuda::hash_algorithm::xxhash_64>,
+                                               4,
+                                               4,
+                                               4,
+                                               4,
+                                               1,
+                                               1,
+                                               4,
+                                               false,
+                                               false,
+                                               false,
+                                               true>;
   STATIC_REQUIRE(not on_policy::fast_l2_add);
 
   using filter_off_t =
