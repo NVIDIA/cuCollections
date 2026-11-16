@@ -151,7 +151,7 @@ NVBENCH_BENCH_TYPES(hyperloglog_e2e,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("hyperloglog_e2e_uniform")
   .set_type_axes_names({"T", "Distribution"})
-  .add_int64_power_of_two_axis("NumInputs", {28})
+  .add_int64_power_of_two_axis("NumInputs", {29})
   .add_int64_axis("SketchSizeKB", {32, 64, 128, 256})  // 256KB uses gmem fallback kernel
   .add_int64_axis("Multiplicity", {1});
 
@@ -159,6 +159,6 @@ NVBENCH_BENCH_TYPES(hyperloglog_add,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("hyperloglog_add_uniform")
   .set_type_axes_names({"T", "Distribution"})
-  .add_int64_power_of_two_axis("NumInputs", {28})
+  .add_int64_power_of_two_axis("NumInputs", {29})
   .add_int64_axis("SketchSizeKB", {32, 64, 128, 256})
   .add_int64_axis("Multiplicity", {1});
