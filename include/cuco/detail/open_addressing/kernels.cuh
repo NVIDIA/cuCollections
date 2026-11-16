@@ -701,7 +701,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
 {
   namespace cg = cooperative_groups;
 
-  __shared__ typename ContainerRef::value_type buffer[BlockSize];
+  // Every thread gathers at most one bucket per iteration.
+  __shared__ typename ContainerRef::value_type buffer[BlockSize * ContainerRef::bucket_size];
   __shared__ unsigned int buffer_size;
 
   auto constexpr cg_size = ContainerRef::cg_size;
@@ -721,7 +722,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void rehash(
 
     // gather values in shmem buffer
     if (idx < n) {
-      auto const bucket = storage_ref[idx];
+      // `operator[]` takes a slot index whereas `idx` enumerates buckets.
+      auto const bucket = storage_ref[idx * ContainerRef::bucket_size];
 
       for (auto const& slot : bucket) {
         if (is_filled(slot)) { buffer[atomicAdd_block(&buffer_size, 1)] = slot; }

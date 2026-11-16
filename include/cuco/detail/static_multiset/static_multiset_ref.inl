@@ -263,6 +263,7 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
 {
   return static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
     this->probing_scheme(),
     {},
@@ -282,6 +283,7 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
 {
   return static_multiset_ref<Key, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
     key_equal,
     this->probing_scheme(),
     {},
@@ -306,6 +308,7 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
                              cuda::std::decay_t<decltype(probing_scheme)>,
                              StorageRef,
                              Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                           cuco::erased_key<Key>{this->erased_key_sentinel()},
                                            this->key_eq(),
                                            probing_scheme,
                                            {},
@@ -329,6 +332,7 @@ static_multiset_ref<Key, Scope, KeyEqual, ProbingScheme, StorageRef, Operators..
                              ProbingScheme,
                              decltype(storage_ref),
                              Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
+                                           cuco::erased_key<Key>{this->erased_key_sentinel()},
                                            this->key_eq(),
                                            this->probing_scheme(),
                                            scope,
