@@ -6,9 +6,13 @@
 #pragma once
 
 #include <cuco/detail/__config>
+#include <cuco/detail/pair/helpers.cuh>
 
 #include <cuda/cmath>
+#include <cuda/memory>
+#include <cuda/ptx>
 #include <cuda/std/array>
+#include <cuda/std/bit>
 #include <cuda/std/cstdint>
 #include <cuda/std/limits>
 #include <cuda/std/type_traits>
@@ -80,6 +84,52 @@ __host__ __device__ constexpr SizeType hash_to_index(HashType hash, SizeType upp
     auto const bits = static_cast<product_type>(static_cast<unsigned_hash_type>(hash)) << shift;
     return static_cast<SizeType>(
       cuda::mul_hi(static_cast<product_type>(bits), static_cast<product_type>(upper_bound)));
+  }
+}
+
+/**
+ * @brief Loads the object at `address` while other threads may be swapping it atomically.
+ *
+ * A plain load must not race with an atomic operation: the compiler may narrow, widen, merge, or
+ * drop it. An object in global memory is read with one weak PTX load of exactly the word the
+ * atomic operation swaps instead, which is the object itself or the aligned 32-bit word that holds
+ * a 1- or 2-byte object. An atomic load is not used there because it is several times slower when
+ * many threads probe the same slots.
+ *
+ * The value may already be stale when the caller sees it. Re-read it only after an atomic
+ * operation: a loop that only waits on this load may never observe a change.
+ *
+ * @tparam T Type of the object, 1, 2, 4, 8, or 16 bytes in size
+ *
+ * @param address Address of the object
+ *
+ * @return The object held by the swapped word
+ */
+template <typename T>
+[[nodiscard]] __device__ T weak_load(T const* address) noexcept
+{
+  using word_type = packed_t<T>;
+  static_assert(not cuda::std::is_void_v<word_type>,
+                "A weak load requires a 1, 2, 4, 8, or 16 byte type");
+
+  // `cuda::ptx::ld` reads global memory only, so an object in other memory, such as shared memory,
+  // takes a volatile load.
+  if (not cuda::device::is_address_from(address, cuda::device::address_space::global)) {
+    word_type const word = *reinterpret_cast<word_type const volatile*>(address);
+    return cuda::std::bit_cast<T>(word);
+  }
+
+  if constexpr (sizeof(T) <= 2) {
+    constexpr cuda::std::uintptr_t align_mask = sizeof(cuda::std::uint32_t) - 1;
+    auto const address_value                  = reinterpret_cast<cuda::std::uintptr_t>(address);
+    auto const* const aligned =
+      reinterpret_cast<cuda::std::uint32_t const*>(address_value & ~align_mask);
+    auto const offset = static_cast<cuda::std::uint32_t>((address_value & align_mask) * 8);
+    auto const word   = cuda::ptx::ld(cuda::ptx::space_global, aligned);
+    return cuda::std::bit_cast<T>(static_cast<word_type>(word >> offset));
+  } else {
+    auto const* const word = reinterpret_cast<word_type const*>(address);
+    return cuda::std::bit_cast<T>(cuda::ptx::ld(cuda::ptx::space_global, word));
   }
 }
 

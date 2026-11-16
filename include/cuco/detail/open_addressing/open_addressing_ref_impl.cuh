@@ -379,7 +379,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -438,7 +438,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -540,7 +540,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       for (auto i = 0; i < bucket_size; ++i) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -612,7 +612,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -692,7 +692,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -740,7 +740,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -1599,6 +1599,64 @@ class open_addressing_ref_impl
                                       cuda::std::int32_t intra_bucket_idx) const noexcept
   {
     return storage_ref_.data() + probing_idx + intra_bucket_idx;
+  }
+
+  /**
+   * @brief Indicates whether `attempt_insert` and `attempt_insert_stable` swap a slot as one word,
+   * as opposed to swapping its key.
+   *
+   * @return True if a slot is swapped as one word
+   */
+  [[nodiscard]] __device__ static constexpr bool swaps_slot() noexcept
+  {
+#if (__CUDA_ARCH__ >= 900)
+    return sizeof(value_type) <= 8 or cuco::detail::is_packable<value_type>();
+#else
+    return sizeof(value_type) <= 8;
+#endif
+  }
+
+  /**
+   * @brief Loads a slot that other threads may be modifying.
+   *
+   * Reads exactly the word the modifying operation swaps. The payload of a slot whose key is
+   * swapped on its own is not read and is returned as the empty value sentinel.
+   *
+   * @tparam SwapsSlot Whether the operation swaps a slot as one word, as opposed to swapping its
+   * key
+   *
+   * @param slot_ptr Pointer to the slot
+   *
+   * @return The slot content to probe and to pass as the expected value of the swap
+   */
+  template <bool SwapsSlot>
+  [[nodiscard]] __device__ value_type load_slot(value_type const* slot_ptr) const noexcept
+  {
+    if constexpr (SwapsSlot or not has_payload) {
+      return cuco::detail::weak_load(slot_ptr);
+    } else {
+      return {cuco::detail::weak_load(&slot_ptr->first), this->empty_value_sentinel()};
+    }
+  }
+
+  /**
+   * @brief Loads a bucket whose slots other threads may be modifying.
+   *
+   * @tparam SwapsSlot Whether the operation swaps a slot as one word, as opposed to swapping its
+   * key
+   *
+   * @param probing_idx The current probing index
+   *
+   * @return The bucket content
+   */
+  template <bool SwapsSlot>
+  [[nodiscard]] __device__ bucket_type load_bucket(size_type probing_idx) const noexcept
+  {
+    auto const* const slots = storage_ref_.data() + probing_idx;
+    bucket_type bucket;
+    cuda::static_for<bucket_size>(
+      [&] __device__(auto i) { bucket[i()] = this->template load_slot<SwapsSlot>(slots + i()); });
+    return bucket;
   }
 
   /**
