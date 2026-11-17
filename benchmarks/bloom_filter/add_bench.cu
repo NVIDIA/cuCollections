@@ -60,7 +60,7 @@ void bloom_filter_add(nvbench::state& state,
     auto constexpr contains_vertical_layout   = words_per_block;
     auto constexpr contains_horizontal_layout = 1;
     using policy_type                         = cuco::bloom_filter_policy<Key,
-                                                                          cuda::hash<Key, cuda::hash_algorithm::xxhash_64>,
+                                                                          cuda::hash<Key>,
                                                                           WordBytes,
                                                                           words_per_block,
                                                                           PatternBits,
