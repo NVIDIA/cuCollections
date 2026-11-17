@@ -201,5 +201,5 @@ NVBENCH_BENCH_TYPES(
   .set_name("string_hash_function_eval")
   .set_type_axes_names({"Hash"})
   .add_int64_axis("NumInputs", {cuco::benchmark::defaults::N / 4})
-  .add_int64_axis("MinLength", {1, 4})
+  .add_int64_axis("MinLength", {1})
   .add_int64_axis("MaxLength", {4, 32, 64});
