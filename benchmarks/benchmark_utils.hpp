@@ -36,15 +36,7 @@ auto dist_from_state(nvbench::state const& state)
 }
 
 template <typename T, typename NewType>
-struct rebind_unary_hasher;
-
-template <template <typename> class Template, typename OldType, typename NewType>
-struct rebind_unary_hasher<Template<OldType>, NewType> {
-  using type = Template<NewType>;
-};
-
-template <typename T, typename NewType>
-struct rebind_hasher : rebind_unary_hasher<T, NewType> {};
+struct rebind_hasher;
 
 template <typename OldType, cuda::hash_algorithm Algorithm, typename NewType>
 struct rebind_hasher<cuda::hash<OldType, Algorithm>, NewType> {
