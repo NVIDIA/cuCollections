@@ -10,6 +10,7 @@
 #include <cuda/std/atomic>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/logical.h>
 #include <thrust/transform.h>
 
 #include <cmath>
