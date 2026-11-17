@@ -95,30 +95,6 @@ NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::gaussian,
                              "GAUSSIAN",
                              "distribution::gaussian");
 
-namespace nvbench {
-
-template <cuda::hash_algorithm Algorithm>
-struct type_strings<cuda::hash<char, Algorithm>> {
-  static std::string input_string()
-  {
-    switch (Algorithm) {
-      case cuda::hash_algorithm::xxhash_32: return "xxhash_32";
-      case cuda::hash_algorithm::xxhash_64: return "xxhash_64";
-      case cuda::hash_algorithm::murmurhash3_32: return "murmurhash3_32";
-      case cuda::hash_algorithm::murmurhash3_x86_128: return "murmurhash3_x86_128";
-      case cuda::hash_algorithm::murmurhash3_x64_128: return "murmurhash3_x64_128";
-    }
-    CUCO_FAIL("Unexpected hash algorithm");
-  }
-
-  static std::string description()
-  {
-    return "cuda::hash<char, cuda::hash_algorithm::" + input_string() + ">";
-  }
-};
-
-}  // namespace nvbench
-
 #if defined(CUCO_HAS_128BIT_ATOMICS)
 NVBENCH_DECLARE_TYPE_STRINGS(__int128_t, "I128", "__int128_t");
 #endif

@@ -10,8 +10,6 @@
 
 #include <nvbench/nvbench.cuh>
 
-#include <cuda/functional>
-
 #include <cstdint>
 #include <vector>
 
@@ -24,9 +22,6 @@ using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, 
 using KEY_TYPE_RANGE   = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 using VALUE_TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t>;
 #endif
-using HASH_RANGE = nvbench::type_list<cuda::hash<char, cuda::hash_algorithm::xxhash_32>,
-                                      cuda::hash<char, cuda::hash_algorithm::xxhash_64>,
-                                      cuda::hash<char, cuda::hash_algorithm::murmurhash3_32>>;
 
 auto constexpr N             = 100'000'000;
 auto constexpr OCCUPANCY     = 0.5;
