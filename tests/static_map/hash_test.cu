@@ -69,5 +69,5 @@ TEMPLATE_TEST_CASE_SIG("static_map hash tests",
   test_hash_function<Key, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_x64_128>>();
 #endif
   test_hash_function<Key, cuda::hash<Key, cuda::hash_algorithm::xxhash_32>>();
-  test_hash_function<Key, cuda::hash<Key, cuda::hash_algorithm::xxhash_64>>();
+  test_hash_function<Key, cuda::hash<Key>>();
 }

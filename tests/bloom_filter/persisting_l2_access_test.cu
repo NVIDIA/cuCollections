@@ -35,18 +35,8 @@ using shared_ref_type = cuco::bloom_filter_ref<
   key_type,
   cuco::extent<uint32_t>,
   cuda::thread_scope_block,
-  cuco::bloom_filter_policy<key_type,
-                            cuda::hash<key_type, cuda::hash_algorithm::xxhash_64>,
-                            4,
-                            8,
-                            8,
-                            8,
-                            1,
-                            1,
-                            8,
-                            false,
-                            false,
-                            true>>;
+  cuco::
+    bloom_filter_policy<key_type, cuda::hash<key_type>, 4, 8, 8, 8, 1, 1, 8, false, false, true>>;
 
 __global__ void shared_memory_persisting_l2_smoke_kernel(int* results)
 {
@@ -82,33 +72,15 @@ TEST_CASE("bloom_filter: PersistingL2Access preserves global-memory results", ""
     key_type,
     cuco::extent<std::size_t>,
     cuda::thread_scope_device,
-    cuco::bloom_filter_policy<key_type,
-                              cuda::hash<key_type, cuda::hash_algorithm::xxhash_64>,
-                              4,
-                              8,
-                              8,
-                              8,
-                              1,
-                              1,
-                              8,
-                              false,
-                              false,
-                              true>>;
+    cuco::
+      bloom_filter_policy<key_type, cuda::hash<key_type>, 4, 8, 8, 8, 1, 1, 8, false, false, true>>;
 
   STATIC_REQUIRE_FALSE(cuco::bloom_filter_policy<key_type>::persisting_l2_access);
   STATIC_REQUIRE_FALSE((cuco::bloom_filter_policy<key_type>::persisting_l2_access));
-  STATIC_REQUIRE((cuco::bloom_filter_policy<key_type,
-                                            cuda::hash<key_type, cuda::hash_algorithm::xxhash_64>,
-                                            4,
-                                            8,
-                                            8,
-                                            8,
-                                            1,
-                                            1,
-                                            8,
-                                            false,
-                                            false,
-                                            true>::persisting_l2_access));
+  STATIC_REQUIRE((
+    cuco::
+      bloom_filter_policy<key_type, cuda::hash<key_type>, 4, 8, 8, 8, 1, 1, 8, false, false, true>::
+        persisting_l2_access));
 
   constexpr int32_t num_blocks = 1'000;
   constexpr int32_t num_keys   = 400;

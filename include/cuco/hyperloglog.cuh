@@ -31,7 +31,7 @@ namespace cuco {
  */
 template <class T,
           cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Hash               = cuda::hash<T, cuda::hash_algorithm::xxhash_64>,
+          class Hash               = cuda::hash<T>,
           class Allocator          = cuco::cuda_allocator<cuda::std::byte>>
 class hyperloglog {
  public:

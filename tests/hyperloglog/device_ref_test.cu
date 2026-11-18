@@ -48,9 +48,9 @@ __global__ void estimate_kernel(cuco::sketch_size_kb sketch_size_kb,
 TEMPLATE_TEST_CASE_SIG("hyperloglog: device ref",
                        "",
                        ((typename T, typename Hash), T, Hash),
-                       (int32_t, cuda::hash<int32_t, cuda::hash_algorithm::xxhash_64>),
-                       (int64_t, cuda::hash<int64_t, cuda::hash_algorithm::xxhash_64>),
-                       (__int128_t, cuda::hash<__int128_t, cuda::hash_algorithm::xxhash_64>))
+                       (int32_t, cuda::hash<int32_t>),
+                       (int64_t, cuda::hash<int64_t>),
+                       (__int128_t, cuda::hash<__int128_t>))
 {
   using estimator_type = cuco::hyperloglog<T, cuda::thread_scope_device, Hash>;
 

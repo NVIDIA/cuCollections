@@ -26,7 +26,7 @@
 #include <cstdint>
 
 using size_type = int32_t;
-using hash_type = cuda::hash<int32_t, cuda::hash_algorithm::xxhash_64>;
+using hash_type = cuda::hash<int32_t>;
 
 namespace cg = cooperative_groups;
 
