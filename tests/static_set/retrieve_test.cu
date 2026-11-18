@@ -11,6 +11,8 @@
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
@@ -53,12 +55,16 @@ void test_unique_sequence(Set& set, std::size_t num_keys)
       set.retrieve(iter, iter + num_keys, keys.begin(), matched_keys.begin());
     thrust::sort(keys.begin(), probe_end);
     thrust::sort(matched_keys.begin(), matched_end);
-    REQUIRE(cuco::test::equal(
-      keys.begin(), keys.end(), cuda::counting_iterator<Key>(0), cuda::std::equal_to<Key>{}));
-    REQUIRE(cuco::test::equal(matched_keys.begin(),
-                              matched_keys.end(),
-                              cuda::counting_iterator<Key>(0),
-                              cuda::std::equal_to<Key>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          keys.begin(),
+                          keys.end(),
+                          cuda::counting_iterator<Key>(0),
+                          cuda::std::equal_to<Key>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          matched_keys.begin(),
+                          matched_keys.end(),
+                          cuda::counting_iterator<Key>(0),
+                          cuda::std::equal_to<Key>{}));
   }
 }
 

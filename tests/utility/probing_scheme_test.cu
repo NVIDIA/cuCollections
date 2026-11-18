@@ -13,6 +13,9 @@
 #include <cuda/std/functional>
 #include <cuda/std/limits>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <cooperative_groups.h>
 
@@ -127,8 +130,11 @@ TEMPLATE_TEST_CASE_SIG(
   generate_cg_probing_sequence<BucketSize, probe>
     <<<1, 1>>>(probe{}, key, upper_bound, seq_length, cg_seq.begin());
 
-  REQUIRE(cuco::test::equal(
-    scalar_seq.begin(), scalar_seq.end(), cg_seq.begin(), cuda::std::equal_to<std::size_t>{}));
+  REQUIRE(thrust::equal(thrust::device,
+                        scalar_seq.begin(),
+                        scalar_seq.end(),
+                        cg_seq.begin(),
+                        cuda::std::equal_to<std::size_t>{}));
 }
 
 template <typename Probe>
@@ -143,9 +149,10 @@ void check_scalar_sequence(Probe probe, cuda::std::int32_t requested_capacity)
   generate_scalar_probing_sequence<1>
     <<<1, 1>>>(probe, cuda::std::int32_t{7}, upper_bound, sequence_length, sequence.begin());
 
-  REQUIRE(cuco::test::all_of(sequence.begin(), sequence.end(), [capacity] __device__(auto index) {
-    return index >= 0 and index < capacity;
-  }));
+  REQUIRE(thrust::all_of(
+    thrust::device, sequence.begin(), sequence.end(), [capacity] __device__(auto index) {
+      return index >= 0 and index < capacity;
+    }));
 }
 
 template <typename Probe>
@@ -160,9 +167,10 @@ void check_cg_sequence(Probe probe, cuda::std::int32_t requested_capacity)
   generate_cg_probing_sequence<1><<<1, Probe::cg_size>>>(
     probe, cuda::std::int32_t{7}, upper_bound, sequence_length, sequence.begin());
 
-  REQUIRE(cuco::test::all_of(sequence.begin(), sequence.end(), [capacity] __device__(auto index) {
-    return index >= 0 and index < capacity;
-  }));
+  REQUIRE(thrust::all_of(
+    thrust::device, sequence.begin(), sequence.end(), [capacity] __device__(auto index) {
+      return index >= 0 and index < capacity;
+    }));
 }
 
 TEST_CASE("Probing schemes support the full unsigned hash range", "")

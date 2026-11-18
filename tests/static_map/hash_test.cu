@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/detail/__config>
 #include <cuco/hash_functions.cuh>
 #include <cuco/static_map.cuh>
@@ -12,6 +10,8 @@
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -49,7 +49,8 @@ void test_hash_function()
 
   map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
 
-  REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
+  REQUIRE(thrust::all_of(
+    thrust::device, d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 }
 
 TEMPLATE_TEST_CASE_SIG("static_map hash tests",

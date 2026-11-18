@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
@@ -14,7 +12,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
+#include <thrust/system/cuda/execution_policy.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -66,12 +66,12 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
       map.find(d_keys.begin(), d_keys.end(), d_results.begin(), stream);
       auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), d_values.begin()});
 
-      REQUIRE(cuco::test::all_of(zip,
-                                 zip + num_keys,
-                                 cuda::proclaim_return_type<bool>([] __device__(auto const& p) {
-                                   return cuda::std::get<0>(p) == cuda::std::get<1>(p);
-                                 }),
-                                 stream));
+      REQUIRE(thrust::all_of(thrust::cuda::par.on(stream),
+                             zip,
+                             zip + num_keys,
+                             cuda::proclaim_return_type<bool>([] __device__(auto const& p) {
+                               return cuda::std::get<0>(p) == cuda::std::get<1>(p);
+                             })));
     }
 
     SECTION("All inserted keys-value pairs should be contained")
@@ -81,8 +81,10 @@ TEMPLATE_TEST_CASE_SIG("static_map: unique sequence of keys on given stream",
       map.insert(pairs_begin, pairs_begin + num_keys, stream);
       map.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), stream);
 
-      REQUIRE(
-        cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}, stream));
+      REQUIRE(thrust::all_of(thrust::cuda::par.on(stream),
+                             d_contained.begin(),
+                             d_contained.end(),
+                             cuda::std::identity{}));
     }
   }  // map is destroyed here
 

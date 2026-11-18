@@ -9,8 +9,6 @@
 // (both are optimizations that must not change results) -- all for fixed
 // (Hash, WordBytes, WordsPerBlock, PatternBits, keys).
 
-#include <test_utils.hpp>
-
 #include <cuco/bloom_filter.cuh>
 #include <cuco/detail/error.hpp>
 

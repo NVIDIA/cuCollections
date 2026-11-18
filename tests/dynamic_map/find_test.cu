@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/dynamic_map.cuh>
 
 #include <cuda/functional>
@@ -14,6 +12,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -58,7 +57,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map find tests",
       [] __device__(auto const& p) { return cuda::std::get<0>(p) == cuda::std::get<1>(p); });
     auto zip =
       thrust::make_zip_iterator(cuda::std::tuple{d_values.begin(), d_found_values.begin()});
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
 
     thrust::device_vector<Key> d_nonexistent_keys(100);
     thrust::device_vector<Value> d_nonexistent_values(100);
@@ -73,7 +72,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map find tests",
     auto empty_zip = thrust::make_zip_iterator(
       cuda::std::tuple{d_nonexistent_values.begin(),
                        cuda::constant_iterator<Value>{cuco::empty_value<Value>{-1}.value}});
-    REQUIRE(cuco::test::all_of(empty_zip, empty_zip + 100, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, empty_zip, empty_zip + 100, zip_equal));
 
     thrust::device_vector<Key> d_mixed_keys(200);
     thrust::device_vector<Value> d_mixed_values(200);
@@ -88,12 +87,13 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map find tests",
 
     auto first_half_zip =
       thrust::make_zip_iterator(cuda::std::tuple{d_values.begin(), d_mixed_values.begin()});
-    REQUIRE(cuco::test::all_of(first_half_zip, first_half_zip + 100, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, first_half_zip, first_half_zip + 100, zip_equal));
 
     auto second_half_empty_zip = thrust::make_zip_iterator(
       cuda::std::tuple{d_mixed_values.begin() + 100,
                        cuda::constant_iterator<Value>{cuco::empty_value<Value>{-1}.value}});
-    REQUIRE(cuco::test::all_of(second_half_empty_zip, second_half_empty_zip + 100, zip_equal));
+    REQUIRE(thrust::all_of(
+      thrust::device, second_half_empty_zip, second_half_empty_zip + 100, zip_equal));
   }
 
   SECTION("Check find after erase")
@@ -122,7 +122,7 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map find tests",
       [] __device__(auto const& p) { return cuda::std::get<0>(p) == cuda::std::get<1>(p); });
     auto zip =
       thrust::make_zip_iterator(cuda::std::tuple{d_values.begin(), d_found_values.begin()});
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
 
     map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
 
@@ -132,11 +132,12 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map find tests",
 
     auto first_half_empty_zip = thrust::make_zip_iterator(cuda::std::tuple{
       d_found_values.begin(), cuda::constant_iterator<Value>{cuco::empty_value<Value>{-1}.value}});
-    REQUIRE(
-      cuco::test::all_of(first_half_empty_zip, first_half_empty_zip + num_keys / 2, zip_equal));
+    REQUIRE(thrust::all_of(
+      thrust::device, first_half_empty_zip, first_half_empty_zip + num_keys / 2, zip_equal));
 
     auto second_half_zip = thrust::make_zip_iterator(
       cuda::std::tuple{d_values.begin() + num_keys / 2, d_found_values.begin() + num_keys / 2});
-    REQUIRE(cuco::test::all_of(second_half_zip, second_half_zip + num_keys / 2, zip_equal));
+    REQUIRE(
+      thrust::all_of(thrust::device, second_half_zip, second_half_zip + num_keys / 2, zip_equal));
   }
 }

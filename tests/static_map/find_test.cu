@@ -12,10 +12,12 @@
 #include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/logical.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -57,7 +59,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     auto zip = thrust::make_zip_iterator(
       cuda::std::tuple{d_results.begin(), cuda::constant_iterator<Key>{map.empty_key_sentinel()}});
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 
   map.insert(pairs_begin, pairs_begin + num_keys);
@@ -67,7 +69,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     map.find(keys_begin, keys_begin + num_keys, d_results.begin());
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), keys_begin});
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 
   SECTION("No keys should be found with custom always_false equal")
@@ -78,7 +80,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{
       d_results.begin(), cuda::constant_iterator<Value>{map.empty_value_sentinel()}});
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 
   SECTION("Conditional find should return valid values on even inputs.")
@@ -93,7 +95,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
                 is_even,
                 d_results.begin());
 
-    REQUIRE(cuco::test::equal(
+    REQUIRE(thrust::equal(
+      thrust::device,
       d_results.begin(),
       d_results.end(),
       cuda::make_transform_iterator(cuda::counting_iterator<Key>{0}, gold_fn),
@@ -115,7 +118,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{
       d_results.begin(), cuda::constant_iterator<Value>{map.empty_value_sentinel()}});
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 }
 

@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/bloom_filter.cuh>
 #include <cuco/utility/error.hpp>
 
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -75,13 +75,15 @@ void test_merge_intersect(Filter& filter_a,
 
     // Check A contains all of Union
     filter_a.contains(keys_union_begin, keys_union_end, contained.begin());
-    REQUIRE(cuco::test::all_of(
-      contained.begin(), contained.begin() + num_keys + half_keys, cuda::std::identity{}));
+    REQUIRE(thrust::all_of(thrust::device,
+                           contained.begin(),
+                           contained.begin() + num_keys + half_keys,
+                           cuda::std::identity{}));
 
     // Check B is unchanged
     filter_b.contains(keys_b_begin, keys_b_end, contained.begin());
-    REQUIRE(
-      cuco::test::all_of(contained.begin(), contained.begin() + num_keys, cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, contained.begin(), contained.begin() + num_keys, cuda::std::identity{}));
   }
 
   SECTION("Intersect B into A")
@@ -91,21 +93,21 @@ void test_merge_intersect(Filter& filter_a,
 
     // Check A contains Intersection
     filter_a.contains(keys_intersection_begin, keys_intersection_end, contained.begin());
-    REQUIRE(
-      cuco::test::all_of(contained.begin(), contained.begin() + half_keys, cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, contained.begin(), contained.begin() + half_keys, cuda::std::identity{}));
 
     // Check A does NOT contain Unique A (approximate)
     // We expect none_of, but due to false positives, we might get some.
     // However, for this test configuration, we expect 0 false positives if the filter is
     // reasonably sized.
     filter_a.contains(keys_unique_a_begin, keys_unique_a_end, contained.begin());
-    REQUIRE(
-      cuco::test::none_of(contained.begin(), contained.begin() + half_keys, cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, contained.begin(), contained.begin() + half_keys, cuda::std::identity{}));
 
     // Check A does NOT contain Unique B
     filter_a.contains(keys_unique_b_begin, keys_unique_b_end, contained.begin());
-    REQUIRE(
-      cuco::test::none_of(contained.begin(), contained.begin() + half_keys, cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, contained.begin(), contained.begin() + half_keys, cuda::std::identity{}));
   }
 
   SECTION("Merge empty filter into A")
@@ -118,8 +120,8 @@ void test_merge_intersect(Filter& filter_a,
 
     // A should still contain all of Set A
     filter_a.contains(keys_a_begin, keys_a_end, contained.begin());
-    REQUIRE(
-      cuco::test::all_of(contained.begin(), contained.begin() + num_keys, cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, contained.begin(), contained.begin() + num_keys, cuda::std::identity{}));
   }
 
   SECTION("Intersect empty filter into A")
@@ -132,8 +134,8 @@ void test_merge_intersect(Filter& filter_a,
 
     // A should now be empty (intersection with empty set)
     filter_a.contains(keys_a_begin, keys_a_end, contained.begin());
-    REQUIRE(
-      cuco::test::none_of(contained.begin(), contained.begin() + num_keys, cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, contained.begin(), contained.begin() + num_keys, cuda::std::identity{}));
   }
 
   SECTION("Mismatched block counts")

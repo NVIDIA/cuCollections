@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/bloom_filter.cuh>
 
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -37,21 +37,24 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
   SECTION("Non-inserted keys should not be contained.")
   {
     filter.contains(keys.begin(), keys.end(), contained.begin());
-    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::none_of(thrust::device, contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("All inserted keys should be contained.")
   {
     filter.add(keys.begin(), keys.end());
     filter.contains(keys.begin(), keys.end(), contained.begin());
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::all_of(thrust::device, contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("After clearing the filter no keys should be contained.")
   {
     filter.clear();
     filter.contains(keys.begin(), keys.end(), contained.begin());
-    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::none_of(thrust::device, contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("All conditionally inserted keys should be contained")
@@ -62,7 +65,8 @@ void test_unique_sequence(Filter& filter, size_type num_keys)
                        cuda::counting_iterator<std::size_t>(0),
                        is_even,
                        contained.begin());
-    REQUIRE(cuco::test::equal(
+    REQUIRE(thrust::equal(
+      thrust::device,
       contained.begin(),
       contained.end(),
       cuda::counting_iterator<std::size_t>(0),

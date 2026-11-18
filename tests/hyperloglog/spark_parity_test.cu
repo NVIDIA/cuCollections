@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/hash_functions.cuh>
 #include <cuco/hyperloglog.cuh>
 
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -155,10 +155,11 @@ TEST_CASE("hyperloglog: Spark parity: merging HLL instances", "")
   auto const lower_sketch  = lower.sketch();
 
   // check if sketches are bitwise identical
-  REQUIRE(cuco::test::equal(entire_sketch.data(),
-                            entire_sketch.data() + entire_sketch.size(),
-                            lower_sketch.data(),
-                            cuda::std::equal_to{}));
+  REQUIRE(thrust::equal(thrust::device,
+                        entire_sketch.data(),
+                        entire_sketch.data() + entire_sketch.size(),
+                        lower_sketch.data(),
+                        cuda::std::equal_to{}));
 }
 
 /*

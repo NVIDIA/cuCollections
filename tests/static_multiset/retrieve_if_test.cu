@@ -3,16 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/detail/__config>
 #include <cuco/static_multiset.cuh>
 
+#include <cuda/atomic>
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/host_vector.h>
 #include <thrust/sequence.h>
+
+#include <cooperative_groups.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 

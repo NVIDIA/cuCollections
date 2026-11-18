@@ -12,6 +12,8 @@
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
 #include <thrust/functional.h>
 #include <thrust/sort.h>
 
@@ -54,10 +56,16 @@ void test_multiplicity(Container& container, std::size_t num_keys, std::size_t m
     REQUIRE(matched_end == matched_keys.end());
     thrust::sort(probed_keys.begin(), probed_end);
     thrust::sort(matched_keys.begin(), matched_end);
-    REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_keys.end(), keys_begin, cuda::std::equal_to<key_type>{}));
-    REQUIRE(cuco::test::equal(
-      matched_keys.begin(), matched_keys.end(), keys_begin, cuda::std::equal_to<key_type>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          probed_keys.begin(),
+                          probed_keys.end(),
+                          keys_begin,
+                          cuda::std::equal_to<key_type>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          matched_keys.begin(),
+                          matched_keys.end(),
+                          keys_begin,
+                          cuda::std::equal_to<key_type>{}));
   }
 }
 
@@ -101,10 +109,16 @@ void test_missing_keys(Container& container, std::size_t num_keys)
     REQUIRE(matched_end == matched_keys.end());
     thrust::sort(probed_keys.begin(), probed_end);
     thrust::sort(matched_keys.begin(), matched_end);
-    REQUIRE(cuco::test::equal(
-      probed_keys.begin(), probed_end, keys_begin, cuda::std::equal_to<key_type>{}));
-    REQUIRE(cuco::test::equal(
-      matched_keys.begin(), matched_end, keys_begin, cuda::std::equal_to<key_type>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          probed_keys.begin(),
+                          probed_end,
+                          keys_begin,
+                          cuda::std::equal_to<key_type>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          matched_keys.begin(),
+                          matched_end,
+                          keys_begin,
+                          cuda::std::equal_to<key_type>{}));
   }
 }
 

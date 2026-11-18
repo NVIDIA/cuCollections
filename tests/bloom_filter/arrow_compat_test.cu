@@ -7,13 +7,13 @@
 // Filter parameters (256-bit blocks of 8 x uint32_t, 8 fingerprint bits per key, fully horizontal
 // add, fully vertical contains) produces byte-identical bitsets to a precomputed Arrow reference.
 
-#include <test_utils.hpp>
-
 #include <cuco/bloom_filter.cuh>
 #include <cuco/bloom_filter_policy.cuh>
 
 #include <cuda/functional>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -124,7 +124,8 @@ void test_filter_bitset(Filter& filter, size_t num_keys)
 
   thrust::device_vector<word_type> filter_words(filter.data(), filter.data() + num_words);
 
-  REQUIRE(cuco::test::equal(
+  REQUIRE(thrust::equal(
+    thrust::device,
     filter_words.begin(),
     filter_words.end(),
     reference_words.begin(),

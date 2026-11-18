@@ -6,6 +6,7 @@
 #include <test_utils.hpp>
 
 #include <cuco/detail/__config>
+#include <cuco/detail/storage/counter_storage.cuh>
 #include <cuco/static_set.cuh>
 
 #include <cuda/atomic>

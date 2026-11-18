@@ -13,6 +13,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -130,11 +131,12 @@ TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
     auto zip =
       thrust::make_zip_iterator(cuda::std::tuple{d_keys_exist.begin(), d_keys_correct.begin()});
 
-    REQUIRE(cuco::test::all_of(zip,
-                               zip + d_keys_exist.size(),
-                               cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
-                                 return cuda::std::get<0>(z) and cuda::std::get<1>(z);
-                               })));
+    REQUIRE(thrust::all_of(thrust::device,
+                           zip,
+                           zip + d_keys_exist.size(),
+                           cuda::proclaim_return_type<bool>([] __device__(auto const& z) {
+                             return cuda::std::get<0>(z) and cuda::std::get<1>(z);
+                           })));
   }
 
   SECTION("No key is found before insertion.")
@@ -156,7 +158,8 @@ TEMPLATE_TEST_CASE_SIG("static_set shared memory tests",
                                d_keys_exist.data().get(),
                                d_keys_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
   }
 }
 
@@ -209,5 +212,6 @@ TEST_CASE("static_set shared memory slots test", "")
   shared_memory_hash_set_kernel<valid_size.value()><<<8, 32>>>(key_found.data().get());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  REQUIRE(cuco::test::all_of(key_found.begin(), key_found.end(), cuda::std::identity{}));
+  REQUIRE(
+    thrust::all_of(thrust::device, key_found.begin(), key_found.end(), cuda::std::identity{}));
 }

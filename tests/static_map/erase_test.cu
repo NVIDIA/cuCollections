@@ -11,6 +11,8 @@
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -44,7 +46,8 @@ void test_erase(Map& map, size_type num_keys)
 
     map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
@@ -52,16 +55,21 @@ void test_erase(Map& map, size_type num_keys)
 
     map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     map.erase(keys_begin, keys_begin + num_keys / 2);
     map.contains(keys_begin, keys_begin + num_keys, d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(
-      d_keys_exist.begin(), d_keys_exist.begin() + num_keys / 2, cuda::std::identity{}));
+    REQUIRE(thrust::none_of(thrust::device,
+                            d_keys_exist.begin(),
+                            d_keys_exist.begin() + num_keys / 2,
+                            cuda::std::identity{}));
 
-    REQUIRE(cuco::test::all_of(
-      d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(thrust::device,
+                           d_keys_exist.begin() + num_keys / 2,
+                           d_keys_exist.end(),
+                           cuda::std::identity{}));
 
     map.erase(keys_begin + num_keys / 2, keys_begin + num_keys);
     REQUIRE(map.size() == 0);

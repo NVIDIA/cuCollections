@@ -12,6 +12,8 @@
 #include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -32,7 +34,8 @@ void test_insert(Map& map, std::size_t num_keys)
   SECTION("Non-inserted keys should not be contained.")
   {
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   map.insert(pairs_begin, pairs_begin + num_keys);
@@ -40,7 +43,8 @@ void test_insert(Map& map, std::size_t num_keys)
   SECTION("All inserted keys should be contained.")
   {
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Conditional contains should return true on even inputs.")
@@ -58,7 +62,7 @@ void test_insert(Map& map, std::size_t num_keys)
     auto gold_iter =
       cuda::make_transform_iterator(cuda::counting_iterator<std::size_t>(0), is_even);
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_contained.begin(), gold_iter});
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 }
 

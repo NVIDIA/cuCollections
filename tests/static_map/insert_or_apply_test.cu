@@ -13,6 +13,8 @@
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
 #include <thrust/iterator/zip_iterator.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -49,10 +51,11 @@ void test_insert_or_apply(Map& map, size_type num_keys, size_type num_unique_key
   thrust::device_vector<Value> d_values(num_unique_keys);
   map.retrieve_all(d_keys.begin(), d_values.begin());
 
-  REQUIRE(cuco::test::equal(d_values.begin(),
-                            d_values.end(),
-                            cuda::make_constant_iterator<Value>(num_keys / num_unique_keys),
-                            cuda::std::equal_to<Value>{}));
+  REQUIRE(thrust::equal(thrust::device,
+                        d_values.begin(),
+                        d_values.end(),
+                        cuda::make_constant_iterator<Value>(num_keys / num_unique_keys),
+                        cuda::std::equal_to<Value>{}));
 }
 
 template <bool HasInit, typename Map, typename Init>
@@ -120,10 +123,11 @@ void test_insert_or_apply_shmem(Map& map, size_type num_keys, size_type num_uniq
   thrust::device_vector<Value> d_values(num_unique_keys);
   map.retrieve_all(d_keys.begin(), d_values.begin());
 
-  REQUIRE(cuco::test::equal(d_values.begin(),
-                            d_values.end(),
-                            cuda::make_constant_iterator<Value>(num_keys / num_unique_keys),
-                            cuda::std::equal_to<Value>{}));
+  REQUIRE(thrust::equal(thrust::device,
+                        d_values.begin(),
+                        d_values.end(),
+                        cuda::make_constant_iterator<Value>(num_keys / num_unique_keys),
+                        cuda::std::equal_to<Value>{}));
 }
 
 /*

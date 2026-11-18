@@ -12,7 +12,9 @@
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -83,14 +85,16 @@ TEMPLATE_TEST_CASE_SIG(
 
     // insert first time, fills inserted with true
     map.insert_and_find(pairs_begin, pairs_begin + num_keys, found1.begin(), inserted.begin());
-    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::all_of(thrust::device, inserted.begin(), inserted.end(), cuda::std::identity{}));
 
     // insert second time, fills inserted with false as keys already in map
     map.insert_and_find(pairs_begin, pairs_begin + num_keys, found2.begin(), inserted.begin());
-    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::none_of(thrust::device, inserted.begin(), inserted.end(), cuda::std::identity{}));
 
     // both found1 and found2 should be same, as keys will be referring to same slot
-    REQUIRE(
-      cuco::test::equal(found1.begin(), found1.end(), found2.begin(), cuda::std::equal_to<Key>{}));
+    REQUIRE(thrust::equal(
+      thrust::device, found1.begin(), found1.end(), found2.begin(), cuda::std::equal_to<Key>{}));
   }
 }

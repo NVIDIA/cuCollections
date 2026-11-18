@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/bucket_storage.cuh>
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>

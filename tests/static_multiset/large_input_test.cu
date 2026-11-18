@@ -11,6 +11,8 @@
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -37,7 +39,8 @@ void test_unique_sequence(Set& set, typename Set::value_type* res_begin, std::si
 
     thrust::sort(thrust::device, res_begin, res_end);
 
-    REQUIRE(cuco::test::equal(res_begin, res_end, keys_begin, cuda::std::equal_to<Key>{}));
+    REQUIRE(
+      thrust::equal(thrust::device, res_begin, res_end, keys_begin, cuda::std::equal_to<Key>{}));
   }
 }
 
