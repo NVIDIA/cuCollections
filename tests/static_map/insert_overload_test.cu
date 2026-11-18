@@ -9,6 +9,8 @@
 
 #include <cuda/std/utility>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -79,12 +81,14 @@ TEMPLATE_TEST_CASE_SIG("static_map insert and insert_and_find brace-initializer 
   {
     insert_test_kernel<CGSize><<<1, CGSize>>>(insert_ref, inserted.data().get());
 
-    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::all_of(thrust::device, inserted.begin(), inserted.end(), cuda::std::identity{}));
 
     // The same key should not be inserted twice.
     insert_test_kernel<CGSize><<<1, CGSize>>>(insert_ref, inserted.data().get());
 
-    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::none_of(thrust::device, inserted.begin(), inserted.end(), cuda::std::identity{}));
   }
 
   SECTION("insert_and_find accepts a brace-initialized value_type")
@@ -94,14 +98,18 @@ TEMPLATE_TEST_CASE_SIG("static_map insert and insert_and_find brace-initializer 
     insert_and_find_test_kernel<CGSize>
       <<<1, CGSize>>>(insert_and_find_ref, inserted.data().get(), value_correct.data().get());
 
-    REQUIRE(cuco::test::all_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
-    REQUIRE(cuco::test::all_of(value_correct.begin(), value_correct.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::all_of(thrust::device, inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, value_correct.begin(), value_correct.end(), cuda::std::identity{}));
 
     // The second insertion should find the existing element.
     insert_and_find_test_kernel<CGSize>
       <<<1, CGSize>>>(insert_and_find_ref, inserted.data().get(), value_correct.data().get());
 
-    REQUIRE(cuco::test::none_of(inserted.begin(), inserted.end(), cuda::std::identity{}));
-    REQUIRE(cuco::test::all_of(value_correct.begin(), value_correct.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::none_of(thrust::device, inserted.begin(), inserted.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, value_correct.begin(), value_correct.end(), cuda::std::identity{}));
   }
 }

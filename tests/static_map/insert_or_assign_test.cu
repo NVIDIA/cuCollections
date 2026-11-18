@@ -11,6 +11,7 @@
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 #include <thrust/functional.h>
 #include <thrust/sort.h>
@@ -55,8 +56,11 @@ void test_insert_or_assign(Map& map, size_type num_keys)
     cuda::proclaim_return_type<size_type>([] __device__(auto i) { return i * 2; }));
 
   thrust::sort(thrust::device, d_values.begin(), d_values.end());
-  REQUIRE(cuco::test::equal(
-    d_values.begin(), d_values.end(), gold_values_begin, cuda::std::equal_to<Value>{}));
+  REQUIRE(thrust::equal(thrust::device,
+                        d_values.begin(),
+                        d_values.end(),
+                        gold_values_begin,
+                        cuda::std::equal_to<Value>{}));
 }
 
 TEMPLATE_TEST_CASE_SIG(

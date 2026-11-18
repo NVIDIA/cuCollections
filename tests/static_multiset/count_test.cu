@@ -11,6 +11,8 @@
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -69,7 +71,8 @@ void test_count_each(Set& set, size_type num_keys)
   {
     set.count_each(
       keys_begin, keys_begin + num_keys, set.key_eq(), set.hash_function(), counts_begin);
-    REQUIRE(cuco::test::all_of(
+    REQUIRE(thrust::all_of(
+      thrust::device,
       d_counts.begin(),
       d_counts.end(),
       cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 0; })));
@@ -81,7 +84,8 @@ void test_count_each(Set& set, size_type num_keys)
   {
     set.count_each(
       keys_begin, keys_begin + num_keys, set.key_eq(), set.hash_function(), counts_begin);
-    REQUIRE(cuco::test::all_of(
+    REQUIRE(thrust::all_of(
+      thrust::device,
       d_counts.begin(),
       d_counts.end(),
       cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 1; })));
@@ -94,7 +98,8 @@ void test_count_each(Set& set, size_type num_keys)
                    set.key_eq(),
                    set.hash_function(),
                    counts_begin);
-    REQUIRE(cuco::test::all_of(
+    REQUIRE(thrust::all_of(
+      thrust::device,
       d_counts.begin(),
       d_counts.end(),
       cuda::proclaim_return_type<bool>([] __device__(size_type count) { return count == 0; })));
@@ -114,11 +119,11 @@ void test_count_each(Set& set, size_type num_keys)
   {
     set.count_each(
       query_begin, query_begin + query_size, set.key_eq(), set.hash_function(), counts_begin);
-    REQUIRE(cuco::test::all_of(d_counts.begin(),
-                               d_counts.begin() + query_size,
-                               cuda::proclaim_return_type<bool>([] __device__(size_type count) {
-                                 return count == multiplicity;
-                               })));
+    REQUIRE(thrust::all_of(thrust::device,
+                           d_counts.begin(),
+                           d_counts.begin() + query_size,
+                           cuda::proclaim_return_type<bool>(
+                             [] __device__(size_type count) { return count == multiplicity; })));
   }
 }
 

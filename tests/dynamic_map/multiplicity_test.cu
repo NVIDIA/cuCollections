@@ -3,15 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/dynamic_map.cuh>
 
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 
@@ -75,8 +75,11 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Verify original values are preserved (not overwritten by duplicate insert attempts)
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(
-      d_results.begin(), d_results.end(), cuda::counting_iterator<T>(0), cuda::std::equal_to<T>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_results.begin(),
+                          d_results.end(),
+                          cuda::counting_iterator<T>(0),
+                          cuda::std::equal_to<T>{}));
   }
 
   SECTION("contains finds keys in any submap")
@@ -89,20 +92,23 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Keys in FIRST submap should be found
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
 
     // Keys in SECOND submap should be found
     thrust::device_vector<Key> d_keys_2(num_keys);
     thrust::sequence(thrust::device, d_keys_2.begin(), d_keys_2.end(), num_keys);
     map.contains(d_keys_2.begin(), d_keys_2.end(), d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
 
     // Non-existent keys should NOT be found
     thrust::device_vector<Key> d_keys_nonexistent(num_keys);
     thrust::sequence(
       thrust::device, d_keys_nonexistent.begin(), d_keys_nonexistent.end(), 2 * num_keys);
     map.contains(d_keys_nonexistent.begin(), d_keys_nonexistent.end(), d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("find retrieves values from any submap")
@@ -115,25 +121,31 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Find keys from FIRST submap - should return correct values
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(
-      d_results.begin(), d_results.end(), cuda::counting_iterator<T>(0), cuda::std::equal_to<T>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_results.begin(),
+                          d_results.end(),
+                          cuda::counting_iterator<T>(0),
+                          cuda::std::equal_to<T>{}));
 
     // Find keys from SECOND submap - should return correct values
     thrust::device_vector<Key> d_keys_2(num_keys);
     thrust::sequence(thrust::device, d_keys_2.begin(), d_keys_2.end(), num_keys);
     map.find(d_keys_2.begin(), d_keys_2.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(d_results.begin(),
-                              d_results.end(),
-                              cuda::counting_iterator<T>(num_keys),
-                              cuda::std::equal_to<T>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_results.begin(),
+                          d_results.end(),
+                          cuda::counting_iterator<T>(num_keys),
+                          cuda::std::equal_to<T>{}));
 
     // Non-existent keys should return empty_value_sentinel (-1)
     thrust::device_vector<Key> d_keys_nonexistent(num_keys);
     thrust::sequence(
       thrust::device, d_keys_nonexistent.begin(), d_keys_nonexistent.end(), 2 * num_keys);
     map.find(d_keys_nonexistent.begin(), d_keys_nonexistent.end(), d_results.begin());
-    REQUIRE(cuco::test::all_of(
-      d_results.begin(), d_results.end(), [] __device__(T val) { return val == T{-1}; }));
+    REQUIRE(
+      thrust::all_of(thrust::device, d_results.begin(), d_results.end(), [] __device__(T val) {
+        return val == T{-1};
+      }));
   }
 
   SECTION("erase removes keys from any submap")
@@ -151,18 +163,22 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Verify keys from first submap are no longer contained
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
 
     // Verify find returns sentinel for erased keys
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-    REQUIRE(cuco::test::all_of(
-      d_results.begin(), d_results.end(), [] __device__(T val) { return val == T{-1}; }));
+    REQUIRE(
+      thrust::all_of(thrust::device, d_results.begin(), d_results.end(), [] __device__(T val) {
+        return val == T{-1};
+      }));
 
     // Verify keys from SECOND submap are still there
     thrust::device_vector<Key> d_keys_2(num_keys);
     thrust::sequence(thrust::device, d_keys_2.begin(), d_keys_2.end(), num_keys);
     map.contains(d_keys_2.begin(), d_keys_2.end(), d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
 
     // Erase same keys again (already erased) - should not change size
     map.erase(d_keys.begin(), d_keys.end());
@@ -181,7 +197,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Verify all keys are gone
     map.contains(d_keys_2.begin(), d_keys_2.end(), d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("insert_or_assign updates in correct submap without creating duplicates")
@@ -205,19 +222,21 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
 
     // Verify values were updated in first submap
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(d_results.begin(),
-                              d_results.end(),
-                              cuda::counting_iterator<T>(100),  // Values should now be key + 100
-                              cuda::std::equal_to<T>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_results.begin(),
+                          d_results.end(),
+                          cuda::counting_iterator<T>(100),  // Values should now be key + 100
+                          cuda::std::equal_to<T>{}));
 
     // Verify second submap values are unchanged
     thrust::device_vector<Key> d_keys_2(num_keys);
     thrust::sequence(thrust::device, d_keys_2.begin(), d_keys_2.end(), num_keys);
     map.find(d_keys_2.begin(), d_keys_2.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(d_results.begin(),
-                              d_results.end(),
-                              cuda::counting_iterator<T>(num_keys),
-                              cuda::std::equal_to<T>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_results.begin(),
+                          d_results.end(),
+                          cuda::counting_iterator<T>(num_keys),
+                          cuda::std::equal_to<T>{}));
 
     // Test INSERT behavior: insert_or_assign with completely NEW keys should increase size
     auto new_pairs =
@@ -231,10 +250,11 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
     thrust::device_vector<Key> d_keys_new(num_keys);
     thrust::sequence(thrust::device, d_keys_new.begin(), d_keys_new.end(), 2 * num_keys);
     map.find(d_keys_new.begin(), d_keys_new.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(d_results.begin(),
-                              d_results.end(),
-                              cuda::counting_iterator<T>(2 * num_keys),
-                              cuda::std::equal_to<T>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_results.begin(),
+                          d_results.end(),
+                          cuda::counting_iterator<T>(2 * num_keys),
+                          cuda::std::equal_to<T>{}));
 
     // Test MIXED behavior: some keys exist (update), some don't (insert)
     // Use keys from 0 to num_keys/2 (exist in first submap) and
@@ -276,15 +296,17 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: cross-submap duplicate handling",
     // Keys should be 0 to 2*num_keys-1
     thrust::device_vector<Key> d_expected_keys(2 * num_keys);
     thrust::sequence(thrust::device, d_expected_keys.begin(), d_expected_keys.end());
-    REQUIRE(cuco::test::equal(d_retrieved_keys.begin(),
-                              d_retrieved_keys.end(),
-                              d_expected_keys.begin(),
-                              cuda::std::equal_to<Key>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_retrieved_keys.begin(),
+                          d_retrieved_keys.end(),
+                          d_expected_keys.begin(),
+                          cuda::std::equal_to<Key>{}));
 
     // Values should match keys (since we inserted key=value pairs)
-    REQUIRE(cuco::test::equal(d_retrieved_values.begin(),
-                              d_retrieved_values.end(),
-                              cuda::counting_iterator<T>(0),
-                              cuda::std::equal_to<T>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_retrieved_values.begin(),
+                          d_retrieved_values.end(),
+                          cuda::counting_iterator<T>(0),
+                          cuda::std::equal_to<T>{}));
   }
 }

@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/dynamic_map.cuh>
 
 #include <cuda/functional>
@@ -13,6 +11,7 @@
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -57,7 +56,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     map.insert(pairs_begin, pairs_begin + num_keys);
 
@@ -65,16 +65,21 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::all_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     map.erase(d_keys.begin(), d_keys.begin() + num_keys / 2);
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(
-      d_keys_exist.begin(), d_keys_exist.begin() + num_keys / 2, cuda::std::identity{}));
+    REQUIRE(thrust::none_of(thrust::device,
+                            d_keys_exist.begin(),
+                            d_keys_exist.begin() + num_keys / 2,
+                            cuda::std::identity{}));
 
-    REQUIRE(cuco::test::all_of(
-      d_keys_exist.begin() + num_keys / 2, d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(thrust::device,
+                           d_keys_exist.begin() + num_keys / 2,
+                           d_keys_exist.end(),
+                           cuda::std::identity{}));
 
     map.erase(d_keys.begin() + num_keys / 2, d_keys.end());
   }
@@ -104,11 +109,15 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
     map.erase(d_keys.begin(), d_keys.begin() + 2 * num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(
-      d_keys_exist.begin(), d_keys_exist.begin() + 2 * num_keys, cuda::std::identity{}));
+    REQUIRE(thrust::none_of(thrust::device,
+                            d_keys_exist.begin(),
+                            d_keys_exist.begin() + 2 * num_keys,
+                            cuda::std::identity{}));
 
-    REQUIRE(cuco::test::all_of(
-      d_keys_exist.begin() + 2 * num_keys, d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(thrust::device,
+                           d_keys_exist.begin() + 2 * num_keys,
+                           d_keys_exist.end(),
+                           cuda::std::identity{}));
 
     REQUIRE(map.size() == 2 * num_keys);
 
@@ -116,7 +125,8 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map erase tests",
 
     map.contains(d_keys.begin(), d_keys.end(), d_keys_exist.begin());
 
-    REQUIRE(cuco::test::none_of(d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_keys_exist.begin(), d_keys_exist.end(), cuda::std::identity{}));
 
     REQUIRE(map.size() == 0);
   }

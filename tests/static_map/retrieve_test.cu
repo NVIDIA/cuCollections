@@ -12,6 +12,7 @@
 #include <cuda/iterator>
 #include <cuda/std/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
@@ -76,13 +77,13 @@ void test_unique_sequence(Map& map, size_type num_keys)
         return lhs.first < rhs.first;
       });
 
-    REQUIRE(
-      cuco::test::equal(pairs_begin,
-                        pairs_begin + num_keys,
-                        output_begin,
-                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
-                          return lhs.first == rhs.first and lhs.second == rhs.second;
-                        }));
+    REQUIRE(thrust::equal(thrust::device,
+                          pairs_begin,
+                          pairs_begin + num_keys,
+                          output_begin,
+                          [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                            return lhs.first == rhs.first and lhs.second == rhs.second;
+                          }));
   }
 }
 

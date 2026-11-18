@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/utility/fast_int.cuh>
 
 #include <catch2/catch_template_test_macros.hpp>

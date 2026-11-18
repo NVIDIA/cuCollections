@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -12,6 +10,7 @@
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/transform.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -108,13 +107,15 @@ TEMPLATE_TEST_CASE_SIG("static_set heterogeneous lookup tests",
     thrust::device_vector<bool> contained(num);
     my_set.insert(insert_keys, insert_keys + num);
     my_set.contains(probe_keys, probe_keys + num, contained.begin());
-    REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::all_of(thrust::device, contained.begin(), contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Non-inserted keys should not be contained")
   {
     thrust::device_vector<bool> contained(num);
     my_set.contains(probe_keys, probe_keys + num, contained.begin());
-    REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
+    REQUIRE(
+      thrust::none_of(thrust::device, contained.begin(), contained.end(), cuda::std::identity{}));
   }
 }

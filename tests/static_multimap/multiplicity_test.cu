@@ -12,6 +12,7 @@
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 #include <thrust/sort.h>
 
@@ -60,13 +61,13 @@ void test_multiplicity_two(Map& map, std::size_t num_items)
         return lhs.second < rhs.second;
       });
 
-    REQUIRE(
-      cuco::test::equal(pairs_begin,
-                        pairs_begin + num_items,
-                        output_begin,
-                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
-                          return lhs.first == rhs.first and lhs.second == rhs.second;
-                        }));
+    REQUIRE(thrust::equal(thrust::device,
+                          pairs_begin,
+                          pairs_begin + num_items,
+                          output_begin,
+                          [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                            return lhs.first == rhs.first and lhs.second == rhs.second;
+                          }));
   }
 }
 

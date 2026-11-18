@@ -11,7 +11,9 @@
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
@@ -31,7 +33,8 @@ void test_unique_sequence(Set& set, bool* res_begin, std::size_t num_keys)
     REQUIRE(set.size() == 0);
 
     set.contains(keys_begin, keys_end, res_begin);
-    REQUIRE(cuco::test::none_of(res_begin, res_begin + num_keys, cuda::std::identity{}));
+    REQUIRE(
+      thrust::none_of(thrust::device, res_begin, res_begin + num_keys, cuda::std::identity{}));
   }
 
   set.insert(keys_begin, keys_end);
@@ -40,7 +43,7 @@ void test_unique_sequence(Set& set, bool* res_begin, std::size_t num_keys)
   SECTION("All inserted key/value pairs should be contained.")
   {
     set.contains(keys_begin, keys_end, res_begin);
-    REQUIRE(cuco::test::all_of(res_begin, res_begin + num_keys, cuda::std::identity{}));
+    REQUIRE(thrust::all_of(thrust::device, res_begin, res_begin + num_keys, cuda::std::identity{}));
   }
 
   SECTION("All inserted key/value pairs can be retrieved.")
@@ -52,10 +55,11 @@ void test_unique_sequence(Set& set, bool* res_begin, std::size_t num_keys)
 
     thrust::sort(output_keys.begin(), keys_end);
 
-    REQUIRE(cuco::test::equal(output_keys.begin(),
-                              output_keys.end(),
-                              cuda::counting_iterator<Key>(0),
-                              cuda::std::equal_to<Key>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          output_keys.begin(),
+                          output_keys.end(),
+                          cuda::counting_iterator<Key>(0),
+                          cuda::std::equal_to<Key>{}));
   }
 }
 

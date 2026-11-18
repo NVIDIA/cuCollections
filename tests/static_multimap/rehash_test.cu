@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/static_multimap.cuh>
 
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
@@ -42,7 +42,8 @@ TEST_CASE("static_multimap rehash test", "")
   auto const check_contents = [&]() {
     REQUIRE(map.size() == num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   };
 
   map.rehash();

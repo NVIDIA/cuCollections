@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/detail/__config>
 #include <cuco/static_set.cuh>
 
@@ -15,7 +13,9 @@
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
+#include <thrust/system/cuda/execution_policy.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -63,8 +63,10 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
       thrust::device_vector<bool> d_contained(num_keys);
       set.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), operation_stream);
 
-      REQUIRE(cuco::test::all_of(
-        d_contained.begin(), d_contained.end(), cuda::std::identity{}, operation_stream));
+      REQUIRE(thrust::all_of(thrust::cuda::par.on(operation_stream),
+                             d_contained.begin(),
+                             d_contained.end(),
+                             cuda::std::identity{}));
     }
 
     SECTION("Insert and find on different stream than constructor")
@@ -75,12 +77,12 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
       set.find(d_keys.begin(), d_keys.end(), d_results.begin(), operation_stream);
 
       auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), d_keys.begin()});
-      REQUIRE(cuco::test::all_of(zip,
-                                 zip + num_keys,
-                                 cuda::proclaim_return_type<bool>([] __device__(auto const& p) {
-                                   return cuda::std::get<0>(p) == cuda::std::get<1>(p);
-                                 }),
-                                 operation_stream));
+      REQUIRE(thrust::all_of(thrust::cuda::par.on(operation_stream),
+                             zip,
+                             zip + num_keys,
+                             cuda::proclaim_return_type<bool>([] __device__(auto const& p) {
+                               return cuda::std::get<0>(p) == cuda::std::get<1>(p);
+                             })));
     }
 
     SECTION("Insert and retrieve on different stream than constructor")
@@ -114,8 +116,10 @@ TEMPLATE_TEST_CASE_SIG("static_set: operations on different stream than construc
       thrust::device_vector<bool> d_contained(num_keys);
       set.contains(d_keys.begin(), d_keys.end(), d_contained.begin(), operation_stream);
 
-      REQUIRE(cuco::test::all_of(
-        d_contained.begin(), d_contained.end(), cuda::std::identity{}, operation_stream));
+      REQUIRE(thrust::all_of(thrust::cuda::par.on(operation_stream),
+                             d_contained.begin(),
+                             d_contained.end(),
+                             cuda::std::identity{}));
     }
   }  // set is destroyed here
 

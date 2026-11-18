@@ -12,6 +12,7 @@
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 #include <thrust/sort.h>
 
@@ -77,13 +78,13 @@ void test_retrieve(Map& map, std::size_t num_items)
       keys_begin, cuda::proclaim_return_type<cuco::pair<Key, Value>>([] __device__(auto i) {
         return cuco::pair<Key, Value>{(i / 2) * 2, (i / 2) * 2};
       }));
-    REQUIRE(
-      cuco::test::equal(gold_begin,
-                        gold_begin + num_gold,
-                        output_begin,
-                        [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
-                          return lhs.first == rhs.first and lhs.second == rhs.second;
-                        }));
+    REQUIRE(thrust::equal(thrust::device,
+                          gold_begin,
+                          gold_begin + num_gold,
+                          output_begin,
+                          [] __device__(cuco::pair<Key, Value> lhs, cuco::pair<Key, Value> rhs) {
+                            return lhs.first == rhs.first and lhs.second == rhs.second;
+                          }));
   }
 }
 

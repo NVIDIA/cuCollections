@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/hash_functions.cuh>
 #include <cuco/hyperloglog.cuh>
 

@@ -12,9 +12,11 @@
 #include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/logical.h>
 #include <thrust/sort.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -46,7 +48,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(map.count(keys_begin, keys_begin + num_keys) == 0);
 
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("All conditionally inserted keys should be contained")
@@ -57,7 +60,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(map.size() == num_keys / 2);
 
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::equal(
+    REQUIRE(thrust::equal(
+      thrust::device,
       d_contained.begin(),
       d_contained.end(),
       cuda::counting_iterator<std::size_t>(0),
@@ -73,7 +77,8 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(map.count(keys_begin, keys_begin + num_keys) == num_keys);
 
     map.contains(keys_begin, keys_begin + num_keys, d_contained.begin());
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Conditional contains should return true on even inputs.")
@@ -86,7 +91,7 @@ void test_unique_sequence(Map& map, size_type num_keys)
     auto gold_iter =
       cuda::make_transform_iterator(cuda::counting_iterator<std::size_t>(0), is_even);
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_contained.begin(), gold_iter});
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 
   SECTION("All inserted key-values should be properly retrieved")
@@ -98,10 +103,11 @@ void test_unique_sequence(Map& map, size_type num_keys)
     REQUIRE(std::distance(d_values.begin(), values_end) == num_keys);
 
     thrust::sort(thrust::device, d_values.begin(), values_end);
-    REQUIRE(cuco::test::equal(d_values.begin(),
-                              values_end,
-                              cuda::make_counting_iterator<Value>(0),
-                              cuda::std::equal_to<Value>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_values.begin(),
+                          values_end,
+                          cuda::make_counting_iterator<Value>(0),
+                          cuda::std::equal_to<Value>{}));
   }
 }
 

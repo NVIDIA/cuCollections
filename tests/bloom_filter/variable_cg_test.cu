@@ -9,13 +9,12 @@
 // CG-reduction semantics; the scalar and CG ref methods are separate code paths that need their
 // own coverage.
 
-#include <test_utils.hpp>
-
 #include <cuco/bloom_filter.cuh>
 
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 
 #include <cooperative_groups.h>
@@ -99,7 +98,8 @@ TEMPLATE_TEST_CASE_SIG(
                                                     thrust::raw_pointer_cast(contained.data()));
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-  REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
+  REQUIRE(
+    thrust::all_of(thrust::device, contained.begin(), contained.end(), cuda::std::identity{}));
 }
 
 TEMPLATE_TEST_CASE_SIG(
@@ -164,12 +164,14 @@ TEMPLATE_TEST_CASE_SIG("bloom_filter device ref cooperative clear",
 
   thrust::device_vector<bool> contained(num_keys, false);
   filter.contains(keys.begin(), keys.end(), contained.begin());
-  REQUIRE(cuco::test::all_of(contained.begin(), contained.end(), cuda::std::identity{}));
+  REQUIRE(
+    thrust::all_of(thrust::device, contained.begin(), contained.end(), cuda::std::identity{}));
 
   // Device cooperative clear via a single tile that iterates over all filter words.
   cooperative_clear_kernel<CGSize><<<1, CGSize>>>(filter.ref());
   CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
   filter.contains(keys.begin(), keys.end(), contained.begin());
-  REQUIRE(cuco::test::none_of(contained.begin(), contained.end(), cuda::std::identity{}));
+  REQUIRE(
+    thrust::none_of(thrust::device, contained.begin(), contained.end(), cuda::std::identity{}));
 }

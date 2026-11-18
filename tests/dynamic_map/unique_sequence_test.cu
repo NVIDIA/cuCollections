@@ -3,15 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/dynamic_map.cuh>
 
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 
 #include <catch2/catch_template_test_macros.hpp>
@@ -47,14 +47,16 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: unique sequence",
     map.insert(pairs_begin, pairs_begin + num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
-    REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::all_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("Non-inserted keys-value pairs should not be contained")
   {
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
-    REQUIRE(cuco::test::none_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(
+      thrust::device, d_contained.begin(), d_contained.end(), cuda::std::identity{}));
   }
 
   SECTION("size() returns correct count after insertions")
@@ -102,10 +104,11 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: unique sequence",
 
     // Verify values were updated
     map.find(d_keys.begin(), d_keys.end(), d_results.begin());
-    REQUIRE(cuco::test::equal(d_results.begin(),
-                              d_results.end(),
-                              cuda::counting_iterator<T>(1),  // Values should now be key + 1
-                              cuda::std::equal_to<T>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          d_results.begin(),
+                          d_results.end(),
+                          cuda::counting_iterator<T>(1),  // Values should now be key + 1
+                          cuda::std::equal_to<T>{}));
 
     // Insert new keys with insert_or_assign (keys from num_keys to 2*num_keys)
     auto new_pairs_begin =

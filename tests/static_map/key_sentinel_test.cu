@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/detail/__config>
 #include <cuco/static_map.cuh>
 
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -60,13 +60,13 @@ TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests",
   SECTION(
     "Tests of non-CG insert: The custom `key_equal` can never be used to compare against sentinel")
   {
-    REQUIRE(
-      cuco::test::all_of(pairs_begin,
-                         pairs_begin + num_keys,
-                         cuda::proclaim_return_type<bool>(
-                           [insert_ref] __device__(cuco::pair<Key, Value> const& pair) mutable {
-                             return insert_ref.insert(pair);
-                           })));
+    REQUIRE(thrust::all_of(thrust::device,
+                           pairs_begin,
+                           pairs_begin + num_keys,
+                           cuda::proclaim_return_type<bool>(
+                             [insert_ref] __device__(cuco::pair<Key, Value> const& pair) mutable {
+                               return insert_ref.insert(pair);
+                             })));
   }
 
   SECTION(
@@ -74,7 +74,8 @@ TEMPLATE_TEST_CASE_SIG("static_map key sentinel tests",
   {
     map.insert(pairs_begin, pairs_begin + num_keys);
     // All keys inserted via custom `key_equal` should be found
-    REQUIRE(cuco::test::all_of(
+    REQUIRE(thrust::all_of(
+      thrust::device,
       pairs_begin,
       pairs_begin + num_keys,
       cuda::proclaim_return_type<bool>([find_ref] __device__(cuco::pair<Key, Value> const& pair) {

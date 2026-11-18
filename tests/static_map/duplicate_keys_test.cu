@@ -11,7 +11,9 @@
 #include <cuda/functional>
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
 #include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 
@@ -105,10 +107,11 @@ TEMPLATE_TEST_CASE_SIG(
     REQUIRE(std::distance(unique_values.begin(), value_out_end) == gold);
 
     thrust::sort(thrust::device, unique_keys.begin(), unique_keys.end());
-    REQUIRE(cuco::test::equal(unique_keys.begin(),
-                              unique_keys.end(),
-                              cuda::make_counting_iterator<Key>(0),
-                              cuda::std::equal_to<Key>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          unique_keys.begin(),
+                          unique_keys.end(),
+                          cuda::make_counting_iterator<Key>(0),
+                          cuda::std::equal_to<Key>{}));
   }
 
   SECTION("Tests of contains")
@@ -116,10 +119,14 @@ TEMPLATE_TEST_CASE_SIG(
     map.insert(pairs_begin, pairs_begin + num_keys);
     map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
 
-    REQUIRE(cuco::test::all_of(
-      d_contained.begin(), d_contained.begin() + num_keys / 2, cuda::std::identity{}));
+    REQUIRE(thrust::all_of(thrust::device,
+                           d_contained.begin(),
+                           d_contained.begin() + num_keys / 2,
+                           cuda::std::identity{}));
 
-    REQUIRE(cuco::test::none_of(
-      d_contained.begin() + num_keys / 2, d_contained.end(), cuda::std::identity{}));
+    REQUIRE(thrust::none_of(thrust::device,
+                            d_contained.begin() + num_keys / 2,
+                            d_contained.end(),
+                            cuda::std::identity{}));
   }
 }

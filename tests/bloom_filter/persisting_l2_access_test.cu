@@ -7,8 +7,6 @@
 // observable Bloom-filter results, and it must be safe to use with a `bloom_filter_ref` backed by
 // shared memory where L2 access properties are intentionally ignored.
 
-#include <test_utils.hpp>
-
 #include <cuco/bloom_filter.cuh>
 #include <cuco/bloom_filter_ref.cuh>
 

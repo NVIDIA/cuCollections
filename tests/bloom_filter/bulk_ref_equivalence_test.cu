@@ -11,8 +11,6 @@
 // `add_coop(group, first, idx, is_valid)` iterator-formation UB fix where one path
 // silently diverged from the other.
 
-#include <test_utils.hpp>
-
 #include <cuco/bloom_filter.cuh>
 #include <cuco/detail/error.hpp>
 
@@ -204,8 +202,11 @@ TEMPLATE_TEST_CASE_SIG(
       ref, probe_raw, num_probe, thrust::raw_pointer_cast(ref_result.data()));
     CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-    REQUIRE(cuco::test::equal(
-      bulk_result.begin(), bulk_result.end(), ref_result.begin(), cuda::std::equal_to<bool>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          bulk_result.begin(),
+                          bulk_result.end(),
+                          ref_result.begin(),
+                          cuda::std::equal_to<bool>{}));
   }
 
   SECTION("CG ref.contains(group, key)")
@@ -219,8 +220,11 @@ TEMPLATE_TEST_CASE_SIG(
       ref, probe_raw, num_probe, thrust::raw_pointer_cast(ref_result.data()));
     CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-    REQUIRE(cuco::test::equal(
-      bulk_result.begin(), bulk_result.end(), ref_result.begin(), cuda::std::equal_to<bool>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          bulk_result.begin(),
+                          bulk_result.end(),
+                          ref_result.begin(),
+                          cuda::std::equal_to<bool>{}));
   }
 
   SECTION("device-range CG ref.contains(group, first, last, out)")
@@ -233,7 +237,10 @@ TEMPLATE_TEST_CASE_SIG(
       ref, probe_raw, probe_raw + num_probe, thrust::raw_pointer_cast(ref_result.data()));
     CUCO_CUDA_TRY(cudaDeviceSynchronize());
 
-    REQUIRE(cuco::test::equal(
-      bulk_result.begin(), bulk_result.end(), ref_result.begin(), cuda::std::equal_to<bool>{}));
+    REQUIRE(thrust::equal(thrust::device,
+                          bulk_result.begin(),
+                          bulk_result.end(),
+                          ref_result.begin(),
+                          cuda::std::equal_to<bool>{}));
   }
 }

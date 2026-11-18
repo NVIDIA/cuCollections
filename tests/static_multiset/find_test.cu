@@ -12,7 +12,10 @@
 #include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
 #include <thrust/functional.h>
+#include <thrust/logical.h>
 #include <thrust/sequence.h>
 #include <thrust/transform.h>
 
@@ -41,7 +44,7 @@ void test_unique_sequence(Set& set, size_type num_keys)
     auto zip = thrust::make_zip_iterator(
       cuda::std::tuple{d_results.begin(), cuda::constant_iterator<Key>{set.empty_key_sentinel()}});
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 
   set.insert(keys_begin, keys_begin + num_keys);
@@ -53,7 +56,7 @@ void test_unique_sequence(Set& set, size_type num_keys)
     set.find(keys_begin, keys_begin + num_keys, d_results.begin());
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{d_results.begin(), keys_begin});
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 
   SECTION("Conditional find should return valid values on even inputs.")
@@ -70,7 +73,8 @@ void test_unique_sequence(Set& set, size_type num_keys)
                 is_even,
                 found_results.begin());
 
-    REQUIRE(cuco::test::equal(
+    REQUIRE(thrust::equal(
+      thrust::device,
       found_results.begin(),
       found_results.end(),
       cuda::make_transform_iterator(cuda::counting_iterator<Key>{0}, gold_fn),

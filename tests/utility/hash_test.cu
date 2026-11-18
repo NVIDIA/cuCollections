@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <test_utils.hpp>
-
 #include <cuco/detail/__config>
 #include <cuco/hash_functions.cuh>
 
@@ -12,6 +10,8 @@
 #include <cuda/std/functional>
 #include <cuda/std/limits>
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -80,7 +80,7 @@ TEST_CASE("utility cuco::identity_hash test", "")
 
     check_identity_hash_result_kernel<<<1, 1>>>(result.begin());
 
-    CHECK(cuco::test::all_of(result.begin(), result.end(), cuda::std::identity{}));
+    CHECK(thrust::all_of(thrust::device, result.begin(), result.end(), cuda::std::identity{}));
   }
 }
 
@@ -150,7 +150,7 @@ TEST_CASE("utility cuco::xxhash_64 test", "")
 
     check_hash_result_kernel_64<<<1, 1>>>(result.begin());
 
-    CHECK(cuco::test::all_of(result.begin(), result.end(), cuda::std::identity{}));
+    CHECK(thrust::all_of(thrust::device, result.begin(), result.end(), cuda::std::identity{}));
   }
 }
 
@@ -213,7 +213,7 @@ TEST_CASE("utility cuco::xxhash_32 test", "")
 
     check_hash_result_kernel_32<<<1, 1>>>(result.begin());
 
-    CHECK(cuco::test::all_of(result.begin(), result.end(), cuda::std::identity{}));
+    CHECK(thrust::all_of(thrust::device, result.begin(), result.end(), cuda::std::identity{}));
   }
 }
 
@@ -391,6 +391,6 @@ TEST_CASE("utility cuco::murmurhash3_x64_128 test", "")
 
     check_murmurhash3_128_result_kernel<<<1, 1>>>(result.begin());
 
-    CHECK(cuco::test::all_of(result.begin(), result.end(), cuda::std::identity{}));
+    CHECK(thrust::all_of(thrust::device, result.begin(), result.end(), cuda::std::identity{}));
   }
 }

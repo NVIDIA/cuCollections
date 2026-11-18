@@ -12,7 +12,10 @@
 #include <cuda/iterator>
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
+#include <thrust/equal.h>
+#include <thrust/execution_policy.h>
 #include <thrust/functional.h>
+#include <thrust/logical.h>
 
 #include <catch2/catch_template_test_macros.hpp>
 
@@ -40,7 +43,7 @@ void test_multimap_find(Map& map, size_type num_keys)
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{
       found_vals.begin(), cuda::constant_iterator<Value>{map.empty_value_sentinel()}});
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 
   auto const pairs_begin = cuda::make_transform_iterator(
@@ -61,7 +64,7 @@ void test_multimap_find(Map& map, size_type num_keys)
       cuda::proclaim_return_type<Value>([] __device__(auto i) { return Value{i * 2}; }));
     auto zip = thrust::make_zip_iterator(cuda::std::tuple{found_vals.begin(), gold_vals_begin});
 
-    REQUIRE(cuco::test::all_of(zip, zip + num_keys, zip_equal));
+    REQUIRE(thrust::all_of(thrust::device, zip, zip + num_keys, zip_equal));
   }
 
   SECTION("Conditional find should return valid values on even inputs.")
@@ -79,7 +82,8 @@ void test_multimap_find(Map& map, size_type num_keys)
                 is_even,
                 found_results.begin());
 
-    REQUIRE(cuco::test::equal(
+    REQUIRE(thrust::equal(
+      thrust::device,
       found_results.begin(),
       found_results.end(),
       cuda::make_transform_iterator(cuda::counting_iterator<Key>{0}, gold_fn),
