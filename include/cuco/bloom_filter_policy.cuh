@@ -6,7 +6,6 @@
 #pragma once
 
 #include <cuco/detail/bloom_filter/bloom_filter_policy.cuh>
-#include <cuco/hash_functions.cuh>
 #include <cuco/utility/cuda.cuh>
 
 #include <cuda/functional>
