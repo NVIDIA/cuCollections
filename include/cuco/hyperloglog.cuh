@@ -10,7 +10,7 @@
 #include <cuco/utility/allocator.hpp>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
-#include <cuda/functional>
+#include <cuda/__functional/hash.h>
 #include <cuda/std/cstddef>
 #include <cuda/stream>
 
