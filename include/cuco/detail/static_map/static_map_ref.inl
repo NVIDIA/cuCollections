@@ -313,6 +313,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
   return static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, NewOperators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
     this->key_eq(),
     this->probing_scheme(),
     {},
@@ -334,6 +335,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
   return static_map_ref<Key, T, Scope, NewKeyEqual, ProbingScheme, StorageRef, Operators...>{
     cuco::empty_key<Key>{this->empty_key_sentinel()},
     cuco::empty_value<T>{this->empty_value_sentinel()},
+    cuco::erased_key<Key>{this->erased_key_sentinel()},
     key_equal,
     this->probing_scheme(),
     {},
@@ -361,6 +363,7 @@ static_map_ref<Key, T, Scope, KeyEqual, ProbingScheme, StorageRef, Operators...>
                         StorageRef,
                         Operators...>{cuco::empty_key<Key>{this->empty_key_sentinel()},
                                       cuco::empty_value<T>{this->empty_value_sentinel()},
+                                      cuco::erased_key<Key>{this->erased_key_sentinel()},
                                       this->key_eq(),
                                       probing_scheme,
                                       {},

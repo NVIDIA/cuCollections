@@ -8,7 +8,7 @@
 #include <cuco/detail/__config>
 #include <cuco/utility/traits.hpp>
 
-#include <cuda/functional>
+#include <cuda/std/__algorithm/min.h>
 #include <cuda/std/bit>
 
 #include <cstdint>

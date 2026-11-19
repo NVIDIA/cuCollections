@@ -6,7 +6,6 @@
 #pragma once
 
 #include <cuda/std/type_traits>
-#include <thrust/device_reference.h>
 
 namespace cuco {
 

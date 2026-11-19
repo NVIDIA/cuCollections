@@ -11,11 +11,10 @@
 #include <cuco/utility/traits.hpp>
 
 #include <cub/device/device_transform.cuh>
-#include <cuda/functional>
+#include <cuda/__functional/proclaim_return_type.h>
 #include <cuda/iterator>
 #include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
-#include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/stream>
 

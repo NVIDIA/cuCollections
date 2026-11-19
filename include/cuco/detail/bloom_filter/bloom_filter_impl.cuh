@@ -21,16 +21,13 @@
 #include <cuda/__memory/address_space.h>
 #include <cuda/annotated_ptr>
 #include <cuda/atomic>
-#include <cuda/iterator>
 #include <cuda/std/__algorithm/max.h>
 #include <cuda/std/__algorithm/min.h>  // TODO #include <cuda/std/algorithm> once available
 #include <cuda/std/array>
 #include <cuda/std/bit>
-#include <cuda/std/functional>
 #include <cuda/std/tuple>
 #include <cuda/std/type_traits>
 #include <cuda/stream>
-#include <cuda/utility>
 
 #include <cooperative_groups.h>
 

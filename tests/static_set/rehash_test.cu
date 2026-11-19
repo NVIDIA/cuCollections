@@ -31,6 +31,9 @@ TEST_CASE("static_set rehash test", "")
   set.rehash(num_keys * 2);
   REQUIRE(set.size() == num_keys);
 
+  set.rehash_async(num_keys * 4);
+  REQUIRE(set.size() == num_keys);
+
   set.erase(d_keys.begin(), d_keys.begin() + num_erased_keys);
   set.rehash();
   REQUIRE(set.size() == num_keys - num_erased_keys);

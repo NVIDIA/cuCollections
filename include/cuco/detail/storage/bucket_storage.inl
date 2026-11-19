@@ -11,7 +11,6 @@
 #include <cuco/extent.cuh>
 
 #include <cub/device/device_for.cuh>
-#include <cuda/std/array>
 #include <cuda/std/bit>
 #include <cuda/std/cstdint>
 #include <cuda/stream>

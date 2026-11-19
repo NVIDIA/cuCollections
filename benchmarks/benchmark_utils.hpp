@@ -12,6 +12,7 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/functional>
 #include <cuda/iterator>
 
 #include <nv/target>
@@ -37,9 +38,9 @@ auto dist_from_state(nvbench::state const& state)
 template <typename T, typename NewType>
 struct rebind_hasher;
 
-template <template <typename> class Template, typename OldType, typename NewType>
-struct rebind_hasher<Template<OldType>, NewType> {
-  using type = Template<NewType>;
+template <typename OldType, cuda::hash_algorithm Algorithm, typename NewType>
+struct rebind_hasher<cuda::hash<OldType, Algorithm>, NewType> {
+  using type = cuda::hash<NewType, Algorithm>;
 };
 
 template <typename T, typename NewType>
@@ -85,21 +86,6 @@ NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::uniform,
 NVBENCH_DECLARE_TYPE_STRINGS(cuco::utility::distribution::gaussian,
                              "GAUSSIAN",
                              "distribution::gaussian");
-
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_64<char>, "xxhash_64", "cuco::xxhash_64");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::XXHash_32<char>, "xxhash_32", "cuco::xxhash_32");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_32<char>,
-                             "murmurhash3_32",
-                             "cuco::murmurhash3_32");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x86_128<char>,
-                             "murmurhash3_x86_128",
-                             "cuco::murmurhash3_x86_128");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::MurmurHash3_x64_128<char>,
-                             "murmurhash3_x64_128",
-                             "cuco::murmurhash3_x64_128");
-NVBENCH_DECLARE_TYPE_STRINGS(cuco::detail::identity_hash<char>,
-                             "identity_hash",
-                             "cuco::identity_hash");
 
 #if defined(CUCO_HAS_128BIT_ATOMICS)
 NVBENCH_DECLARE_TYPE_STRINGS(__int128_t, "I128", "__int128_t");
