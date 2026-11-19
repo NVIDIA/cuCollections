@@ -100,14 +100,14 @@ class bulk_static_multimap_builder {
     auto const lane = group.thread_rank();
     auto const buckets = storage.bucket_count;
     for (std::size_t b = lane; b < buckets; b += BlockSize) storage.counters[b] = 0;
-    group.sync();
+    __syncthreads();
     for (std::size_t i = lane; i < count; i += BlockSize) {
       value_type const pair = first[i];
       auto const b = detail::bulk_bucket(hash, pair.first, static_cast<Size>(buckets));
       cuda::atomic_ref<Size, cuda::thread_scope_block>{storage.counters[b]}.fetch_add(
         1, cuda::memory_order_relaxed);
     }
-    group.sync();
+    __syncthreads();
     Size carry = 0;
     for (std::size_t base = 0; base < buckets; base += BlockSize) {
       auto const b = base + lane;
@@ -119,10 +119,10 @@ class bulk_static_multimap_builder {
         storage.counters[b] = 0;
       }
       carry += total;
-      group.sync();
+      __syncthreads();
     }
     if (!lane) storage.offsets[buckets] = carry;
-    group.sync();
+    __syncthreads();
     for (std::size_t i = lane; i < count; i += BlockSize) {
       value_type const pair = first[i];
       auto const b = detail::bulk_bucket(hash, pair.first, static_cast<Size>(buckets));
@@ -130,7 +130,7 @@ class bulk_static_multimap_builder {
                               .fetch_add(1, cuda::memory_order_relaxed);
       storage.records[storage.offsets[b] + position] = pair;
     }
-    group.sync();
+    __syncthreads();
     return bulk_build_status::success;
   }
 
