@@ -12,13 +12,16 @@
 
 #include <nvbench/nvbench.cuh>
 
+#include <cuda/functional>
 #include <cuda/std/limits>
 #include <thrust/count.h>
 #include <thrust/device_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state, rebind_hasher_t
+#include <memory_stats.hpp>
+
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats, rebind_hasher_t
 using namespace cuco::utility;    // key_generator, distribution
 
 /**
@@ -56,7 +59,7 @@ void bloom_filter_contains(nvbench::state& state,
     auto constexpr add_vertical_layout   = 1;
     auto constexpr add_horizontal_layout = words_per_block;
     using policy_type                    = cuco::bloom_filter_policy<Key,
-                                                                     cuco::xxhash_64<Key>,
+                                                                     cuda::hash<Key>,
                                                                      WordBytes,
                                                                      words_per_block,
                                                                      PatternBits,
@@ -67,8 +70,11 @@ void bloom_filter_contains(nvbench::state& state,
                                                                      false,
                                                                      false,
                                                                      false>;
-    using filter_type =
-      cuco::bloom_filter<Key, cuco::extent<size_type>, cuda::thread_scope_device, policy_type>;
+    using filter_type                    = cuco::bloom_filter<Key,
+                                                              cuco::extent<size_type>,
+                                                              cuda::thread_scope_device,
+                                                              policy_type,
+                                                              tracking_allocator<cuda::std::byte>>;
 
     auto const num_keys       = state.get_int64("NumInputs");
     auto const filter_size_mb = state.get_int64("FilterSizeMB");
@@ -113,9 +119,12 @@ void bloom_filter_contains(nvbench::state& state,
     state.add_global_memory_reads<char>(num_keys * ((words_per_block * WordBytes) + sizeof(Key)));
     state.add_global_memory_writes<char>(num_keys * sizeof(bool));
 
+    auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
     state.exec([&](nvbench::launch& launch) {
       filter.contains_async(keys.begin(), keys.end(), result.begin(), {launch.get_stream()});
     });
+    state.add_buffer_size(
+      mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
   }
 }
 

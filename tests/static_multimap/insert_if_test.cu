@@ -8,6 +8,7 @@
 #include <cuco/detail/__config>
 #include <cuco/static_multimap.cuh>
 
+#include <cuda/functional>
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
@@ -90,8 +91,10 @@ TEMPLATE_TEST_CASE_SIG(
   using extent_type = cuco::extent<std::size_t>;
   using probe       = std::conditional_t<
           Probe == cuco::test::probe_sequence::linear_probing,
-          cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-          cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+          cuco::linear_probing<CGSize, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>,
+          cuco::double_hashing<CGSize,
+                               cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>,
+                               cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>>;
 
   auto map = cuco::static_multimap<Key,
                                    Value,

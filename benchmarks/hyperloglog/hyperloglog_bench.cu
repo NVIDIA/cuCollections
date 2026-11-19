@@ -16,10 +16,12 @@
 #include <cuda/iterator>
 #include <thrust/device_vector.h>
 
+#include <memory_stats.hpp>
+
 #include <cmath>
 #include <cstddef>
 
-using namespace cuco::benchmark;  // defaults, dist_from_state
+using namespace cuco::benchmark;  // defaults, dist_from_state, memory_stats
 using namespace cuco::utility;    // key_generator, distribution
 
 template <typename InputIt>
@@ -68,7 +70,8 @@ template <class Estimator, class Dist>
 template <typename T, typename Dist>
 void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using estimator_type = cuco::hyperloglog<T>;
+  using estimator_type = cuco::
+    hyperloglog<T, cuda::thread_scope_device, cuda::hash<T>, tracking_allocator<cuda::std::byte>>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -91,6 +94,7 @@ void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 
   estimator_type estimator{cuco::sketch_size_kb(sketch_size_kb)};
   std::size_t estimated_cardinality = 0;
+  auto const mem_stats_logger       = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::sync | nvbench::exec_tag::timer,
              [&](nvbench::launch& launch, auto& timer) {
                timer.start();
@@ -100,6 +104,8 @@ void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 
                estimator.clear_async({launch.get_stream()});
              });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 /**
@@ -108,7 +114,8 @@ void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 template <typename T, typename Dist>
 void hyperloglog_add(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using estimator_type = cuco::hyperloglog<T>;
+  using estimator_type = cuco::
+    hyperloglog<T, cuda::thread_scope_device, cuda::hash<T>, tracking_allocator<cuda::std::byte>>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -122,6 +129,7 @@ void hyperloglog_add(nvbench::state& state, nvbench::type_list<T, Dist>)
   state.add_global_memory_reads<T>(num_items, "InputSize");
 
   estimator_type estimator{cuco::sketch_size_kb(sketch_size_kb)};
+  auto const mem_stats_logger = cuco::benchmark::memory_stats_logger();
   state.exec(nvbench::exec_tag::timer, [&](nvbench::launch& launch, auto& timer) {
     timer.start();
     estimator.add_async(items.begin(), items.end(), {launch.get_stream()});
@@ -129,6 +137,8 @@ void hyperloglog_add(nvbench::state& state, nvbench::type_list<T, Dist>)
 
     estimator.clear_async({launch.get_stream()});
   });
+  state.add_buffer_size(
+    mem_stats_logger.peak_memory_usage(), "peak_memory_usage", "peak_memory_usage");
 }
 
 using TYPE_RANGE = nvbench::type_list<nvbench::int32_t, nvbench::int64_t, __int128_t>;
@@ -137,14 +147,14 @@ NVBENCH_BENCH_TYPES(hyperloglog_e2e,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("hyperloglog_e2e_uniform")
   .set_type_axes_names({"T", "Distribution"})
-  .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
-  .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})  // 256KB uses gmem fallback kernel
+  .add_int64_power_of_two_axis("NumInputs", {29})
+  .add_int64_axis("SketchSizeKB", {32, 64, 128, 256})  // 256KB uses gmem fallback kernel
   .add_int64_axis("Multiplicity", {1});
 
 NVBENCH_BENCH_TYPES(hyperloglog_add,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("hyperloglog_add_uniform")
   .set_type_axes_names({"T", "Distribution"})
-  .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
-  .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})
+  .add_int64_power_of_two_axis("NumInputs", {29})
+  .add_int64_axis("SketchSizeKB", {32, 64, 128, 256})
   .add_int64_axis("Multiplicity", {1});

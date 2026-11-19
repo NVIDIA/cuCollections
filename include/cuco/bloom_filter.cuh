@@ -15,7 +15,6 @@
 #include <cuco/utility/cuda_thread_scope.cuh>
 
 #include <cuda/atomic>
-#include <cuda/std/array>
 #include <cuda/std/cstddef>
 #include <cuda/std/type_traits>
 #include <cuda/stream>
