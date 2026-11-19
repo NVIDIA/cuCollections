@@ -275,7 +275,14 @@ class bloom_filter_policy {
     }
   }
 
-  /// Index of the FastL2Add skipped word, in `[0, words per sector)`: the top bits of the hash.
+  /**
+   * @brief Index of the FastL2Add skipped word in the block's first sector: the top bits of the
+   * hash.
+   *
+   * @param hash Lower 32 bits of the key's hash.
+   *
+   * @return Word index in `[0, words per sector)`.
+   */
   __device__ static constexpr uint32_t skip_index(uint32_t hash)
   {
     constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
