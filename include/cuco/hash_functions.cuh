@@ -7,7 +7,7 @@
 
 #include <cuco/detail/__config>
 
-#include <cuda/__functional/hash.h>
+#include <cuda/functional>
 
 namespace cuco {
 

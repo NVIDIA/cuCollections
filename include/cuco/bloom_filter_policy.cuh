@@ -8,7 +8,7 @@
 #include <cuco/detail/bloom_filter/bloom_filter_policy.cuh>
 #include <cuco/utility/cuda.cuh>
 
-#include <cuda/__functional/hash.h>
+#include <cuda/functional>
 
 #include <cstdint>
 
