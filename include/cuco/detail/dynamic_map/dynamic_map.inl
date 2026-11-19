@@ -8,7 +8,6 @@
 #include <cuco/detail/utils.hpp>
 #include <cuco/operator.hpp>
 
-#include <cuda/std/atomic>
 #include <cuda/stream>
 
 #include <algorithm>

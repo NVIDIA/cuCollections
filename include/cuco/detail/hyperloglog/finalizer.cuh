@@ -6,9 +6,9 @@
 
 #include <cuco/detail/hyperloglog/tuning.cuh>
 
-#include <cuda/functional>
+#include <cuda/std/__algorithm/max.h>
+#include <cuda/std/__algorithm/min.h>
 #include <cuda/std/cmath>
-#include <cuda/std/limits>
 
 #include <cstddef>
 

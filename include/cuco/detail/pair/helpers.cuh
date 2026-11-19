@@ -7,7 +7,7 @@
 
 #include <cuco/detail/__config>
 
-#include <cuda/functional>
+#include <cuda/std/__algorithm/min.h>
 #include <cuda/std/bit>
 #include <cuda/std/type_traits>
 
