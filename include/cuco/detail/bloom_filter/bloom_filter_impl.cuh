@@ -530,27 +530,25 @@ class bloom_filter_impl {
       auto* word_base = words_ +
                         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout;
+      auto const pattern =
+        policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
       constexpr uint32_t sector_words = 32 / sizeof(word_type);
-
       if constexpr (fast_l2_add and LoopIndex == 0 and add_vertical_layout >= sector_words) {
-        // The thread owns the whole first sector: one atomic less, shifting past the skipped word,
-        // instead of a conditional atomic per word.
-        auto const pattern =
-          policy_.template array_pattern<LoopIndex, add_vertical_layout, false>(lower_hash);
+        // The thread owns the whole first sector: shift past the skipped word, so the atomics
+        // stay unconditional (a per-word skip test compiles to a divergent branch chain).
         uint32_t const skip = policy_type::skip_index(lower_hash);
         for (uint32_t i = 0; i + 1 < sector_words; ++i) {
           bool const past = i >= skip;
-          atomic_or<ConditionalAdd, false>(word_base + i + past,
-                                           past ? pattern[i + 1] : pattern[i]);
+          atomic_or<ConditionalAdd>(word_base + i + past, past ? pattern[i + 1] : pattern[i]);
         }
         for (uint32_t i = sector_words; i < add_vertical_layout; ++i) {
-          atomic_or<ConditionalAdd, false>(word_base + i, pattern[i]);
+          atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
         }
       } else {
-        auto const pattern =
-          policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
-        for (int i = 0; i < add_vertical_layout; ++i) {
-          atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
+        for (uint32_t i = 0; i < add_vertical_layout; ++i) {
+          if (not policy_type::is_skipped(lower_hash, LoopIndex * add_vertical_layout + i)) {
+            atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
+          }
         }
       }
 
@@ -575,8 +573,12 @@ class bloom_filter_impl {
                         LoopIndex * add_vertical_layout * add_horizontal_layout +
                         thread_index * add_vertical_layout;
 
-      for (int i = 0; i < add_vertical_layout; ++i) {
-        atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
+      uint32_t const first_word =
+        (LoopIndex * add_horizontal_layout + thread_index) * add_vertical_layout;
+      for (uint32_t i = 0; i < add_vertical_layout; ++i) {
+        if (not policy_type::is_skipped(lower_hash, first_word + i)) {
+          atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
+        }
       }
 
       // Recurse.
@@ -584,14 +586,9 @@ class bloom_filter_impl {
     }
   }
 
-  template <bool ConditionalAdd, bool SkipZero = fast_l2_add>
+  template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    // Issue no atomic for a zero pattern: with FastL2Add the skipped word's pattern is cleared, so
-    // the coalesced request leaves that word inactive.
-    if constexpr (SkipZero) {
-      if (pattern == 0) { return; }
-    }
     auto const do_or = [&]() {
       auto* const p = filter_access(word_ptr);
       if constexpr (thread_scope == cuda::thread_scope_thread) {
@@ -627,7 +624,7 @@ class bloom_filter_impl {
     bool match = true;
     for (uint32_t i = 0; i < expected_pattern.size(); ++i) {
       match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i] or
-               (fast_l2_add and first_word + i == policy_type::skip_index(lower_hash));
+               policy_type::is_skipped(lower_hash, first_word + i);
     }
     return match;
   }
@@ -645,7 +642,7 @@ class bloom_filter_impl {
         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout);
       auto const expected_pattern =
-        policy_.template array_pattern<LoopIndex, contains_vertical_layout, false>(lower_hash);
+        policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
       bool const match =
         matches(stored_pattern, expected_pattern, lower_hash, LoopIndex * contains_vertical_layout);
 
@@ -676,10 +673,10 @@ class bloom_filter_impl {
         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
         LoopIndex * contains_vertical_layout * contains_horizontal_layout +
         thread_index * contains_vertical_layout);
-      auto const expected_pattern = policy_.template array_pattern<LoopIndex,
-                                                                   contains_horizontal_layout,
-                                                                   contains_vertical_layout,
-                                                                   false>(lower_hash, thread_index);
+      auto const expected_pattern =
+        policy_
+          .template array_pattern<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
+            lower_hash, thread_index);
       bool const match =
         matches(stored_pattern,
                 expected_pattern,

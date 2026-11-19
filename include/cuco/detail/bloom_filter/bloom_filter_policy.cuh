@@ -65,7 +65,7 @@ namespace cuco::detail {
  * stream has sufficient locality: filters far larger than L2 can continually mark random lines as
  * persisting, thrashing the cache and affecting unrelated kernels.
  * @tparam FastL2Add When `true`, one hash-selected word of the first 32-byte sector of each key's
- * block is left untouched (its pattern word is cleared), so a key sets
+ * block is left untouched (`add` and `contains` skip it by index), so a key sets
  * `pattern_bits - ceil(pattern_bits / words_per_block)` bits in `words_per_block - 1` words. `add`
  * issues no atomic for the skipped word, so the atomic updates of a key cover its first sector only
  * partially, which recent GPUs process more efficiently than a fully covered sector; this speeds up
@@ -226,21 +226,15 @@ class bloom_filter_policy {
    *
    * @tparam LoopIndex Outer-loop iteration index when `words_per_block / VerticalLayout > 1`.
    * @tparam VerticalLayout Number of contiguous words this call produces.
-   * @tparam ClearSkipped Whether the FastL2Add skipped word's pattern is cleared (`add`); `false`
-   * keeps it, for callers that handle the skipped word by its index.
    *
    * @param lower_hash_value Lower 32 bits of the key's hash.
    *
    * @return Array of `VerticalLayout` words.
    */
-  template <uint32_t LoopIndex, uint32_t VerticalLayout, bool ClearSkipped = fast_l2_add>
+  template <uint32_t LoopIndex, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value) const
   {
-    auto pattern = pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
-    if constexpr (fast_l2_add and ClearSkipped) {
-      clear_skipped(pattern, lower_hash_value, LoopIndex * VerticalLayout);
-    }
-    return pattern;
+    return pattern_impl<LoopIndex, VerticalLayout>(lower_hash_value);
   }
 
   /**
@@ -249,37 +243,39 @@ class bloom_filter_policy {
    * @tparam LoopIndex Outer-loop iteration index.
    * @tparam HorizontalLayout Cooperative-group size cooperating on a single key.
    * @tparam VerticalLayout Number of contiguous words this call produces.
-   * @tparam ClearSkipped Whether the FastL2Add skipped word's pattern is cleared (`add`); `false`
-   * keeps it, for callers that handle the skipped word by its index.
    *
    * @param lower_hash_value Lower 32 bits of the key's hash.
    * @param thread_index Caller's rank within the cooperative group.
    *
    * @return Array of `VerticalLayout` words owned by the calling thread.
    */
-  template <uint32_t LoopIndex,
-            uint32_t HorizontalLayout,
-            uint32_t VerticalLayout,
-            bool ClearSkipped = fast_l2_add>
+  template <uint32_t LoopIndex, uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto array_pattern(uint32_t lower_hash_value, uint32_t thread_index) const
   {
-    auto pattern =
-      pattern_impl<LoopIndex, HorizontalLayout, VerticalLayout>(lower_hash_value, thread_index);
-    if constexpr (fast_l2_add and ClearSkipped) {
-      clear_skipped(
-        pattern, lower_hash_value, (LoopIndex * HorizontalLayout + thread_index) * VerticalLayout);
-    }
-    return pattern;
+    return pattern_impl<LoopIndex, HorizontalLayout, VerticalLayout>(lower_hash_value,
+                                                                     thread_index);
   }
 
   /**
-   * @brief Index of the FastL2Add skipped word in the block's first sector: the top bits of the
-   * hash.
+   * @brief Whether FastL2Add leaves block word `word` of this key untouched.
+   *
+   * The skipped word is in the block's first 32-byte sector; the top bits of the hash select it.
    *
    * @param hash Lower 32 bits of the key's hash.
+   * @param word Word index in the block.
    *
-   * @return Word index in `[0, words per sector)`.
+   * @return `true` if `add` sets no bits in `word`, and `contains` does not test it.
    */
+  __device__ static constexpr bool is_skipped(uint32_t hash, uint32_t word)
+  {
+    if constexpr (fast_l2_add) {
+      return word == skip_index(hash);
+    } else {
+      return false;
+    }
+  }
+
+  /// Index of the FastL2Add skipped word, in `[0, words per sector)`: the top bits of the hash.
   __device__ static constexpr uint32_t skip_index(uint32_t hash)
   {
     constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
@@ -293,29 +289,6 @@ class bloom_filter_policy {
   /// partial coverage makes the update cheaper.
   static constexpr uint32_t sector_bytes     = 32;
   static constexpr uint32_t words_per_sector = sector_bytes / WordBytes;
-
-  /// Clears the pattern word of the hash-selected skipped word if it lies in this pattern array,
-  /// whose first element is block word `first_word`.
-  ///
-  /// Branchless: the skip index is per key (data-dependent), so comparing it against each word
-  /// index lets the compiler emit a switch over its values, which diverges across a warp. Instead
-  /// a keep-mask with the skipped bit cleared is shifted per word and turned into an all-ones or
-  /// all-zeros word mask.
-  template <class PatternArrayT>
-  __device__ constexpr void clear_skipped(PatternArrayT& pattern_array,
-                                          uint32_t hash,
-                                          uint32_t first_word) const
-  {
-    uint32_t const skip = skip_index(hash);
-    if constexpr (cuda::std::tuple_size_v<PatternArrayT> == 1) {
-      pattern_array[0] &= word_type{0} - static_cast<word_type>(first_word != skip);
-    } else {
-      uint32_t const keep = ~(uint32_t{1} << skip);  // words_per_block <= 32
-      for (uint32_t i = 0; i < pattern_array.size(); ++i) {
-        pattern_array[i] &= word_type{0} - static_cast<word_type>((keep >> (first_word + i)) & 1u);
-      }
-    }
-  }
 
   /**
    * @brief pattern_impl - Computes the bit pattern for a vertical layout of words.
