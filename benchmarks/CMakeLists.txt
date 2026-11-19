@@ -76,11 +76,6 @@ ConfigureBench(DYNAMIC_MAP_BENCH
   dynamic_map/retrieve_all_bench.cu)
 
 ###################################################################################################
-# - hash function benchmarks ----------------------------------------------------------------------
-ConfigureBench(HASH_FUNCTION_BENCH
-  hash_function/hash_function_bench.cu)
-
-###################################################################################################
 # - hyperloglog benchmarks -----------------------------------------------------------
 ConfigureBench(HYPERLOGLOG_BENCH
   hyperloglog/hyperloglog_bench.cu)

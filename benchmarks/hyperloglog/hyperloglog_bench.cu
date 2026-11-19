@@ -70,10 +70,8 @@ template <class Estimator, class Dist>
 template <typename T, typename Dist>
 void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using estimator_type = cuco::hyperloglog<T,
-                                           cuda::thread_scope_device,
-                                           cuco::xxhash_64<T>,
-                                           tracking_allocator<cuda::std::byte>>;
+  using estimator_type = cuco::
+    hyperloglog<T, cuda::thread_scope_device, cuda::hash<T>, tracking_allocator<cuda::std::byte>>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -116,10 +114,8 @@ void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 template <typename T, typename Dist>
 void hyperloglog_add(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using estimator_type = cuco::hyperloglog<T,
-                                           cuda::thread_scope_device,
-                                           cuco::xxhash_64<T>,
-                                           tracking_allocator<cuda::std::byte>>;
+  using estimator_type = cuco::
+    hyperloglog<T, cuda::thread_scope_device, cuda::hash<T>, tracking_allocator<cuda::std::byte>>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");

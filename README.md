@@ -62,6 +62,7 @@ This will take care of downloading `cuCollections` from GitHub and making the he
 ## Requirements
 - NVCC 12.0 or newer
 - C++17
+- CCCL 3.6.0 or newer
 - GPU Architecture: Volta or newer
     - Pascal is partially supported. Any data structures that require blocking algorithms are not supported. See [libcu++](https://nvidia.github.io/libcudacxx/setup/requirements.html#device-architectures) documentation for more details.
 
