@@ -10,9 +10,8 @@
 
 #include <cuda/cmath>
 #include <cuda/memory>
-#include <cuda/ptx>
 #include <cuda/std/array>
-#include <cuda/std/bit>
+#include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
 #include <cuda/std/limits>
 #include <cuda/std/type_traits>
@@ -88,13 +87,130 @@ __host__ __device__ constexpr SizeType hash_to_index(HashType hash, SizeType upp
 }
 
 /**
+ * @brief Reinterprets a word as an object of the same size.
+ *
+ * Uses the same reinterpretation as `packed_cas`, so it also accepts bitwise-comparable types that
+ * are not trivially copyable or not default constructible.
+ *
+ * @tparam T Type of the object
+ * @tparam Word Type of the word, of the same size as `T`
+ *
+ * @param word The word that holds the object representation
+ *
+ * @return A copy of the object
+ */
+template <typename T, typename Word>
+[[nodiscard]] __device__ T object_from_word(Word const& word) noexcept
+{
+  static_assert(sizeof(T) == sizeof(Word), "The word must have the size of the object");
+  return *reinterpret_cast<T const*>(&word);
+}
+
+/// Unsigned word of `Unit` bytes (4, 8, or 16)
+template <cuda::std::size_t Unit>
+using load_word_t = typename packed<Unit>::type;
+
+#define CUCO_DETAIL_WEAK_LD(SPACE, PTR)                                                 \
+  if constexpr (Unit == 4 and Bytes == 4) {                                             \
+    asm("ld" SPACE ".b32 %0, [%1];" : "=r"(words[0]) : "l"(PTR) : "memory");            \
+  } else if constexpr (Unit == 4 and Bytes == 8) {                                      \
+    asm("ld" SPACE ".v2.b32 {%0, %1}, [%2];"                                            \
+        : "=r"(words[0]), "=r"(words[1])                                                \
+        : "l"(PTR)                                                                      \
+        : "memory");                                                                    \
+  } else if constexpr (Unit == 4 and Bytes == 16) {                                     \
+    asm("ld" SPACE ".v4.b32 {%0, %1, %2, %3}, [%4];"                                    \
+        : "=r"(words[0]), "=r"(words[1]), "=r"(words[2]), "=r"(words[3])                \
+        : "l"(PTR)                                                                      \
+        : "memory");                                                                    \
+  } else if constexpr (Unit == 8 and Bytes == 8) {                                      \
+    asm("ld" SPACE ".b64 %0, [%1];" : "=l"(words[0]) : "l"(PTR) : "memory");            \
+  } else if constexpr (Unit == 8 and Bytes == 16) {                                     \
+    asm("ld" SPACE ".v2.b64 {%0, %1}, [%2];"                                            \
+        : "=l"(words[0]), "=l"(words[1])                                                \
+        : "l"(PTR)                                                                      \
+        : "memory");                                                                    \
+  } else {                                                                              \
+    static_assert(Unit == 16 and Bytes == 16, "Unsupported weak load shape");           \
+    cuda::std::uint64_t lo;                                                             \
+    cuda::std::uint64_t hi;                                                             \
+    asm("{\n\t.reg .b128 w;\n\tld" SPACE ".b128 w, [%2];\n\tmov.b128 {%0, %1}, w;\n\t}" \
+        : "=l"(lo), "=l"(hi)                                                            \
+        : "l"(PTR)                                                                      \
+        : "memory");                                                                    \
+    words[0] = (static_cast<load_word_t<16>>(hi) << 64) | lo;                           \
+  }
+
+/**
+ * @brief Loads `Bytes` bytes at `address` with one weak PTX load whose elements are `Unit` bytes.
+ *
+ * The PTX memory model treats a vector load as one load per element. Each element must be exactly
+ * the word that atomic operations on this memory swap or store. Then a race with such an operation
+ * is a uniform-size race, which the memory model defines. The compiler cannot split, widen, or
+ * merge the asm.
+ *
+ * @tparam Unit Element width in bytes: 4, 8, or 16
+ * @tparam Bytes Number of bytes to load: 4, 8, or 16, a multiple of `Unit`
+ *
+ * @param address Address of the first byte, aligned to `Bytes`
+ * @param global Whether `address` points to global memory; otherwise a generic load is used
+ * @param words The loaded elements
+ */
+template <cuda::std::size_t Unit, cuda::std::size_t Bytes>
+__device__ void weak_load_words(void const* address,
+                                bool global,
+                                load_word_t<Unit> (&words)[Bytes / Unit]) noexcept
+{
+  static_assert(Bytes % Unit == 0, "Bytes must be a multiple of Unit");
+  if constexpr (Bytes == 32) {
+    // 256-bit loads exist for global memory on sm_100+ only (PTX ISA 8.8).
+    static_assert(Unit == 4 or Unit == 8, "A 32-byte load has 4- or 8-byte elements");
+    if (global) {
+      auto const ptr = __cvta_generic_to_global(address);
+      if constexpr (Unit == 4) {
+        asm("ld.global.v8.b32 {%0, %1, %2, %3, %4, %5, %6, %7}, [%8];"
+            : "=r"(words[0]),
+              "=r"(words[1]),
+              "=r"(words[2]),
+              "=r"(words[3]),
+              "=r"(words[4]),
+              "=r"(words[5]),
+              "=r"(words[6]),
+              "=r"(words[7])
+            : "l"(ptr)
+            : "memory");
+      } else {
+        asm("ld.global.v4.b64 {%0, %1, %2, %3}, [%4];"
+            : "=l"(words[0]), "=l"(words[1]), "=l"(words[2]), "=l"(words[3])
+            : "l"(ptr)
+            : "memory");
+      }
+    } else {
+      constexpr auto half     = 16 / Unit;
+      auto const* const bytes = static_cast<char const*>(address);
+      weak_load_words<Unit, 16>(bytes, false, *reinterpret_cast<load_word_t<Unit>(*)[half]>(words));
+      weak_load_words<Unit, 16>(
+        bytes + 16, false, *reinterpret_cast<load_word_t<Unit>(*)[half]>(words + half));
+    }
+  } else if (global) {
+    auto const ptr = __cvta_generic_to_global(address);
+    CUCO_DETAIL_WEAK_LD(".global", ptr)
+  } else {
+    auto const ptr = reinterpret_cast<cuda::std::uintptr_t>(address);
+    CUCO_DETAIL_WEAK_LD("", ptr)
+  }
+}
+
+#undef CUCO_DETAIL_WEAK_LD
+
+/**
  * @brief Loads the object at `address` while other threads may be swapping it atomically.
  *
  * A plain load must not race with an atomic operation: the compiler may narrow, widen, merge, or
- * drop it. An object in global memory is read with one weak PTX load of exactly the word the
- * atomic operation swaps instead, which is the object itself or the aligned 32-bit word that holds
- * a 1- or 2-byte object. An atomic load is not used there because it is several times slower when
- * many threads probe the same slots.
+ * drop it. The object is read with one weak PTX load of exactly the word the atomic operation
+ * swaps instead, which is the object itself or the aligned 32-bit word that holds a 1- or 2-byte
+ * object. An atomic load is not used because it is several times slower when many threads probe
+ * the same slots.
  *
  * The value may already be stale when the caller sees it. Re-read it only after an atomic
  * operation: a loop that only waits on this load may never observe a change.
@@ -112,24 +228,18 @@ template <typename T>
   static_assert(not cuda::std::is_void_v<word_type>,
                 "A weak load requires a 1, 2, 4, 8, or 16 byte type");
 
-  // `cuda::ptx::ld` reads global memory only, so an object in other memory, such as shared memory,
-  // takes a volatile load.
-  if (not cuda::device::is_address_from(address, cuda::device::address_space::global)) {
-    word_type const word = *reinterpret_cast<word_type const volatile*>(address);
-    return cuda::std::bit_cast<T>(word);
-  }
-
+  bool const global = cuda::device::is_address_from(address, cuda::device::address_space::global);
   if constexpr (sizeof(T) <= 2) {
     constexpr cuda::std::uintptr_t align_mask = sizeof(cuda::std::uint32_t) - 1;
     auto const address_value                  = reinterpret_cast<cuda::std::uintptr_t>(address);
-    auto const* const aligned =
-      reinterpret_cast<cuda::std::uint32_t const*>(address_value & ~align_mask);
     auto const offset = static_cast<cuda::std::uint32_t>((address_value & align_mask) * 8);
-    auto const word   = cuda::ptx::ld(cuda::ptx::space_global, aligned);
-    return cuda::std::bit_cast<T>(static_cast<word_type>(word >> offset));
+    load_word_t<4> word[1];
+    weak_load_words<4, 4>(reinterpret_cast<void const*>(address_value & ~align_mask), global, word);
+    return object_from_word<T>(static_cast<word_type>(word[0] >> offset));
   } else {
-    auto const* const word = reinterpret_cast<word_type const*>(address);
-    return cuda::std::bit_cast<T>(cuda::ptx::ld(cuda::ptx::space_global, word));
+    load_word_t<sizeof(T)> word[1];
+    weak_load_words<sizeof(T), sizeof(T)>(address, global, word);
+    return object_from_word<T>(word[0]);
   }
 }
 

@@ -31,7 +31,7 @@ template <typename T, int32_t BucketSize, typename Extent = cuco::extent<std::si
 class bucket_storage_ref {
  public:
   static constexpr int32_t bucket_size = BucketSize;        ///< Number of elements per bucket
-  static constexpr std::size_t max_vector_load_bytes = 16;  ///< Maximum vector load width in bytes
+  static constexpr std::size_t max_vector_load_bytes = 32;  ///< Maximum vector load width in bytes
 
   using bucket_type = cuda::std::array<T, BucketSize>;  ///< Slot bucket type
 
