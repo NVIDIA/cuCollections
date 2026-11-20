@@ -213,8 +213,12 @@ void run(Study& study,std::size_t n,int duplicate,std::size_t aggregate,bool ver
   using B=cuco::bulk_static_multimap_block_batch<Key,Key>;
   using P=cuco::bulk_static_multimap_block_policy<8,true,4>;
   cuco::bulk_static_multimap_batch_options options;options.memory=cuco::bulk_static_multimap_memory::shared_metadata;
-  options.shared_bytes=B::workspace_bytes(n,buckets,options.memory,P{});CUCO_CUDA_TRY(B::configure(batch,options,P{}));
-  backends.push_back({"shared_cached_prefetch4",[=,&status,&views]{CUCO_CUDA_TRY(B::build_async(batch,status.data,options,cuda::stream_ref{cudaStream_t{nullptr}},Hash{},P{},views.data));},query,retrieve,retained,scratch});
+  options.shared_bytes=B::workspace_bytes(n,buckets,options.memory,P{});
+  cudaDeviceProp resources{};CUCO_CUDA_TRY(cudaGetDeviceProperties(&resources,0));
+  if(options.shared_bytes<=resources.sharedMemPerBlockOptin){
+    CUCO_CUDA_TRY(B::configure(batch,options,P{}));
+    backends.push_back({"shared_cached_prefetch4",[=,&status,&views]{CUCO_CUDA_TRY(B::build_async(batch,status.data,options,cuda::stream_ref{cudaStream_t{nullptr}},Hash{},P{},views.data));},query,retrieve,retained,scratch});
+  }else std::cout<<"SKIP shared_cached_prefetch4 n="<<n<<" workspace="<<options.shared_bytes<<" exceeds opt-in shared memory="<<resources.sharedMemPerBlockOptin<<'\n'<<std::flush;
   if(n<=32){auto build=n<=8?subgroup_build<8>(batch,status,views):n<=16?subgroup_build<16>(batch,status,views):subgroup_build<32>(batch,status,views);
     backends.push_back({"subgroup"+std::to_string(n<=8?8:n<=16?16:32),build,query,retrieve,retained,tables*sizeof(cuco::bulk_build_status)});}
   using CB=cuco::bulk_static_multimap_cluster_batch<Key,Key>;using CP=cuco::bulk_static_multimap_cluster_policy<4,true,false>;

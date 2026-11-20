@@ -27,7 +27,8 @@ thread, shared-cache fallback, prefetch width, and shared-record padding period.
 caller-owned global ID cache, and DSMEM LRB metadata. Policies are explicit; no
 single policy is claimed universally fastest. Shared builders provide checked
 `workspace_bytes`; misaligned or undersized workspace is rejected. LRB scratch is
-separate from retained records/offsets.
+separate from retained records/offsets. Device-wide scan scratch must be 16-byte
+aligned and contain at least `bulk_static_multimap_device_workspace_bytes` bytes.
 
 For host dispatch, `bulk_static_multimap_{subgroup,block,cluster}_batch` accept
 `bulk_static_multimap_uniform_batch<Storage>` or
@@ -53,7 +54,7 @@ auto ref = cuco::make_bulk_static_multimap_ref(
   retained, equal, cuco::find, cuco::contains, cuco::count, cuco::for_each);
 ```
 
-Scalar operations use one thread. Cooperative overloads accept a tile of up to32
+Scalar operations use one thread. Cooperative overloads accept a tile of up to 32
 threads; all lanes supply the same key. Group `find` and `contains` return uniform
 results. Group `count` returns **per-lane** matches, as in cuCollections; reduce
 across the tile for a total. Group `for_each` distributes matching const entry

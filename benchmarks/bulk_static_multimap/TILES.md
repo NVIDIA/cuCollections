@@ -37,3 +37,22 @@ bytes are written to CSV. There are no universal tuning or performance assertion
 Capture GPU UUID, temperature/power/clocks and source/toolchain information in the
 external experiment launcher. Whole-device/LRB/scheduler correctness is exercised
 by the native test; this benchmark measures representative collective policies.
+
+Audit the complete sample matrix and generate linear-axis build/query/retrieval
+figures with evenly spaced record-count categories:
+
+```
+MPLCONFIGDIR=/writable/cache python3 benchmarks/bulk_static_multimap/analyze_tiles.py \
+  samples.csv --samples 20 --aggregate 1048576 --output analysis
+```
+
+CSR policies share the same CG2 query implementation and buffers. Their query
+rows measure the common retained layout; only their build algorithms differ.
+This initial-block control keeps its construction algorithm and selects 32-bit
+indices explicitly. It does not reproduce the earlier default 64-bit/scalar-query
+campaign. Whole-device ownership/API results belong to that separate study.
+
+The shared-cache policy is omitted when its per-block workspace exceeds the
+device's opt-in shared-memory limit. On H100 this occurs at 65,536 records/table;
+the initial/static/cluster controls still run. The analyzer expects this H100
+matrix and rejects missing samples instead of silently shortening a series.
