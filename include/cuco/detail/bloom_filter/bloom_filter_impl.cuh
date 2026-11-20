@@ -530,8 +530,7 @@ class bloom_filter_impl {
       auto* word_base = words_ +
                         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout;
-      auto const pattern =
-        policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
+      auto pattern = policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
       constexpr uint32_t sector_words = 32 / sizeof(word_type);
       if constexpr (fast_l2_add and LoopIndex == 0 and add_vertical_layout >= sector_words) {
         // The thread owns the whole first sector: shift past the skipped word, so the atomics
@@ -545,10 +544,18 @@ class bloom_filter_impl {
           atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
         }
       } else {
-        for (uint32_t i = 0; i < add_vertical_layout; ++i) {
-          if (not policy_type::is_skipped(lower_hash, LoopIndex * add_vertical_layout + i)) {
-            atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
+        uint32_t const first_word = LoopIndex * add_vertical_layout;
+        if constexpr (fast_l2_add) {
+          // Clear the skipped word's pattern; atomic_or then issues no atomic for it. An index test
+          // ahead of each atomic instead lets the compiler compute the skip predicates of every
+          // key of a shuffle-first group up front (predicate spills, 64 B 16x1 add -11% on GB200).
+          for (uint32_t i = 0; i < add_vertical_layout; ++i) {
+            pattern[i] &= word_type{0} - static_cast<word_type>(
+                                           not policy_type::is_skipped(lower_hash, first_word + i));
           }
+        }
+        for (uint32_t i = 0; i < add_vertical_layout; ++i) {
+          atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
         }
       }
 
@@ -565,7 +572,7 @@ class bloom_filter_impl {
     static_assert(add_horizontal_layout > 1, "add_patterns() requires add_horizontal_layout > 1");
 
     if constexpr (LoopIndex < add_loop_count) {
-      auto const pattern =
+      auto pattern =
         policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
           lower_hash, thread_index);
       auto* word_base = words_ +
@@ -575,10 +582,17 @@ class bloom_filter_impl {
 
       uint32_t const first_word =
         (LoopIndex * add_horizontal_layout + thread_index) * add_vertical_layout;
-      for (uint32_t i = 0; i < add_vertical_layout; ++i) {
-        if (not policy_type::is_skipped(lower_hash, first_word + i)) {
-          atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
+      if constexpr (fast_l2_add) {
+        // Clear the skipped word's pattern; atomic_or then issues no atomic for it. An index test
+        // ahead of each atomic instead lets the compiler compute the skip predicates of every
+        // key of a shuffle-first group up front (predicate spills, 64 B 16x1 add -11% on GB200).
+        for (uint32_t i = 0; i < add_vertical_layout; ++i) {
+          pattern[i] &= word_type{0} - static_cast<word_type>(
+                                         not policy_type::is_skipped(lower_hash, first_word + i));
         }
+      }
+      for (uint32_t i = 0; i < add_vertical_layout; ++i) {
+        atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
       }
 
       // Recurse.
@@ -589,6 +603,12 @@ class bloom_filter_impl {
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
+    // FastL2Add: issue no atomic for a zero pattern (the cleared skipped word), so the coalesced
+    // request leaves that word inactive. The test must stay here: the same test at the call site
+    // is folded into an index test with the effect described in add_patterns().
+    if constexpr (fast_l2_add) {
+      if (pattern == 0) { return; }
+    }
     auto const do_or = [&]() {
       auto* const p = filter_access(word_ptr);
       if constexpr (thread_scope == cuda::thread_scope_thread) {
