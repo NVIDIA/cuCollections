@@ -76,7 +76,8 @@ __host__ __device__ Size bulk_bucket(Hash const& hash, Key const& key, Size buck
 template <class Key, class T, class Size, class KeyEqual, class Hash, class... Operators>
 class bulk_static_multimap_ref
   : public detail::bulk_multimap_operator<
-      Operators, bulk_static_multimap_ref<Key, T, Size, KeyEqual, Hash, Operators...>>... {
+      Operators,
+      bulk_static_multimap_ref<Key, T, Size, KeyEqual, Hash, Operators...>>... {
   template <class, class>
   friend struct detail::bulk_multimap_operator;
 
@@ -88,19 +89,21 @@ class bulk_static_multimap_ref
   using iterator    = value_type const*;
 
   __host__ __device__ bulk_static_multimap_ref(value_type const* records,
-                                              Size const* offsets,
-                                              Size size,
-                                              Size buckets,
-                                              KeyEqual equal,
-                                              Hash hash)
-    : records_{records}, offsets_{offsets}, size_{size}, buckets_{buckets}, equal_{equal}, hash_{hash}
+                                               Size const* offsets,
+                                               Size size,
+                                               Size buckets,
+                                               KeyEqual equal,
+                                               Hash hash)
+    : records_{records},
+      offsets_{offsets},
+      size_{size},
+      buckets_{buckets},
+      equal_{equal},
+      hash_{hash}
   {
   }
 
-  __host__ __device__ iterator end() const noexcept
-  {
-    return size_ ? records_ + size_ : records_;
-  }
+  __host__ __device__ iterator end() const noexcept { return size_ ? records_ + size_ : records_; }
   __host__ __device__ Size size() const noexcept { return size_; }
   __host__ __device__ Size bucket_count() const noexcept { return buckets_; }
 
