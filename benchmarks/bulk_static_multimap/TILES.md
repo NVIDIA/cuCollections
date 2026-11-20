@@ -30,7 +30,8 @@ launch and not included. Global counters remain allocated even for policies that
 stage counters in shared memory. No allocation-speed claim is made.
 
 Each operation/backend gets at least five warmups and the requested GPU warmup
-time. Sample order rotates across backends. Every backend is checked before and
+time. Build sample order is randomized with a fixed seed; two-backend query and
+retrieval order reverses each sample. Every backend is checked before and
 after timing against independent exact input occurrence, per-query multiplicity
 and retrieval payload/table association oracles. Raw event/wall samples and memory
 bytes are written to CSV. There are no universal tuning or performance assertions.
@@ -46,8 +47,9 @@ MPLCONFIGDIR=/writable/cache python3 benchmarks/bulk_static_multimap/analyze_til
   samples.csv --samples 20 --aggregate 1048576 --output analysis
 ```
 
-CSR policies share the same CG2 query implementation and buffers. Their query
-rows measure the common retained layout; only their build algorithms differ.
+CSR policies share the same CG2 query implementation and buffers. Query and
+retrieval are therefore measured once as `bulk_csr_cg2` against static_multimap;
+only construction is split by build policy.
 This initial-block control keeps its construction algorithm and selects 32-bit
 indices explicitly. It does not reproduce the earlier default 64-bit/scalar-query
 campaign. Whole-device ownership/API results belong to that separate study.

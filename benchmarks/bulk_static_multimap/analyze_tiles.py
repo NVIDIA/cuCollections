@@ -44,7 +44,9 @@ def main():
             backends.append('cluster2_cached_prefetch4')
         for duplicate in (1, 8):
             for backend in backends:
-                for metric in ('build', 'query', 'retrieve'):
+                expected.add((n, duplicate, backend, 'build'))
+            for backend in ('bulk_csr_cg2', 'static_multimap_cg2'):
+                for metric in ('query', 'retrieve'):
                     expected.add((n, duplicate, backend, metric))
     assert set(grouped) == expected, (expected - set(grouped), set(grouped) - expected)
     summary = []
@@ -80,7 +82,9 @@ def main():
     for duplicate in (1, 8):
         figure, axes = plt.subplots(1, 3, figsize=(18, 4.8))
         for axis, metric in zip(axes, ('build', 'query', 'retrieve')):
-            for backend, label, color in styles:
+            active_styles = styles if metric == 'build' else [styles[0],
+                ('bulk_csr_cg2', 'Bulk CSR CG2', '#2678b2')]
+            for backend, label, color in active_styles:
                 x, y, low, high = [], [], [], []
                 for index, n in enumerate(counts):
                     actual = f'subgroup{n}' if backend == 'subgroup' else backend
@@ -102,7 +106,8 @@ def main():
             axis.set_xlabel('Records per independent table')
             axis.set_ylabel('M records/s' if metric == 'build' else 'M queries/s')
             axis.grid(axis='y', alpha=.2)
-        axes[0].legend(fontsize=8)
+        for axis in axes:
+            axis.legend(fontsize=8)
         figure.suptitle(f'H100 collective policies | uniform duplicate factor {duplicate} | '
                         f'{args.samples} samples, median and p10–p90 | allocation excluded')
         figure.tight_layout()

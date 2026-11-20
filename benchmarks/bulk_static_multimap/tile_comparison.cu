@@ -176,10 +176,16 @@ struct Study {
   void measure(Fixture const& f,std::vector<Backend>& backends,std::string metric){
     auto operation=[&](Backend& b)->std::function<void()>&{return metric=="build"?b.build:metric=="query"?b.query:b.retrieve;};
     for(auto& b:backends){double elapsed=0;int runs=0;while(runs<5||elapsed<warmup_ms){elapsed+=timer.measure(operation(b)).first;++runs;}}
-    for(int sample=0;sample<samples;++sample)for(std::size_t j=0;j<backends.size();++j){
-      auto& b=backends[(j+sample)%backends.size()];auto timing=timer.measure(operation(b));
-      csv<<f.n<<','<<f.tables<<','<<f.duplicate<<','<<b.name<<','<<metric<<','<<sample<<','<<std::setprecision(10)
-        <<timing.first<<','<<timing.second<<','<<b.retained<<','<<b.scratch<<'\n';}
+    std::vector<std::size_t> order(backends.size());std::iota(order.begin(),order.end(),0);
+    std::mt19937_64 rng{mix(f.n+f.duplicate+97)};
+    for(int sample=0;sample<samples;++sample){
+      if(backends.size()==2){order[0]=sample%2;order[1]=1-order[0];}
+      else std::shuffle(order.begin(),order.end(),rng);
+      for(auto index:order){
+        auto& b=backends[index];auto timing=timer.measure(operation(b));
+        csv<<f.n<<','<<f.tables<<','<<f.duplicate<<','<<b.name<<','<<metric<<','<<sample<<','<<std::setprecision(10)
+          <<timing.first<<','<<timing.second<<','<<b.retained<<','<<b.scratch<<'\n';}
+    }
     csv.flush();
   }
 };
@@ -249,7 +255,11 @@ void run(Study& study,std::size_t n,int duplicate,std::size_t aggregate,bool ver
       std::sort(ids.begin(),ids.end());require(std::adjacent_find(ids.begin(),ids.end())==ids.end(),"retrieval repeated occurrence");}
   };
   for(auto& b:backends)verify(b);
-  if(!verify_only){study.measure(f,backends,"build");study.measure(f,backends,"query");study.measure(f,backends,"retrieve");}
+  if(!verify_only){
+    study.measure(f,backends,"build");
+    std::vector<Backend> lookups{{"bulk_csr_cg2",{},query,retrieve,retained,scratch},backends.back()};
+    study.measure(f,lookups,"query");study.measure(f,lookups,"retrieve");
+  }
   for(auto& b:backends)verify(b);
   std::cout<<"VERIFIED n="<<n<<" tables="<<tables<<" duplicate="<<duplicate<<" backends="<<backends.size()<<'\n'<<std::flush;
 }
