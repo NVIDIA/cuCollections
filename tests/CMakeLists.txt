@@ -138,6 +138,9 @@ ConfigureTest(STATIC_MULTIMAP_TEST
 ConfigureTest(BULK_STATIC_MULTIMAP_TEST
     bulk_static_multimap/bulk_static_multimap_test.cu)
 
+ConfigureTest(HASH_CSR_MULTIMAP_TEST
+    hash_csr_multimap/hash_csr_multimap_test.cu)
+
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_BITSET_TEST
