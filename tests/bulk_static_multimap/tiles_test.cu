@@ -206,7 +206,19 @@ int main(int argc,char**argv)try{
     block<Large,uint64_t>(cuco::bulk_static_multimap_memory::shared_output,true,cuco::bulk_static_multimap_block_policy<8,true,4,32>{});
     block_special();custom_equality();
   }
-  if(mode=="all"||mode=="cluster"){cluster<uint32_t>();cluster<uint64_t,Large>();}
+  if(mode=="all"||mode=="cluster"){
+    int device=0,supported=0;check(cudaGetDevice(&device));
+    check(cudaDeviceGetAttribute(&supported,cudaDevAttrClusterLaunch,device));
+    cudaFuncAttributes attributes{};check(cudaFuncGetAttributes(&attributes,wrong_block));
+    if(supported && attributes.ptxVersion>=90){cluster<uint32_t>();cluster<uint64_t,Large>();}
+    else{
+      Fixture<> fixture({1},{8});
+      cuco::bulk_static_multimap_descriptor_batch<Fixture<>::Storage> source{fixture.descriptors.data,1};
+      using Batch=cuco::bulk_static_multimap_cluster_batch<Key,uint64_t>;
+      require(Batch::configure(source)==cudaErrorNotSupported,"unsupported cluster accepted");
+      std::cout<<"SKIP cluster runtime (requires SM90 code and hardware); unsupported configuration rejected\n";
+    }
+  }
   if(mode=="all"||mode=="scheduler")scheduler();
   if(mode=="all"||mode=="device")device();
   check(cudaDeviceSynchronize());std::cout<<"TILE_COMPLETION_PASSED features="<<passed<<'\n';

@@ -472,6 +472,7 @@ class ScheduledHashGraph {
         auto error = cudaFuncGetAttributes(&attributes, kernel);
         if (error != cudaSuccess)
             return error;
+        if (attributes.ptxVersion < 90) return cudaSuccess;
         if (256 > attributes.maxThreadsPerBlock || attributes.sharedSizeBytes > device.sharedMemPerBlockOptin)
             return cudaSuccess;
         size_t bytes = Shared ? size_t(Items) * 256 * (sizeof(Offset) + sizeof(Counter)) : 0;

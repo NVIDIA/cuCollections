@@ -155,6 +155,10 @@ public:
         if (error != cudaSuccess) return error;
         if (!supported) return cudaErrorNotSupported;
         auto kernel = batch_detail::cluster_build<Threads, Record, Hash, Offset, Counter, Batch, Policy, Bucket>;
+        cudaFuncAttributes attributes{};
+        error = cudaFuncGetAttributes(&attributes, kernel);
+        if (error != cudaSuccess) return error;
+        if (attributes.ptxVersion < 90) return cudaErrorNotSupported;
         error = batch_detail::configure_shared(kernel, options.shared_bytes);
         if (error != cudaSuccess) return error;
         if (options.allow_nonportable_cluster_size) {

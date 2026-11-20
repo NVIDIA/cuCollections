@@ -45,7 +45,9 @@ subgroup, static/runtime block, shared/global, and cluster resource classes. Its
 retain output/status/cache bindings in original table order. Device descriptor
 batches need classification/sort scratch; uniform batches avoid partition scratch.
 Unsupported cluster resources are not selected; explicit cluster batch requests
-return launch/configuration errors when unsupported.
+return launch/configuration errors when unsupported. Cluster kernels must also
+be compiled for SM90+; scheduling checks the compiled virtual architecture before
+selecting a cluster class.
 
 Convert successful retained storage to the normal read-only query interface:
 
