@@ -10,6 +10,7 @@
 #include <cub/block/block_scan.cuh>
 #include <cuda/atomic>
 #include <cuda/std/limits>
+
 #include <cooperative_groups.h>
 
 #include <cstddef>
@@ -17,8 +18,16 @@
 #include <type_traits>
 
 namespace cuco {
-enum class bulk_build_status { success, invalid_size, insufficient_capacity, invalid_storage,
-                               invalid_group, invalid_block = invalid_group, invalid_cluster, unsupported_architecture };
+enum class bulk_build_status {
+  success,
+  invalid_size,
+  insufficient_capacity,
+  invalid_storage,
+  invalid_group,
+  invalid_block = invalid_group,
+  invalid_cluster,
+  unsupported_architecture
+};
 
 /**
  * @brief Caller-owned storage for one collective build. All regions must be disjoint and aligned.
@@ -41,20 +50,22 @@ struct bulk_multimap_storage {
 
   __host__ __device__ bulk_build_status validate(std::size_t count) const noexcept
   {
-    constexpr auto limit = cuda::std::numeric_limits<Size>::max();
+    constexpr auto limit       = cuda::std::numeric_limits<Size>::max();
     constexpr auto bytes_limit = cuda::std::numeric_limits<std::size_t>::max();
     if (!bucket_count || bucket_count >= limit || count > limit ||
         count > bytes_limit / sizeof(value_type) || bucket_count >= bytes_limit / sizeof(Size))
       return bulk_build_status::invalid_size;
     if (count > record_capacity || bucket_count >= offset_capacity ||
-        bucket_count > counter_capacity) return bulk_build_status::insufficient_capacity;
+        bucket_count > counter_capacity)
+      return bulk_build_status::insufficient_capacity;
     if ((count && !records) || !offsets || !counters || offsets == counters)
       return bulk_build_status::invalid_storage;
     return bulk_build_status::success;
   }
 
   template <class KeyEqual = cuda::std::equal_to<Key>,
-            class Hash = cuco::default_hash_function<Key>, class... Operators>
+            class Hash     = cuco::default_hash_function<Key>,
+            class... Operators>
   __host__ __device__ auto ref(std::size_t count, KeyEqual equal, Hash hash, Operators...) const
   {
     return bulk_static_multimap_ref<Key, T, Size, KeyEqual, Hash, Operators...>{
@@ -70,8 +81,11 @@ struct bulk_multimap_storage {
  * output or scratch. A ref is valid only after success; rebuild must exclude existing readers.
  * TempStorage must be private to the block and reusable only after collective completion.
  */
-template <class Key, class T, int BlockSize = 128, class Size = std::size_t,
-          class Hash = cuco::default_hash_function<Key>>
+template <class Key,
+          class T,
+          int BlockSize = 128,
+          class Size    = std::size_t,
+          class Hash    = cuco::default_hash_function<Key>>
 class bulk_static_multimap_builder {
   static_assert(BlockSize > 0 && BlockSize <= 1024 && BlockSize % 32 == 0);
   using scan_type = cub::BlockScan<Size, BlockSize>;
@@ -96,26 +110,27 @@ class bulk_static_multimap_builder {
       if (count && (!first || static_cast<void const*>(first) == storage.records))
         return bulk_build_status::invalid_storage;
     }
-    using value_type = cuco::pair<Key, T>;
-    auto const lane = group.thread_rank();
+    using value_type   = cuco::pair<Key, T>;
+    auto const lane    = group.thread_rank();
     auto const buckets = storage.bucket_count;
-    for (std::size_t b = lane; b < buckets; b += BlockSize) storage.counters[b] = 0;
+    for (std::size_t b = lane; b < buckets; b += BlockSize)
+      storage.counters[b] = 0;
     __syncthreads();
     for (std::size_t i = lane; i < count; i += BlockSize) {
       value_type const pair = first[i];
-      auto const b = detail::bulk_bucket(hash, pair.first, static_cast<Size>(buckets));
+      auto const b          = detail::bulk_bucket(hash, pair.first, static_cast<Size>(buckets));
       cuda::atomic_ref<Size, cuda::thread_scope_block>{storage.counters[b]}.fetch_add(
         1, cuda::memory_order_relaxed);
     }
     __syncthreads();
     Size carry = 0;
     for (std::size_t base = 0; base < buckets; base += BlockSize) {
-      auto const b = base + lane;
+      auto const b     = base + lane;
       Size const value = b < buckets ? storage.counters[b] : 0;
       Size prefix, total;
       scan_type{temp_}.ExclusiveSum(value, prefix, total);
       if (b < buckets) {
-        storage.offsets[b] = carry + prefix;
+        storage.offsets[b]  = carry + prefix;
         storage.counters[b] = 0;
       }
       carry += total;
@@ -125,9 +140,10 @@ class bulk_static_multimap_builder {
     __syncthreads();
     for (std::size_t i = lane; i < count; i += BlockSize) {
       value_type const pair = first[i];
-      auto const b = detail::bulk_bucket(hash, pair.first, static_cast<Size>(buckets));
-      auto const position = cuda::atomic_ref<Size, cuda::thread_scope_block>{storage.counters[b]}
-                              .fetch_add(1, cuda::memory_order_relaxed);
+      auto const b          = detail::bulk_bucket(hash, pair.first, static_cast<Size>(buckets));
+      auto const position =
+        cuda::atomic_ref<Size, cuda::thread_scope_block>{storage.counters[b]}.fetch_add(
+          1, cuda::memory_order_relaxed);
       storage.records[storage.offsets[b] + position] = pair;
     }
     __syncthreads();

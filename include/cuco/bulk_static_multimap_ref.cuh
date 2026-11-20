@@ -8,6 +8,7 @@
 #include <cuco/pair.cuh>
 
 #include <cuda/std/functional>
+
 #include <cooperative_groups/reduce.h>
 
 #include <cstddef>
@@ -20,12 +21,12 @@ struct bulk_multimap_operator;
 
 template <class Ref>
 struct bulk_multimap_operator<cuco::find_tag, Ref> {
-  template <unsigned Threads,class Parent,class ProbeKey>
-  __device__ auto find(cooperative_groups::thread_block_tile<Threads,Parent> group,
-                           ProbeKey const& key) const noexcept
+  template <unsigned Threads, class Parent, class ProbeKey>
+  __device__ auto find(cooperative_groups::thread_block_tile<Threads, Parent> group,
+                       ProbeKey const& key) const noexcept
   {
     static_assert(Threads <= 32, "Query groups must fit one warp");
-    return static_cast<Ref const*>(this)->find_group_impl(group,key);
+    return static_cast<Ref const*>(this)->find_group_impl(group, key);
   }
 
   template <class ProbeKey>
@@ -37,13 +38,13 @@ struct bulk_multimap_operator<cuco::find_tag, Ref> {
 
 template <class Ref>
 struct bulk_multimap_operator<cuco::contains_tag, Ref> {
-  template <unsigned Threads,class Parent,class ProbeKey>
-  __device__ auto contains(cooperative_groups::thread_block_tile<Threads,Parent> group,
+  template <unsigned Threads, class Parent, class ProbeKey>
+  __device__ auto contains(cooperative_groups::thread_block_tile<Threads, Parent> group,
                            ProbeKey const& key) const noexcept
   {
     static_assert(Threads <= 32, "Query groups must fit one warp");
     auto const& ref = *static_cast<Ref const*>(this);
-    return ref.find_group_impl(group,key) != ref.end();
+    return ref.find_group_impl(group, key) != ref.end();
   }
 
   template <class ProbeKey>
@@ -56,12 +57,12 @@ struct bulk_multimap_operator<cuco::contains_tag, Ref> {
 
 template <class Ref>
 struct bulk_multimap_operator<cuco::count_tag, Ref> {
-  template <unsigned Threads,class Parent,class ProbeKey>
-  __device__ auto count(cooperative_groups::thread_block_tile<Threads,Parent> group,
-                           ProbeKey const& key) const noexcept
+  template <unsigned Threads, class Parent, class ProbeKey>
+  __device__ auto count(cooperative_groups::thread_block_tile<Threads, Parent> group,
+                        ProbeKey const& key) const noexcept
   {
     static_assert(Threads <= 32, "Query groups must fit one warp");
-    return static_cast<Ref const*>(this)->count_group_impl(group,key);
+    return static_cast<Ref const*>(this)->count_group_impl(group, key);
   }
 
   template <class ProbeKey>
@@ -73,20 +74,23 @@ struct bulk_multimap_operator<cuco::count_tag, Ref> {
 
 template <class Ref>
 struct bulk_multimap_operator<cuco::for_each_tag, Ref> {
-  template <unsigned Threads,class Parent,class ProbeKey,class Callback,class SyncOp>
-  __device__ void for_each(cooperative_groups::thread_block_tile<Threads,Parent> group,
-                          ProbeKey const& key,Callback callback,SyncOp sync_op) const
+  template <unsigned Threads, class Parent, class ProbeKey, class Callback, class SyncOp>
+  __device__ void for_each(cooperative_groups::thread_block_tile<Threads, Parent> group,
+                           ProbeKey const& key,
+                           Callback callback,
+                           SyncOp sync_op) const
   {
     static_assert(Threads <= 32, "Query groups must fit one warp");
-    static_cast<Ref const*>(this)->for_each_group_sync_impl(group,key,callback,sync_op);
+    static_cast<Ref const*>(this)->for_each_group_sync_impl(group, key, callback, sync_op);
   }
 
-  template <unsigned Threads,class Parent,class ProbeKey,class Callback>
-  __device__ void for_each(cooperative_groups::thread_block_tile<Threads,Parent> group,
-                          ProbeKey const& key,Callback callback) const
+  template <unsigned Threads, class Parent, class ProbeKey, class Callback>
+  __device__ void for_each(cooperative_groups::thread_block_tile<Threads, Parent> group,
+                           ProbeKey const& key,
+                           Callback callback) const
   {
     static_assert(Threads <= 32, "Query groups must fit one warp");
-    static_cast<Ref const*>(this)->for_each_group_impl(group,key,callback);
+    static_cast<Ref const*>(this)->for_each_group_impl(group, key, callback);
   }
 
   template <class ProbeKey, class Callback>
@@ -121,7 +125,8 @@ __host__ __device__ Size bulk_bucket(Hash const& hash, Key const& key, Size buck
 template <class Key, class T, class Size, class KeyEqual, class Hash, class... Operators>
 class bulk_static_multimap_ref
   : public detail::bulk_multimap_operator<
-      Operators, bulk_static_multimap_ref<Key, T, Size, KeyEqual, Hash, Operators...>>... {
+      Operators,
+      bulk_static_multimap_ref<Key, T, Size, KeyEqual, Hash, Operators...>>... {
   template <class, class>
   friend struct detail::bulk_multimap_operator;
 
@@ -133,19 +138,21 @@ class bulk_static_multimap_ref
   using iterator    = value_type const*;
 
   __host__ __device__ bulk_static_multimap_ref(value_type const* records,
-                                              Size const* offsets,
-                                              Size size,
-                                              Size buckets,
-                                              KeyEqual equal,
-                                              Hash hash)
-    : records_{records}, offsets_{offsets}, size_{size}, buckets_{buckets}, equal_{equal}, hash_{hash}
+                                               Size const* offsets,
+                                               Size size,
+                                               Size buckets,
+                                               KeyEqual equal,
+                                               Hash hash)
+    : records_{records},
+      offsets_{offsets},
+      size_{size},
+      buckets_{buckets},
+      equal_{equal},
+      hash_{hash}
   {
   }
 
-  __host__ __device__ iterator end() const noexcept
-  {
-    return size_ ? records_ + size_ : records_;
-  }
+  __host__ __device__ iterator end() const noexcept { return size_ ? records_ + size_ : records_; }
   __host__ __device__ Size size() const noexcept { return size_; }
   __host__ __device__ Size bucket_count() const noexcept { return buckets_; }
 
@@ -157,72 +164,77 @@ class bulk_static_multimap_ref
   }
 
  private:
-  template <class Group,class ProbeKey>
-  __device__ iterator find_group_impl(Group group,ProbeKey const& key) const noexcept
+  template <class Group, class ProbeKey>
+  __device__ iterator find_group_impl(Group group, ProbeKey const& key) const noexcept
   {
     Size candidate = size_;
     if (size_) {
-      auto const b = detail::bulk_bucket(hash_,key,buckets_);
-      auto const end = offsets_[b+1];
+      auto const b     = detail::bulk_bucket(hash_, key, buckets_);
+      auto const end   = offsets_[b + 1];
       auto const begin = offsets_[b];
-      Size i = group.thread_rank() < end-begin ? begin+group.thread_rank() : end;
+      Size i           = group.thread_rank() < end - begin ? begin + group.thread_rank() : end;
       while (i < end) {
-        if (equal_(key,records_[i].first)) { candidate=i; break; }
-        if (end-i <= group.size()) break;
+        if (equal_(key, records_[i].first)) {
+          candidate = i;
+          break;
+        }
+        if (end - i <= group.size()) break;
         i += group.size();
       }
     }
-    candidate = cooperative_groups::reduce(group,candidate,cooperative_groups::less<Size>{});
-    return candidate == size_ ? end() : records_+candidate;
+    candidate = cooperative_groups::reduce(group, candidate, cooperative_groups::less<Size>{});
+    return candidate == size_ ? end() : records_ + candidate;
   }
 
-  template <class Group,class ProbeKey>
-  __device__ Size count_group_impl(Group group,ProbeKey const& key) const noexcept
+  template <class Group, class ProbeKey>
+  __device__ Size count_group_impl(Group group, ProbeKey const& key) const noexcept
   {
     Size matches = 0;
     if (!size_) return matches;
-    auto const b = detail::bulk_bucket(hash_,key,buckets_);
-    auto const end = offsets_[b+1];
+    auto const b     = detail::bulk_bucket(hash_, key, buckets_);
+    auto const end   = offsets_[b + 1];
     auto const begin = offsets_[b];
-    Size i = group.thread_rank() < end-begin ? begin+group.thread_rank() : end;
+    Size i           = group.thread_rank() < end - begin ? begin + group.thread_rank() : end;
     while (i < end) {
-      matches += equal_(key,records_[i].first);
-      if (end-i <= group.size()) break;
+      matches += equal_(key, records_[i].first);
+      if (end - i <= group.size()) break;
       i += group.size();
     }
     return matches;
   }
 
-  template <class Group,class ProbeKey,class Callback,class SyncOp>
-  __device__ void for_each_group_sync_impl(Group group,ProbeKey const& key,
-                                          Callback callback,SyncOp sync_op) const
+  template <class Group, class ProbeKey, class Callback, class SyncOp>
+  __device__ void for_each_group_sync_impl(Group group,
+                                           ProbeKey const& key,
+                                           Callback callback,
+                                           SyncOp sync_op) const
   {
     if (!size_) return;
-    auto const b = detail::bulk_bucket(hash_,key,buckets_);
-    auto const end = offsets_[b+1];
-    Size base = offsets_[b];
+    auto const b   = detail::bulk_bucket(hash_, key, buckets_);
+    auto const end = offsets_[b + 1];
+    Size base      = offsets_[b];
     while (base < end) {
-      if (group.thread_rank() < end-base) {
-        auto const i = base+group.thread_rank();
-        if (equal_(key,records_[i].first)) callback(records_+i);
+      if (group.thread_rank() < end - base) {
+        auto const i = base + group.thread_rank();
+        if (equal_(key, records_[i].first)) callback(records_ + i);
       }
       sync_op(group);
-      if (end-base <= group.size()) break;
+      if (end - base <= group.size()) break;
       base += group.size();
     }
   }
 
-  template <class Group,class ProbeKey,class Callback>
-  __device__ void for_each_group_impl(Group group,ProbeKey const& key,Callback callback) const
+  template <class Group, class ProbeKey, class Callback>
+  __device__ void for_each_group_impl(Group group, ProbeKey const& key, Callback callback) const
   {
     if (!size_) return;
-    auto const b = detail::bulk_bucket(hash_,key,buckets_);
-    auto const end = offsets_[b+1];
+    auto const b     = detail::bulk_bucket(hash_, key, buckets_);
+    auto const end   = offsets_[b + 1];
     auto const begin = offsets_[b];
-    Size i = group.thread_rank() < end-begin ? begin+group.thread_rank() : end;
+    Size i           = group.thread_rank() < end - begin ? begin + group.thread_rank() : end;
     while (i < end) {
-      if (equal_(key,records_[i].first)) callback(records_+i);
-      if (end-i <= group.size()) break;
+      if (equal_(key, records_[i].first)) callback(records_ + i);
+      if (end - i <= group.size()) break;
       i += group.size();
     }
   }

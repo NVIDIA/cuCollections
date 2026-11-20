@@ -17,7 +17,7 @@ int main()
   thrust::device_vector<pair_type> records(input.begin(), input.end());
   std::vector<int> const host_queries{1, 2, 3};
   thrust::device_vector<int> queries(host_queries.begin(), host_queries.end());
-  auto const* first = thrust::raw_pointer_cast(records.data());
+  auto const* first  = thrust::raw_pointer_cast(records.data());
   auto const* probes = thrust::raw_pointer_cast(queries.data());
 
   cuco::bulk_static_multimap<int, int> map{input.size(), -1};
@@ -26,8 +26,9 @@ int main()
   if (matches != 3) throw std::runtime_error{"Unexpected match count"};
   thrust::device_vector<int> output_probes(matches);
   thrust::device_vector<pair_type> output_pairs(matches);
-  map.retrieve(probes, probes + queries.size(),
-                thrust::raw_pointer_cast(output_probes.data()),
-                thrust::raw_pointer_cast(output_pairs.data()));
+  map.retrieve(probes,
+               probes + queries.size(),
+               thrust::raw_pointer_cast(output_probes.data()),
+               thrust::raw_pointer_cast(output_pairs.data()));
   std::cout << "Stored " << map.size() << " occurrences; retrieved " << matches << " matches\n";
 }

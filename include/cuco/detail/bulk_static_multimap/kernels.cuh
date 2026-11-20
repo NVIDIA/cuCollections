@@ -18,8 +18,9 @@ namespace cuco::detail {
 template <class Function>
 __global__ void bulk_multimap_for_indices(std::size_t size, Function function)
 {
-  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x;
-       i < size; i += std::size_t(gridDim.x) * blockDim.x) function(i);
+  for (std::size_t i = std::size_t(blockIdx.x) * blockDim.x + threadIdx.x; i < size;
+       i += std::size_t(gridDim.x) * blockDim.x)
+    function(i);
 }
 
 template <class Function>
@@ -27,7 +28,8 @@ void bulk_multimap_launch(std::size_t size, cuda::stream_ref stream, Function fu
 {
   if (!size) return;
   auto const blocks = std::min(std::size_t{65535}, (size - 1) / 256 + 1);
-  bulk_multimap_for_indices<<<static_cast<unsigned>(blocks), 256, 0, stream.get()>>>(size, function);
+  bulk_multimap_for_indices<<<static_cast<unsigned>(blocks), 256, 0, stream.get()>>>(size,
+                                                                                     function);
   CUCO_CUDA_TRY(cudaGetLastError());
 }
 
