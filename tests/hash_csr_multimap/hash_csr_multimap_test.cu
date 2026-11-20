@@ -145,4 +145,15 @@ TEMPLATE_TEST_CASE_SIG("hash_csr_multimap matches a host multimap",
     input.clear();
     check_queries(input, map);
   }
+
+  SECTION("Probes with thousands of matches fill several output batches per warp.")
+  {
+    std::vector<pair_type> large;
+    for (std::size_t i = 0; i < 400'000; ++i) {
+      large.push_back({static_cast<Key>(i % 200), static_cast<Key>(i)});
+    }
+    cuco::hash_csr_multimap<Key, Key, cuda::std::equal_to<Key>, Hash> large_map{large.size(),
+                                                                                Key{-1}};
+    check_queries(large, large_map);
+  }
 }
