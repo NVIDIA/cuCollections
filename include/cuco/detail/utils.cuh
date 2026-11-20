@@ -110,6 +110,21 @@ template <typename T, typename Word>
 template <cuda::std::size_t Unit>
 using load_word_t = typename packed<Unit>::type;
 
+/**
+ * @brief Bucket alignment in bytes that a storage ref guarantees.
+ *
+ * `StorageRef::alignment` if the storage ref declares it, else the alignment of its slot type.
+ *
+ * @tparam StorageRef Storage ref type
+ */
+template <typename StorageRef, typename = void>
+struct storage_alignment
+  : cuda::std::integral_constant<cuda::std::size_t, alignof(typename StorageRef::value_type)> {};
+
+template <typename StorageRef>
+struct storage_alignment<StorageRef, cuda::std::void_t<decltype(StorageRef::alignment)>>
+  : cuda::std::integral_constant<cuda::std::size_t, StorageRef::alignment> {};
+
 #define CUCO_DETAIL_WEAK_LD(SPACE, PTR)                                                 \
   if constexpr (Unit == 4 and Bytes == 4) {                                             \
     asm("ld" SPACE ".b32 %0, [%1];" : "=r"(words[0]) : "l"(PTR) : "memory");            \

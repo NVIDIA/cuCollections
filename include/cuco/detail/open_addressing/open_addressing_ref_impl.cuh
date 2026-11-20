@@ -1670,10 +1670,12 @@ class open_addressing_ref_impl
   /**
    * @brief Loads a bucket for a lookup (contains, find, count).
    *
-   * Lookups never run concurrently with modifying operations, so the load does not race with a CAS
-   * and its elements need not match the CAS width. It uses the widest vector load the bucket
-   * alignment allows (for example one 256-bit load of two 16-byte slots on sm_100+). The weak asm
-   * load still keeps the compiler from splitting the bucket and reloading slots later.
+   * Lookups must not run concurrently with modifying operations on the same container. This is the
+   * same contract as the plain bucket copy that lookups used before (see the TODOs on
+   * `atomic_ref::load` at the call sites). Thus the load does not race with a CAS, and its elements
+   * need not match the CAS width. It uses the widest vector load that the bucket alignment allows,
+   * for example one 256-bit load of two 16-byte slots on sm_100+. The weak asm load still keeps the
+   * compiler from splitting the bucket and loading slots again later.
    *
    * @param probing_idx The current probing index
    *
@@ -1698,11 +1700,12 @@ class open_addressing_ref_impl
    * - a slot whose key is swapped on its own: the key, if the payload has the same size and the
    *   slot has no padding, because the payload is then swapped or stored at the same width.
    *
-   * The bucket must also split into aligned chunks of at most 16 bytes. The storage aligns a bucket
-   * to `min(bit_ceil(sizeof(bucket_type)), 16)`.
+   * The bucket must also split into chunks that the storage alignment covers (see
+   * `max_load_bytes`). A bucket of less than 4 bytes is read as the aligned 32-bit word that holds
+   * it.
    *
-   * A lookup does not race with a CAS, so it only needs elements that tile the slots: 4 bytes
-   * for slots of up to 4 bytes, 8 bytes for 8- and 16-byte slots.
+   * A lookup does not race with a CAS (see `read_bucket`), so it only needs elements that tile the
+   * slots: 4 bytes for slots of up to 4 bytes, 8 bytes for 8- and 16-byte slots.
    *
    * @tparam SwapsSlot Whether the operation swaps a slot as one word
    * @tparam Lookup Whether the load is for a lookup, which never races with a CAS
@@ -1757,17 +1760,19 @@ class open_addressing_ref_impl
   /**
    * @brief Widest single weak load for elements of `Unit` bytes.
    *
-   * 32 bytes on sm_100+ (`ld.global.v8.b32` / `ld.global.v4.b64`, PTX ISA 8.8) when the storage
-   * aligns buckets to 32 bytes, else 16. A 16-byte element has no 32-byte vector form.
+   * The hardware limit is 32 bytes on sm_100+ (`ld.global.v8.b32` / `ld.global.v4.b64`, PTX ISA
+   * 8.8) and 16 bytes otherwise. A 16-byte element has no 32-byte vector form. The load is never
+   * wider than the bucket alignment that the storage guarantees.
    */
   template <cuda::std::size_t Unit>
   [[nodiscard]] __device__ static constexpr cuda::std::size_t max_load_bytes() noexcept
   {
 #if (__CUDA_ARCH__ >= 1000) && (__cccl_ptx_isa >= 880)
-    return (Unit <= 8 and storage_ref_type::alignment >= 32) ? 32 : 16;
+    constexpr cuda::std::size_t hardware_bytes = Unit <= 8 ? 32 : 16;
 #else
-    return 16;
+    constexpr cuda::std::size_t hardware_bytes = 16;
 #endif
+    return cuda::std::min(hardware_bytes, cuco::detail::storage_alignment<storage_ref_type>::value);
   }
 
   /**
@@ -1785,21 +1790,28 @@ class open_addressing_ref_impl
   [[nodiscard]] __device__ bucket_type load_bucket_vectorized(size_type probing_idx) const noexcept
   {
     constexpr cuda::std::size_t bucket_bytes = sizeof(bucket_type);
-    constexpr cuda::std::size_t span         = bucket_bytes < 4 ? 4 : bucket_bytes;
+    // A bucket of less than 4 bytes is read as the aligned 32-bit word that holds it.
+    constexpr cuda::std::size_t span = bucket_bytes < 4 ? 4 : bucket_bytes;
     constexpr cuda::std::size_t chunk =
-      cuda::std::min<cuda::std::size_t>(max_load_bytes<Unit>(), span & (~span + 1));
+      bucket_bytes < 4
+        ? 4
+        : cuda::std::min<cuda::std::size_t>(max_load_bytes<Unit>(), span & (~span + 1));
     constexpr cuda::std::size_t num_words = span / Unit;
 
     auto const* const slots = storage_ref_.data() + probing_idx;
-    auto const address      = reinterpret_cast<cuda::std::uintptr_t>(slots);
-    auto const base         = bucket_bytes < 4 ? (address & ~cuda::std::uintptr_t{3}) : address;
-    auto const byte_offset  = static_cast<cuda::std::uint32_t>(address - base);
+    auto const* const base  = bucket_bytes < 4
+                                ? cuda::align_down(reinterpret_cast<char const*>(slots), 4)
+                                : reinterpret_cast<char const*>(slots);
+    auto const byte_offset =
+      static_cast<cuda::std::uint32_t>(reinterpret_cast<char const*>(slots) - base);
+    CUCO_DEBUG_ASSERT(cuda::is_aligned(base, chunk),
+                      "Bucket storage is not aligned to storage_ref_type::alignment");
     bool const global = cuda::device::is_address_from(slots, cuda::device::address_space::global);
 
     cuco::detail::load_word_t<Unit> words[num_words];
     cuda::static_for<span / chunk>([&](auto c) {
       cuco::detail::weak_load_words<Unit, chunk>(
-        reinterpret_cast<void const*>(base + c() * chunk),
+        base + c() * chunk,
         global,
         *reinterpret_cast<cuco::detail::load_word_t<Unit>(*)[chunk / Unit]>(words +
                                                                             c() * (chunk / Unit)));

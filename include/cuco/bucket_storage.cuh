@@ -23,6 +23,10 @@ namespace cuco {
 /**
  * @brief Non-owning array of slots storage reference type.
  *
+ * The slots must be aligned to `alignment` bytes, because buckets are read with vector loads of up
+ * to that width. Declare borrowed memory accordingly, for example
+ * `__shared__ alignas(ref_type::alignment) slot_type slots[N];`. Debug builds check this.
+ *
  * @tparam T Storage element type
  * @tparam BucketSize Number of slots in each bucket
  * @tparam Extent Type of extent denoting storage capacity

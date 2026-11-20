@@ -525,6 +525,8 @@ class operator_impl<
 
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto bucket_size = base_type::bucket_size;
+  /// `attempt_insert_or_assign` swaps the key on its own, never the whole slot
+  static constexpr bool swaps_slot = false;
 
  public:
   /**
@@ -554,7 +556,7 @@ class operator_impl<
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = ref_.impl_.template load_bucket<false>(*probing_iter);
+      auto const bucket_slots = ref_.impl_.template load_bucket<swaps_slot>(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -610,7 +612,7 @@ class operator_impl<
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = ref_.impl_.template load_bucket<false>(*probing_iter);
+      auto const bucket_slots = ref_.impl_.template load_bucket<swaps_slot>(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         detail::bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -712,6 +714,9 @@ class operator_impl<
 
   static constexpr auto cg_size     = base_type::cg_size;
   static constexpr auto bucket_size = base_type::bucket_size;
+  /// Whether `attempt_insert_or_apply` swaps the whole slot with one CAS (`packed_cas`), as
+  /// opposed to swapping the key on its own
+  static constexpr bool swaps_slot = sizeof(value_type) <= 8;
 
  public:
   /**
@@ -938,11 +943,10 @@ class operator_impl<
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
-    auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
+    auto constexpr wait_for_payload = (not UseDirectApply) and (not swaps_slot);
 
     while (true) {
-      auto const bucket_slots =
-        ref_.impl_.template load_bucket<(sizeof(value_type) <= 8)>(*probing_iter);
+      auto const bucket_slots = ref_.impl_.template load_bucket<swaps_slot>(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -1023,11 +1027,10 @@ class operator_impl<
     auto const empty_value = ref_.empty_value_sentinel();
 
     // wait for payload only when init != sentinel and insert strategy is not `packed_cas`
-    auto constexpr wait_for_payload = (not UseDirectApply) and (sizeof(value_type) > 8);
+    auto constexpr wait_for_payload = (not UseDirectApply) and (not swaps_slot);
 
     while (true) {
-      auto const bucket_slots =
-        ref_.impl_.template load_bucket<(sizeof(value_type) <= 8)>(*probing_iter);
+      auto const bucket_slots = ref_.impl_.template load_bucket<swaps_slot>(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         detail::bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -1113,7 +1116,7 @@ class operator_impl<
   {
     ref_type& ref_ = static_cast<ref_type&>(*this);
 
-    if constexpr (sizeof(value_type) <= 8) {
+    if constexpr (swaps_slot) {
       return ref_.impl_.packed_cas(address, expected, desired);  // no need to wait for payload
     } else {
       using mapped_type = T;
