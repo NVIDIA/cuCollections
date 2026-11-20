@@ -201,6 +201,16 @@ class example_class {
 
 ## Data Structures
 
+### `bulk_static_multimap`
+
+`cuco::bulk_static_multimap` builds from one complete input range, retaining all
+key/value occurrences in packed hash-bucket storage for read-only queries. See
+the [API guide](docs/bulk_static_multimap.md) and
+[example](examples/bulk_static_multimap/host_bulk_example.cu). This initial port
+does not support incremental insertion or erase; performance evaluation is pending.
+Optional [optimized tile APIs](docs/bulk_static_multimap_tiles.md) provide subgroup,
+block/shared, cluster, LRB and scheduled batch construction.
+
 We plan to add many GPU-accelerated, concurrent data structures to `cuCollections`. As of now, the two flagships are variants of hash tables.
 
 ### `static_set`
