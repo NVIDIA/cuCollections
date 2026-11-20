@@ -8,6 +8,7 @@
 #include <cuco/hash_functions.cuh>
 #include <cuco/utility/cuda_thread_scope.cuh>
 
+#include <cuda/functional>
 #include <cuda/std/cstddef>
 #include <cuda/stream>
 
@@ -61,9 +62,7 @@ namespace cuco {
  * @tparam Scope The scope in which operations will be performed by individual threads
  * @tparam Hash Hash function used to hash items
  */
-template <class T,
-          cuda::thread_scope Scope = cuda::thread_scope_device,
-          class Hash               = cuco::xxhash_64<T>>
+template <class T, cuda::thread_scope Scope = cuda::thread_scope_device, class Hash = cuda::hash<T>>
 class hyperloglog_ref {
   using impl_type = detail::hyperloglog_impl<T, Scope, Hash>;
 

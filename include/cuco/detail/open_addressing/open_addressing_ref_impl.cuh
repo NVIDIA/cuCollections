@@ -26,12 +26,10 @@
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
+#include <cuda/std/numeric>
 #include <cuda/std/type_traits>
 #include <cuda/std/utility>
 #include <cuda/utility>
-#include <thrust/execution_policy.h>
-#include <thrust/logical.h>
-#include <thrust/reduce.h>
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
 #endif
@@ -449,7 +447,7 @@ class open_addressing_ref_impl
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
-        cuda::static_for<bucket_size>([&] __device__(auto i) {
+        cuda::static_for<bucket_size>([&](auto i) {
           if (result.state_ == detail::equal_result::UNEQUAL) {
             switch (this->predicate_.template operator()<is_insert::YES>(
               key, this->extract_key(bucket_slots[i()]))) {
@@ -623,7 +621,7 @@ class open_addressing_ref_impl
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
-        cuda::static_for<bucket_size>([&] __device__(auto i) {
+        cuda::static_for<bucket_size>([&](auto i) {
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = this->predicate_.template operator()<is_insert::YES>(
               key, this->extract_key(bucket_slots[i()]));
@@ -751,7 +749,7 @@ class open_addressing_ref_impl
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
-        cuda::static_for<bucket_size>([&] __device__(auto i) {
+        cuda::static_for<bucket_size>([&](auto i) {
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = this->predicate_.template operator()<is_insert::NO>(
               key, this->extract_key(bucket_slots[i()]));
@@ -946,7 +944,7 @@ class open_addressing_ref_impl
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
-        cuda::static_for<bucket_size>([&] __device__(auto i) {
+        cuda::static_for<bucket_size>([&](auto i) {
           if (result.state_ == detail::equal_result::UNEQUAL) {
             auto res = this->predicate_.template operator()<is_insert::NO>(
               key, this->extract_key(bucket_slots[i()]));
@@ -1002,14 +1000,14 @@ class open_addressing_ref_impl
         cuda::std::int32_t equals[bucket_size] = {0};
         bool empty_found                       = false;
 
-        cuda::static_for<bucket_size>([&] __device__(auto i) {
+        cuda::static_for<bucket_size>([&](auto i) {
           auto const result = predicate_.template operator()<is_insert::NO>(
             key, this->extract_key(bucket_slots[i()]));
           equals[i()] = (result == detail::equal_result::EQUAL);
           if (result == detail::equal_result::EMPTY) { empty_found = true; }
         });
 
-        count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
+        count += cuda::std::reduce(equals, equals + bucket_size);
 
         if (empty_found) { return count; }
 
@@ -1047,14 +1045,14 @@ class open_addressing_ref_impl
       cuda::std::int32_t equals[bucket_size] = {0};
       bool should_return                     = false;
 
-      cuda::static_for<bucket_size>([&] __device__(auto i) {
+      cuda::static_for<bucket_size>([&](auto i) {
         auto const result =
           predicate_.template operator()<is_insert::NO>(key, this->extract_key(bucket_slots[i()]));
         equals[i()] = (result == detail::equal_result::EQUAL);
         if (result == detail::equal_result::EMPTY) { should_return = true; }
       });
 
-      count += thrust::reduce(thrust::seq, equals, equals + bucket_size);
+      count += cuda::std::reduce(equals, equals + bucket_size);
       if constexpr (not allows_duplicates) { should_return |= (count != 0); }
 
       if (group.any(should_return)) { return count; }
@@ -1295,7 +1293,7 @@ class open_addressing_ref_impl
             // TODO atomic_ref::load if insert operator is present
             auto const bucket_slots = this->storage_ref_[*probing_iter];
 
-            cuda::static_for<bucket_size>([&] __device__(auto i) {
+            cuda::static_for<bucket_size>([&](auto i) {
               equals[i()] = false;
               if (running) {
                 // inspect slot content
@@ -1324,7 +1322,7 @@ class open_addressing_ref_impl
 
             // Fill the buffer if any matching keys are found
             auto const lane_id = probing_tile.thread_rank();
-            if (thrust::any_of(thrust::seq, exists, exists + bucket_size, cuda::std::identity{})) {
+            if (cuda::std::any_of(exists, exists + bucket_size, cuda::std::identity{})) {
               cuda::std::int32_t num_matches[bucket_size];
 
               cuda::static_for<bucket_size>(
@@ -1333,7 +1331,7 @@ class open_addressing_ref_impl
               cuda::std::int32_t output_idx;
               if (lane_id == 0) {
                 auto const total_matches =
-                  thrust::reduce(thrust::seq, num_matches, num_matches + bucket_size);
+                  cuda::std::reduce(num_matches, num_matches + bucket_size);
                 auto ref = cuda::atomic_ref<cuda::std::int32_t, cuda::thread_scope_block>{
                   counters[flushing_tile_id]};
                 output_idx = ref.fetch_add(total_matches, cuda::memory_order_relaxed);
@@ -1341,7 +1339,7 @@ class open_addressing_ref_impl
               output_idx = probing_tile.shfl(output_idx, 0);
 
               cuda::std::int32_t matches_offset = 0;
-              cuda::static_for<bucket_size>([&] __device__(auto i) {
+              cuda::static_for<bucket_size>([&](auto i) {
                 if (equals[i()]) {
                   auto const lane_offset =
                     detail::count_least_significant_bits(exists[i()], lane_id);
@@ -1407,7 +1405,7 @@ class open_addressing_ref_impl
       auto const bucket_slots = this->storage_ref_[*probing_iter];
 
       bool should_return = false;
-      cuda::static_for<bucket_size>([&] __device__(auto i) {
+      cuda::static_for<bucket_size>([&](auto i) {
         if (!should_return) {
           switch (this->predicate_.template operator()<is_insert::NO>(
             key, this->extract_key(bucket_slots[i()]))) {
@@ -1799,7 +1797,7 @@ class open_addressing_ref_impl
     bool const global = cuda::device::is_address_from(slots, cuda::device::address_space::global);
 
     cuco::detail::load_word_t<Unit> words[num_words];
-    cuda::static_for<span / chunk>([&] __device__(auto c) {
+    cuda::static_for<span / chunk>([&](auto c) {
       cuco::detail::weak_load_words<Unit, chunk>(
         reinterpret_cast<void const*>(base + c() * chunk),
         global,

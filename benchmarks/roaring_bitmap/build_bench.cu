@@ -149,29 +149,29 @@ NVBENCH_BENCH(roaring_bitmap_from_indices_unique)
 
 NVBENCH_BENCH(roaring_bitmap_from_indices_container_cardinality)
   .set_name("roaring_bitmap_from_indices_container_cardinality")
-  .add_int64_axis("ContainerCardinality", {1, 8, 64, 512, 4096, 8192, 32768});
+  .add_int64_axis("ContainerCardinality", {1, 512, 4096, 32768});
 
 NVBENCH_BENCH(roaring_bitmap_from_sorted_indices_container_cardinality)
   .set_name("roaring_bitmap_from_sorted_indices_container_cardinality")
-  .add_int64_axis("ContainerCardinality", {1, 8, 64, 512, 4096, 8192, 32768});
+  .add_int64_axis("ContainerCardinality", {1, 512, 4096, 32768});
 
 NVBENCH_BENCH(roaring_bitmap_from_sorted_unique_indices_container_cardinality)
   .set_name("roaring_bitmap_from_sorted_unique_indices_container_cardinality")
-  .add_int64_axis("ContainerCardinality", {1, 8, 64, 512, 4096, 8192, 32768});
+  .add_int64_axis("ContainerCardinality", {1, 512, 4096, 32768});
 
 NVBENCH_BENCH_TYPES(roaring_bitmap_from_indices,
                     NVBENCH_TYPE_AXES(nvbench::type_list<distribution::uniform>))
   .set_name("roaring_bitmap_from_indices_uniform")
   .set_type_axes_names({"Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {20, 24, 28})
-  .add_int64_axis("Multiplicity", {2, 8, 32});
+  .add_int64_axis("Multiplicity", {2, 32});
 
 NVBENCH_BENCH_TYPES(roaring_bitmap_from_sorted_indices,
                     NVBENCH_TYPE_AXES(nvbench::type_list<distribution::uniform>))
   .set_name("roaring_bitmap_from_sorted_indices")
   .set_type_axes_names({"Distribution"})
   .add_int64_power_of_two_axis("NumInputs", {20, 24, 28})
-  .add_int64_axis("Multiplicity", {2, 8, 32});
+  .add_int64_axis("Multiplicity", {2, 32});
 
 NVBENCH_BENCH(roaring_bitmap_from_sorted_unique_indices)
   .set_name("roaring_bitmap_from_sorted_unique_indices")

@@ -9,6 +9,7 @@
 #include <cuco/static_set.cuh>
 
 #include <cuda/atomic>
+#include <cuda/functional>
 #include <cuda/iterator>
 #include <cuda/std/functional>
 #include <thrust/device_vector.h>
@@ -101,8 +102,10 @@ TEMPLATE_TEST_CASE_SIG(
 
   using probe = std::conditional_t<
     Probe == cuco::test::probe_sequence::linear_probing,
-    cuco::linear_probing<CGSize, cuco::murmurhash3_32<Key>>,
-    cuco::double_hashing<CGSize, cuco::murmurhash3_32<Key>, cuco::murmurhash3_32<Key>>>;
+    cuco::linear_probing<CGSize, cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>,
+    cuco::double_hashing<CGSize,
+                         cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>,
+                         cuda::hash<Key, cuda::hash_algorithm::murmurhash3_32>>>;
 
   using set_t = cuco::static_set<Key,
                                  cuco::extent<size_type>,

@@ -70,10 +70,8 @@ template <class Estimator, class Dist>
 template <typename T, typename Dist>
 void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using estimator_type = cuco::hyperloglog<T,
-                                           cuda::thread_scope_device,
-                                           cuco::xxhash_64<T>,
-                                           tracking_allocator<cuda::std::byte>>;
+  using estimator_type = cuco::
+    hyperloglog<T, cuda::thread_scope_device, cuda::hash<T>, tracking_allocator<cuda::std::byte>>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -116,10 +114,8 @@ void hyperloglog_e2e(nvbench::state& state, nvbench::type_list<T, Dist>)
 template <typename T, typename Dist>
 void hyperloglog_add(nvbench::state& state, nvbench::type_list<T, Dist>)
 {
-  using estimator_type = cuco::hyperloglog<T,
-                                           cuda::thread_scope_device,
-                                           cuco::xxhash_64<T>,
-                                           tracking_allocator<cuda::std::byte>>;
+  using estimator_type = cuco::
+    hyperloglog<T, cuda::thread_scope_device, cuda::hash<T>, tracking_allocator<cuda::std::byte>>;
 
   auto const num_items      = state.get_int64("NumInputs");
   auto const sketch_size_kb = state.get_int64("SketchSizeKB");
@@ -151,14 +147,14 @@ NVBENCH_BENCH_TYPES(hyperloglog_e2e,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("hyperloglog_e2e_uniform")
   .set_type_axes_names({"T", "Distribution"})
-  .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
-  .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})  // 256KB uses gmem fallback kernel
+  .add_int64_power_of_two_axis("NumInputs", {29})
+  .add_int64_axis("SketchSizeKB", {32, 64, 128, 256})  // 256KB uses gmem fallback kernel
   .add_int64_axis("Multiplicity", {1});
 
 NVBENCH_BENCH_TYPES(hyperloglog_add,
                     NVBENCH_TYPE_AXES(TYPE_RANGE, nvbench::type_list<distribution::uniform>))
   .set_name("hyperloglog_add_uniform")
   .set_type_axes_names({"T", "Distribution"})
-  .add_int64_power_of_two_axis("NumInputs", {28, 29, 30})
-  .add_int64_axis("SketchSizeKB", {8, 16, 32, 64, 128, 256})
+  .add_int64_power_of_two_axis("NumInputs", {29})
+  .add_int64_axis("SketchSizeKB", {32, 64, 128, 256})
   .add_int64_axis("Multiplicity", {1});
