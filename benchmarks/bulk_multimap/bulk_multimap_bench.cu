@@ -186,18 +186,21 @@ auto const ONE_MULTIPLICITY  = std::vector<nvbench::int64_t>{defaults::MULTIPLIC
 auto const ONE_RATE          = std::vector<nvbench::float64_t>{defaults::MATCHING_RATE};
 auto const BUCKET_SIZE_RANGE = std::vector<nvbench::float64_t>{0.5, 1, 2, 4, 8, 16};
 
-#define BULK_MULTIMAP_SWEEP(                                                       \
-  OPERATION, SWEEP, MAPS, NUM_INPUTS, OCCUPANCY, BUCKET_SIZE, MULTIPLICITY, RATE)  \
-  NVBENCH_BENCH_TYPES(                                                             \
-    bulk_multimap_##OPERATION,                                                     \
-    NVBENCH_TYPE_AXES(MAPS, KEY_RANGE, nvbench::type_list<distribution::uniform>)) \
-    .set_name("bulk_multimap_" #OPERATION "_uniform_" #SWEEP)                      \
-    .set_type_axes_names({"Map", "Key", "Distribution"})                           \
-    .add_int64_axis("NumInputs", NUM_INPUTS)                                       \
-    .add_float64_axis("Occupancy", OCCUPANCY)                                      \
-    .add_float64_axis("BucketSize", BUCKET_SIZE)                                   \
-    .add_int64_axis("Multiplicity", MULTIPLICITY)                                  \
+#define BULK_MULTIMAP_BENCH(                                                                      \
+  OPERATION, DIST, SWEEP, MAPS, NUM_INPUTS, OCCUPANCY, BUCKET_SIZE, MULTIPLICITY, RATE)           \
+  NVBENCH_BENCH_TYPES(bulk_multimap_##OPERATION,                                                  \
+                      NVBENCH_TYPE_AXES(MAPS, KEY_RANGE, nvbench::type_list<distribution::DIST>)) \
+    .set_name("bulk_multimap_" #OPERATION "_" #DIST "_" #SWEEP)                                   \
+    .set_type_axes_names({"Map", "Key", "Distribution"})                                          \
+    .add_int64_axis("NumInputs", NUM_INPUTS)                                                      \
+    .add_float64_axis("Occupancy", OCCUPANCY)                                                     \
+    .add_float64_axis("BucketSize", BUCKET_SIZE)                                                  \
+    .add_int64_axis("Multiplicity", MULTIPLICITY)                                                 \
     .add_float64_axis("MatchingRate", RATE)
+#define BULK_MULTIMAP_SWEEP(                                                      \
+  OPERATION, SWEEP, MAPS, NUM_INPUTS, OCCUPANCY, BUCKET_SIZE, MULTIPLICITY, RATE) \
+  BULK_MULTIMAP_BENCH(                                                            \
+    OPERATION, uniform, SWEEP, MAPS, NUM_INPUTS, OCCUPANCY, BUCKET_SIZE, MULTIPLICITY, RATE)
 
 // The sweeps of the `static_multimap` benchmarks
 #define BULK_MULTIMAP_CAPACITY(OPERATION)      \
@@ -236,6 +239,17 @@ auto const BUCKET_SIZE_RANGE = std::vector<nvbench::float64_t>{0.5, 1, 2, 4, 8, 
                       ONE_BUCKET_SIZE,           \
                       ONE_MULTIPLICITY,          \
                       ONE_RATE)
+// Distinct keys fill the slot tables up to their nominal occupancy
+#define BULK_MULTIMAP_DISTINCT(OPERATION) \
+  BULK_MULTIMAP_BENCH(OPERATION,          \
+                      unique,             \
+                      matching_rate,      \
+                      MAP_RANGE,          \
+                      ONE_N,              \
+                      ONE_OCCUPANCY,      \
+                      ONE_BUCKET_SIZE,    \
+                      ONE_MULTIPLICITY,   \
+                      defaults::MATCHING_RATE_RANGE)
 // The memory and scan length trade-off of `bulk_static_multimap`
 #define BULK_MULTIMAP_BUCKET_SIZE(OPERATION) \
   BULK_MULTIMAP_SWEEP(OPERATION,             \
@@ -258,6 +272,9 @@ BULK_MULTIMAP_MATCHING_RATE(retrieve);
 BULK_MULTIMAP_OCCUPANCY(build);
 BULK_MULTIMAP_OCCUPANCY(count);
 BULK_MULTIMAP_OCCUPANCY(retrieve);
+BULK_MULTIMAP_DISTINCT(build);
+BULK_MULTIMAP_DISTINCT(count);
+BULK_MULTIMAP_DISTINCT(retrieve);
 BULK_MULTIMAP_BUCKET_SIZE(build);
 BULK_MULTIMAP_BUCKET_SIZE(count);
 BULK_MULTIMAP_BUCKET_SIZE(retrieve);
