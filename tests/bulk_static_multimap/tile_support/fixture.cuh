@@ -39,6 +39,11 @@ __global__ void group_query(View const* views,Key const* queries,Answer* answers
   Answer answer{cg::reduce(group,uint64_t(partial),cg::plus<uint64_t>{}),
     cg::reduce(group,visits,cg::plus<uint64_t>{}),cg::reduce(group,sum,cg::plus<uint64_t>{}),
     ref.contains(group,key)};
+  uint64_t synchronized_visits=0;
+  ref.for_each(group,key,[&] __device__ (auto){++synchronized_visits;},
+    [] __device__ (auto tile){tile.sync();});
+  auto const total_synchronized=cg::reduce(group,synchronized_visits,cg::plus<uint64_t>{});
+  if(total_synchronized!=answer.count)answer.count=~uint64_t{0};
   if (answer.found && (it==ref.end() || it->first!=key)) answer.found=false;
   if (!group.thread_rank()) answers[q]=answer;
 }

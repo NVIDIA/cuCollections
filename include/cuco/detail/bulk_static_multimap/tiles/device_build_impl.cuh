@@ -237,6 +237,11 @@ cudaError_t single_lrb_build(const TileLrbBuildStorage<Record, Offset, Counter, 
     static_assert(std::is_trivially_copyable<Record>::value, "Record must be trivially copyable");
     if (s.validate() != TileBuildStatus::success || !w.scan || !w.scan_bytes || p.blocks_per_sm < 1)
         return cudaErrorInvalidValue;
+    size_t required = 0;
+    auto workspace_error = single_lrb_workspace_bytes(s, &required);
+    if (workspace_error != cudaSuccess) return workspace_error;
+    if (w.scan_bytes < required || reinterpret_cast<uintptr_t>(w.scan) % 16)
+        return cudaErrorInvalidValue;
     int device; cudaDeviceProp prop{};
     auto err = cudaGetDevice(&device);
     if (err != cudaSuccess) return err;

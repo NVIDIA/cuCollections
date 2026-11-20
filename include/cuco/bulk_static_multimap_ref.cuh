@@ -73,6 +73,14 @@ struct bulk_multimap_operator<cuco::count_tag, Ref> {
 
 template <class Ref>
 struct bulk_multimap_operator<cuco::for_each_tag, Ref> {
+  template <unsigned Threads,class Parent,class ProbeKey,class Callback,class SyncOp>
+  __device__ void for_each(cooperative_groups::thread_block_tile<Threads,Parent> group,
+                          ProbeKey const& key,Callback callback,SyncOp sync_op) const
+  {
+    static_assert(Threads <= 32, "Query groups must fit one warp");
+    static_cast<Ref const*>(this)->for_each_group_sync_impl(group,key,callback,sync_op);
+  }
+
   template <unsigned Threads,class Parent,class ProbeKey,class Callback>
   __device__ void for_each(cooperative_groups::thread_block_tile<Threads,Parent> group,
                           ProbeKey const& key,Callback callback) const
@@ -183,6 +191,25 @@ class bulk_static_multimap_ref
       i += group.size();
     }
     return matches;
+  }
+
+  template <class Group,class ProbeKey,class Callback,class SyncOp>
+  __device__ void for_each_group_sync_impl(Group group,ProbeKey const& key,
+                                          Callback callback,SyncOp sync_op) const
+  {
+    if (!size_) return;
+    auto const b = detail::bulk_bucket(hash_,key,buckets_);
+    auto const end = offsets_[b+1];
+    Size base = offsets_[b];
+    while (base < end) {
+      if (group.thread_rank() < end-base) {
+        auto const i = base+group.thread_rank();
+        if (equal_(key,records_[i].first)) callback(records_+i);
+      }
+      sync_op(group);
+      if (end-base <= group.size()) break;
+      base += group.size();
+    }
   }
 
   template <class Group,class ProbeKey,class Callback>

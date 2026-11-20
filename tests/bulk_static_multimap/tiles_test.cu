@@ -98,6 +98,10 @@ void cluster(){
   run(cuco::bulk_static_multimap_descriptor_batch<typename F::Lrb>{f.lrb_descriptors.data,4});
   using DirectPolicy=cuco::bulk_static_multimap_cluster_policy<4,true,false>;
   cuco::bulk_static_multimap_descriptor_batch<typename F::Storage> direct{f.descriptors.data,4};
+  options.blocks_per_table=0;
+  require(Batch::configure(direct,options,DirectPolicy{})==cudaErrorInvalidValue,"zero cluster geometry accepted");
+  options.blocks_per_table=9;
+  require(Batch::configure(direct,options,DirectPolicy{})==cudaErrorInvalidValue,"nonportable cluster geometry accepted");
   options.blocks_per_table=2;options.shared_bytes=0;
   check(Batch::configure(direct,options,DirectPolicy{}));check(Batch::build_async(direct,f.statuses.data,options,cuda::stream_ref{f.stream},f.hash,DirectPolicy{},f.views.data));f.verify();
   auto original=f.tables;f.tables[2].record_capacity=1;f.descriptors.put(f.tables,f.stream);
@@ -144,7 +148,13 @@ void device(){
   using F=Fixture<Large,uint64_t>;F f({0,1,129,65537},{137,137,137,8192});
   size_t bytes=0;for(auto const& storage:f.lrbs){size_t required=0;
     check(cuco::bulk_static_multimap_device_workspace_bytes(storage,&required));bytes=std::max(bytes,required);}
-  Buffer<unsigned char> scratch(bytes);
+  Buffer<unsigned char> scratch(bytes+16);
+  auto const storage=f.lrbs.back();
+  require(cuco::bulk_static_multimap_device_build_async(storage,{nullptr,bytes})==cudaErrorInvalidValue,"null device workspace accepted");
+  require(cuco::bulk_static_multimap_device_build_async(storage,{scratch.data,bytes-1})==cudaErrorInvalidValue,"undersized device workspace accepted");
+  require(cuco::bulk_static_multimap_device_build_async(storage,{scratch.data+1,bytes})==cudaErrorInvalidValue,"misaligned device workspace accepted");
+  cuco::bulk_static_multimap_device_policy invalid;invalid.blocks_per_sm=0;
+  require(cuco::bulk_static_multimap_device_build_async(storage,{scratch.data,bytes},invalid)==cudaErrorInvalidValue,"invalid device policy accepted");
   for(int prefetch:{1,2,4,8,16})for(bool fused:{false,true})for(bool shared:{false,true}){
     for(size_t table=0;table<f.tables.size();++table){auto storage=f.lrbs[table];
       cuco::bulk_static_multimap_device_policy policy;policy.prefetch_items=prefetch;policy.fuse_hash_count=fused;policy.shared_lrb_counts=shared;

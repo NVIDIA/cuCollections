@@ -57,7 +57,9 @@ Scalar operations use one thread. Cooperative overloads accept a tile of up to32
 threads; all lanes supply the same key. Group `find` and `contains` return uniform
 results. Group `count` returns **per-lane** matches, as in cuCollections; reduce
 across the tile for a total. Group `for_each` distributes matching const entry
-iterators across lanes, and its callback must not synchronize the tile. Keys and
+iterators across lanes; callbacks must not synchronize the tile. The four-argument
+overload accepts a `sync_op(group)` invoked by every lane after each candidate
+round, matching cuCollections cooperative callback scheduling. Keys and
 payloads remain read-only through these refs.
 
 After build completion, release input, counters, caches, reordering and scheduling
