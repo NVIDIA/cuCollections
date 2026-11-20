@@ -65,8 +65,10 @@ After successful construction, input and counters may be released; records and
 offsets must outlive all refs and queries. All storage regions must be disjoint
 and aligned. Collective failures reject invalid dimensions/capacities before writes;
 pointer lifetime, partial overlap, and alignment remain caller preconditions.
-This initial builder supports full blocks; subwarp, cluster, and scheduler policies
-are deferred. The owning host path uses a whole-device histogram/scan/scatter.
+This basic builder supports full blocks. The optional
+[optimized tile APIs](bulk_static_multimap_tiles.md) add subgroup, shared-staging,
+cluster, LRB, batch, scheduler and whole-device policy paths. The existing owning
+host path keeps its original histogram/scan/scatter defaults.
 
 The native CMake targets are `BULK_STATIC_MULTIMAP_TEST` and
 `BULK_STATIC_MULTIMAP_HOST_BULK_EXAMPLE`. The Catch2 test tags `[host]` and `[gpu]`

@@ -18,7 +18,7 @@
 
 namespace cuco {
 enum class bulk_build_status { success, invalid_size, insufficient_capacity, invalid_storage,
-                               invalid_group };
+                               invalid_group, invalid_block = invalid_group, invalid_cluster, unsupported_architecture };
 
 /**
  * @brief Caller-owned storage for one collective build. All regions must be disjoint and aligned.
