@@ -65,7 +65,8 @@ namespace cuco::detail {
  * stream has sufficient locality: filters far larger than L2 can continually mark random lines as
  * persisting, thrashing the cache and affecting unrelated kernels.
  * @tparam FastL2Add When `true`, one hash-selected word of the first 32-byte sector of each key's
- * block is left untouched (`add` and `contains` skip it by index), so a key sets
+ * block is left untouched (`add` clears its pattern, and `contains` skips it by its index), so a
+ * key sets
  * `pattern_bits - ceil(pattern_bits / words_per_block)` bits in `words_per_block - 1` words. `add`
  * issues no atomic for the skipped word, so the atomic updates of a key cover its first sector only
  * partially, which recent GPUs process more efficiently than a fully covered sector; this speeds up
@@ -257,9 +258,10 @@ class bloom_filter_policy {
   }
 
   /**
-   * @brief Whether FastL2Add leaves block word `word` of this key untouched.
+   * @brief Tells if FastL2Add does not write word `word` of the block of this key.
    *
-   * The skipped word is in the block's first 32-byte sector; the top bits of the hash select it.
+   * The skipped word is in the first 32-byte sector of the block. The top bits of the hash select
+   * it.
    *
    * @param hash Lower 32 bits of the key's hash.
    * @param word Word index in the block.
@@ -276,8 +278,8 @@ class bloom_filter_policy {
   }
 
   /**
-   * @brief Index of the FastL2Add skipped word in the block's first sector: the top bits of the
-   * hash.
+   * @brief Index of the FastL2Add skipped word in the first sector of the block. The top bits of
+   * the hash give this index.
    *
    * @param hash Lower 32 bits of the key's hash.
    *
