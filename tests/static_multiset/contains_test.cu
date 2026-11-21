@@ -13,6 +13,7 @@
 #include <cuda/std/tuple>
 #include <thrust/device_vector.h>
 #include <thrust/distance.h>
+#include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <thrust/transform.h>
