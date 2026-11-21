@@ -278,17 +278,27 @@ class bloom_filter_policy {
   }
 
   /**
-   * @brief Index of the FastL2Add skipped word in the first sector of the block. The top bits of
-   * the hash give this index.
+   * @brief Clears the pattern of the FastL2Add skipped word, if the word is in `pattern`.
    *
+   * `add` then sends no atomic for that word, because it sends no atomic for a zero pattern.
+   * `add` must not test the word index before each atomic. With that test, the compiler computes
+   * the skip predicates of all keys of a shuffle-first group at the start. The predicates then
+   * spill, and 64 B 16x1 add is 11% slower on GB200.
+   *
+   * @param pattern Pattern words. The first element is block word `first_word`.
    * @param hash Lower 32 bits of the key's hash.
-   *
-   * @return Word index in `[0, words per sector)`.
+   * @param first_word Block word index of `pattern[0]`.
    */
-  __device__ static constexpr uint32_t skip_index(uint32_t hash)
+  template <class PatternArrayT>
+  __device__ static constexpr void clear_skipped(PatternArrayT& pattern,
+                                                 uint32_t hash,
+                                                 uint32_t first_word)
   {
-    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
-    return hash >> (32 - index_width);
+    if constexpr (fast_l2_add) {
+      for (uint32_t i = 0; i < pattern.size(); ++i) {
+        pattern[i] &= word_type{0} - static_cast<word_type>(not is_skipped(hash, first_word + i));
+      }
+    }
   }
 
  private:
@@ -298,6 +308,14 @@ class bloom_filter_policy {
   /// partial coverage makes the update cheaper.
   static constexpr uint32_t sector_bytes     = 32;
   static constexpr uint32_t words_per_sector = sector_bytes / WordBytes;
+
+  // Index of the FastL2Add skipped word in the first sector of the block. The top bits of the
+  // hash give this index.
+  __device__ static constexpr uint32_t skip_index(uint32_t hash)
+  {
+    constexpr uint32_t index_width = cuda::std::bit_width(words_per_sector - 1);
+    return hash >> (32 - index_width);
+  }
 
   /**
    * @brief pattern_impl - Computes the bit pattern for a vertical layout of words.
