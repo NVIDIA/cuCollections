@@ -527,13 +527,12 @@ class bloom_filter_impl {
     static_assert(add_horizontal_layout == 1, "add_pattern() requires add_horizontal_layout == 1");
 
     if constexpr (LoopIndex < add_loop_count) {
-      auto const pattern =
-        policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
       auto* word_base = words_ +
                         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout;
-
-      for (int i = 0; i < add_vertical_layout; ++i) {
+      auto pattern = policy_.template array_pattern<LoopIndex, add_vertical_layout>(lower_hash);
+      policy_type::clear_skipped(pattern, lower_hash, LoopIndex * add_vertical_layout);
+      for (uint32_t i = 0; i < add_vertical_layout; ++i) {
         atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
       }
 
@@ -550,7 +549,7 @@ class bloom_filter_impl {
     static_assert(add_horizontal_layout > 1, "add_patterns() requires add_horizontal_layout > 1");
 
     if constexpr (LoopIndex < add_loop_count) {
-      auto const pattern =
+      auto pattern =
         policy_.template array_pattern<LoopIndex, add_horizontal_layout, add_vertical_layout>(
           lower_hash, thread_index);
       auto* word_base = words_ +
@@ -558,7 +557,10 @@ class bloom_filter_impl {
                         LoopIndex * add_vertical_layout * add_horizontal_layout +
                         thread_index * add_vertical_layout;
 
-      for (int i = 0; i < add_vertical_layout; ++i) {
+      uint32_t const first_word =
+        (LoopIndex * add_horizontal_layout + thread_index) * add_vertical_layout;
+      policy_type::clear_skipped(pattern, lower_hash, first_word);
+      for (uint32_t i = 0; i < add_vertical_layout; ++i) {
         atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
       }
 
@@ -570,8 +572,9 @@ class bloom_filter_impl {
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    // Skipped word (FastL2Add): issue no atomic, so the coalesced request leaves this word
-    // inactive.
+    // FastL2Add: send no atomic for a zero pattern (the cleared skipped word). The coalesced
+    // request then does not include that word. Keep this test here. The compiler changes the same
+    // test at the call site into an index test, with the effect that clear_skipped() describes.
     if constexpr (fast_l2_add) {
       if (pattern == 0) { return; }
     }
@@ -599,6 +602,23 @@ class bloom_filter_impl {
     }
   }
 
+  /// Returns `true` if each stored word contains its expected bits. The FastL2Add skipped word
+  /// passes by its index, because `add` does not set its bits. The expected pattern stays
+  /// unchanged, so each word gets the same bit test.
+  template <class PatternArrayT>
+  __device__ constexpr bool matches(PatternArrayT const& stored_pattern,
+                                    PatternArrayT const& expected_pattern,
+                                    uint32_t lower_hash,
+                                    uint32_t first_word) const
+  {
+    bool match = true;
+    for (uint32_t i = 0; i < expected_pattern.size(); ++i) {
+      match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i] or
+               policy_type::is_skipped(lower_hash, first_word + i);
+    }
+    return match;
+  }
+
   /// Compare the stored pattern against the expected pattern for the given hash value.
   // Precondition: contains_horizontal_layout == 1
   template <uint32_t LoopIndex>
@@ -613,11 +633,8 @@ class bloom_filter_impl {
         LoopIndex * contains_vertical_layout);
       auto const expected_pattern =
         policy_.template array_pattern<LoopIndex, contains_vertical_layout>(lower_hash);
-
-      bool match = true;
-      for (int i = 0; i < contains_vertical_layout; ++i) {
-        match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
-      }
+      bool const match =
+        matches(stored_pattern, expected_pattern, lower_hash, LoopIndex * contains_vertical_layout);
 
       // Recurse.
       // Early exit in this implementation occurs at the granulairy of contains_vertical_layout
@@ -650,11 +667,11 @@ class bloom_filter_impl {
         policy_
           .template array_pattern<LoopIndex, contains_horizontal_layout, contains_vertical_layout>(
             lower_hash, thread_index);
-
-      bool match = true;
-      for (int i = 0; i < contains_vertical_layout; ++i) {
-        match &= (stored_pattern[i] & expected_pattern[i]) == expected_pattern[i];
-      }
+      bool const match =
+        matches(stored_pattern,
+                expected_pattern,
+                lower_hash,
+                (LoopIndex * contains_horizontal_layout + thread_index) * contains_vertical_layout);
 
       // Per-thread early exit: short-circuit this thread's recursion if its slice already missed.
       if constexpr (early_exit_contains) {
