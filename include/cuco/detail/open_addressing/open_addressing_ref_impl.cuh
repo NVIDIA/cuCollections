@@ -1594,6 +1594,28 @@ class open_addressing_ref_impl
   }
 
   /**
+   * @brief Checks that the bucket at `probing_idx` lies inside the storage.
+   *
+   * Only active when `CUCO_DEBUG` is defined. The bucket loads read from `storage_ref_.data()`,
+   * so they do not pass the checks in the storage's `operator[]`.
+   *
+   * @param probing_idx The current probing index
+   */
+  __device__ constexpr void debug_assert_valid_bucket_index(
+    [[maybe_unused]] size_type probing_idx) const noexcept
+  {
+#if defined(CUCO_DEBUG)
+    if constexpr (cuda::std::is_signed_v<size_type>) {
+      CUCO_DEBUG_ASSERT(probing_idx >= size_type{0}, "Bucket access precedes storage");
+    }
+    CUCO_DEBUG_ASSERT(
+      probing_idx <= storage_ref_.capacity() and
+        static_cast<size_type>(bucket_size) <= storage_ref_.capacity() - probing_idx,
+      "Bucket access exceeds storage capacity");
+#endif
+  }
+
+  /**
    * @brief Gets a pointer to the slot at the given probing index and intra-bucket index.
    *
    * @param probing_idx The current probing index
@@ -1661,6 +1683,7 @@ class open_addressing_ref_impl
     if constexpr (unit != 0) {
       return this->template load_bucket_vectorized<unit>(probing_idx);
     } else {
+      this->debug_assert_valid_bucket_index(probing_idx);
       auto const* const slots = storage_ref_.data() + probing_idx;
       return this->template load_bucket_per_slot<SwapsSlot>(
         slots, cuda::std::make_index_sequence<bucket_size>{});
@@ -1798,6 +1821,7 @@ class open_addressing_ref_impl
         : cuda::std::min<cuda::std::size_t>(max_load_bytes<Unit>(), span & (~span + 1));
     constexpr cuda::std::size_t num_words = span / Unit;
 
+    this->debug_assert_valid_bucket_index(probing_idx);
     auto const* const slots = storage_ref_.data() + probing_idx;
     auto const* const base  = bucket_bytes < 4
                                 ? cuda::align_down(reinterpret_cast<char const*>(slots), 4)
