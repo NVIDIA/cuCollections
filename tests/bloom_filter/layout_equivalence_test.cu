@@ -129,7 +129,8 @@ TEMPLATE_TEST_CASE_SIG(
 }
 
 namespace {
-// 32-bit words, `Words` per block; the layouts, pattern bits and FastL2Add vary per test.
+// 32-bit words, `Words` words per block. Each test sets the layouts, the pattern bits and
+// FastL2Add.
 template <std::uint32_t Words,
           std::uint32_t PatternBits,
           std::uint32_t AddH,
@@ -516,7 +517,7 @@ TEMPLATE_TEST_CASE_SIG(
   (wide_coop_policy, wide_ref_policy))
 {
   using Key = int32_t;
-  // the horizontal layouts run the cooperative (shuffle-first) add; 1xN is non-cooperative
+  // The horizontal layouts use the cooperative (shuffle-first) add. The 1xN layouts do not.
   using filter_coop_t =
     cuco::bloom_filter<Key, cuco::extent<std::size_t>, cuda::thread_scope_device, CoopPolicy>;
   using filter_ref_t =

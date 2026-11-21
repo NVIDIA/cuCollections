@@ -546,42 +546,17 @@ class bloom_filter_impl {
                                          add_salts_type const& thread_salts)
   {
     if constexpr (LoopIndex < add_loop_count) {
-      // A FastL2Add thread that owns the whole first sector (horizontal layout 1) shifts past the
-      // skipped word, so its atomics stay unconditional (a per-word skip test compiles to a
-      // divergent branch chain).
-      constexpr uint32_t sector_words   = 32 / sizeof(word_type);
-      constexpr bool shift_past_skipped = fast_l2_add and add_horizontal_layout == 1 and
-                                          LoopIndex == 0 and add_vertical_layout >= sector_words;
       auto pattern    = policy_.template array_pattern<LoopIndex>(lower_hash, thread_salts);
       auto* word_base = words_ +
                         static_cast<cuco::detail::index_type>(block_index) * words_per_block +
                         LoopIndex * add_vertical_layout * add_horizontal_layout +
                         thread_salts.thread_index * add_vertical_layout;
 
-      if constexpr (shift_past_skipped) {
-        uint32_t const skip = policy_type::skip_index(lower_hash);
-        for (uint32_t i = 0; i + 1 < sector_words; ++i) {
-          bool const past = i >= skip;
-          atomic_or<ConditionalAdd>(word_base + i + past, past ? pattern[i + 1] : pattern[i]);
-        }
-        for (uint32_t i = sector_words; i < add_vertical_layout; ++i) {
-          atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
-        }
-      } else {
-        uint32_t const first_word =
-          (LoopIndex * add_horizontal_layout + thread_salts.thread_index) * add_vertical_layout;
-        if constexpr (fast_l2_add) {
-          // Clear the skipped word's pattern; atomic_or then issues no atomic for it. An index test
-          // ahead of each atomic instead lets the compiler compute the skip predicates of every
-          // key of a shuffle-first group up front (predicate spills, 64 B 16x1 add -11% on GB200).
-          for (uint32_t i = 0; i < add_vertical_layout; ++i) {
-            pattern[i] &= word_type{0} - static_cast<word_type>(
-                                           not policy_type::is_skipped(lower_hash, first_word + i));
-          }
-        }
-        for (uint32_t i = 0; i < add_vertical_layout; ++i) {
-          atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
-        }
+      uint32_t const first_word =
+        (LoopIndex * add_horizontal_layout + thread_salts.thread_index) * add_vertical_layout;
+      policy_type::clear_skipped(pattern, lower_hash, first_word);
+      for (uint32_t i = 0; i < add_vertical_layout; ++i) {
+        atomic_or<ConditionalAdd>(word_base + i, pattern[i]);
       }
 
       // Recurse.
@@ -592,9 +567,9 @@ class bloom_filter_impl {
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    // FastL2Add: issue no atomic for a zero pattern (the cleared skipped word), so the coalesced
-    // request leaves that word inactive. The test must stay here: the same test at the call site
-    // is folded into an index test with the effect described in add_patterns().
+    // FastL2Add: send no atomic for a zero pattern (the cleared skipped word). The coalesced
+    // request then does not include that word. Keep this test here. The compiler changes the same
+    // test at the call site into an index test, with the effect that clear_skipped() describes.
     if constexpr (fast_l2_add) {
       if (pattern == 0) { return; }
     }
@@ -622,8 +597,9 @@ class bloom_filter_impl {
     }
   }
 
-  /// Whether every stored word contains its expected bits. The FastL2Add skipped word (unset by
-  /// `add`) passes by its index, so every word keeps a plain bit test.
+  /// Returns `true` if each stored word contains its expected bits. The FastL2Add skipped word
+  /// passes by its index, because `add` does not set its bits. The expected pattern stays
+  /// unchanged, so each word gets the same bit test.
   template <class PatternArrayT>
   __device__ constexpr bool matches(PatternArrayT const& stored_pattern,
                                     PatternArrayT const& expected_pattern,
