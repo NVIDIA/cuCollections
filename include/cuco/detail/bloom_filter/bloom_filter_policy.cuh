@@ -280,11 +280,7 @@ class bloom_filter_policy {
   /**
    * @brief Clears the pattern of the FastL2Add skipped word, if the word is in `pattern`.
    *
-   * `add` then sends no atomic for that word, because it sends no atomic for a zero pattern.
-   * `add` must not test the word index before each atomic. When the salts of a thread are
-   * selected before the loop over the keys, that test makes the compiler compute the skip
-   * predicates of all keys of a shuffle-first group at the start. The predicates then spill, and
-   * 64 B 16x1 add is 11% slower on GB200.
+   * `add` sends no atomic for a zero pattern, so it does not write that word.
    *
    * @param pattern Pattern words. The first element is block word `first_word`.
    * @param hash Lower 32 bits of the key's hash.

@@ -572,9 +572,7 @@ class bloom_filter_impl {
   template <bool ConditionalAdd>
   __device__ constexpr void atomic_or(word_type* word_ptr, word_type pattern) const
   {
-    // FastL2Add: send no atomic for a zero pattern (the cleared skipped word). The coalesced
-    // request then does not include that word. Keep this test here. The compiler changes the same
-    // test at the call site into an index test, with the effect that clear_skipped() describes.
+    // FastL2Add: send no atomic for a zero pattern.
     if constexpr (fast_l2_add) {
       if (pattern == 0) { return; }
     }
