@@ -71,6 +71,7 @@ __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
+    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
     auto const idx   = cuco::detail::global_thread_id();
     auto const group = warp_tile<CGSize>{};
     auto const is_full_tile =
@@ -108,18 +109,14 @@ __device__ void contains_n_impl(InputIt first,
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
+    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
     auto const idx   = cuco::detail::global_thread_id();
     auto const group = warp_tile<CGSize>{};
-    auto const is_full_tile =
-      static_cast<cuco::detail::index_type>(blockIdx.x + 1) * BlockSize <= n;
-    if (is_full_tile) {
-      key_type const& key   = *(first + idx);
-      *(output_begin + idx) = ref.contains_coop(group, key);
-    } else {
-      auto const is_valid = idx < n;
-      auto const result   = ref.contains_coop(group, first, idx, is_valid);
-      if (is_valid) { *(output_begin + idx) = result; }
-    }
+    // A thread past the end looks up the last key and does not write a result.
+    auto const in_range = idx < n;
+    key_type const& key = *(first + (in_range ? idx : n - 1));
+    auto const result   = ref.contains_coop(group, key);
+    if (in_range) { *(output_begin + idx) = result; }
   } else {
     auto const idx = cuco::detail::global_thread_id();
     if (idx < n) {
@@ -151,6 +148,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
+    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
     auto const idx      = cuco::detail::global_thread_id();
     auto const group    = warp_tile<CGSize>{};
     auto const in_range = idx < n;
@@ -182,6 +180,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
+    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
     auto const idx      = cuco::detail::global_thread_id();
     auto const group    = warp_tile<CGSize>{};
     auto const in_range = idx < n;
