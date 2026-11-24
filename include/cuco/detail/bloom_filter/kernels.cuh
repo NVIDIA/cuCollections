@@ -15,11 +15,9 @@
 namespace cuco::detail::bloom_filter_ns {
 
 /**
- * @brief `Size`-thread tile of a 1-D thread block whose collectives use the full-warp mask.
+ * @brief `Size`-thread tile of a 1-D thread block. Its shuffles and votes use the full-warp mask.
  *
- * Unlike a cooperative-groups tile, which syncs with a per-tile mask, the warp-uniform mask lets
- * the compiler skip the per-call convergence check, and a tile vote becomes one warp ballot.
- * This requires every thread of the warp to reach each collective, so the bulk kernels never
+ * All threads of the warp must reach each shuffle and each vote, so the bulk kernels do not
  * branch around them.
  *
  * @tparam Size Threads per tile, a power of two up to 32
@@ -53,7 +51,7 @@ struct warp_tile {
    * @brief Evaluates `predicate` for all threads of the tile.
    *
    * @param predicate Predicate of the calling thread
-   * @return Whether `predicate` holds for every thread of the tile
+   * @return `true` if `predicate` is true for all threads of the tile
    */
   [[nodiscard]] __device__ bool all(bool predicate) const noexcept
   {

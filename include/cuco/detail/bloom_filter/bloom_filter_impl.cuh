@@ -60,7 +60,7 @@ class bloom_filter_impl {
   static constexpr bool early_exit_contains        = policy_type::early_exit_contains;
   static constexpr bool persisting_l2_access       = policy_type::persisting_l2_access;
   static constexpr bool fast_l2_add                = policy_type::fast_l2_add;
-  /// Per-thread salts of the add and contains layouts (one thread per key for horizontal layout 1)
+  /// Salts of one thread for the add and contains layouts
   using add_salts_type =
     typename policy_type::template thread_salts<add_horizontal_layout, add_vertical_layout>;
   using contains_salts_type =
@@ -260,7 +260,7 @@ class bloom_filter_impl {
     }
     auto const thread_salts = add_salts(group.thread_rank());
 
-    // Shuffle outside the per-key branch: the bulk kernels' tiles sync with the full-warp mask
+    // Do the shuffles before the branch. All threads of the warp must reach them.
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
       auto const valid = group.shfl(is_valid, i);
@@ -379,8 +379,8 @@ class bloom_filter_impl {
 
     auto const thread_salts = contains_salts(group.thread_rank());
     bool result_out         = false;
-    // An invalid key probes block 0 and its result is discarded, so that every thread reaches the
-    // collectives (the bulk kernels' tiles sync with the full-warp mask)
+    // An invalid key reads block 0, and its result is not used. All threads of the warp must
+    // reach the vote.
 #pragma unroll num_threads
     for (int i = 0; i < num_threads; ++i) {
       auto const result = group.all(
@@ -525,9 +525,7 @@ class bloom_filter_impl {
       __builtin_assume_aligned(filter_access(ptr), load_alignment));
   }
 
-  // Salts of a thread of the group cooperating on a key, selected once per thread and reused for
-  // every key. With horizontal layout 1 the only rank is 0 and the salts are compile-time
-  // constants.
+  // Salts of the calling thread. A thread selects them one time and uses them for all keys.
   __device__ constexpr add_salts_type add_salts(uint32_t thread_index) const
   {
     return policy_.template make_thread_salts<add_horizontal_layout, add_vertical_layout>(

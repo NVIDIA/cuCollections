@@ -223,16 +223,15 @@ class bloom_filter_policy {
   }
 
   /**
-   * @brief Salts of one thread of the group cooperating on a key, for every outer-loop iteration.
+   * @brief Salts of one thread of the group that cooperates on a key, for each outer-loop
+   * iteration.
    *
-   * The `HorizontalLayout` threads of a group each own `VerticalLayout` contiguous words per
-   * outer-loop iteration; iteration `l` of rank `r` is virtual thread `l * HorizontalLayout + r`,
-   * which owns block words `[v, v + 1) * VerticalLayout` and the salts `[v, v + 1) *
-   * salts_per_thread`. Horizontal layout 1 is a group of one thread.
+   * Each of the `HorizontalLayout` threads of a group owns `VerticalLayout` contiguous words in
+   * each outer-loop iteration. Iteration `l` of rank `r` is virtual thread
+   * `v = l * HorizontalLayout + r`. It owns the block words `[v, v + 1) * VerticalLayout` and the
+   * salts `[v, v + 1) * salts_per_thread`. Horizontal layout 1 is a group of one thread.
    *
-   * The salts depend only on the thread's rank. Selecting them once, ahead of a loop over keys,
-   * leaves one multiply per fingerprint bit inside the loop; for horizontal layout 1 they are
-   * compile-time constants.
+   * The salts depend only on the rank of the thread, so a thread selects them one time.
    *
    * @tparam HorizontalLayout Number of threads cooperating on a single key.
    * @tparam VerticalLayout Number of contiguous words per thread and outer-loop iteration.
@@ -241,28 +240,29 @@ class bloom_filter_policy {
   struct thread_salts {
     static constexpr uint32_t horizontal_layout = HorizontalLayout;  ///< Threads per key
     static constexpr uint32_t vertical_layout   = VerticalLayout;    ///< Words per thread
-    /// Outer-loop iterations covering a block
+    /// Outer-loop iterations for one block
     static constexpr uint32_t loop_count = words_per_block / (HorizontalLayout * VerticalLayout);
     /// Salts of one virtual thread
     static constexpr uint32_t salts_per_thread = max_bits_per_word * VerticalLayout;
 
-    /// Salts per outer-loop iteration; unused entries (see `num_salts`) are zero
+    /// Salts for each outer-loop iteration. Unused entries (see `num_salts`) are zero.
     cuda::std::array<cuda::std::array<uint32_t, salts_per_thread>, loop_count> salt;
-    /// Valid salts per outer-loop iteration, fewer than `salts_per_thread` only for trailing
-    /// virtual threads when `pattern_bits` is not a multiple of `words_per_block`
+    /// Number of valid salts for each outer-loop iteration. It is less than `salts_per_thread`
+    /// only for the last virtual threads, when `pattern_bits` is not a multiple of
+    /// `words_per_block`.
     cuda::std::array<uint32_t, loop_count> num_salts;
     uint32_t thread_index;  ///< Rank within the cooperative group
   };
 
   /**
-   * @brief Selects the salts of one thread of the group cooperating on a key.
+   * @brief Selects the salts of one thread of the group that cooperates on a key.
    *
    * @tparam HorizontalLayout Number of threads cooperating on a single key.
    * @tparam VerticalLayout Number of contiguous words per thread and outer-loop iteration.
    *
-   * @param thread_index Caller's rank within the group (0 for horizontal layout 1).
+   * @param thread_index Rank of the calling thread in the group (0 for horizontal layout 1).
    *
-   * @return The thread's salts.
+   * @return The salts of the thread.
    */
   template <uint32_t HorizontalLayout, uint32_t VerticalLayout>
   __device__ constexpr auto make_thread_salts(uint32_t thread_index) const
@@ -347,9 +347,9 @@ class bloom_filter_policy {
     return hash >> (32 - index_width);
   }
 
-  // Fills `ts` for outer-loop iterations LoopIndex.. with the salts of virtual thread
-  // `LoopIndex * horizontal_layout + thread_index`. Runs once per thread, ahead of any loop over
-  // keys.
+  // Fills `ts` for the outer-loop iterations from `LoopIndex` with the salts of virtual thread
+  // `LoopIndex * horizontal_layout + thread_index`. A thread calls this one time, before its loop
+  // over the keys.
   template <uint32_t LoopIndex, class ThreadSalts>
   __device__ constexpr void select_salts(ThreadSalts& ts, uint32_t thread_index) const
   {
@@ -357,7 +357,7 @@ class bloom_filter_policy {
       ts.salt[LoopIndex] =
         salts_of<LoopIndex, 0, ThreadSalts::horizontal_layout, ThreadSalts>(thread_index);
       if constexpr (pattern_bits != max_bits_per_word * words_per_block) {
-        // Trailing virtual threads get the salts left below `pattern_bits`, possibly none
+        // The last virtual threads get the salts that remain below `pattern_bits`, if any.
         uint32_t const first = ThreadSalts::salts_per_thread *
                                (LoopIndex * ThreadSalts::horizontal_layout + thread_index);
         uint32_t const left = first < pattern_bits ? pattern_bits - first : 0u;
@@ -368,8 +368,8 @@ class bloom_filter_policy {
     }
   }
 
-  // Salts of rank `thread_index` among ranks `Rank + k * Stride`, k in [0, Count): a compile-time
-  // tree of selects on the rank's bits, lowest first, which the compiler keeps branch-free.
+  // Salts of rank `thread_index` among the ranks `Rank + k * Stride`, k in [0, Count). This is a
+  // tree of selects on the bits of the rank, lowest bit first.
   template <uint32_t LoopIndex,
             uint32_t Rank,
             uint32_t Count,
@@ -414,7 +414,7 @@ class bloom_filter_policy {
   {
     static_assert(LoopIndex < ThreadSalts::loop_count,
                   "the loop index cannot exceed the number of loop iterations");
-    // Every virtual thread has all its salts unless pattern_bits leaves trailing words short.
+    // Each virtual thread has all its salts if `pattern_bits` is a multiple of `words_per_block`.
     constexpr bool all_salts = pattern_bits == max_bits_per_word * words_per_block;
 
     cuda::std::array<word_type, ThreadSalts::vertical_layout> pattern_array{0};
