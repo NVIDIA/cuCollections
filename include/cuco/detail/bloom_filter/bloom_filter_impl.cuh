@@ -303,7 +303,7 @@ class bloom_filter_impl {
     auto constexpr cg_size    = static_cast<int32_t>(add_horizontal_layout);
 
     if constexpr (add_keys_per_thread > 1) {
-      // Full blocks of `add_keys_per_thread` keys per thread first; `add_n` takes the rest.
+      // The multi-key kernel processes the full blocks. `add_n` processes the remaining keys.
       auto constexpr keys_per_thread = static_cast<int32_t>(add_keys_per_thread);
       auto const kernel              = detail::bloom_filter_ns::add_n_multi_key<conditional_add,
                                                                                 cg_size,
@@ -442,7 +442,8 @@ class bloom_filter_impl {
     auto constexpr cg_size    = static_cast<int32_t>(contains_horizontal_layout);
 
     if constexpr (contains_keys_per_thread > 1) {
-      // As in `add_async`: full multi-key blocks first, the remaining keys with `contains_n`.
+      // The multi-key kernel processes the full blocks. `contains_n` processes the remaining
+      // keys.
       auto constexpr keys_per_thread = static_cast<int32_t>(contains_keys_per_thread);
       auto const kernel              = detail::bloom_filter_ns::contains_n_multi_key<cg_size,
                                                                                      block_size,
@@ -543,9 +544,10 @@ class bloom_filter_impl {
     }
   }
 
-  // Launches the multi-key `kernel` on the full blocks of `BlockSize * KeysPerThread` keys and
-  // returns the number of keys it covers: none for inputs below one wave of such blocks, which keep
-  // one key per thread to use more SMs. The caller handles the remaining keys.
+  // Launches the multi-key `kernel` for the full blocks of `BlockSize * KeysPerThread` keys and
+  // returns the number of keys that it processes. An input with fewer blocks than one wave gets
+  // no launch, so that it uses more SMs with one key for each thread. The caller processes the
+  // remaining keys.
   template <int32_t BlockSize, int32_t KeysPerThread, class Kernel, class... Args>
   __host__ static cuco::detail::index_type launch_multi_key(Kernel kernel,
                                                             cuco::detail::index_type num_keys,

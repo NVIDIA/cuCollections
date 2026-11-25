@@ -578,8 +578,8 @@ TEMPLATE_TEST_CASE_SIG("bloom_filter: bulk add and contains are invariant under 
                        layout_policy<8, 8, AddH, AddV, ContainsH, ContainsV, FastL2Add, 1, 1>>;
 
   constexpr std::size_t num_blocks = 1 << 16;
-  // more than one wave of multi-key blocks plus a tail; less than one wave (one key per thread
-  // only); exactly one multi-key block at the smallest keys per thread
+  // Three input sizes: more than one wave of multi-key blocks with remaining keys, less than one
+  // wave, and one multi-key block for the smallest keys per thread.
   auto const num_keys = GENERATE(int32_t{3'000'017}, int32_t{1'000}, int32_t{1'024});
 
   auto filter     = filter_t{num_blocks};
@@ -593,7 +593,8 @@ TEMPLATE_TEST_CASE_SIG("bloom_filter: bulk add and contains are invariant under 
   REQUIRE(
     thrust::equal(thrust::device, filter.data(), filter.data() + total_words, filter_ref.data()));
 
-  // half inserted, half not: identical answers, and no false negatives
+  // One half of the queries is in the filter. Both filters must give the same results, with no
+  // false negative.
   thrust::device_vector<bool> result(2 * num_keys, false);
   thrust::device_vector<bool> result_ref(2 * num_keys, false);
   filter.contains(keys.begin(), keys.end(), result.begin());

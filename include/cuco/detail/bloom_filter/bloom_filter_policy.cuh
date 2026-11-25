@@ -74,9 +74,10 @@ namespace cuco::detail {
  * `add` while the filter is cache-resident. It changes the bit pattern (slightly higher
  * false-positive rate; not interchangeable with filters built without it). No effect for blocks
  * smaller than one 32-byte sector.
- * @tparam AddKeysPerThread Keys per thread in bulk `add`; all are loaded before the first update.
- * Launch shape only: does not change the bit pattern.
- * @tparam ContainsKeysPerThread Keys per thread in bulk `contains`, as for `AddKeysPerThread`.
+ * @tparam AddKeysPerThread Number of keys that each thread processes in bulk `add`. A thread
+ * loads all its keys before the first update. This does not change the bit pattern.
+ * @tparam ContainsKeysPerThread Number of keys that each thread processes in bulk `contains`.
+ * A thread loads all its keys before the first lookup.
  */
 template <class Hash,
           uint32_t WordBytes,
@@ -145,9 +146,9 @@ class bloom_filter_policy {
   /// than one 32-byte sector, whose updates are partial already.
   static constexpr bool fast_l2_add = FastL2Add and WordsPerBlock * WordBytes >= 32;
   static constexpr uint32_t add_keys_per_thread =
-    AddKeysPerThread;  ///< keys per thread in bulk add
+    AddKeysPerThread;  ///< Keys for each thread in bulk add
   static constexpr uint32_t contains_keys_per_thread =
-    ContainsKeysPerThread;  ///< keys per thread in bulk contains
+    ContainsKeysPerThread;  ///< Keys for each thread in bulk contains
 
   static constexpr size_t max_filter_blocks =
     cuda::std::numeric_limits<uint32_t>::max();  ///< Upper bound on the number of filter blocks

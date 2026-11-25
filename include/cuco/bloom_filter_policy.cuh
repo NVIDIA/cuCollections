@@ -54,11 +54,12 @@ namespace cuco {
  * This changes the bit pattern: the skipped word's fingerprint bits are dropped, which slightly
  * raises the false-positive rate, and filters built with and without it are not interchangeable.
  * `contains` is about as fast as without it. No effect for blocks smaller than 32 bytes.
- * @tparam AddKeysPerThread Keys each thread handles in bulk `add`. A thread loads all its keys
- * before the first update, so each warp has that many key loads in flight; this helps on GPUs with
- * few resident warps per SM. Does not change the bit pattern. Defaults to `4`.
- * @tparam ContainsKeysPerThread Keys each thread handles in bulk `contains`, as for
- * `AddKeysPerThread`. Defaults to `4`.
+ * @tparam AddKeysPerThread Number of keys that each thread processes in bulk `add`. A thread
+ * loads all its keys before the first update, so a larger value gives each warp more key loads
+ * in flight. This helps on GPUs with few resident warps for each SM. It does not change the bit
+ * pattern. Defaults to `4`.
+ * @tparam ContainsKeysPerThread Number of keys that each thread processes in bulk `contains`.
+ * A thread loads all its keys before the first lookup. Defaults to `4`.
  */
 template <class Key,
           class Hash                        = cuda::hash<Key>,

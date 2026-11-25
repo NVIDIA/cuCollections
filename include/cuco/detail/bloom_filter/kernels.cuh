@@ -100,8 +100,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n(InputIt first,
   add_n_impl<ConditionalAdd, CGSize, BlockSize>(first, n, ref);
 }
 
-/// Loads the calling thread's keys of a full multi-key block, `idx + i * BlockSize` for i in
-/// [0, KeysPerThread), before any of them is used, and returns `idx`.
+/// Loads the keys of the calling thread, `idx + i * BlockSize` for i in [0, KeysPerThread), and
+/// returns `idx`.
 template <int32_t BlockSize, class InputIt, class Key, int32_t KeysPerThread>
 __device__ cuco::detail::index_type load_keys(InputIt first, Key (&keys)[KeysPerThread])
 {
@@ -114,10 +114,9 @@ __device__ cuco::detail::index_type load_keys(InputIt first, Key (&keys)[KeysPer
   return idx;
 }
 
-/// `add_n` with `KeysPerThread` keys per thread, for full blocks only: block `b` covers keys
-/// `[b, b + 1) * BlockSize * KeysPerThread` (strided by `BlockSize`), and each thread loads all its
-/// keys before the first update, so a warp has `KeysPerThread` key loads in flight. The caller
-/// handles the remaining keys with `add_n`.
+/// `add_n` with `KeysPerThread` keys for each thread, for full blocks only. Block `b` processes
+/// the keys `[b, b + 1) * BlockSize * KeysPerThread`. Each thread loads all its keys before the
+/// first update. The caller processes the remaining keys with `add_n`.
 template <bool ConditionalAdd,
           int32_t CGSize,
           int32_t BlockSize,
@@ -131,6 +130,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n_multi_key(InputIt first, Ref
   key_type keys[KeysPerThread];
   auto const idx = load_keys<BlockSize>(first, keys);
   if constexpr (CGSize > 1) {
+    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
     auto const group = warp_tile<CGSize>{};
 #pragma unroll
     for (int32_t i = 0; i < KeysPerThread; ++i) {
@@ -144,7 +144,8 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n_multi_key(InputIt first, Ref
   }
 }
 
-/// `contains_n` with `KeysPerThread` keys per thread, for full blocks only (see `add_n_multi_key`).
+/// `contains_n` with `KeysPerThread` keys for each thread, for full blocks only. See
+/// `add_n_multi_key`.
 template <int32_t CGSize,
           int32_t BlockSize,
           int32_t KeysPerThread,
@@ -160,6 +161,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_n_multi_key(InputIt first
   key_type keys[KeysPerThread];
   auto const idx = load_keys<BlockSize>(first, keys);
   if constexpr (CGSize > 1) {
+    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
     auto const group = warp_tile<CGSize>{};
 #pragma unroll
     for (int32_t i = 0; i < KeysPerThread; ++i) {
