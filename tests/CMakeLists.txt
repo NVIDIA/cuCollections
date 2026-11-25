@@ -135,6 +135,9 @@ ConfigureTest(STATIC_MULTIMAP_TEST
     static_multimap/retrieve_test.cu
     static_multimap/retrieve_if_test.cu)
 
+ConfigureTest(BULK_STATIC_MULTIMAP_TEST
+    bulk_static_multimap/bulk_static_multimap_test.cu)
+
 ###################################################################################################
 # - dynamic_bitset tests --------------------------------------------------------------------------
 ConfigureTest(DYNAMIC_BITSET_TEST
@@ -170,3 +173,10 @@ ConfigureTest(BLOOM_FILTER_TEST
 ConfigureTest(ROARING_BITMAP_TEST
     roaring_bitmap/contains_test.cu
     roaring_bitmap/build_test.cu)
+
+add_executable(BULK_STATIC_MULTIMAP_TILES_TEST bulk_static_multimap/tiles_test.cu)
+target_link_libraries(BULK_STATIC_MULTIMAP_TILES_TEST PRIVATE cuco CUDA::cudart)
+cuco_set_common_compile_options(BULK_STATIC_MULTIMAP_TILES_TEST)
+target_compile_options(BULK_STATIC_MULTIMAP_TILES_TEST PRIVATE -lineinfo)
+set_target_properties(BULK_STATIC_MULTIMAP_TILES_TEST PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/tests")
+add_test(NAME bulk_static_multimap_tiles COMMAND BULK_STATIC_MULTIMAP_TILES_TEST)
