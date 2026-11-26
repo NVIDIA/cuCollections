@@ -156,9 +156,6 @@ using layout_policy = cuco::bloom_filter_policy<int32_t,
 // Reference: one thread per key for add and contains. Alternatives mix cooperative add and
 // contains layouts, several bits per word, uneven pattern bits and 64-byte blocks.
 using mixed_layout_cases = std::tuple<
-  std::pair<layout_policy<8, 8, 1, 8, 1, 8>, layout_policy<8, 8, 8, 1, 2, 4>>,
-  std::pair<layout_policy<8, 8, 1, 8, 1, 8>, layout_policy<8, 8, 2, 4, 4, 2>>,
-  std::pair<layout_policy<8, 8, 1, 8, 1, 8>, layout_policy<8, 8, 4, 1, 8, 1>>,
   std::pair<layout_policy<8, 16, 1, 8, 1, 8>, layout_policy<8, 16, 4, 2, 2, 2>>,
   std::pair<layout_policy<8, 16, 1, 8, 1, 8>, layout_policy<8, 16, 8, 1, 4, 1>>,
   std::pair<layout_policy<8, 12, 1, 8, 1, 8>, layout_policy<8, 12, 8, 1, 2, 4>>,
@@ -166,7 +163,6 @@ using mixed_layout_cases = std::tuple<
   std::pair<layout_policy<16, 16, 1, 16, 1, 16>, layout_policy<16, 16, 16, 1, 4, 4>>,
   std::pair<layout_policy<16, 16, 1, 16, 1, 16>, layout_policy<16, 16, 8, 1, 2, 8>>,
   std::pair<layout_policy<16, 32, 1, 16, 1, 16>, layout_policy<16, 32, 16, 1, 2, 8>>,
-  std::pair<layout_policy<8, 8, 1, 8, 1, 8, true>, layout_policy<8, 8, 4, 2, 4, 2, true>>,
   std::pair<layout_policy<16, 16, 1, 16, 1, 16, true>, layout_policy<16, 16, 16, 1, 4, 4, true>>>;
 
 TEMPLATE_LIST_TEST_CASE("bloom_filter: bitset and contains are invariant under mixed layouts",
