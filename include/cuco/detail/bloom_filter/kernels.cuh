@@ -101,6 +101,81 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n(InputIt first,
   add_n_impl<ConditionalAdd, CGSize, BlockSize>(first, n, ref);
 }
 
+/// Loads the keys of the calling thread, `idx + i * BlockSize` for i in [0, KeysPerThread), and
+/// returns `idx`.
+template <int32_t BlockSize, class InputIt, class Key, int32_t KeysPerThread>
+__device__ cuco::detail::index_type load_keys(InputIt first, Key (&keys)[KeysPerThread])
+{
+  auto const idx = static_cast<cuco::detail::index_type>(blockIdx.x) * BlockSize * KeysPerThread +
+                   static_cast<cuco::detail::index_type>(threadIdx.x);
+#pragma unroll
+  for (int32_t i = 0; i < KeysPerThread; ++i) {
+    keys[i] = *(first + idx + i * BlockSize);
+  }
+  return idx;
+}
+
+/// `add_n` with `KeysPerThread` keys for each thread, for full blocks only. Block `b` processes
+/// the keys `[b, b + 1) * BlockSize * KeysPerThread`. Each thread loads all its keys before the
+/// first update. The caller processes the remaining keys with `add_n`.
+template <bool ConditionalAdd,
+          int32_t CGSize,
+          int32_t BlockSize,
+          int32_t KeysPerThread,
+          class InputIt,
+          class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void add_n_multi_key(InputIt first, Ref ref)
+{
+  using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
+
+  key_type keys[KeysPerThread];
+  auto const idx = load_keys<BlockSize>(first, keys);
+  if constexpr (CGSize > 1) {
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
+    auto const group = warp_tile<CGSize>{};
+#pragma unroll
+    for (int32_t i = 0; i < KeysPerThread; ++i) {
+      ref.template add_coop<ConditionalAdd>(group, keys[i]);
+    }
+  } else {
+#pragma unroll
+    for (int32_t i = 0; i < KeysPerThread; ++i) {
+      ref.template add<ConditionalAdd>(keys[i]);
+    }
+  }
+}
+
+/// `contains_n` with `KeysPerThread` keys for each thread, for full blocks only. See
+/// `add_n_multi_key`.
+template <int32_t CGSize,
+          int32_t BlockSize,
+          int32_t KeysPerThread,
+          class InputIt,
+          class OutputIt,
+          class Ref>
+CUCO_KERNEL __launch_bounds__(BlockSize) void contains_n_multi_key(InputIt first,
+                                                                   OutputIt output_begin,
+                                                                   Ref ref)
+{
+  using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
+
+  key_type keys[KeysPerThread];
+  auto const idx = load_keys<BlockSize>(first, keys);
+  if constexpr (CGSize > 1) {
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
+    auto const group = warp_tile<CGSize>{};
+#pragma unroll
+    for (int32_t i = 0; i < KeysPerThread; ++i) {
+      *(output_begin + idx + i * BlockSize) = ref.contains_coop(group, keys[i]);
+    }
+  } else {
+#pragma unroll
+    for (int32_t i = 0; i < KeysPerThread; ++i) {
+      *(output_begin + idx + i * BlockSize) = ref.contains(keys[i]);
+    }
+  }
+}
+
 template <int32_t CGSize, int32_t BlockSize, class InputIt, class OutputIt, class Ref>
 __device__ void contains_n_impl(InputIt first,
                                 cuco::detail::index_type n,

@@ -54,6 +54,12 @@ namespace cuco {
  * This changes the bit pattern: the skipped word's fingerprint bits are dropped, which slightly
  * raises the false-positive rate, and filters built with and without it are not interchangeable.
  * `contains` is about as fast as without it. No effect for blocks smaller than 32 bytes.
+ * @tparam AddKeysPerThread Number of keys that each thread processes in bulk `add`. A thread
+ * loads all its keys before the first update, so a larger value gives each warp more key loads
+ * in flight. This helps on GPUs with few resident warps for each SM. It does not change the bit
+ * pattern. Defaults to `4`.
+ * @tparam ContainsKeysPerThread Number of keys that each thread processes in bulk `contains`.
+ * A thread loads all its keys before the first lookup. Defaults to `4`.
  */
 template <class Key,
           class Hash                        = cuda::hash<Key>,
@@ -69,7 +75,9 @@ template <class Key,
           bool ConditionalAdd                  = false,
           bool EarlyExitContains               = false,
           bool PersistingL2Access              = false,
-          bool FastL2Add                       = false>
+          bool FastL2Add                       = false,
+          std::uint32_t AddKeysPerThread       = 4,
+          std::uint32_t ContainsKeysPerThread  = 4>
 using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         WordBytes,
                                                         WordsPerBlock,
@@ -81,7 +89,9 @@ using bloom_filter_policy = detail::bloom_filter_policy<Hash,
                                                         ConditionalAdd,
                                                         EarlyExitContains,
                                                         PersistingL2Access,
-                                                        FastL2Add>;
+                                                        FastL2Add,
+                                                        AddKeysPerThread,
+                                                        ContainsKeysPerThread>;
 
 /**
  * @brief Deprecated compatibility alias for the old parametric Bloom filter policy API.
@@ -126,6 +136,8 @@ using parametric_filter_policy =
                               ConditionalAdd,
                               EarlyExitContains,
                               PersistingL2Access,
-                              false>;
+                              false,
+                              4,
+                              4>;
 
 }  // namespace cuco
