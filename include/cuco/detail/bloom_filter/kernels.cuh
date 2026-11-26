@@ -131,7 +131,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_n_multi_key(InputIt first, Ref
   key_type keys[KeysPerThread];
   auto const idx = load_keys<BlockSize>(first, keys);
   if constexpr (CGSize > 1) {
-    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
     auto const group = warp_tile<CGSize>{};
 #pragma unroll
     for (int32_t i = 0; i < KeysPerThread; ++i) {
@@ -162,7 +162,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_n_multi_key(InputIt first
   key_type keys[KeysPerThread];
   auto const idx = load_keys<BlockSize>(first, keys);
   if constexpr (CGSize > 1) {
-    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
     auto const group = warp_tile<CGSize>{};
 #pragma unroll
     for (int32_t i = 0; i < KeysPerThread; ++i) {
