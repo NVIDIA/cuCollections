@@ -7,9 +7,11 @@
 
 #include <cuco/detail/equal_wrapper.cuh>
 #include <cuco/detail/open_addressing/constraints.cuh>
+#include <cuco/detail/pair/helpers.cuh>
 #include <cuco/detail/probing_scheme/probing_scheme_base.cuh>
 #include <cuco/detail/utility/assert.cuh>
 #include <cuco/detail/utility/cuda.cuh>
+#include <cuco/detail/utils.cuh>
 #include <cuco/detail/utils.hpp>
 #include <cuco/extent.cuh>
 #include <cuco/pair.cuh>
@@ -17,12 +19,16 @@
 
 #include <cuda/atomic>
 #include <cuda/iterator>
+#include <cuda/memory>
 #include <cuda/std/algorithm>
+#include <cuda/std/bit>
+#include <cuda/std/cstddef>
 #include <cuda/std/cstdint>
 #include <cuda/std/functional>
 #include <cuda/std/iterator>
 #include <cuda/std/numeric>
 #include <cuda/std/type_traits>
+#include <cuda/std/utility>
 #include <cuda/utility>
 #if defined(CUCO_HAS_CUDA_BARRIER)
 #include <cuda/barrier>
@@ -378,7 +384,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -437,7 +443,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -539,7 +545,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       for (auto i = 0; i < bucket_size; ++i) {
         auto const eq_res = this->predicate_.template operator()<is_insert::YES>(
@@ -611,7 +617,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -691,7 +697,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       for (auto& slot_content : bucket_slots) {
         auto const eq_res =
@@ -739,7 +745,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->template load_bucket<swaps_slot()>(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -803,7 +809,7 @@ class open_addressing_ref_impl
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->read_bucket(*probing_iter);
 
       for (auto i = 0; i < bucket_size; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
@@ -844,7 +850,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->read_bucket(*probing_iter);
 
       auto const state = [&]() {
         auto res = detail::equal_result::UNEQUAL;
@@ -889,7 +895,7 @@ class open_addressing_ref_impl
 
     while (true) {
       // TODO atomic_ref::load if insert operator is present
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->read_bucket(*probing_iter);
 
       for (auto i = 0; i < bucket_size; ++i) {
         switch (this->predicate_.template operator()<is_insert::NO>(
@@ -934,7 +940,7 @@ class open_addressing_ref_impl
     auto const init_idx = *probing_iter;
 
     while (true) {
-      auto const bucket_slots = storage_ref_[*probing_iter];
+      auto const bucket_slots = this->read_bucket(*probing_iter);
 
       auto const [state, intra_bucket_index] = [&]() {
         bucket_probing_results result{detail::equal_result::UNEQUAL, -1};
@@ -990,7 +996,7 @@ class open_addressing_ref_impl
       size_type count     = 0;
 
       while (true) {
-        auto const bucket_slots                = storage_ref_[*probing_iter];
+        auto const bucket_slots                = this->read_bucket(*probing_iter);
         cuda::std::int32_t equals[bucket_size] = {0};
         bool empty_found                       = false;
 
@@ -1035,7 +1041,7 @@ class open_addressing_ref_impl
     size_type count     = 0;
 
     while (true) {
-      auto const bucket_slots                = storage_ref_[*probing_iter];
+      auto const bucket_slots                = this->read_bucket(*probing_iter);
       cuda::std::int32_t equals[bucket_size] = {0};
       bool should_return                     = false;
 
@@ -1588,6 +1594,28 @@ class open_addressing_ref_impl
   }
 
   /**
+   * @brief Checks that the bucket at `probing_idx` lies inside the storage.
+   *
+   * Only active when `CUCO_DEBUG` is defined. The bucket loads read from `storage_ref_.data()`,
+   * so they do not pass the checks in the storage's `operator[]`.
+   *
+   * @param probing_idx The current probing index
+   */
+  __device__ constexpr void debug_assert_valid_bucket_index(
+    [[maybe_unused]] size_type probing_idx) const noexcept
+  {
+#if defined(CUCO_DEBUG)
+    if constexpr (cuda::std::is_signed_v<size_type>) {
+      CUCO_DEBUG_ASSERT(probing_idx >= size_type{0}, "Bucket access precedes storage");
+    }
+    CUCO_DEBUG_ASSERT(
+      probing_idx <= storage_ref_.capacity() and
+        static_cast<size_type>(bucket_size) <= storage_ref_.capacity() - probing_idx,
+      "Bucket access exceeds storage capacity");
+#endif
+  }
+
+  /**
    * @brief Gets a pointer to the slot at the given probing index and intra-bucket index.
    *
    * @param probing_idx The current probing index
@@ -1598,6 +1626,272 @@ class open_addressing_ref_impl
                                       cuda::std::int32_t intra_bucket_idx) const noexcept
   {
     return storage_ref_.data() + probing_idx + intra_bucket_idx;
+  }
+
+  /**
+   * @brief Indicates whether `attempt_insert` and `attempt_insert_stable` swap a slot as one word,
+   * as opposed to swapping its key.
+   *
+   * @return True if a slot is swapped as one word
+   */
+  [[nodiscard]] __device__ static constexpr bool swaps_slot() noexcept
+  {
+#if (__CUDA_ARCH__ >= 900)
+    return sizeof(value_type) <= 8 or cuco::detail::is_packable<value_type>();
+#else
+    return sizeof(value_type) <= 8;
+#endif
+  }
+
+  /**
+   * @brief Loads a slot that other threads may be modifying.
+   *
+   * Reads exactly the word the modifying operation swaps. The payload of a slot whose key is
+   * swapped on its own is not read and is returned as the empty value sentinel.
+   *
+   * @tparam SwapsSlot Whether the operation swaps a slot as one word, as opposed to swapping its
+   * key
+   *
+   * @param slot_ptr Pointer to the slot
+   *
+   * @return The slot content to probe and to pass as the expected value of the swap
+   */
+  template <bool SwapsSlot>
+  [[nodiscard]] __device__ value_type load_slot(value_type const* slot_ptr) const noexcept
+  {
+    if constexpr (SwapsSlot or not has_payload) {
+      return cuco::detail::weak_load(slot_ptr);
+    } else {
+      return {cuco::detail::weak_load(&slot_ptr->first), this->empty_value_sentinel()};
+    }
+  }
+
+  /**
+   * @brief Loads a bucket whose slots other threads may be modifying.
+   *
+   * @tparam SwapsSlot Whether the operation swaps a slot as one word, as opposed to swapping its
+   * key
+   *
+   * @param probing_idx The current probing index
+   *
+   * @return The bucket content
+   */
+  template <bool SwapsSlot>
+  [[nodiscard]] __device__ bucket_type load_bucket(size_type probing_idx) const noexcept
+  {
+    constexpr auto unit = load_unit<SwapsSlot>();
+    if constexpr (unit != 0) {
+      return this->template load_bucket_vectorized<unit>(probing_idx);
+    } else {
+      this->debug_assert_valid_bucket_index(probing_idx);
+      auto const* const slots = storage_ref_.data() + probing_idx;
+      return this->template load_bucket_per_slot<SwapsSlot>(
+        slots, cuda::std::make_index_sequence<bucket_size>{});
+    }
+  }
+
+  /**
+   * @brief Loads a bucket for a lookup (contains, find, count).
+   *
+   * Lookups must not run concurrently with modifying operations on the same container. This is the
+   * same contract as the plain bucket copy that lookups used before (see the TODOs on
+   * `atomic_ref::load` at the call sites). Thus the load does not race with a CAS, and its elements
+   * need not match the CAS width. It uses the widest vector load that the bucket alignment allows,
+   * for example one 256-bit load of two 16-byte slots on sm_100+. The weak asm load still keeps the
+   * compiler from splitting the bucket and loading slots again later.
+   *
+   * @param probing_idx The current probing index
+   *
+   * @return The bucket content, payloads included
+   */
+  [[nodiscard]] __device__ bucket_type read_bucket(size_type probing_idx) const noexcept
+  {
+    constexpr auto unit = load_unit<swaps_slot(), true>();
+    if constexpr (unit != 0) {
+      return this->template load_bucket_vectorized<unit>(probing_idx);
+    } else {
+      return storage_ref_[probing_idx];
+    }
+  }
+
+  /**
+   * @brief Width in bytes of one element of the vectorized bucket load, or 0 if there is none.
+   *
+   * Each element must be exactly the word that atomic operations on the slots swap or store:
+   * - a slot that is swapped as one word: the slot, or the aligned 32-bit word that holds a 1- or
+   *   2-byte slot, because libcu++ swaps 1- and 2-byte objects with a 32-bit CAS;
+   * - a slot whose key is swapped on its own: the key, if the payload has the same size and the
+   *   slot has no padding, because the payload is then swapped or stored at the same width.
+   *
+   * The bucket must also split into chunks that the storage alignment covers (see
+   * `max_load_bytes`). A bucket of less than 4 bytes is read as the aligned 32-bit word that holds
+   * it.
+   *
+   * A lookup does not race with a CAS (see `read_bucket`), so it only needs elements that tile the
+   * slots: 4 bytes for slots of up to 4 bytes, 8 bytes for 8- and 16-byte slots.
+   *
+   * @tparam SwapsSlot Whether the operation swaps a slot as one word
+   * @tparam Lookup Whether the load is for a lookup, which never races with a CAS
+   *
+   * @return The element width in bytes, or 0
+   */
+  template <bool SwapsSlot, bool Lookup = false>
+  [[nodiscard]] __device__ static constexpr cuda::std::size_t load_unit() noexcept
+  {
+    constexpr cuda::std::size_t slot_bytes   = sizeof(value_type);
+    constexpr cuda::std::size_t bucket_bytes = sizeof(bucket_type);
+    constexpr cuda::std::size_t unit         = [] {
+      if constexpr (Lookup) {
+        if constexpr (slot_bytes == 1 or slot_bytes == 2 or slot_bytes == 4) {
+          return cuda::std::size_t{4};
+        } else if constexpr (slot_bytes == 8 or slot_bytes == 16) {
+          return cuda::std::size_t{8};
+        } else {
+          return cuda::std::size_t{0};
+        }
+      } else if constexpr (SwapsSlot or not has_payload) {
+        if constexpr (slot_bytes <= 2) {
+          return cuda::std::size_t{4};
+        } else if constexpr (slot_bytes == 4 or slot_bytes == 8 or slot_bytes == 16) {
+          return slot_bytes;
+        } else {
+          return cuda::std::size_t{0};
+        }
+      } else {
+        constexpr auto key_bytes    = sizeof(key_type);
+        constexpr auto mapped_bytes = sizeof(cuda::std::declval<value_type const&>().second);
+        if constexpr (key_bytes == mapped_bytes and slot_bytes == 2 * key_bytes and
+                      (key_bytes == 4 or key_bytes == 8)) {
+          return key_bytes;
+        } else {
+          return cuda::std::size_t{0};
+        }
+      }
+    }();
+    if constexpr (unit == 0) {
+      return 0;
+    } else if constexpr (bucket_bytes < 4) {
+      // The bucket must sit inside one aligned 32-bit word.
+      return cuda::std::has_single_bit(bucket_bytes) ? unit : 0;
+    } else {
+      constexpr auto chunk = cuda::std::min<cuda::std::size_t>(max_load_bytes<unit>(),
+                                                               bucket_bytes & (~bucket_bytes + 1));
+      return chunk >= unit ? unit : 0;
+    }
+  }
+
+  /**
+   * @brief Widest single weak load for elements of `Unit` bytes.
+   *
+   * The hardware limit is 32 bytes on sm_100+ (`ld.global.v8.b32` / `ld.global.v4.b64`, PTX ISA
+   * 8.8) and 16 bytes otherwise. A 16-byte element has no 32-byte vector form. The load is never
+   * wider than the bucket alignment that the storage guarantees.
+   */
+  template <cuda::std::size_t Unit>
+  [[nodiscard]] __device__ static constexpr cuda::std::size_t max_load_bytes() noexcept
+  {
+#if (__CUDA_ARCH__ >= 1000) && (__cccl_ptx_isa >= 880)
+    constexpr cuda::std::size_t hardware_bytes = Unit <= 8 ? 32 : 16;
+#else
+    constexpr cuda::std::size_t hardware_bytes = 16;
+#endif
+    return cuda::std::min(hardware_bytes, cuco::detail::storage_alignment<storage_ref_type>::value);
+  }
+
+  /**
+   * @brief Loads a bucket with weak PTX vector loads whose elements are `Unit` bytes wide.
+   *
+   * Checks the address space once per bucket.
+   *
+   * @tparam Unit Element width in bytes, from `load_unit`
+   *
+   * @param probing_idx The current probing index
+   *
+   * @return The bucket content
+   */
+  template <cuda::std::size_t Unit>
+  [[nodiscard]] __device__ bucket_type load_bucket_vectorized(size_type probing_idx) const noexcept
+  {
+    constexpr cuda::std::size_t bucket_bytes = sizeof(bucket_type);
+    // A bucket of less than 4 bytes is read as the aligned 32-bit word that holds it.
+    constexpr cuda::std::size_t span = bucket_bytes < 4 ? 4 : bucket_bytes;
+    constexpr cuda::std::size_t chunk =
+      bucket_bytes < 4
+        ? 4
+        : cuda::std::min<cuda::std::size_t>(max_load_bytes<Unit>(), span & (~span + 1));
+    constexpr cuda::std::size_t num_words = span / Unit;
+
+    this->debug_assert_valid_bucket_index(probing_idx);
+    auto const* const slots = storage_ref_.data() + probing_idx;
+    auto const* const base  = bucket_bytes < 4
+                                ? cuda::align_down(reinterpret_cast<char const*>(slots), 4)
+                                : reinterpret_cast<char const*>(slots);
+    auto const byte_offset =
+      static_cast<cuda::std::uint32_t>(reinterpret_cast<char const*>(slots) - base);
+    CUCO_DEBUG_ASSERT(cuda::is_aligned(base, chunk),
+                      "Bucket storage is not aligned to storage_ref_type::alignment");
+    bool const global = cuda::device::is_address_from(slots, cuda::device::address_space::global);
+
+    cuco::detail::load_word_t<Unit> words[num_words];
+    cuda::static_for<span / chunk>([&](auto c) {
+      cuco::detail::weak_load_words<Unit, chunk>(
+        base + c() * chunk,
+        global,
+        *reinterpret_cast<cuco::detail::load_word_t<Unit>(*)[chunk / Unit]>(words +
+                                                                            c() * (chunk / Unit)));
+    });
+    return this->template bucket_from_words<Unit>(
+      words, byte_offset, cuda::std::make_index_sequence<bucket_size>{});
+  }
+
+  /**
+   * @brief Builds a bucket from loaded words without default-constructing or assigning slots.
+   */
+  template <cuda::std::size_t Unit, cuda::std::size_t NumWords, cuda::std::size_t... I>
+  [[nodiscard]] __device__ static bucket_type bucket_from_words(
+    cuco::detail::load_word_t<Unit> const (&words)[NumWords],
+    cuda::std::uint32_t byte_offset,
+    cuda::std::index_sequence<I...>) noexcept
+  {
+    return bucket_type{{slot_from_words<Unit, I>(words, byte_offset)...}};
+  }
+
+  /**
+   * @brief Extracts slot `I` of a bucket from loaded words.
+   */
+  template <cuda::std::size_t Unit, cuda::std::size_t I, cuda::std::size_t NumWords>
+  [[nodiscard]] __device__ static value_type slot_from_words(
+    cuco::detail::load_word_t<Unit> const (&words)[NumWords],
+    cuda::std::uint32_t byte_offset) noexcept
+  {
+    constexpr cuda::std::size_t slot_bytes = sizeof(value_type);
+    using slot_word                        = cuco::detail::packed_t<value_type>;
+    if constexpr (slot_bytes < Unit) {
+      // 1- or 2-byte slot inside a 32-bit word
+      auto const bit = (byte_offset + I * slot_bytes) % Unit * 8;
+      auto const idx = (byte_offset + I * slot_bytes) / Unit;
+      return cuco::detail::object_from_word<value_type>(static_cast<slot_word>(words[idx] >> bit));
+    } else if constexpr (slot_bytes == Unit) {
+      return cuco::detail::object_from_word<value_type>(words[I]);
+    } else {
+      // Key and payload loaded as two elements of the same width
+      static_assert(slot_bytes == 2 * Unit, "A slot is one or two load elements");
+      struct two_words {
+        cuco::detail::load_word_t<Unit> lo;
+        cuco::detail::load_word_t<Unit> hi;
+      };
+      return cuco::detail::object_from_word<value_type>(two_words{words[2 * I], words[2 * I + 1]});
+    }
+  }
+
+  /**
+   * @brief Loads a bucket one slot at a time, for slot layouts without a vectorized load.
+   */
+  template <bool SwapsSlot, cuda::std::size_t... I>
+  [[nodiscard]] __device__ bucket_type
+  load_bucket_per_slot(value_type const* slots, cuda::std::index_sequence<I...>) const noexcept
+  {
+    return bucket_type{{this->template load_slot<SwapsSlot>(slots + I)...}};
   }
 
   /**
