@@ -10,22 +10,71 @@
 
 #include <cuda/std/iterator>
 
-#include <cooperative_groups.h>
-
 #include <cstdint>
 
 namespace cuco::detail::bloom_filter_ns {
+
+/**
+ * @brief `Size`-thread tile of a 1-D thread block. Its shuffles and votes use the full-warp mask.
+ *
+ * All threads of the warp must reach each shuffle and each vote, so the bulk kernels do not
+ * branch around them.
+ *
+ * @tparam Size Threads per tile, a power of two up to the warp size
+ */
+template <uint32_t Size>
+struct warp_tile {
+  static constexpr uint32_t warp_size = cuco::detail::warp_size();  ///< Threads per warp
+  static_assert(Size > 1 && Size <= warp_size && (Size & (Size - 1)) == 0);
+
+  static constexpr uint32_t full_mask = 0xffffffffu;  ///< All lanes of the warp
+  static constexpr uint32_t tile_mask =
+    Size == warp_size ? full_mask : (1u << Size) - 1;  ///< Ballot bits of one tile
+
+  /// @return Rank of the calling thread in its tile
+  [[nodiscard]] __device__ uint32_t thread_rank() const noexcept { return threadIdx.x % Size; }
+
+  /**
+   * @brief Broadcasts `value` from tile rank `src` to the tile.
+   *
+   * @tparam T Shuffled type
+   * @param value Value of the calling thread
+   * @param src Source rank in the tile
+   * @return `value` of thread `src`
+   */
+  template <class T>
+  [[nodiscard]] __device__ T shfl(T value, uint32_t src) const noexcept
+  {
+    return __shfl_sync(full_mask, value, src, Size);
+  }
+
+  /**
+   * @brief Evaluates `predicate` for all threads of the tile.
+   *
+   * @param predicate Predicate of the calling thread
+   * @return `true` if `predicate` is true for all threads of the tile
+   */
+  [[nodiscard]] __device__ bool all(bool predicate) const noexcept
+  {
+    if constexpr (Size == warp_size) {
+      return __all_sync(full_mask, predicate);
+    } else {
+      auto const tile_base = threadIdx.x % warp_size / Size * Size;
+      return ((__ballot_sync(full_mask, predicate) >> tile_base) & tile_mask) == tile_mask;
+    }
+  }
+};
 
 CUCO_SUPPRESS_KERNEL_WARNINGS
 template <bool ConditionalAdd, int32_t CGSize, int32_t BlockSize, class InputIt, class Ref>
 __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
 {
-  namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
-    auto const idx = cuco::detail::global_thread_id();
-    auto group     = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
+    auto const idx   = cuco::detail::global_thread_id();
+    auto const group = warp_tile<CGSize>{};
     auto const is_full_tile =
       static_cast<cuco::detail::index_type>(blockIdx.x + 1) * BlockSize <= n;
     if (is_full_tile) {
@@ -58,22 +107,17 @@ __device__ void contains_n_impl(InputIt first,
                                 OutputIt output_begin,
                                 Ref ref)
 {
-  namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
-    auto const idx = cuco::detail::global_thread_id();
-    auto group     = cg::tiled_partition<CGSize>(cg::this_thread_block());
-    auto const is_full_tile =
-      static_cast<cuco::detail::index_type>(blockIdx.x + 1) * BlockSize <= n;
-    if (is_full_tile) {
-      key_type const& key   = *(first + idx);
-      *(output_begin + idx) = ref.contains_coop(group, key);
-    } else {
-      auto const is_valid = idx < n;
-      auto const result   = ref.contains_coop(group, first, idx, is_valid);
-      if (is_valid) { *(output_begin + idx) = result; }
-    }
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
+    auto const idx   = cuco::detail::global_thread_id();
+    auto const group = warp_tile<CGSize>{};
+    // A thread past the end looks up the last key and does not write a result.
+    auto const in_range = idx < n;
+    key_type const& key = *(first + (in_range ? idx : n - 1));
+    auto const result   = ref.contains_coop(group, key);
+    if (in_range) { *(output_begin + idx) = result; }
   } else {
     auto const idx = cuco::detail::global_thread_id();
     if (idx < n) {
@@ -102,12 +146,12 @@ template <bool ConditionalAdd,
 CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   InputIt first, cuco::detail::index_type n, StencilIt stencil, Predicate pred, Ref ref)
 {
-  namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
     auto const idx      = cuco::detail::global_thread_id();
-    auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    auto const group    = warp_tile<CGSize>{};
     auto const in_range = idx < n;
     auto const is_valid = in_range && pred(*(stencil + idx));
     ref.template add_coop<ConditionalAdd>(group, first, idx, is_valid);
@@ -134,12 +178,12 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
                                                             OutputIt output_begin,
                                                             Ref ref)
 {
-  namespace cg   = cooperative_groups;
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
     auto const idx      = cuco::detail::global_thread_id();
-    auto group          = cg::tiled_partition<CGSize>(cg::this_thread_block());
+    auto const group    = warp_tile<CGSize>{};
     auto const in_range = idx < n;
     auto const is_valid = in_range && pred(*(stencil + idx));
     auto const result   = ref.contains_coop(group, first, idx, is_valid);
@@ -158,3 +202,17 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
 }
 
 }  // namespace cuco::detail::bloom_filter_ns
+
+namespace cuco::detail {
+
+/**
+ * @brief Specialization of `cuco::detail::tile_size` for `bloom_filter_ns::warp_tile`.
+ *
+ * @tparam Size Threads per tile
+ */
+template <uint32_t Size>
+struct tile_size<bloom_filter_ns::warp_tile<Size>> {
+  static constexpr uint32_t value = Size;  ///< Threads per tile
+};
+
+}  // namespace cuco::detail

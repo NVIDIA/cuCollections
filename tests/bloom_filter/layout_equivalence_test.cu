@@ -28,7 +28,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <tuple>
 #include <type_traits>
+#include <utility>
 
 TEST_CASE("bloom_filter: word byte selection", "")
 {
@@ -124,6 +126,86 @@ TEMPLATE_TEST_CASE_SIG(
 
   REQUIRE(thrust::equal(
     thrust::device, result_default.begin(), result_default.end(), result_alt.begin()));
+}
+
+namespace {
+// 32-bit words, `Words` words per block. Each test sets the layouts, the pattern bits and
+// FastL2Add.
+template <std::uint32_t Words,
+          std::uint32_t PatternBits,
+          std::uint32_t AddH,
+          std::uint32_t AddV,
+          std::uint32_t ContainsH,
+          std::uint32_t ContainsV,
+          bool FastL2Add = false>
+using layout_policy = cuco::bloom_filter_policy<int32_t,
+                                                cuda::hash<int32_t>,
+                                                4,
+                                                Words,
+                                                PatternBits,
+                                                AddH,
+                                                AddV,
+                                                ContainsH,
+                                                ContainsV,
+                                                false,
+                                                false,
+                                                false,
+                                                FastL2Add>;
+}  // namespace
+
+// Reference: one thread per key for add and contains. Alternatives mix cooperative add and
+// contains layouts, several bits per word, uneven pattern bits and 64-byte blocks.
+using mixed_layout_cases = std::tuple<
+  std::pair<layout_policy<8, 16, 1, 8, 1, 8>, layout_policy<8, 16, 4, 2, 2, 2>>,
+  std::pair<layout_policy<8, 16, 1, 8, 1, 8>, layout_policy<8, 16, 8, 1, 4, 1>>,
+  std::pair<layout_policy<8, 12, 1, 8, 1, 8>, layout_policy<8, 12, 8, 1, 2, 4>>,
+  std::pair<layout_policy<8, 12, 1, 8, 1, 8>, layout_policy<8, 12, 2, 2, 4, 2>>,
+  std::pair<layout_policy<16, 16, 1, 16, 1, 16>, layout_policy<16, 16, 16, 1, 4, 4>>,
+  std::pair<layout_policy<16, 16, 1, 16, 1, 16>, layout_policy<16, 16, 8, 1, 2, 8>>,
+  std::pair<layout_policy<16, 32, 1, 16, 1, 16>, layout_policy<16, 32, 16, 1, 2, 8>>,
+  std::pair<layout_policy<16, 16, 1, 16, 1, 16, true>, layout_policy<16, 16, 16, 1, 4, 4, true>>>;
+
+TEMPLATE_LIST_TEST_CASE("bloom_filter: bitset and contains are invariant under mixed layouts",
+                        "",
+                        mixed_layout_cases)
+{
+  using Key          = int32_t;
+  using filter_ref_t = cuco::bloom_filter<Key,
+                                          cuco::extent<std::size_t>,
+                                          cuda::thread_scope_device,
+                                          typename TestType::first_type>;
+  using filter_alt_t = cuco::bloom_filter<Key,
+                                          cuco::extent<std::size_t>,
+                                          cuda::thread_scope_device,
+                                          typename TestType::second_type>;
+
+  constexpr int32_t num_blocks = 1'000;
+  constexpr int32_t num_keys   = 2'000;
+  constexpr int32_t num_probe  = 4'000;  // inserted keys first, then disjoint ones
+
+  auto filter_ref = filter_ref_t{num_blocks};
+  auto filter_alt = filter_alt_t{num_blocks};
+
+  thrust::device_vector<Key> keys(num_keys);
+  thrust::sequence(thrust::device, keys.begin(), keys.end());
+  filter_ref.add(keys.begin(), keys.end());
+  filter_alt.add(keys.begin(), keys.end());
+
+  auto const total_words =
+    static_cast<std::size_t>(filter_ref.block_extent()) * filter_ref_t::words_per_block;
+  REQUIRE(thrust::equal(
+    thrust::device, filter_ref.data(), filter_ref.data() + total_words, filter_alt.data()));
+
+  thrust::device_vector<Key> probe(num_probe);
+  thrust::sequence(thrust::device, probe.begin(), probe.end());
+  thrust::device_vector<bool> result_ref(num_probe), result_alt(num_probe);
+  filter_ref.contains(probe.begin(), probe.end(), result_ref.begin());
+  filter_alt.contains(probe.begin(), probe.end(), result_alt.begin());
+  REQUIRE(thrust::equal(thrust::device, result_ref.begin(), result_ref.end(), result_alt.begin()));
+  REQUIRE(thrust::all_of(
+    thrust::device, result_alt.begin(), result_alt.begin() + num_keys, [] __device__(bool b) {
+      return b;
+    }));
 }
 
 TEST_CASE("bloom_filter: bitset is invariant under dynamic vs static cuco::extent", "")
@@ -230,29 +312,6 @@ TEST_CASE("bloom_filter: contains results are invariant under EarlyExitContains"
 }
 
 namespace {
-// 32-bit words, `Words` words per block. Each test sets the layouts, the pattern bits and
-// FastL2Add.
-template <std::uint32_t Words,
-          std::uint32_t PatternBits,
-          std::uint32_t AddH,
-          std::uint32_t AddV,
-          std::uint32_t ContainsH,
-          std::uint32_t ContainsV,
-          bool FastL2Add>
-using layout_policy = cuco::bloom_filter_policy<int32_t,
-                                                cuda::hash<int32_t>,
-                                                4,
-                                                Words,
-                                                PatternBits,
-                                                AddH,
-                                                AddV,
-                                                ContainsH,
-                                                ContainsV,
-                                                false,
-                                                false,
-                                                false,
-                                                FastL2Add>;
-
 template <std::uint32_t AddH, std::uint32_t AddV, std::uint32_t ContainsH, std::uint32_t ContainsV>
 using skip_policy = layout_policy<8, 8, AddH, AddV, ContainsH, ContainsV, true>;
 }  // namespace
