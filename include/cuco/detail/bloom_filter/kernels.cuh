@@ -20,15 +20,16 @@ namespace cuco::detail::bloom_filter_ns {
  * All threads of the warp must reach each shuffle and each vote, so the bulk kernels do not
  * branch around them.
  *
- * @tparam Size Threads per tile, a power of two up to 32
+ * @tparam Size Threads per tile, a power of two up to the warp size
  */
 template <uint32_t Size>
 struct warp_tile {
-  static_assert(Size > 1 && Size <= 32 && (Size & (Size - 1)) == 0);
+  static constexpr uint32_t warp_size = cuco::detail::warp_size();  ///< Threads per warp
+  static_assert(Size > 1 && Size <= warp_size && (Size & (Size - 1)) == 0);
 
   static constexpr uint32_t full_mask = 0xffffffffu;  ///< All lanes of the warp
   static constexpr uint32_t tile_mask =
-    Size == 32 ? full_mask : (1u << Size) - 1;  ///< Ballot bits of one tile
+    Size == warp_size ? full_mask : (1u << Size) - 1;  ///< Ballot bits of one tile
 
   /// @return Rank of the calling thread in its tile
   [[nodiscard]] __device__ uint32_t thread_rank() const noexcept { return threadIdx.x % Size; }
@@ -55,10 +56,10 @@ struct warp_tile {
    */
   [[nodiscard]] __device__ bool all(bool predicate) const noexcept
   {
-    if constexpr (Size == 32) {
+    if constexpr (Size == warp_size) {
       return __all_sync(full_mask, predicate);
     } else {
-      auto const tile_base = threadIdx.x % 32 / Size * Size;
+      auto const tile_base = threadIdx.x % warp_size / Size * Size;
       return ((__ballot_sync(full_mask, predicate) >> tile_base) & tile_mask) == tile_mask;
     }
   }
@@ -71,7 +72,7 @@ __device__ void add_n_impl(InputIt first, cuco::detail::index_type n, Ref ref)
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
-    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
     auto const idx   = cuco::detail::global_thread_id();
     auto const group = warp_tile<CGSize>{};
     auto const is_full_tile =
@@ -184,7 +185,7 @@ __device__ void contains_n_impl(InputIt first,
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
-    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
     auto const idx   = cuco::detail::global_thread_id();
     auto const group = warp_tile<CGSize>{};
     // A thread past the end looks up the last key and does not write a result.
@@ -223,7 +224,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void add_if_n(
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
-    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
     auto const idx      = cuco::detail::global_thread_id();
     auto const group    = warp_tile<CGSize>{};
     auto const in_range = idx < n;
@@ -255,7 +256,7 @@ CUCO_KERNEL __launch_bounds__(BlockSize) void contains_if_n(InputIt first,
   using key_type = typename cuda::std::iterator_traits<InputIt>::value_type;
 
   if constexpr (CGSize > 1) {
-    static_assert(BlockSize % 32 == 0, "warp_tile needs full warps");
+    static_assert(BlockSize % cuco::detail::warp_size() == 0, "warp_tile needs full warps");
     auto const idx      = cuco::detail::global_thread_id();
     auto const group    = warp_tile<CGSize>{};
     auto const in_range = idx < n;
