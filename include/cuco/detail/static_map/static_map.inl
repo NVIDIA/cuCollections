@@ -1022,7 +1022,7 @@ void static_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stora
                                                          RefType>;
 
     int32_t const max_op_grid_size =
-      cuco::detail::max_occupancy_grid_size(shmem_block_size, insert_or_apply_shmem_fn_ptr);
+      cuco::detail::max_occupancy_grid_size(shmem_block_size, insert_or_apply_shmem_fn_ptr, stream);
 
     int32_t const shmem_default_grid_size =
       cuco::detail::grid_size(num, CGSize, cuco::detail::default_stride(), shmem_block_size);
