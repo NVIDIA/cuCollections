@@ -117,3 +117,43 @@ TEMPLATE_TEST_CASE_SIG("dynamic_map: unique sequence",
     REQUIRE(map.size() == 2 * num_keys);
   }
 }
+
+TEMPLATE_TEST_CASE_SIG("dynamic_map: small initial capacity grows on insert",
+                       "",
+                       ((typename Key, typename T), Key, T),
+                       (int32_t, int32_t),
+                       (int64_t, int64_t))
+{
+  // The initial submap's load-factor capacity is below the dynamic map's minimum insert size, so
+  // reserve() must add submaps rather than overfill the first one.
+  constexpr std::size_t initial_capacity{1'000};
+  constexpr std::size_t num_keys{50'000};
+
+  cuco::dynamic_map<Key, T> map{
+    initial_capacity, cuco::empty_key<Key>{-1}, cuco::empty_value<T>{-1}};
+
+  thrust::device_vector<Key> d_keys(num_keys);
+  thrust::sequence(thrust::device, d_keys.begin(), d_keys.end());
+  thrust::device_vector<bool> d_contained(num_keys);
+
+  auto pairs_begin =
+    cuda::make_transform_iterator(cuda::make_counting_iterator<int>(0),
+                                  cuda::proclaim_return_type<cuco::pair<Key, T>>(
+                                    [] __device__(auto i) { return cuco::pair<Key, T>(i, i); }));
+
+  SECTION("insert")
+  {
+    map.insert(pairs_begin, pairs_begin + num_keys);
+    REQUIRE(map.size() == num_keys);
+  }
+
+  SECTION("insert_or_assign")
+  {
+    map.insert_or_assign(pairs_begin, pairs_begin + num_keys);
+    REQUIRE(map.size() == num_keys);
+  }
+
+  REQUIRE(map.capacity() > initial_capacity);
+  map.contains(d_keys.begin(), d_keys.end(), d_contained.begin());
+  REQUIRE(cuco::test::all_of(d_contained.begin(), d_contained.end(), cuda::std::identity{}));
+}
