@@ -333,8 +333,10 @@ void dynamic_map<Key, T, Extent, Scope, KeyEqual, ProbingScheme, Allocator, Stor
       capacity_ *= 2;
     }
 
-    auto const usable_capacity =
-      static_cast<size_type>(max_load_factor_ * submap_capacity) - min_insert_size_;
+    // A submap whose load-factor capacity is below `min_insert_size_` contributes nothing. The
+    // unsigned subtraction must not wrap, or reserve() stops without growing the map.
+    auto const max_size        = static_cast<size_type>(max_load_factor_ * submap_capacity);
+    auto const usable_capacity = max_size > min_insert_size_ ? max_size - min_insert_size_ : 0;
     if (usable_capacity >= n) { break; }
     n -= usable_capacity;
     submap_idx++;
