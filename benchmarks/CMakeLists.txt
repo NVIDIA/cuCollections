@@ -67,6 +67,11 @@ ConfigureBench(STATIC_MULTIMAP_BENCH
   static_multimap/count_bench.cu)
 
 ###################################################################################################
+# - bulk multimap benchmarks ----------------------------------------------------------------------
+ConfigureBench(BULK_MULTIMAP_BENCH
+  bulk_multimap/bulk_multimap_bench.cu)
+
+###################################################################################################
 # - dynamic_map benchmarks ------------------------------------------------------------------------
 ConfigureBench(DYNAMIC_MAP_BENCH
   dynamic_map/insert_bench.cu
