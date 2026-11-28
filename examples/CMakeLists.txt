@@ -36,6 +36,8 @@ ConfigureExample(STATIC_MAP_COUNT_BY_KEY_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/st
 ConfigureExample(STATIC_MAP_PREALLOCATED_MEMORY_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/preallocated_memory_example.cu")
 ConfigureExample(STATIC_MAP_HETEROGENEOUS_LOOKUP_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_map/heterogeneous_lookup_example.cu")
 ConfigureExample(STATIC_MULTIMAP_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/static_multimap/host_bulk_example.cu")
+
+ConfigureExample(BULK_STATIC_MULTIMAP_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bulk_static_multimap/host_bulk_example.cu")
 ConfigureExample(HYPERLOGLOG_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/hyperloglog/host_bulk_example.cu")
 ConfigureExample(HYPERLOGLOG_DEVICE_REF_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/hyperloglog/device_ref_example.cu")
 ConfigureExample(BLOOM_FILTER_HOST_BULK_EXAMPLE "${CMAKE_CURRENT_SOURCE_DIR}/bloom_filter/host_bulk_example.cu")
